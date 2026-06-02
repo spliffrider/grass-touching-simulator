@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { GRASS_TIERS, getGrassTier, getNextGrassTier } from "../data/grass-tiers";
 import { MILESTONES } from "../data/milestones";
 import { SEED_SHOP_ITEMS, getSeedDropChance } from "../data/seed-shop";
 import { UPGRADES, canUnlockUpgrade, getUpgradeCost } from "../data/upgrades";
@@ -699,6 +700,7 @@ export class GameScene extends Phaser.Scene {
 
     const stats = getRuntimeStats(this.state);
     const touchedTrait = tile.trait;
+    const touchedTier = getGrassTier(tile.tier);
     const touch = touchTile(tile, this.state, stats, Date.now());
 
     if (touch.gained === 0) {
@@ -710,7 +712,15 @@ export class GameScene extends Phaser.Scene {
 
     this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     this.refreshTile(tile);
-    this.popAtTile(tile, touch.isCrit ? `CRIT x${touch.critMultiplier.toFixed(1)} +${touch.gained}` : `+${touch.gained}`, touch.isCrit ? "#ffef78" : "#f9ffe5");
+    this.popAtTile(
+      tile,
+      touch.isCrit
+        ? `CRIT x${touch.critMultiplier.toFixed(1)} +${touch.gained}`
+        : touchedTier.id === "normal"
+          ? `+${touch.gained}`
+          : `${touchedTier.label} +${touch.gained}`,
+      touch.isCrit ? "#ffef78" : touchedTier.id === "normal" ? "#f9ffe5" : "#dfffc8",
+    );
     this.tryDropSeed(tile, touchedTrait, stats);
     this.cameras.main.shake(touch.isCrit ? 140 : 70, touch.isCrit ? 0.004 : 0.0013);
     this.audio.play(touch.isCrit ? "crit" : "touch");
@@ -775,6 +785,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const touchedTrait = tile.trait;
+    const touchedTier = getGrassTier(tile.tier);
     const touch = touchTile(tile, this.state, stats, Date.now());
     if (touch.gained === 0) {
       return;
@@ -782,7 +793,15 @@ export class GameScene extends Phaser.Scene {
 
     this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     this.refreshTile(tile);
-    this.popAtTile(tile, touch.isCrit ? `sprinkler CRIT +${touch.gained}` : `sprinkler +${touch.gained}`, touch.isCrit ? "#ffef78" : "#d7fff2");
+    this.popAtTile(
+      tile,
+      touch.isCrit
+        ? `sprinkler CRIT +${touch.gained}`
+        : touchedTier.id === "normal"
+          ? `sprinkler +${touch.gained}`
+          : `${touchedTier.label} +${touch.gained}`,
+      touch.isCrit ? "#ffef78" : "#d7fff2",
+    );
     this.audio.play(touch.isCrit ? "crit" : "touch");
     saveGame(this.state);
   }
@@ -794,18 +813,31 @@ export class GameScene extends Phaser.Scene {
     }
 
     const isGrown = tile.grassState === "grown";
-    const grassTexture = tile.trait === "lush" ? "grass-lush" : tile.trait === "dewy" ? "grass-dewy" : "grass-normal";
+    const tier = getGrassTier(tile.tier);
+    const grassTexture = this.getGrassTextureKey(tile);
 
     view.grass.setVisible(isGrown);
     view.grass.setTexture(grassTexture);
     view.grass.setScale(this.boardScale * this.getGrassScale(tile));
     view.grass.setAlpha(1);
-    view.label.setText(isGrown ? (tile.trait === "normal" ? "" : tile.trait) : "...");
+    view.label.setText(isGrown ? this.getTileLabel(tile, tier.label) : "...");
     view.base.setTexture(isGrown ? "tile-dirt" : "tile-stubble");
   }
 
   private getGrassScale(tile: FieldTile): number {
-    return tile.trait === "lush" ? 1.06 : 1;
+    const tierScale = tile.tier === "golden" ? 1.09 : tile.tier === "clover" ? 1.06 : tile.tier === "thick" ? 1.03 : 1;
+    return (tile.trait === "lush" ? 1.06 : 1) * tierScale;
+  }
+
+  private getGrassTextureKey(tile: FieldTile): string {
+    const tier = getGrassTier(tile.tier).id;
+    const trait = tile.trait === "normal" ? "" : `-${tile.trait}`;
+    return `grass-${tier}${trait}`;
+  }
+
+  private getTileLabel(tile: FieldTile, tierLabel: string): string {
+    const parts = [tierLabel, tile.trait === "normal" ? "" : tile.trait].filter(Boolean);
+    return parts.join(" ");
   }
 
   private playTouchFeedback(tile: FieldTile, touchedTrait = tile.trait, isCrit = false): void {
@@ -997,9 +1029,11 @@ export class GameScene extends Phaser.Scene {
 
     this.createDirtTexture("tile-dirt", 0x8a6139, 0x6b4529);
     this.createDirtTexture("tile-stubble", 0x6f4c2f, 0x4c301f, true);
-    this.createGrassTexture("grass-normal", [0x2f8436, 0x3fa244, 0x58bd4f, 0x75d35d], false, false);
-    this.createGrassTexture("grass-dewy", [0x338e4b, 0x45ad62, 0x75d894, 0xa9f2bc], true, false);
-    this.createGrassTexture("grass-lush", [0x1f6f32, 0x2d9340, 0x4fc45b, 0x7be06a], false, true);
+    for (const tier of GRASS_TIERS) {
+      this.createGrassTexture(`grass-${tier.id}`, tier.colors, false, false);
+      this.createGrassTexture(`grass-${tier.id}-dewy`, brightenColors(tier.colors, 0x264c55), true, false);
+      this.createGrassTexture(`grass-${tier.id}-lush`, brightenColors(tier.colors, 0x173d1f), false, true);
+    }
     this.createParticleTexture("grass-fleck", [0xb4f47a, 0x6edb58, 0x2f8436]);
     this.createParticleTexture("dew-fleck", [0xd7fff2, 0xa9f2bc, 0x75d894]);
     this.createParticleTexture("dust-fleck", [0xc7975d, 0x8a6139, 0x6f4c2f]);
@@ -1111,6 +1145,7 @@ export class GameScene extends Phaser.Scene {
 
   private refreshUi(): void {
     const nextMilestone = MILESTONES.find((milestone) => !this.state.reachedMilestones.includes(milestone.id));
+    const nextTier = getNextGrassTier(this.state);
     const compact = this.scale.width < 620;
     const resourceSeparator = compact ? "\n" : " | ";
 
@@ -1126,9 +1161,14 @@ export class GameScene extends Phaser.Scene {
     this.skillResourceText.setText(`Grass Touches: ${Math.floor(this.state.grassTouches)}`);
     this.refreshSeedShop();
     this.milestoneText.setText(
-      nextMilestone
-        ? `Next surface spread: ${nextMilestone.name} at ${nextMilestone.requiredLifetimeTouches} lifetime touches`
-        : "All prototype surface spreads discovered.",
+      [
+        nextMilestone
+          ? `Next surface spread: ${nextMilestone.name} at ${nextMilestone.requiredLifetimeTouches} lifetime touches`
+          : "All prototype surface spreads discovered.",
+        nextTier ? `Next grass tier: ${nextTier.name} at ${nextTier.unlockAtLifetimeTouches} lifetime touches` : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
     );
     this.milestoneText.setPosition(26, this.resourceText.y + this.resourceText.height + 12);
 
@@ -1380,4 +1420,16 @@ export class GameScene extends Phaser.Scene {
     this.milestoneText.setText(message);
     this.time.delayedCall(duration, () => this.refreshUi());
   }
+}
+
+function brightenColors(colors: number[], tint: number): number[] {
+  return colors.map((color) => blendColor(color, tint, 0.32));
+}
+
+function blendColor(color: number, tint: number, amount: number): number {
+  const red = Math.round(((color >> 16) & 0xff) * (1 - amount) + ((tint >> 16) & 0xff) * amount);
+  const green = Math.round(((color >> 8) & 0xff) * (1 - amount) + ((tint >> 8) & 0xff) * amount);
+  const blue = Math.round((color & 0xff) * (1 - amount) + (tint & 0xff) * amount);
+
+  return (red << 16) + (green << 8) + blue;
 }

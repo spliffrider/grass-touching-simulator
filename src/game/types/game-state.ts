@@ -4,11 +4,14 @@ export type GrassState = "grown" | "regrowing";
 
 export type TileTrait = "normal" | "dewy" | "lush";
 
+export type GrassTierId = "normal" | "thick" | "clover" | "golden";
+
 export interface FieldTile {
   x: number;
   y: number;
   grassState: GrassState;
   trait: TileTrait;
+  tier: GrassTierId;
   regrowEndsAt: number;
   baseTouchValue: number;
   baseRegrowMs: number;

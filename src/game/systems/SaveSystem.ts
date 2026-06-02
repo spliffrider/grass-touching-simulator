@@ -1,4 +1,5 @@
 import { createInitialState } from "./FieldSystem";
+import { getGrassTier } from "../data/grass-tiers";
 import type { GameState } from "../types/game-state";
 
 const SAVE_KEY = "grass-touching-simulator.save.v1";
@@ -18,10 +19,16 @@ export function loadGame(): GameState {
   try {
     const parsed = JSON.parse(rawSave) as GameState;
     const initial = createInitialState();
+    const field = parsed.field ?? initial.field;
+    for (const tile of Object.values(field)) {
+      tile.tier ??= "normal";
+      tile.baseTouchValue = getGrassTier(tile.tier).touchValue;
+    }
+
     return {
       ...initial,
       ...parsed,
-      field: parsed.field ?? initial.field,
+      field,
       upgrades: parsed.upgrades ?? {},
       seeds: parsed.seeds ?? 0,
       lifetimeSeeds: parsed.lifetimeSeeds ?? 0,
