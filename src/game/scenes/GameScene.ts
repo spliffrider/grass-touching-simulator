@@ -224,7 +224,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.skillStatusText = this.add
-      .text(0, 0, "Hover a skill to inspect it. Upgrade from the info box.", {
+      .text(0, 0, "Hover a skill to inspect it. Click a skill or Upgrade to buy.", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "16px",
         color: "#f7ffe8",
@@ -269,7 +269,7 @@ export class GameScene extends Phaser.Scene {
 
       container.add([bg, icon, level]);
       bg.on("pointerover", () => this.previewSkill(upgrade.id));
-      bg.on("pointerdown", () => this.previewSkill(upgrade.id));
+      bg.on("pointerdown", () => this.upgradeSkill(upgrade.id));
       this.skillNodeViews.set(upgrade.id, { upgradeId: upgrade.id, container, bg, icon, level });
       this.skillRoot.add(container);
     }
@@ -327,7 +327,7 @@ export class GameScene extends Phaser.Scene {
     this.skillTitleText.setPosition(24, 24);
     this.skillResourceText.setPosition(26, shortLandscape ? 62 : 78);
     this.skillStatusText.setText(
-      this.hasTouchScreen() ? "Tap a skill to inspect it. Upgrade from the info box." : "Hover a skill to inspect it. Upgrade from the info box.",
+      this.hasTouchScreen() ? "Tap a skill to upgrade it. The info box shows details." : "Hover a skill to inspect it. Click a skill or Upgrade to buy.",
     );
     this.skillStatusText.setPosition(
       shortLandscape ? this.scale.width / 2 + 20 : this.scale.width / 2,
@@ -512,6 +512,13 @@ export class GameScene extends Phaser.Scene {
 
   private previewSkill(upgradeId: string): void {
     this.selectedSkillId = upgradeId;
+    this.refreshUi();
+  }
+
+  private upgradeSkill(upgradeId: string): void {
+    this.selectedSkillId = upgradeId;
+    const upgraded = this.buyUpgrade(upgradeId);
+    this.bumpSkillNode(upgradeId, upgraded);
     this.refreshUi();
   }
 
@@ -1303,8 +1310,8 @@ export class GameScene extends Phaser.Scene {
       if (this.skillTreeOpen) {
         this.skillStatusText.setText(
           this.hasTouchScreen()
-            ? "Tap a skill to inspect it. Upgrade from the info box."
-            : "Hover a skill to inspect it. Upgrade from the info box.",
+            ? "Tap a skill to upgrade it. The info box shows details."
+            : "Hover a skill to inspect it. Click a skill or Upgrade to buy.",
         );
       }
     });
