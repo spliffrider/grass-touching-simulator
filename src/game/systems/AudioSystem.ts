@@ -53,30 +53,17 @@ export class AudioSystem {
 
   private playGrassTouch(): void {
     const now = this.now();
-    const noise = this.createNoise(0.12);
-    const filter = this.context!.createBiquadFilter();
-    const gain = this.context!.createGain();
-
-    filter.type = "bandpass";
-    filter.frequency.setValueAtTime(900 + Math.random() * 500, now);
-    filter.Q.value = 0.85;
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.14, now + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.13);
-
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.master!);
-    noise.start(now);
-    noise.stop(now + 0.14);
-
-    this.playTone(230 + Math.random() * 60, 0.035, 0.035, "triangle", now + 0.015);
+    this.playNoiseSweep(0.16, 720 + Math.random() * 420, 0.13, now);
+    this.playNoiseSweep(0.08, 1900 + Math.random() * 900, 0.055, now + 0.018);
+    this.playTone(120 + Math.random() * 24, 0.045, 0.05, "sine", now);
+    this.playTone(245 + Math.random() * 95, 0.05, 0.032, "triangle", now + 0.018);
   }
 
   private playRegrow(): void {
     const now = this.now();
-    this.playTone(420, 0.08, 0.045, "sine", now);
-    this.playTone(610, 0.06, 0.03, "sine", now + 0.045);
+    this.playNoiseSweep(0.11, 1250 + Math.random() * 350, 0.035, now);
+    this.playTone(390 + Math.random() * 40, 0.08, 0.045, "sine", now);
+    this.playTone(610 + Math.random() * 70, 0.065, 0.03, "sine", now + 0.045);
   }
 
   private playUpgrade(): void {
@@ -118,6 +105,26 @@ export class AudioSystem {
     gain.connect(this.master!);
     oscillator.start(startAt);
     oscillator.stop(startAt + duration + 0.02);
+  }
+
+  private playNoiseSweep(duration: number, frequency: number, volume: number, startAt: number): void {
+    const noise = this.createNoise(duration);
+    const filter = this.context!.createBiquadFilter();
+    const gain = this.context!.createGain();
+
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(frequency, startAt);
+    filter.frequency.exponentialRampToValueAtTime(Math.max(90, frequency * 0.58), startAt + duration);
+    filter.Q.value = 0.9;
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.master!);
+    noise.start(startAt);
+    noise.stop(startAt + duration + 0.01);
   }
 
   private createNoise(duration: number): AudioBufferSourceNode {

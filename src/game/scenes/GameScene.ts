@@ -85,6 +85,7 @@ export class GameScene extends Phaser.Scene {
 
     for (const tile of regrown) {
       this.refreshTile(tile);
+      this.playRegrowFeedback(tile);
       this.popAtTile(tile, tile.trait === "lush" ? "lush" : tile.trait === "dewy" ? "dew" : "grass", "#e7ffd1");
     }
 
@@ -455,13 +456,15 @@ export class GameScene extends Phaser.Scene {
 
     if (gained === 0) {
       this.popAtTile(tile, "regrowing", "#fff2b2");
+      this.playBlockedTileFeedback(tile);
       this.audio.play("blocked");
       return;
     }
 
+    this.playTouchFeedback(tile);
     this.refreshTile(tile);
     this.popAtTile(tile, `+${gained}`, "#f9ffe5");
-    this.cameras.main.shake(55, 0.0018);
+    this.cameras.main.shake(70, 0.0013);
     this.audio.play("touch");
     saveGame(this.state);
   }
@@ -478,8 +481,152 @@ export class GameScene extends Phaser.Scene {
     view.grass.setVisible(isGrown);
     view.grass.setTexture(grassTexture);
     view.grass.setScale(tile.trait === "lush" ? 1.06 : 1);
+    view.grass.setAlpha(1);
     view.label.setText(isGrown ? (tile.trait === "normal" ? "" : tile.trait) : "...");
     view.base.setTexture(isGrown ? "tile-dirt" : "tile-stubble");
+  }
+
+  private playTouchFeedback(tile: FieldTile): void {
+    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    if (!view) {
+      return;
+    }
+
+    const x = view.base.x;
+    const y = view.base.y;
+    const fleckTexture = tile.trait === "dewy" ? "dew-fleck" : "grass-fleck";
+    const grassGhost = this.add
+      .image(x, y, view.grass.texture.key)
+      .setScale(view.grass.scaleX, view.grass.scaleY)
+      .setAlpha(0.95)
+      .setDepth(33);
+
+    this.tweens.add({
+      targets: grassGhost,
+      scaleX: grassGhost.scaleX * 1.28,
+      scaleY: grassGhost.scaleY * 0.62,
+      alpha: 0,
+      y: y + 5,
+      duration: 170,
+      ease: "Back.easeIn",
+      onComplete: () => grassGhost.destroy(),
+    });
+
+    this.tweens.add({
+      targets: view.base,
+      scaleX: 1.05,
+      scaleY: 0.95,
+      duration: 75,
+      yoyo: true,
+      ease: "Sine.easeOut",
+    });
+
+    this.emitBurst(fleckTexture, x, y - 4, 28, 1.05, 0.42);
+    this.emitBurst("dust-fleck", x, y + 12, 12, 0.8, 0.28);
+    this.addTouchRing(x, y);
+    this.addTouchFlash(x, y);
+  }
+
+  private playRegrowFeedback(tile: FieldTile): void {
+    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    if (!view) {
+      return;
+    }
+
+    const finalScale = tile.trait === "lush" ? 1.06 : 1;
+    view.grass.setScale(0.18, 0.08);
+    view.grass.setAlpha(0);
+    view.grass.setY(view.base.y + 12);
+
+    this.tweens.add({
+      targets: view.grass,
+      scaleX: finalScale * 1.18,
+      scaleY: finalScale * 1.18,
+      alpha: 1,
+      y: view.base.y,
+      duration: 180,
+      ease: "Back.easeOut",
+      onComplete: () => {
+        this.tweens.add({
+          targets: view.grass,
+          scaleX: finalScale,
+          scaleY: finalScale,
+          duration: 120,
+          ease: "Sine.easeOut",
+        });
+      },
+    });
+
+    this.emitBurst(tile.trait === "dewy" ? "dew-fleck" : "grass-fleck", view.base.x, view.base.y, 10, 0.55, 0.22);
+  }
+
+  private playBlockedTileFeedback(tile: FieldTile): void {
+    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    if (!view) {
+      return;
+    }
+
+    this.tweens.killTweensOf(view.base);
+    this.tweens.add({
+      targets: view.base,
+      x: view.base.x + 4,
+      duration: 45,
+      yoyo: true,
+      repeat: 3,
+      ease: "Sine.easeInOut",
+    });
+  }
+
+  private emitBurst(texture: string, x: number, y: number, quantity: number, speedScale: number, gravityScale: number): void {
+    const particles = this.add.particles(x, y, texture, {
+      lifespan: { min: 420, max: 760 },
+      speed: { min: 38 * speedScale, max: 112 * speedScale },
+      angle: { min: 205, max: 335 },
+      gravityY: 240 * gravityScale,
+      rotate: { min: -120, max: 120 },
+      scale: { start: 1.55, end: 0 },
+      alpha: { start: 1, end: 0 },
+      quantity,
+      emitting: false,
+    });
+
+    particles.setDepth(35);
+    particles.explode(quantity, x, y);
+    this.time.delayedCall(850, () => particles.destroy());
+  }
+
+  private addTouchRing(x: number, y: number): void {
+    const ring = this.add
+      .ellipse(x, y, TILE_SIZE * 0.82, TILE_SIZE * 0.48, 0xf7ffe8, 0.18)
+      .setStrokeStyle(4, 0xf7ffe8, 0.95)
+      .setDepth(34);
+
+    this.tweens.add({
+      targets: ring,
+      scaleX: 1.45,
+      scaleY: 1.45,
+      alpha: 0,
+      duration: 430,
+      ease: "Sine.easeOut",
+      onComplete: () => ring.destroy(),
+    });
+  }
+
+  private addTouchFlash(x: number, y: number): void {
+    const flash = this.add
+      .rectangle(x, y, TILE_SIZE * 0.78, TILE_SIZE * 0.78, 0xf7ffe8, 0.36)
+      .setDepth(36)
+      .setAngle(45);
+
+    this.tweens.add({
+      targets: flash,
+      scaleX: 1.18,
+      scaleY: 1.18,
+      alpha: 0,
+      duration: 180,
+      ease: "Sine.easeOut",
+      onComplete: () => flash.destroy(),
+    });
   }
 
   private createTileTextures(): void {
@@ -492,6 +639,9 @@ export class GameScene extends Phaser.Scene {
     this.createGrassTexture("grass-normal", [0x2f8436, 0x3fa244, 0x58bd4f, 0x75d35d], false, false);
     this.createGrassTexture("grass-dewy", [0x338e4b, 0x45ad62, 0x75d894, 0xa9f2bc], true, false);
     this.createGrassTexture("grass-lush", [0x1f6f32, 0x2d9340, 0x4fc45b, 0x7be06a], false, true);
+    this.createParticleTexture("grass-fleck", [0xb4f47a, 0x6edb58, 0x2f8436]);
+    this.createParticleTexture("dew-fleck", [0xd7fff2, 0xa9f2bc, 0x75d894]);
+    this.createParticleTexture("dust-fleck", [0xc7975d, 0x8a6139, 0x6f4c2f]);
   }
 
   private createDirtTexture(key: string, baseColor: number, shadowColor: number, stubble = false): void {
@@ -580,6 +730,19 @@ export class GameScene extends Phaser.Scene {
     }
 
     graphics.generateTexture(key, TILE_SIZE, TILE_SIZE);
+    graphics.destroy();
+  }
+
+  private createParticleTexture(key: string, colors: number[]): void {
+    const graphics = this.add.graphics();
+
+    graphics.fillStyle(colors[0], 1);
+    graphics.fillRect(1, 0, 3, 5);
+    graphics.fillStyle(colors[1], 1);
+    graphics.fillRect(0, 1, 5, 3);
+    graphics.fillStyle(colors[2], 1);
+    graphics.fillRect(2, 1, 2, 3);
+    graphics.generateTexture(key, 5, 5);
     graphics.destroy();
   }
 
@@ -760,18 +923,21 @@ export class GameScene extends Phaser.Scene {
     const pop = this.add
       .text(view.base.x, view.base.y - 18, text, {
         fontFamily: "Trebuchet MS, Arial",
-        fontSize: "16px",
+        fontSize: "20px",
         color,
         stroke: "#17491f",
-        strokeThickness: 4,
+        strokeThickness: 5,
       })
       .setOrigin(0.5)
       .setDepth(40);
+    pop.setScale(0.75);
 
     this.tweens.add({
       targets: pop,
       y: pop.y - 34,
       alpha: 0,
+      scaleX: 1.12,
+      scaleY: 1.12,
       duration: 760,
       ease: "Sine.easeOut",
       onComplete: () => pop.destroy(),
