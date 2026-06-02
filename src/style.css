@@ -1,0 +1,15 @@
+html,
+body,
+#game {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #6eb65f;
+  color: #f7ffe8;
+  font-family: "Trebuchet MS", Arial, sans-serif;
+}
+
+canvas {
+  display: block;
+}
