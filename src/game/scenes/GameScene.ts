@@ -785,8 +785,10 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const x = view.base.x;
-    const y = view.base.y;
+    this.resetBaseTilePose(view);
+    const x = view.label.x;
+    const y = view.label.y;
+    const baseScale = this.boardScale;
     const fleckTexture = touchedTrait === "dewy" ? "dew-fleck" : "grass-fleck";
     const grassGhost = this.add
       .image(x, y, view.grass.texture.key)
@@ -805,13 +807,15 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => grassGhost.destroy(),
     });
 
+    this.tweens.killTweensOf(view.base);
     this.tweens.add({
       targets: view.base,
-      scaleX: 1.05,
-      scaleY: 0.95,
+      scaleX: baseScale * 1.05,
+      scaleY: baseScale * 0.95,
       duration: 75,
       yoyo: true,
       ease: "Sine.easeOut",
+      onComplete: () => this.resetBaseTilePose(view),
     });
 
     this.emitBurst(fleckTexture, x, y - 4, 28, 1.05, 0.42);
@@ -826,17 +830,18 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    this.resetBaseTilePose(view);
     const finalScale = this.boardScale * this.getGrassScale(tile);
     view.grass.setScale(this.boardScale * 0.18, this.boardScale * 0.08);
     view.grass.setAlpha(0);
-    view.grass.setY(view.base.y + 12);
+    view.grass.setPosition(view.label.x, view.label.y + 12);
 
     this.tweens.add({
       targets: view.grass,
       scaleX: finalScale * 1.18,
       scaleY: finalScale * 1.18,
       alpha: 1,
-      y: view.base.y,
+      y: view.label.y,
       duration: 180,
       ease: "Back.easeOut",
       onComplete: () => {
@@ -850,7 +855,7 @@ export class GameScene extends Phaser.Scene {
       },
     });
 
-    this.emitBurst(tile.trait === "dewy" ? "dew-fleck" : "grass-fleck", view.base.x, view.base.y, 10, 0.55, 0.22);
+    this.emitBurst(tile.trait === "dewy" ? "dew-fleck" : "grass-fleck", view.label.x, view.label.y, 10, 0.55, 0.22);
   }
 
   private playBlockedTileFeedback(tile: FieldTile): void {
@@ -860,14 +865,26 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.tweens.killTweensOf(view.base);
+    this.resetBaseTilePose(view);
+    const x = view.label.x;
+    const y = view.label.y;
     this.tweens.add({
       targets: view.base,
-      x: view.base.x + 4,
+      x: x + 4 * this.boardScale,
       duration: 45,
       yoyo: true,
       repeat: 3,
       ease: "Sine.easeInOut",
+      onComplete: () => {
+        view.base.setPosition(x, y);
+        view.base.setScale(this.boardScale);
+      },
     });
+  }
+
+  private resetBaseTilePose(view: TileView): void {
+    view.base.setPosition(view.label.x, view.label.y);
+    view.base.setScale(this.boardScale);
   }
 
   private emitBurst(texture: string, x: number, y: number, quantity: number, speedScale: number, gravityScale: number): void {
