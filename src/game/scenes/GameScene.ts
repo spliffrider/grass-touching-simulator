@@ -80,6 +80,19 @@ export class GameScene extends Phaser.Scene {
     super("GameScene");
   }
 
+  preload(): void {
+    this.load.image("tile-dirt", "/assets/tiles/tile-dirt.png");
+    this.load.image("tile-stubble", "/assets/tiles/tile-stubble.png");
+    this.load.image("grass-fleck", "/assets/tiles/grass-fleck.png");
+    this.load.image("dew-fleck", "/assets/tiles/dew-fleck.png");
+
+    for (const tier of GRASS_TIERS) {
+      this.load.image(`grass-${tier.id}`, `/assets/tiles/grass-${tier.id}.png`);
+      this.load.image(`grass-${tier.id}-dewy`, `/assets/tiles/grass-${tier.id}-dewy.png`);
+      this.load.image(`grass-${tier.id}-lush`, `/assets/tiles/grass-${tier.id}-lush.png`);
+    }
+  }
+
   create(data?: { newGame?: boolean }): void {
     this.state = data?.newGame ? resetSave() : loadGame();
     saveGame(this.state);
@@ -1023,10 +1036,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createTileTextures(): void {
-    if (this.textures.exists("grass-normal")) {
-      return;
-    }
-
     this.createDirtTexture("tile-dirt", 0x8a6139, 0x6b4529);
     this.createDirtTexture("tile-stubble", 0x6f4c2f, 0x4c301f, true);
     for (const tier of GRASS_TIERS) {
@@ -1042,6 +1051,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createDirtTexture(key: string, baseColor: number, shadowColor: number, stubble = false): void {
+    if (this.textures.exists(key)) {
+      return;
+    }
+
     const graphics = this.add.graphics();
 
     graphics.fillStyle(0x4f3420, 1);
@@ -1077,6 +1090,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createGrassTexture(key: string, colors: number[], dewy: boolean, lush: boolean): void {
+    if (this.textures.exists(key)) {
+      return;
+    }
+
     const graphics = this.add.graphics();
     const inset = lush ? 5 : 7;
     const patchSize = TILE_SIZE - inset * 2;
@@ -1131,6 +1148,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createParticleTexture(key: string, colors: number[]): void {
+    if (this.textures.exists(key)) {
+      return;
+    }
+
     const graphics = this.add.graphics();
 
     graphics.fillStyle(colors[0], 1);
