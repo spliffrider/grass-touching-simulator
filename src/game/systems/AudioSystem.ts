@@ -4,6 +4,7 @@ export class AudioSystem {
   private context?: AudioContext;
   private master?: GainNode;
   private unlocked = false;
+  private resumePromise?: Promise<void>;
 
   unlock(): void {
     const AudioContextCtor = window.AudioContext ?? window.webkitAudioContext;
@@ -14,12 +15,20 @@ export class AudioSystem {
     if (!this.context) {
       this.context = new AudioContextCtor();
       this.master = this.context.createGain();
-      this.master.gain.value = 0.28;
+      this.master.gain.value = 0.58;
       this.master.connect(this.context.destination);
     }
 
     if (this.context.state === "suspended") {
-      void this.context.resume();
+      this.resumePromise ??= this.context
+        .resume()
+        .then(() => {
+          this.unlocked = true;
+        })
+        .finally(() => {
+          this.resumePromise = undefined;
+        });
+      return;
     }
 
     this.unlocked = true;
@@ -28,7 +37,28 @@ export class AudioSystem {
   play(name: SoundName): void {
     this.unlock();
 
-    if (!this.context || !this.master || !this.unlocked) {
+    if (!this.context || !this.master) {
+      return;
+    }
+
+    if (this.context.state !== "running" || !this.unlocked) {
+      this.resumePromise ??= this.context
+        .resume()
+        .then(() => {
+          this.unlocked = true;
+        })
+        .finally(() => {
+          this.resumePromise = undefined;
+        });
+      void this.resumePromise.then(() => this.playNow(name));
+      return;
+    }
+
+    this.playNow(name);
+  }
+
+  private playNow(name: SoundName): void {
+    if (!this.context || !this.master || this.context.state !== "running") {
       return;
     }
 
@@ -53,24 +83,24 @@ export class AudioSystem {
 
   private playGrassTouch(): void {
     const now = this.now();
-    this.playNoiseSweep(0.16, 720 + Math.random() * 420, 0.13, now);
-    this.playNoiseSweep(0.08, 1900 + Math.random() * 900, 0.055, now + 0.018);
-    this.playTone(120 + Math.random() * 24, 0.045, 0.05, "sine", now);
-    this.playTone(245 + Math.random() * 95, 0.05, 0.032, "triangle", now + 0.018);
+    this.playNoiseSweep(0.18, 720 + Math.random() * 420, 0.23, now);
+    this.playNoiseSweep(0.1, 1900 + Math.random() * 900, 0.095, now + 0.018);
+    this.playTone(116 + Math.random() * 30, 0.06, 0.09, "sine", now);
+    this.playTone(245 + Math.random() * 95, 0.06, 0.055, "triangle", now + 0.018);
   }
 
   private playRegrow(): void {
     const now = this.now();
-    this.playNoiseSweep(0.11, 1250 + Math.random() * 350, 0.035, now);
-    this.playTone(390 + Math.random() * 40, 0.08, 0.045, "sine", now);
-    this.playTone(610 + Math.random() * 70, 0.065, 0.03, "sine", now + 0.045);
+    this.playNoiseSweep(0.12, 1250 + Math.random() * 350, 0.06, now);
+    this.playTone(390 + Math.random() * 40, 0.09, 0.07, "sine", now);
+    this.playTone(610 + Math.random() * 70, 0.075, 0.05, "sine", now + 0.045);
   }
 
   private playUpgrade(): void {
     const now = this.now();
-    this.playTone(360, 0.09, 0.05, "triangle", now);
-    this.playTone(540, 0.11, 0.045, "triangle", now + 0.07);
-    this.playTone(720, 0.14, 0.04, "sine", now + 0.14);
+    this.playTone(360, 0.09, 0.075, "triangle", now);
+    this.playTone(540, 0.11, 0.065, "triangle", now + 0.07);
+    this.playTone(720, 0.14, 0.06, "sine", now + 0.14);
   }
 
   private playMilestone(): void {
@@ -82,7 +112,7 @@ export class AudioSystem {
 
   private playBlocked(): void {
     const now = this.now();
-    this.playTone(160, 0.07, 0.04, "square", now);
+    this.playTone(160, 0.07, 0.075, "square", now);
   }
 
   private playTone(
