@@ -52,6 +52,7 @@ export class GameScene extends Phaser.Scene {
   private audio = new AudioSystem();
   private skillTreeOpen = false;
   private selectedSkillId = UPGRADES[0].id;
+  private boardScale = 1;
 
   constructor() {
     super("GameScene");
@@ -226,11 +227,7 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5);
 
       container.add([bg, icon, level]);
-      bg.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-        if (pointer.leftButtonDown()) {
-          this.upgradeSkill(upgrade.id);
-        }
-      });
+      bg.on("pointerdown", () => this.upgradeSkill(upgrade.id));
       this.skillNodeViews.set(upgrade.id, { upgradeId: upgrade.id, container, bg, icon, level });
       this.skillRoot.add(container);
     }
@@ -267,19 +264,34 @@ export class GameScene extends Phaser.Scene {
   }
 
   private layoutSkillTree(): void {
-    const treeScale = Math.min(1, (this.scale.width - 48) / TREE_WIDTH, (this.scale.height - 190) / TREE_HEIGHT);
+    const shortLandscape = this.scale.width > this.scale.height && this.scale.height < 520;
+    const narrowPortrait = this.scale.width < 500 && this.scale.height >= this.scale.width;
+    const treeScale = shortLandscape
+      ? Math.max(0.32, Math.min(0.62, (this.scale.width - 310) / TREE_WIDTH, (this.scale.height - 130) / TREE_HEIGHT))
+      : Math.min(1, (this.scale.width - 48) / TREE_WIDTH, (this.scale.height - 190) / TREE_HEIGHT);
     const treeWidth = TREE_WIDTH * treeScale;
-    const treeHeight = TREE_HEIGHT * treeScale;
-    const treeX = (this.scale.width - treeWidth) / 2;
-    const treeY = 150;
+    const treeX = shortLandscape ? 24 : (this.scale.width - treeWidth) / 2;
+    const treeY = shortLandscape ? 124 : 150;
 
     this.skillBackdrop.setSize(this.scale.width, this.scale.height);
+    this.skillTitleText.setText(narrowPortrait ? "Skills" : "Grass Skill Tree");
+    this.skillTitleText.setFontSize(shortLandscape ? 25 : narrowPortrait ? 30 : 34);
+    this.skillResourceText.setFontSize(shortLandscape || narrowPortrait ? 14 : 18);
+    this.skillStatusText.setFontSize(shortLandscape || narrowPortrait ? 13 : 16);
+    this.skillStatusText.setWordWrapWidth(Math.max(220, this.scale.width - 48));
     this.skillTitleText.setPosition(24, 24);
-    this.skillResourceText.setPosition(26, 78);
-    this.skillStatusText.setPosition(this.scale.width / 2, 104);
+    this.skillResourceText.setPosition(26, shortLandscape ? 62 : 78);
+    this.skillStatusText.setText(this.hasTouchScreen() ? "Tap a skill to upgrade it." : "Left click a skill to upgrade it.");
+    this.skillStatusText.setPosition(shortLandscape ? this.scale.width / 2 + 20 : this.scale.width / 2, shortLandscape ? 72 : 104);
+    this.backButton.setScale(narrowPortrait ? 0.9 : 1);
     this.backButton.setPosition(this.scale.width - 142, 24);
-    this.resetButton.setPosition(24, this.scale.height - 64);
-    this.skillDetailPanel.setPosition(Math.max(24, this.scale.width - 360), this.scale.height - 270);
+    this.resetButton.setScale(shortLandscape ? 0.82 : 1);
+    this.resetButton.setPosition(24, this.scale.height - (shortLandscape ? 48 : narrowPortrait ? 58 : 64));
+    this.skillDetailPanel.setScale(shortLandscape ? 0.72 : narrowPortrait ? 1 : 1);
+    this.skillDetailPanel.setPosition(
+      shortLandscape ? this.scale.width - 252 : narrowPortrait ? (this.scale.width - 330) / 2 : Math.max(24, this.scale.width - 360),
+      shortLandscape ? 112 : narrowPortrait ? this.scale.height - 310 : this.scale.height - 270,
+    );
 
     for (const upgrade of UPGRADES) {
       const view = this.skillNodeViews.get(upgrade.id);
@@ -318,6 +330,10 @@ export class GameScene extends Phaser.Scene {
     bg.on("pointerdown", onClick);
     button.add([bg, label]);
     return button;
+  }
+
+  private hasTouchScreen(): boolean {
+    return navigator.maxTouchPoints > 0;
   }
 
   private drawSkillLines(treeScale: number, treeX: number, treeY: number): void {
@@ -427,10 +443,15 @@ export class GameScene extends Phaser.Scene {
     const maxY = Math.max(...tiles.map((tile) => tile.y));
     const boardWidth = (maxX - minX + 1) * (TILE_SIZE + TILE_GAP);
     const boardHeight = (maxY - minY + 1) * (TILE_SIZE + TILE_GAP);
+    const topY = Math.max(142, this.milestoneText.y + this.milestoneText.height + 24);
+    const availableWidth = Math.max(120, this.scale.width - 24);
+    const availableHeight = Math.max(120, this.scale.height - topY - 24);
+    this.boardScale = Math.min(1, availableWidth / boardWidth, availableHeight / boardHeight);
     const centerX = this.scale.width / 2;
-    const centerY = this.scale.height / 2 + BOARD_Y_OFFSET;
-    const startX = centerX - boardWidth / 2 + TILE_SIZE / 2;
-    const startY = centerY - boardHeight / 2 + TILE_SIZE / 2;
+    const centerY = topY + availableHeight / 2 + BOARD_Y_OFFSET * this.boardScale;
+    const scaledStep = (TILE_SIZE + TILE_GAP) * this.boardScale;
+    const startX = centerX - (boardWidth * this.boardScale) / 2 + (TILE_SIZE * this.boardScale) / 2;
+    const startY = centerY - (boardHeight * this.boardScale) / 2 + (TILE_SIZE * this.boardScale) / 2;
 
     for (const tile of tiles) {
       const view = this.tileViews.get(tileKey(tile.x, tile.y));
@@ -438,11 +459,14 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
 
-      const x = startX + (tile.x - minX) * (TILE_SIZE + TILE_GAP);
-      const y = startY + (tile.y - minY) * (TILE_SIZE + TILE_GAP);
+      const x = startX + (tile.x - minX) * scaledStep;
+      const y = startY + (tile.y - minY) * scaledStep;
       view.base.setPosition(x, y);
       view.grass.setPosition(x, y);
       view.label.setPosition(x, y);
+      view.base.setScale(this.boardScale);
+      view.grass.setScale(this.boardScale * this.getGrassScale(tile));
+      view.label.setScale(this.boardScale);
     }
   }
 
@@ -480,10 +504,14 @@ export class GameScene extends Phaser.Scene {
 
     view.grass.setVisible(isGrown);
     view.grass.setTexture(grassTexture);
-    view.grass.setScale(tile.trait === "lush" ? 1.06 : 1);
+    view.grass.setScale(this.boardScale * this.getGrassScale(tile));
     view.grass.setAlpha(1);
     view.label.setText(isGrown ? (tile.trait === "normal" ? "" : tile.trait) : "...");
     view.base.setTexture(isGrown ? "tile-dirt" : "tile-stubble");
+  }
+
+  private getGrassScale(tile: FieldTile): number {
+    return tile.trait === "lush" ? 1.06 : 1;
   }
 
   private playTouchFeedback(tile: FieldTile): void {
@@ -533,8 +561,8 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const finalScale = tile.trait === "lush" ? 1.06 : 1;
-    view.grass.setScale(0.18, 0.08);
+    const finalScale = this.boardScale * this.getGrassScale(tile);
+    view.grass.setScale(this.boardScale * 0.18, this.boardScale * 0.08);
     view.grass.setAlpha(0);
     view.grass.setY(view.base.y + 12);
 
@@ -597,7 +625,7 @@ export class GameScene extends Phaser.Scene {
 
   private addTouchRing(x: number, y: number): void {
     const ring = this.add
-      .ellipse(x, y, TILE_SIZE * 0.82, TILE_SIZE * 0.48, 0xf7ffe8, 0.18)
+      .ellipse(x, y, TILE_SIZE * 0.82 * this.boardScale, TILE_SIZE * 0.48 * this.boardScale, 0xf7ffe8, 0.18)
       .setStrokeStyle(4, 0xf7ffe8, 0.95)
       .setDepth(34);
 
@@ -614,7 +642,7 @@ export class GameScene extends Phaser.Scene {
 
   private addTouchFlash(x: number, y: number): void {
     const flash = this.add
-      .rectangle(x, y, TILE_SIZE * 0.78, TILE_SIZE * 0.78, 0xf7ffe8, 0.36)
+      .rectangle(x, y, TILE_SIZE * 0.78 * this.boardScale, TILE_SIZE * 0.78 * this.boardScale, 0xf7ffe8, 0.36)
       .setDepth(36)
       .setAngle(45);
 
@@ -821,7 +849,7 @@ export class GameScene extends Phaser.Scene {
     this.skillStatusText.setText(message);
     this.time.delayedCall(1800, () => {
       if (this.skillTreeOpen) {
-        this.skillStatusText.setText("Left click a skill to upgrade it.");
+        this.skillStatusText.setText(this.hasTouchScreen() ? "Tap a skill to upgrade it." : "Left click a skill to upgrade it.");
       }
     });
   }

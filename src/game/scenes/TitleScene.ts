@@ -74,17 +74,16 @@ export class TitleScene extends Phaser.Scene {
 
     hit.on("pointerover", () => outline.setVisible(true));
     hit.on("pointerout", () => outline.setVisible(false));
-    hit.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      if (pointer.leftButtonDown()) {
-        this.handleButton(id);
-      }
-    });
+    hit.on("pointerdown", () => this.handleButton(id));
 
     this.buttons.push({ id, sourceX, sourceY, sourceWidth, sourceHeight, hit, outline });
   }
 
   private layoutTitle(): void {
-    const scale = Math.max(this.scale.width / SOURCE_WIDTH, this.scale.height / SOURCE_HEIGHT);
+    const shortLandscape = this.scale.width > this.scale.height && this.scale.height < 520;
+    const scale = shortLandscape
+      ? Math.min(this.scale.width / SOURCE_WIDTH, this.scale.height / SOURCE_HEIGHT)
+      : Math.max(this.scale.width / SOURCE_WIDTH, this.scale.height / SOURCE_HEIGHT);
     const displayWidth = SOURCE_WIDTH * scale;
     const displayHeight = SOURCE_HEIGHT * scale;
     const offsetX = (this.scale.width - displayWidth) / 2;
