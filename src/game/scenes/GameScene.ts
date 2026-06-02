@@ -699,21 +699,21 @@ export class GameScene extends Phaser.Scene {
 
     const stats = getRuntimeStats(this.state);
     const touchedTrait = tile.trait;
-    const gained = touchTile(tile, this.state, stats, Date.now());
+    const touch = touchTile(tile, this.state, stats, Date.now());
 
-    if (gained === 0) {
+    if (touch.gained === 0) {
       this.popAtTile(tile, "regrowing", "#fff2b2");
       this.playBlockedTileFeedback(tile);
       this.audio.play("blocked");
       return;
     }
 
-    this.playTouchFeedback(tile, touchedTrait);
+    this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     this.refreshTile(tile);
-    this.popAtTile(tile, `+${gained}`, "#f9ffe5");
+    this.popAtTile(tile, touch.isCrit ? `CRIT x${touch.critMultiplier.toFixed(1)} +${touch.gained}` : `+${touch.gained}`, touch.isCrit ? "#ffef78" : "#f9ffe5");
     this.tryDropSeed(tile, touchedTrait, stats);
-    this.cameras.main.shake(70, 0.0013);
-    this.audio.play("touch");
+    this.cameras.main.shake(touch.isCrit ? 140 : 70, touch.isCrit ? 0.004 : 0.0013);
+    this.audio.play(touch.isCrit ? "crit" : "touch");
     saveGame(this.state);
   }
 
@@ -775,15 +775,15 @@ export class GameScene extends Phaser.Scene {
     }
 
     const touchedTrait = tile.trait;
-    const gained = touchTile(tile, this.state, stats, Date.now());
-    if (gained === 0) {
+    const touch = touchTile(tile, this.state, stats, Date.now());
+    if (touch.gained === 0) {
       return;
     }
 
-    this.playTouchFeedback(tile, touchedTrait);
+    this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     this.refreshTile(tile);
-    this.popAtTile(tile, `sprinkler +${gained}`, "#d7fff2");
-    this.audio.play("touch");
+    this.popAtTile(tile, touch.isCrit ? `sprinkler CRIT +${touch.gained}` : `sprinkler +${touch.gained}`, touch.isCrit ? "#ffef78" : "#d7fff2");
+    this.audio.play(touch.isCrit ? "crit" : "touch");
     saveGame(this.state);
   }
 
@@ -808,7 +808,7 @@ export class GameScene extends Phaser.Scene {
     return tile.trait === "lush" ? 1.06 : 1;
   }
 
-  private playTouchFeedback(tile: FieldTile, touchedTrait = tile.trait): void {
+  private playTouchFeedback(tile: FieldTile, touchedTrait = tile.trait, isCrit = false): void {
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (!view) {
       return;
@@ -847,8 +847,12 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => this.resetBaseTilePose(view),
     });
 
-    this.emitBurst(fleckTexture, x, y - 4, 28, 1.05, 0.42);
+    this.emitBurst(fleckTexture, x, y - 4, isCrit ? 46 : 28, isCrit ? 1.42 : 1.05, isCrit ? 0.3 : 0.42);
     this.emitBurst("dust-fleck", x, y + 12, 12, 0.8, 0.28);
+    if (isCrit) {
+      this.emitBurst("crit-fleck", x, y - 10, 30, 1.35, 0.18);
+      this.addCritFlash(x, y);
+    }
     this.addTouchRing(x, y);
     this.addTouchFlash(x, y);
   }
@@ -968,6 +972,24 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private addCritFlash(x: number, y: number): void {
+    const burst = this.add
+      .star(x, y, 7, TILE_SIZE * 0.18 * this.boardScale, TILE_SIZE * 0.72 * this.boardScale, 0xfff08a, 0.8)
+      .setStrokeStyle(3, 0xffffff, 0.95)
+      .setDepth(37);
+
+    this.tweens.add({
+      targets: burst,
+      angle: 45,
+      scaleX: 1.45,
+      scaleY: 1.45,
+      alpha: 0,
+      duration: 360,
+      ease: "Sine.easeOut",
+      onComplete: () => burst.destroy(),
+    });
+  }
+
   private createTileTextures(): void {
     if (this.textures.exists("grass-normal")) {
       return;
@@ -982,6 +1004,7 @@ export class GameScene extends Phaser.Scene {
     this.createParticleTexture("dew-fleck", [0xd7fff2, 0xa9f2bc, 0x75d894]);
     this.createParticleTexture("dust-fleck", [0xc7975d, 0x8a6139, 0x6f4c2f]);
     this.createParticleTexture("seed-fleck", [0xffe08a, 0xc69232, 0x6d4c19]);
+    this.createParticleTexture("crit-fleck", [0xffffff, 0xffef78, 0xff9f43]);
   }
 
   private createDirtTexture(key: string, baseColor: number, shadowColor: number, stubble = false): void {

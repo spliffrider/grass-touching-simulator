@@ -1,4 +1,4 @@
-type SoundName = "touch" | "regrow" | "upgrade" | "milestone" | "blocked" | "seed";
+type SoundName = "touch" | "regrow" | "upgrade" | "milestone" | "blocked" | "seed" | "crit";
 
 export class AudioSystem {
   private context?: AudioContext;
@@ -81,6 +81,9 @@ export class AudioSystem {
       case "seed":
         this.playSeed();
         break;
+      case "crit":
+        this.playCrit();
+        break;
     }
   }
 
@@ -110,6 +113,14 @@ export class AudioSystem {
     const now = this.now();
     this.playTone(620 + Math.random() * 50, 0.06, 0.05, "sine", now);
     this.playTone(940 + Math.random() * 80, 0.08, 0.045, "triangle", now + 0.045);
+  }
+
+  private playCrit(): void {
+    const now = this.now();
+    this.playNoiseSweep(0.1, 2400 + Math.random() * 800, 0.08, now);
+    this.playTone(220, 0.055, 0.07, "triangle", now);
+    this.playTone(660, 0.08, 0.075, "triangle", now + 0.035);
+    this.playTone(990, 0.1, 0.06, "sine", now + 0.085);
   }
 
   private playMilestone(): void {

@@ -1,4 +1,4 @@
-import type { FieldTile, GameState, RuntimeStats, TileKey, TileTrait } from "../types/game-state";
+import type { FieldTile, GameState, RuntimeStats, TileKey, TileTrait, TouchResult } from "../types/game-state";
 
 const NEIGHBORS = [
   { x: 1, y: 0 },
@@ -51,13 +51,17 @@ export function createTile(x: number, y: number, trait: TileTrait): FieldTile {
   };
 }
 
-export function touchTile(tile: FieldTile, state: GameState, stats: RuntimeStats, now: number): number {
+export function touchTile(tile: FieldTile, state: GameState, stats: RuntimeStats, now: number): TouchResult {
   if (tile.grassState !== "grown") {
-    return 0;
+    return { gained: 0, isCrit: false, critMultiplier: 1 };
   }
 
   const traitBonus = tile.trait === "lush" ? 2 : tile.trait === "dewy" ? 1 : 0;
-  const gained = Math.max(1, Math.floor(tile.baseTouchValue + stats.touchMultiplier + traitBonus));
+  const baseGained = Math.max(1, Math.floor(tile.baseTouchValue + stats.touchMultiplier + traitBonus));
+  const critChance = stats.critChance + (tile.trait === "lush" ? 0.05 : tile.trait === "dewy" ? 0.025 : 0);
+  const isCrit = Math.random() < critChance;
+  const critMultiplier = isCrit ? stats.critMultiplier : 1;
+  const gained = Math.max(1, Math.floor(baseGained * critMultiplier));
 
   tile.grassState = "regrowing";
   tile.regrowEndsAt = now + Math.floor(tile.baseRegrowMs * stats.regrowMultiplier);
@@ -67,7 +71,7 @@ export function touchTile(tile: FieldTile, state: GameState, stats: RuntimeStats
   state.lifetimeGrassTouches += gained;
   state.totalClickedPatches += 1;
 
-  return gained;
+  return { gained, isCrit, critMultiplier };
 }
 
 export function updateRegrowth(state: GameState, stats: RuntimeStats, now: number): FieldTile[] {

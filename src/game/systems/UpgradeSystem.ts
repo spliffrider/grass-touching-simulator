@@ -6,6 +6,8 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
     touchMultiplier: 0,
     regrowMultiplier: 1,
     dewChance: 0,
+    critChance: 0.05,
+    critMultiplier: 3,
   };
 
   for (const upgrade of UPGRADES) {
@@ -16,6 +18,8 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
   }
 
   stats.dewChance = Math.min(0.65, stats.dewChance);
+  stats.critChance = Math.min(0.45, stats.critChance);
+  stats.critMultiplier = Math.min(8, stats.critMultiplier);
   stats.regrowMultiplier = Math.max(0.25, stats.regrowMultiplier);
 
   return stats;

@@ -89,6 +89,34 @@ export const UPGRADES: UpgradeDefinition[] = [
     isUnlocked: (state) => state.lifetimeGrassTouches >= 45,
   },
   {
+    id: "lucky_clover",
+    name: "Lucky Clover",
+    description: "Critical touches happen 3% more often per level.",
+    baseCost: 55,
+    costGrowth: 1.9,
+    maxLevel: 8,
+    prerequisiteIds: ["softer_grass"],
+    tree: { x: 70, y: 90, icon: "crit", color: 0xffef78 },
+    apply: (stats, level) => {
+      stats.critChance += level * 0.03;
+    },
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 25,
+  },
+  {
+    id: "dramatic_touch",
+    name: "Dramatic Touch",
+    description: "Critical touches gain +0.5x power per level.",
+    baseCost: 130,
+    costGrowth: 2.15,
+    maxLevel: 5,
+    prerequisiteIds: ["lucky_clover"],
+    tree: { x: 215, y: 330, icon: "x!", color: 0xffb347 },
+    apply: (stats, level) => {
+      stats.critMultiplier += level * 0.5;
+    },
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 90,
+  },
+  {
     id: "fertile_soil",
     name: "Fertile Soil",
     description: "Grass settles into better dirt. Regrowth is 5% faster per level.",

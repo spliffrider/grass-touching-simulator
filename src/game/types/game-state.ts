@@ -37,4 +37,12 @@ export interface RuntimeStats {
   touchMultiplier: number;
   regrowMultiplier: number;
   dewChance: number;
+  critChance: number;
+  critMultiplier: number;
+}
+
+export interface TouchResult {
+  gained: number;
+  isCrit: boolean;
+  critMultiplier: number;
 }
