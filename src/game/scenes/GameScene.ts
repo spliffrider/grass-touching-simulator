@@ -53,9 +53,11 @@ export class GameScene extends Phaser.Scene {
   private skillLineGraphics!: Phaser.GameObjects.Graphics;
   private skillNodeViews = new Map<string, SkillNodeView>();
   private skillDetailPanel!: Phaser.GameObjects.Container;
+  private skillDetailBg!: Phaser.GameObjects.Rectangle;
   private skillDetailTitle!: Phaser.GameObjects.Text;
   private skillDetailBody!: Phaser.GameObjects.Text;
   private skillDetailCost!: Phaser.GameObjects.Text;
+  private skillBuyButton!: Phaser.GameObjects.Container;
   private resetButton!: Phaser.GameObjects.Container;
   private seedRoot!: Phaser.GameObjects.Container;
   private seedBackdrop!: Phaser.GameObjects.Rectangle;
@@ -208,7 +210,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.skillStatusText = this.add
-      .text(0, 0, "Left click a skill to upgrade it.", {
+      .text(0, 0, "Hover a skill to inspect it. Upgrade from the info box.", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "16px",
         color: "#f7ffe8",
@@ -252,14 +254,15 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5);
 
       container.add([bg, icon, level]);
-      bg.on("pointerdown", () => this.upgradeSkill(upgrade.id));
+      bg.on("pointerover", () => this.previewSkill(upgrade.id));
+      bg.on("pointerdown", () => this.previewSkill(upgrade.id));
       this.skillNodeViews.set(upgrade.id, { upgradeId: upgrade.id, container, bg, icon, level });
       this.skillRoot.add(container);
     }
 
     this.skillDetailPanel = this.add.container(0, 0);
-    const detailBg = this.add
-      .rectangle(0, 0, 330, 234, 0xf4ffdc, 0.98)
+    this.skillDetailBg = this.add
+      .rectangle(0, 0, 330, 272, 0xf4ffdc, 0.98)
       .setOrigin(0, 0)
       .setStrokeStyle(3, 0x2d6f36);
     this.skillDetailTitle = this.add.text(16, 14, "", {
@@ -279,7 +282,9 @@ export class GameScene extends Phaser.Scene {
       color: "#6d4c19",
       wordWrap: { width: 298 },
     });
-    this.skillDetailPanel.add([detailBg, this.skillDetailTitle, this.skillDetailBody, this.skillDetailCost]);
+    this.skillBuyButton = this.createTextButton("Upgrade", () => this.upgradeSelectedSkill(), 138, 40, 101);
+    this.skillBuyButton.setPosition(16, 216);
+    this.skillDetailPanel.add([this.skillDetailBg, this.skillDetailTitle, this.skillDetailBody, this.skillDetailCost, this.skillBuyButton]);
     this.skillRoot.add(this.skillDetailPanel);
 
     this.resetButton = this.createTextButton("Reset", () => this.handleResetPressed(), 92, 34, 101);
@@ -291,6 +296,7 @@ export class GameScene extends Phaser.Scene {
   private layoutSkillTree(): void {
     const shortLandscape = this.scale.width > this.scale.height && this.scale.height < 520;
     const narrowPortrait = this.scale.width < 500 && this.scale.height >= this.scale.width;
+    const narrowDesktop = this.scale.width < 760 && !shortLandscape && !narrowPortrait;
     const treeScale = shortLandscape
       ? Math.max(0.32, Math.min(0.62, (this.scale.width - 310) / TREE_WIDTH, (this.scale.height - 130) / TREE_HEIGHT))
       : Math.min(1, (this.scale.width - 48) / TREE_WIDTH, (this.scale.height - 190) / TREE_HEIGHT);
@@ -306,15 +312,24 @@ export class GameScene extends Phaser.Scene {
     this.skillStatusText.setWordWrapWidth(Math.max(220, this.scale.width - 48));
     this.skillTitleText.setPosition(24, 24);
     this.skillResourceText.setPosition(26, shortLandscape ? 62 : 78);
-    this.skillStatusText.setText(this.hasTouchScreen() ? "Tap a skill to upgrade it." : "Left click a skill to upgrade it.");
-    this.skillStatusText.setPosition(shortLandscape ? this.scale.width / 2 + 20 : this.scale.width / 2, shortLandscape ? 72 : 104);
+    this.skillStatusText.setText(
+      this.hasTouchScreen() ? "Tap a skill to inspect it. Upgrade from the info box." : "Hover a skill to inspect it. Upgrade from the info box.",
+    );
+    this.skillStatusText.setPosition(
+      shortLandscape ? this.scale.width / 2 + 20 : this.scale.width / 2,
+      shortLandscape ? 72 : this.skillResourceText.y + this.skillResourceText.height + 8,
+    );
     this.backButton.setScale(narrowPortrait ? 0.9 : 1);
     this.backButton.setPosition(this.scale.width - 142, 24);
     this.resetButton.setScale(shortLandscape ? 0.78 : narrowPortrait ? 0.86 : 0.88);
     this.resetButton.setPosition(this.scale.width - 108, this.scale.height - (shortLandscape ? 42 : narrowPortrait ? 46 : 48));
     this.skillDetailPanel.setScale(shortLandscape ? 0.72 : narrowPortrait ? 1 : 1);
     this.skillDetailPanel.setPosition(
-      shortLandscape ? this.scale.width - 252 : narrowPortrait ? (this.scale.width - 330) / 2 : Math.max(24, this.scale.width - 360),
+      shortLandscape
+        ? this.scale.width - 252
+        : narrowPortrait || narrowDesktop
+          ? (this.scale.width - 330) / 2
+          : Math.max(24, this.scale.width - 360),
       shortLandscape ? 112 : narrowPortrait ? this.scale.height - 310 : this.scale.height - 270,
     );
 
@@ -447,6 +462,7 @@ export class GameScene extends Phaser.Scene {
 
     bg.on("pointerdown", onClick);
     button.add([bg, label]);
+    button.setData("bg", bg);
     button.setData("label", label);
     return button;
   }
@@ -480,10 +496,14 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private upgradeSkill(upgradeId: string): void {
+  private previewSkill(upgradeId: string): void {
     this.selectedSkillId = upgradeId;
-    const upgraded = this.buyUpgrade(upgradeId);
-    this.bumpSkillNode(upgradeId, upgraded);
+    this.refreshUi();
+  }
+
+  private upgradeSelectedSkill(): void {
+    const upgraded = this.buyUpgrade(this.selectedSkillId);
+    this.bumpSkillNode(this.selectedSkillId, upgraded);
     this.refreshUi();
   }
 
@@ -570,6 +590,15 @@ export class GameScene extends Phaser.Scene {
   private setButtonText(button: Phaser.GameObjects.Container, text: string): void {
     const label = button.getData("label") as Phaser.GameObjects.Text | undefined;
     label?.setText(text);
+  }
+
+  private setButtonEnabled(button: Phaser.GameObjects.Container, enabled: boolean): void {
+    const bg = button.getData("bg") as Phaser.GameObjects.Rectangle | undefined;
+    const label = button.getData("label") as Phaser.GameObjects.Text | undefined;
+
+    bg?.setFillStyle(enabled ? 0xf4ffdc : 0xb9c8ab, enabled ? 0.96 : 0.74);
+    bg?.setStrokeStyle(3, enabled ? 0x2d6f36 : 0x63715d);
+    label?.setColor(enabled ? "#183d20" : "#53604f");
   }
 
   private resetPrototypeSave(): void {
@@ -1159,18 +1188,28 @@ export class GameScene extends Phaser.Scene {
 
     if (maxed) {
       this.skillDetailCost.setText("Fully unlocked.");
+      this.setButtonText(this.skillBuyButton, "Maxed");
+      this.setButtonEnabled(this.skillBuyButton, false);
     } else if (missingPrerequisites.length > 0) {
       this.skillDetailCost.setText(`Requires: ${missingPrerequisites.join(", ")}`);
+      this.setButtonText(this.skillBuyButton, "Locked");
+      this.setButtonEnabled(this.skillBuyButton, false);
     } else if (!upgrade.isUnlocked(this.state)) {
       this.skillDetailCost.setText("Keep touching grass to reveal this.");
+      this.setButtonText(this.skillBuyButton, "Locked");
+      this.setButtonEnabled(this.skillBuyButton, false);
     } else if (this.state.grassTouches < cost) {
       this.skillDetailCost.setText(
         `Cost: ${cost} Grass Touches\nYou have: ${Math.floor(this.state.grassTouches)}\nNeed: ${
           cost - Math.floor(this.state.grassTouches)
         } more`,
       );
+      this.setButtonText(this.skillBuyButton, `Need ${cost - Math.floor(this.state.grassTouches)}`);
+      this.setButtonEnabled(this.skillBuyButton, false);
     } else {
       this.skillDetailCost.setText(`Cost: ${cost} Grass Touches\nYou have: ${Math.floor(this.state.grassTouches)}\nReady to upgrade`);
+      this.setButtonText(this.skillBuyButton, "Upgrade");
+      this.setButtonEnabled(this.skillBuyButton, true);
     }
   }
 
@@ -1178,7 +1217,11 @@ export class GameScene extends Phaser.Scene {
     this.skillStatusText.setText(message);
     this.time.delayedCall(1800, () => {
       if (this.skillTreeOpen) {
-        this.skillStatusText.setText(this.hasTouchScreen() ? "Tap a skill to upgrade it." : "Left click a skill to upgrade it.");
+        this.skillStatusText.setText(
+          this.hasTouchScreen()
+            ? "Tap a skill to inspect it. Upgrade from the info box."
+            : "Hover a skill to inspect it. Upgrade from the info box.",
+        );
       }
     });
   }
