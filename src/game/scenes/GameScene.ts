@@ -12,6 +12,7 @@ const TILE_GAP = 8;
 const BOARD_Y_OFFSET = 24;
 const TREE_WIDTH = 720;
 const TREE_HEIGHT = 390;
+const SKILL_NODE_SIZE = 92;
 
 interface TileView {
   base: Phaser.GameObjects.Image;
@@ -25,7 +26,6 @@ interface SkillNodeView {
   bg: Phaser.GameObjects.Rectangle;
   icon: Phaser.GameObjects.Text;
   level: Phaser.GameObjects.Text;
-  cost: Phaser.GameObjects.Text;
 }
 
 export class GameScene extends Phaser.Scene {
@@ -204,64 +204,57 @@ export class GameScene extends Phaser.Scene {
     for (const upgrade of UPGRADES) {
       const container = this.add.container(0, 0);
       const bg = this.add
-        .rectangle(0, 0, 70, 70, 0x2a3730, 1)
+        .rectangle(0, 0, SKILL_NODE_SIZE, SKILL_NODE_SIZE, 0x2a3730, 1)
         .setOrigin(0.5)
         .setStrokeStyle(4, upgrade.tree.color)
         .setInteractive({ useHandCursor: true });
       const icon = this.add
         .text(0, -16, upgrade.tree.icon, {
           fontFamily: "Trebuchet MS, Arial",
-          fontSize: "15px",
+          fontSize: "19px",
           color: "#f7ffe8",
           align: "center",
         })
         .setOrigin(0.5);
       const level = this.add
-        .text(0, 9, "", {
+        .text(0, 22, "", {
           fontFamily: "Trebuchet MS, Arial",
-          fontSize: "10px",
+          fontSize: "15px",
           color: "#dfffc8",
         })
         .setOrigin(0.5);
-      const cost = this.add
-        .text(0, 24, "", {
-          fontFamily: "Trebuchet MS, Arial",
-          fontSize: "10px",
-          color: "#fff7c7",
-        })
-        .setOrigin(0.5);
 
-      container.add([bg, icon, level, cost]);
+      container.add([bg, icon, level]);
       bg.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
         if (pointer.leftButtonDown()) {
           this.upgradeSkill(upgrade.id);
         }
       });
-      this.skillNodeViews.set(upgrade.id, { upgradeId: upgrade.id, container, bg, icon, level, cost });
+      this.skillNodeViews.set(upgrade.id, { upgradeId: upgrade.id, container, bg, icon, level });
       this.skillRoot.add(container);
     }
 
     this.skillDetailPanel = this.add.container(0, 0);
     const detailBg = this.add
-      .rectangle(0, 0, 300, 210, 0xf4ffdc, 0.96)
+      .rectangle(0, 0, 330, 234, 0xf4ffdc, 0.98)
       .setOrigin(0, 0)
       .setStrokeStyle(3, 0x2d6f36);
     this.skillDetailTitle = this.add.text(16, 14, "", {
       fontFamily: "Trebuchet MS, Arial",
-      fontSize: "20px",
+      fontSize: "23px",
       color: "#183d20",
     });
     this.skillDetailBody = this.add.text(16, 46, "", {
       fontFamily: "Trebuchet MS, Arial",
-      fontSize: "14px",
+      fontSize: "16px",
       color: "#416247",
-      wordWrap: { width: 268 },
+      wordWrap: { width: 298 },
     });
-    this.skillDetailCost = this.add.text(16, 130, "", {
+    this.skillDetailCost = this.add.text(16, 142, "", {
       fontFamily: "Trebuchet MS, Arial",
-      fontSize: "15px",
+      fontSize: "18px",
       color: "#6d4c19",
-      wordWrap: { width: 268 },
+      wordWrap: { width: 298 },
     });
     this.skillDetailPanel.add([detailBg, this.skillDetailTitle, this.skillDetailBody, this.skillDetailCost]);
     this.skillRoot.add(this.skillDetailPanel);
@@ -285,7 +278,7 @@ export class GameScene extends Phaser.Scene {
     this.skillStatusText.setPosition(this.scale.width / 2, 104);
     this.backButton.setPosition(this.scale.width - 142, 24);
     this.resetButton.setPosition(24, this.scale.height - 64);
-    this.skillDetailPanel.setPosition(Math.max(24, this.scale.width - 324), this.scale.height - 246);
+    this.skillDetailPanel.setPosition(Math.max(24, this.scale.width - 360), this.scale.height - 270);
 
     for (const upgrade of UPGRADES) {
       const view = this.skillNodeViews.get(upgrade.id);
@@ -625,8 +618,7 @@ export class GameScene extends Phaser.Scene {
       view.bg.setStrokeStyle(selected ? 6 : 4, stroke, 1);
       view.icon.setText(unlocked || level > 0 ? upgrade.tree.icon : "?");
       view.level.setText(level > 0 || unlocked ? `Lv ${level}/${upgrade.maxLevel}` : "locked");
-      view.cost.setText(maxed ? "maxed" : unlocked ? `Cost ${cost}` : "");
-      view.cost.setColor(available ? "#f7ffe8" : "#fff7c7");
+      view.level.setColor(available ? "#f7ffe8" : level > 0 ? "#dfffc8" : "#c8d1cc");
     }
 
     this.refreshSkillDetail();
