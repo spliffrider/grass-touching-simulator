@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { MILESTONES } from "../data/milestones";
+import { SEED_SHOP_ITEMS, getSeedDropChance } from "../data/seed-shop";
 import { UPGRADES, canUnlockUpgrade, getUpgradeCost } from "../data/upgrades";
 import { expandField, tileKey, touchTile, updateRegrowth } from "../systems/FieldSystem";
 import { AudioSystem } from "../systems/AudioSystem";
@@ -28,6 +29,13 @@ interface SkillNodeView {
   level: Phaser.GameObjects.Text;
 }
 
+interface SeedShopItemView {
+  itemId: string;
+  container: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Rectangle;
+  status: Phaser.GameObjects.Text;
+}
+
 export class GameScene extends Phaser.Scene {
   private state!: GameState;
   private tileViews = new Map<TileKey, TileView>();
@@ -35,6 +43,7 @@ export class GameScene extends Phaser.Scene {
   private resourceText!: Phaser.GameObjects.Text;
   private milestoneText!: Phaser.GameObjects.Text;
   private skillButton!: Phaser.GameObjects.Container;
+  private seedButton!: Phaser.GameObjects.Container;
   private skillRoot!: Phaser.GameObjects.Container;
   private skillBackdrop!: Phaser.GameObjects.Rectangle;
   private skillTitleText!: Phaser.GameObjects.Text;
@@ -48,10 +57,19 @@ export class GameScene extends Phaser.Scene {
   private skillDetailBody!: Phaser.GameObjects.Text;
   private skillDetailCost!: Phaser.GameObjects.Text;
   private resetButton!: Phaser.GameObjects.Container;
+  private seedRoot!: Phaser.GameObjects.Container;
+  private seedBackdrop!: Phaser.GameObjects.Rectangle;
+  private seedTitleText!: Phaser.GameObjects.Text;
+  private seedResourceText!: Phaser.GameObjects.Text;
+  private seedStatusText!: Phaser.GameObjects.Text;
+  private seedBackButton!: Phaser.GameObjects.Container;
+  private seedItemViews = new Map<string, SeedShopItemView>();
   private resetArmed = false;
   private lastAutoSaveAt = 0;
+  private sprinklerElapsed = 0;
   private audio = new AudioSystem();
   private skillTreeOpen = false;
+  private seedShopOpen = false;
   private selectedSkillId = UPGRADES[0].id;
   private boardScale = 1;
 
@@ -67,9 +85,11 @@ export class GameScene extends Phaser.Scene {
     this.createTileTextures();
     this.createHeader();
     this.createSkillTree();
+    this.createSeedShop();
     this.renderAllTiles();
     this.layoutHeader();
     this.layoutSkillTree();
+    this.layoutSeedShop();
     this.refreshUi();
     this.showMessage("Touch the grass. Let it regrow. Become reasonable.", 3600);
 
@@ -77,6 +97,7 @@ export class GameScene extends Phaser.Scene {
       this.layoutHeader();
       this.layoutTiles();
       this.layoutSkillTree();
+      this.layoutSeedShop();
     });
   }
 
@@ -96,6 +117,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.checkMilestones(stats);
+    this.updateSprinkler(delta, stats);
     this.refreshUi();
 
     this.lastAutoSaveAt += delta;
@@ -138,6 +160,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(20);
 
     this.skillButton = this.createTextButton("Skills", () => this.openSkillTree(), 118, 44, 20);
+    this.seedButton = this.createTextButton("Seeds", () => this.openSeedShop(), 118, 44, 20);
   }
 
   private layoutHeader(): void {
@@ -155,6 +178,7 @@ export class GameScene extends Phaser.Scene {
     this.resourceText.setPosition(26, this.titleText.y + this.titleText.height + 10);
     this.milestoneText.setPosition(26, this.resourceText.y + this.resourceText.height + 12);
     this.skillButton.setPosition(this.scale.width - 142, 24);
+    this.seedButton.setPosition(this.scale.width - 142, 76);
   }
 
   private createSkillTree(): void {
@@ -307,6 +331,99 @@ export class GameScene extends Phaser.Scene {
     this.drawSkillLines(treeScale, treeX, treeY);
   }
 
+  private createSeedShop(): void {
+    this.seedRoot?.destroy();
+    this.seedItemViews.clear();
+
+    this.seedRoot = this.add.container(0, 0).setDepth(105).setVisible(false);
+    this.seedBackdrop = this.add
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x20351f, 1)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.seedTitleText = this.add.text(0, 0, "Seed Shop", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "34px",
+      color: "#f7ffe8",
+      stroke: "#17491f",
+      strokeThickness: 6,
+    });
+    this.seedResourceText = this.add.text(0, 0, "", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "18px",
+      color: "#173b20",
+      backgroundColor: "#e9ffd0",
+      padding: { x: 12, y: 8 },
+    });
+    this.seedStatusText = this.add
+      .text(0, 0, "Seeds unlock new ways to touch grass.", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "16px",
+        color: "#f7ffe8",
+        stroke: "#17491f",
+        strokeThickness: 4,
+      })
+      .setOrigin(0.5, 0);
+    this.seedBackButton = this.createTextButton("Back", () => this.closeSeedShop(), 118, 44, 106);
+
+    this.seedRoot.add([this.seedBackdrop, this.seedTitleText, this.seedResourceText, this.seedStatusText, this.seedBackButton]);
+
+    for (const item of SEED_SHOP_ITEMS) {
+      const container = this.add.container(0, 0);
+      const bg = this.add
+        .rectangle(0, 0, 420, 92, 0xf4ffdc, 0.96)
+        .setOrigin(0, 0)
+        .setStrokeStyle(3, 0x2d6f36)
+        .setInteractive({ useHandCursor: true });
+      const name = this.add.text(14, 10, item.name, {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "20px",
+        color: "#183d20",
+      });
+      const description = this.add.text(14, 38, item.description, {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "14px",
+        color: "#416247",
+        wordWrap: { width: 392 },
+      });
+      const status = this.add.text(14, 68, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "15px",
+        color: "#6d4c19",
+      });
+
+      bg.on("pointerdown", () => this.buySeedShopItem(item.id));
+      container.add([bg, name, description, status]);
+      this.seedItemViews.set(item.id, { itemId: item.id, container, bg, status });
+      this.seedRoot.add(container);
+    }
+
+    this.layoutSeedShop();
+  }
+
+  private layoutSeedShop(): void {
+    const compact = this.scale.width < 560;
+    const panelWidth = Math.min(420, this.scale.width - 32);
+    const x = (this.scale.width - panelWidth) / 2;
+    let y = compact ? 146 : 154;
+
+    this.seedBackdrop.setSize(this.scale.width, this.scale.height);
+    this.seedTitleText.setFontSize(compact ? 30 : 34);
+    this.seedResourceText.setFontSize(compact ? 14 : 18);
+    this.seedStatusText.setFontSize(compact ? 13 : 16);
+    this.seedStatusText.setWordWrapWidth(Math.max(240, this.scale.width - 48));
+    this.seedTitleText.setPosition(24, 24);
+    this.seedResourceText.setPosition(26, compact ? 72 : 78);
+    this.seedStatusText.setPosition(this.scale.width / 2, compact ? 108 : 112);
+    this.seedBackButton.setScale(compact ? 0.9 : 1);
+    this.seedBackButton.setPosition(this.scale.width - 142, 24);
+
+    for (const view of this.seedItemViews.values()) {
+      view.bg.setSize(panelWidth, 92);
+      view.container.setPosition(x, y);
+      y += 106;
+    }
+  }
+
   private createTextButton(
     text: string,
     onClick: () => void,
@@ -371,6 +488,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private openSkillTree(): void {
+    this.closeSeedShop();
     this.skillTreeOpen = true;
     this.skillRoot.setVisible(true);
     this.disarmReset();
@@ -382,6 +500,52 @@ export class GameScene extends Phaser.Scene {
     this.skillTreeOpen = false;
     this.skillRoot.setVisible(false);
     this.disarmReset();
+    this.refreshUi();
+  }
+
+  private openSeedShop(): void {
+    this.closeSkillTree();
+    this.seedShopOpen = true;
+    this.seedRoot.setVisible(true);
+    this.audio.play("upgrade");
+    this.refreshUi();
+  }
+
+  private closeSeedShop(): void {
+    this.seedShopOpen = false;
+    this.seedRoot?.setVisible(false);
+    this.refreshUi();
+  }
+
+  private buySeedShopItem(itemId: string): void {
+    const item = SEED_SHOP_ITEMS.find((candidate) => candidate.id === itemId);
+
+    if (!item || !item.isUnlocked(this.state)) {
+      this.setSeedStatus("That idea has not sprouted yet.");
+      this.audio.play("blocked");
+      this.refreshUi();
+      return;
+    }
+
+    if (this.state.seedShopPurchases[item.id]) {
+      this.setSeedStatus(`${item.name} is already growing.`);
+      this.audio.play("blocked");
+      this.refreshUi();
+      return;
+    }
+
+    if (this.state.seeds < item.cost) {
+      this.setSeedStatus(`${item.name} needs ${item.cost} seeds. You have ${Math.floor(this.state.seeds)}.`);
+      this.audio.play("blocked");
+      this.refreshUi();
+      return;
+    }
+
+    this.state.seeds -= item.cost;
+    this.state.seedShopPurchases[item.id] = true;
+    this.setSeedStatus(`${item.name} unlocked.`);
+    this.audio.play("upgrade");
+    saveGame(this.state);
     this.refreshUi();
   }
 
@@ -422,6 +586,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
     this.showMessage("Fresh start. One patch. Infinite responsibility.", 2600);
     this.closeSkillTree();
+    this.closeSeedShop();
   }
 
   private renderAllTiles(): void {
@@ -499,11 +664,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleTileClicked(tile: FieldTile): void {
-    if (this.skillTreeOpen) {
+    if (this.skillTreeOpen || this.seedShopOpen) {
       return;
     }
 
     const stats = getRuntimeStats(this.state);
+    const touchedTrait = tile.trait;
     const gained = touchTile(tile, this.state, stats, Date.now());
 
     if (gained === 0) {
@@ -513,10 +679,81 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.playTouchFeedback(tile);
+    this.playTouchFeedback(tile, touchedTrait);
     this.refreshTile(tile);
     this.popAtTile(tile, `+${gained}`, "#f9ffe5");
+    this.tryDropSeed(tile, touchedTrait, stats);
     this.cameras.main.shake(70, 0.0013);
+    this.audio.play("touch");
+    saveGame(this.state);
+  }
+
+  private tryDropSeed(tile: FieldTile, touchedTrait: FieldTile["trait"], stats: ReturnType<typeof getRuntimeStats>): void {
+    let chance = getSeedDropChance(this.state);
+    chance += touchedTrait === "lush" ? 0.08 : touchedTrait === "dewy" ? 0.04 : 0;
+
+    if (Math.random() >= chance) {
+      return;
+    }
+
+    this.state.seeds += 1;
+    this.state.lifetimeSeeds += 1;
+    this.popAtTile(tile, "+1 seed", "#fff1a8");
+    this.emitSeedBurst(tile);
+    this.audio.play("seed");
+
+    if (this.state.seedShopPurchases.wild_spread && Math.random() < 0.35) {
+      const addedTiles = expandField(this.state, 1, stats);
+
+      for (const addedTile of addedTiles) {
+        this.createTileView(addedTile);
+      }
+
+      if (addedTiles.length > 0) {
+        this.layoutTiles();
+        for (const addedTile of addedTiles) {
+          this.popAtTile(addedTile, "sprout", "#dfffc8");
+        }
+        this.audio.play("regrow");
+      }
+    }
+  }
+
+  private emitSeedBurst(tile: FieldTile): void {
+    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    if (!view) {
+      return;
+    }
+
+    this.emitBurst("seed-fleck", view.base.x, view.base.y - 8, 18, 0.82, 0.32);
+  }
+
+  private updateSprinkler(delta: number, stats: ReturnType<typeof getRuntimeStats>): void {
+    if (!this.state.seedShopPurchases.sprinkler || this.skillTreeOpen || this.seedShopOpen) {
+      return;
+    }
+
+    this.sprinklerElapsed += delta;
+    if (this.sprinklerElapsed < 4800) {
+      return;
+    }
+
+    this.sprinklerElapsed = 0;
+    const grownTiles = Object.values(this.state.field).filter((tile) => tile.grassState === "grown");
+    const tile = Phaser.Utils.Array.GetRandom(grownTiles);
+    if (!tile) {
+      return;
+    }
+
+    const touchedTrait = tile.trait;
+    const gained = touchTile(tile, this.state, stats, Date.now());
+    if (gained === 0) {
+      return;
+    }
+
+    this.playTouchFeedback(tile, touchedTrait);
+    this.refreshTile(tile);
+    this.popAtTile(tile, `sprinkler +${gained}`, "#d7fff2");
     this.audio.play("touch");
     saveGame(this.state);
   }
@@ -542,7 +779,7 @@ export class GameScene extends Phaser.Scene {
     return tile.trait === "lush" ? 1.06 : 1;
   }
 
-  private playTouchFeedback(tile: FieldTile): void {
+  private playTouchFeedback(tile: FieldTile, touchedTrait = tile.trait): void {
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (!view) {
       return;
@@ -550,7 +787,7 @@ export class GameScene extends Phaser.Scene {
 
     const x = view.base.x;
     const y = view.base.y;
-    const fleckTexture = tile.trait === "dewy" ? "dew-fleck" : "grass-fleck";
+    const fleckTexture = touchedTrait === "dewy" ? "dew-fleck" : "grass-fleck";
     const grassGhost = this.add
       .image(x, y, view.grass.texture.key)
       .setScale(view.grass.scaleX, view.grass.scaleY)
@@ -698,6 +935,7 @@ export class GameScene extends Phaser.Scene {
     this.createParticleTexture("grass-fleck", [0xb4f47a, 0x6edb58, 0x2f8436]);
     this.createParticleTexture("dew-fleck", [0xd7fff2, 0xa9f2bc, 0x75d894]);
     this.createParticleTexture("dust-fleck", [0xc7975d, 0x8a6139, 0x6f4c2f]);
+    this.createParticleTexture("seed-fleck", [0xffe08a, 0xc69232, 0x6d4c19]);
   }
 
   private createDirtTexture(key: string, baseColor: number, shadowColor: number, stubble = false): void {
@@ -804,17 +1042,26 @@ export class GameScene extends Phaser.Scene {
 
   private refreshUi(): void {
     const nextMilestone = MILESTONES.find((milestone) => !this.state.reachedMilestones.includes(milestone.id));
+    const compact = this.scale.width < 620;
+    const resourceSeparator = compact ? "\n" : " | ";
 
     this.titleText.setText("Grass Touching Simulator");
     this.resourceText.setText(
-      `Grass Touches: ${Math.floor(this.state.grassTouches)} | Lifetime: ${Math.floor(this.state.lifetimeGrassTouches)} | Patches: ${Object.keys(this.state.field).length}`,
+      [
+        `Grass Touches: ${Math.floor(this.state.grassTouches)}`,
+        `Seeds: ${Math.floor(this.state.seeds)}`,
+        `Lifetime: ${Math.floor(this.state.lifetimeGrassTouches)}`,
+        `Patches: ${Object.keys(this.state.field).length}`,
+      ].join(resourceSeparator),
     );
     this.skillResourceText.setText(`Grass Touches: ${Math.floor(this.state.grassTouches)}`);
+    this.refreshSeedShop();
     this.milestoneText.setText(
       nextMilestone
         ? `Next surface spread: ${nextMilestone.name} at ${nextMilestone.requiredLifetimeTouches} lifetime touches`
         : "All prototype surface spreads discovered.",
     );
+    this.milestoneText.setPosition(26, this.resourceText.y + this.resourceText.height + 12);
 
     for (const upgrade of UPGRADES) {
       const view = this.skillNodeViews.get(upgrade.id);
@@ -841,6 +1088,43 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.refreshSkillDetail();
+  }
+
+  private refreshSeedShop(): void {
+    this.seedResourceText.setText(
+      `Seeds: ${Math.floor(this.state.seeds)} | Lifetime Seeds: ${Math.floor(this.state.lifetimeSeeds)} | Drop Chance: ${Math.round(
+        getSeedDropChance(this.state) * 100,
+      )}%`,
+    );
+
+    for (const item of SEED_SHOP_ITEMS) {
+      const view = this.seedItemViews.get(item.id);
+      if (!view) {
+        continue;
+      }
+
+      const purchased = this.state.seedShopPurchases[item.id] === true;
+      const unlocked = item.isUnlocked(this.state);
+      const affordable = this.state.seeds >= item.cost;
+
+      view.container.setAlpha(unlocked || purchased ? 1 : 0.76);
+      view.bg.setFillStyle(purchased ? 0xdfffc8 : 0xf4ffdc, unlocked || purchased ? 0.96 : 0.7);
+      view.bg.setStrokeStyle(3, purchased ? 0x85d35e : affordable && unlocked ? 0xf5ec72 : 0x2d6f36);
+
+      if (purchased) {
+        view.status.setText("Unlocked");
+        view.status.setColor("#26652e");
+      } else if (!unlocked) {
+        view.status.setText("Locked");
+        view.status.setColor("#c8d1cc");
+      } else if (!affordable) {
+        view.status.setText(`Cost: ${item.cost} seeds | Need ${item.cost - Math.floor(this.state.seeds)} more`);
+        view.status.setColor("#6d4c19");
+      } else {
+        view.status.setText(`Cost: ${item.cost} seeds | Ready`);
+        view.status.setColor("#26652e");
+      }
+    }
   }
 
   private refreshSkillDetail(): void {
@@ -878,6 +1162,15 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(1800, () => {
       if (this.skillTreeOpen) {
         this.skillStatusText.setText(this.hasTouchScreen() ? "Tap a skill to upgrade it." : "Left click a skill to upgrade it.");
+      }
+    });
+  }
+
+  private setSeedStatus(message: string): void {
+    this.seedStatusText.setText(message);
+    this.time.delayedCall(1800, () => {
+      if (this.seedShopOpen) {
+        this.seedStatusText.setText("Seeds unlock new ways to touch grass.");
       }
     });
   }

@@ -22,10 +22,13 @@ export interface UpgradeState {
 
 export interface GameState {
   grassTouches: number;
+  seeds: number;
+  lifetimeSeeds: number;
   lifetimeGrassTouches: number;
   totalClickedPatches: number;
   field: Record<TileKey, FieldTile>;
   upgrades: Record<string, UpgradeState>;
+  seedShopPurchases: Record<string, boolean>;
   reachedMilestones: string[];
   lastSavedAt: number;
 }

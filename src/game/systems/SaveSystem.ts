@@ -17,11 +17,15 @@ export function loadGame(): GameState {
 
   try {
     const parsed = JSON.parse(rawSave) as GameState;
+    const initial = createInitialState();
     return {
-      ...createInitialState(),
+      ...initial,
       ...parsed,
-      field: parsed.field ?? createInitialState().field,
+      field: parsed.field ?? initial.field,
       upgrades: parsed.upgrades ?? {},
+      seeds: parsed.seeds ?? 0,
+      lifetimeSeeds: parsed.lifetimeSeeds ?? 0,
+      seedShopPurchases: parsed.seedShopPurchases ?? {},
       reachedMilestones: parsed.reachedMilestones ?? [],
     };
   } catch {

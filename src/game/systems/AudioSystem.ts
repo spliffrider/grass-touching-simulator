@@ -1,4 +1,4 @@
-type SoundName = "touch" | "regrow" | "upgrade" | "milestone" | "blocked";
+type SoundName = "touch" | "regrow" | "upgrade" | "milestone" | "blocked" | "seed";
 
 export class AudioSystem {
   private context?: AudioContext;
@@ -78,6 +78,9 @@ export class AudioSystem {
       case "blocked":
         this.playBlocked();
         break;
+      case "seed":
+        this.playSeed();
+        break;
     }
   }
 
@@ -101,6 +104,12 @@ export class AudioSystem {
     this.playTone(360, 0.09, 0.075, "triangle", now);
     this.playTone(540, 0.11, 0.065, "triangle", now + 0.07);
     this.playTone(720, 0.14, 0.06, "sine", now + 0.14);
+  }
+
+  private playSeed(): void {
+    const now = this.now();
+    this.playTone(620 + Math.random() * 50, 0.06, 0.05, "sine", now);
+    this.playTone(940 + Math.random() * 80, 0.08, 0.045, "triangle", now + 0.045);
   }
 
   private playMilestone(): void {

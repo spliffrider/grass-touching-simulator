@@ -14,12 +14,15 @@ export function tileKey(x: number, y: number): TileKey {
 export function createInitialState(): GameState {
   return {
     grassTouches: 0,
+    seeds: 0,
+    lifetimeSeeds: 0,
     lifetimeGrassTouches: 0,
     totalClickedPatches: 0,
     field: {
       [tileKey(0, 0)]: createTile(0, 0, "normal"),
     },
     upgrades: {},
+    seedShopPurchases: {},
     reachedMilestones: [],
     lastSavedAt: Date.now(),
   };
