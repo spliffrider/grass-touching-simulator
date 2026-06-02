@@ -24,7 +24,7 @@ export class TitleScene extends Phaser.Scene {
   private creditsPanel!: Phaser.GameObjects.Rectangle;
   private creditsTitle!: Phaser.GameObjects.Text;
   private creditsRole!: Phaser.GameObjects.Text;
-  private creditsName!: Phaser.GameObjects.Text;
+  private creditsNames!: Phaser.GameObjects.Text;
   private creditsBackHit!: Phaser.GameObjects.Rectangle;
   private creditsBackText!: Phaser.GameObjects.Text;
   private optionsOpen = false;
@@ -125,19 +125,20 @@ export class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.creditsRole = this.add
-      .text(0, 0, "Playtester", {
+      .text(0, 0, "Playtesters", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "20px",
         color: "#416247",
       })
       .setOrigin(0.5);
-    this.creditsName = this.add
-      .text(0, 0, "Cosmodeus", {
+    this.creditsNames = this.add
+      .text(0, 0, "Cosmodeus\nRemy", {
         fontFamily: "Trebuchet MS, Arial",
-        fontSize: "30px",
+        fontSize: "28px",
         color: "#17491f",
         stroke: "#dfffc8",
         strokeThickness: 4,
+        align: "center",
       })
       .setOrigin(0.5);
     this.creditsBackHit = this.add
@@ -159,7 +160,7 @@ export class TitleScene extends Phaser.Scene {
       this.creditsPanel,
       this.creditsTitle,
       this.creditsRole,
-      this.creditsName,
+      this.creditsNames,
       this.creditsBackHit,
       this.creditsBackText,
     ]);
@@ -203,7 +204,7 @@ export class TitleScene extends Phaser.Scene {
     this.creditsPanel?.setPosition(centerX, centerY).setSize(panelWidth, panelHeight);
     this.creditsTitle?.setPosition(centerX, centerY - 86);
     this.creditsRole?.setPosition(centerX, centerY - 18);
-    this.creditsName?.setPosition(centerX, centerY + 24);
+    this.creditsNames?.setPosition(centerX, centerY + 32);
     this.creditsBackHit?.setPosition(centerX, centerY + 102);
     this.creditsBackText?.setPosition(centerX, centerY + 102);
   }
