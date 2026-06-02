@@ -48,6 +48,7 @@ export class GameScene extends Phaser.Scene {
   private skillDetailBody!: Phaser.GameObjects.Text;
   private skillDetailCost!: Phaser.GameObjects.Text;
   private resetButton!: Phaser.GameObjects.Container;
+  private resetArmed = false;
   private lastAutoSaveAt = 0;
   private audio = new AudioSystem();
   private skillTreeOpen = false;
@@ -257,7 +258,7 @@ export class GameScene extends Phaser.Scene {
     this.skillDetailPanel.add([detailBg, this.skillDetailTitle, this.skillDetailBody, this.skillDetailCost]);
     this.skillRoot.add(this.skillDetailPanel);
 
-    this.resetButton = this.createTextButton("Reset Save", () => this.resetPrototypeSave(), 150, 44, 101);
+    this.resetButton = this.createTextButton("Reset", () => this.handleResetPressed(), 92, 34, 101);
     this.skillRoot.add(this.resetButton);
 
     this.layoutSkillTree();
@@ -285,8 +286,8 @@ export class GameScene extends Phaser.Scene {
     this.skillStatusText.setPosition(shortLandscape ? this.scale.width / 2 + 20 : this.scale.width / 2, shortLandscape ? 72 : 104);
     this.backButton.setScale(narrowPortrait ? 0.9 : 1);
     this.backButton.setPosition(this.scale.width - 142, 24);
-    this.resetButton.setScale(shortLandscape ? 0.82 : 1);
-    this.resetButton.setPosition(24, this.scale.height - (shortLandscape ? 48 : narrowPortrait ? 58 : 64));
+    this.resetButton.setScale(shortLandscape ? 0.78 : narrowPortrait ? 0.86 : 0.88);
+    this.resetButton.setPosition(this.scale.width - 108, this.scale.height - (shortLandscape ? 42 : narrowPortrait ? 46 : 48));
     this.skillDetailPanel.setScale(shortLandscape ? 0.72 : narrowPortrait ? 1 : 1);
     this.skillDetailPanel.setPosition(
       shortLandscape ? this.scale.width - 252 : narrowPortrait ? (this.scale.width - 330) / 2 : Math.max(24, this.scale.width - 360),
@@ -322,13 +323,14 @@ export class GameScene extends Phaser.Scene {
     const label = this.add
       .text(width / 2, height / 2, text, {
         fontFamily: "Trebuchet MS, Arial",
-        fontSize: "18px",
+        fontSize: height < 40 ? "14px" : "18px",
         color: "#183d20",
       })
       .setOrigin(0.5);
 
     bg.on("pointerdown", onClick);
     button.add([bg, label]);
+    button.setData("label", label);
     return button;
   }
 
@@ -371,6 +373,7 @@ export class GameScene extends Phaser.Scene {
   private openSkillTree(): void {
     this.skillTreeOpen = true;
     this.skillRoot.setVisible(true);
+    this.disarmReset();
     this.audio.play("upgrade");
     this.refreshUi();
   }
@@ -378,10 +381,35 @@ export class GameScene extends Phaser.Scene {
   private closeSkillTree(): void {
     this.skillTreeOpen = false;
     this.skillRoot.setVisible(false);
+    this.disarmReset();
     this.refreshUi();
   }
 
+  private handleResetPressed(): void {
+    if (!this.resetArmed) {
+      this.resetArmed = true;
+      this.setButtonText(this.resetButton, "Confirm?");
+      this.setSkillStatus("Tap Confirm? to reset your save.");
+      this.audio.play("blocked");
+      this.time.delayedCall(2600, () => this.disarmReset());
+      return;
+    }
+
+    this.resetPrototypeSave();
+  }
+
+  private disarmReset(): void {
+    this.resetArmed = false;
+    this.setButtonText(this.resetButton, "Reset");
+  }
+
+  private setButtonText(button: Phaser.GameObjects.Container, text: string): void {
+    const label = button.getData("label") as Phaser.GameObjects.Text | undefined;
+    label?.setText(text);
+  }
+
   private resetPrototypeSave(): void {
+    this.disarmReset();
     this.state = resetSave();
     this.tileViews.forEach((view) => {
       view.base.destroy();
