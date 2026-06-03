@@ -1029,6 +1029,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showTileInfo(tile: FieldTile): void {
+    if (this.hasTouchScreen()) {
+      this.clearTileInfo();
+      return;
+    }
+
     this.hoveredTileKey = tileKey(tile.x, tile.y);
     this.refreshTileInfo(tile);
     this.positionTileInfo(tile);
@@ -1040,6 +1045,11 @@ export class GameScene extends Phaser.Scene {
       this.hoveredTileKey = undefined;
       this.tileInfoPanel.setVisible(false);
     }
+  }
+
+  private clearTileInfo(): void {
+    this.hoveredTileKey = undefined;
+    this.tileInfoPanel.setVisible(false);
   }
 
   private refreshTileInfo(tile: FieldTile): void {
@@ -1071,6 +1081,10 @@ export class GameScene extends Phaser.Scene {
   private handleTileClicked(tile: FieldTile): void {
     if (this.skillTreeOpen || this.seedShopOpen) {
       return;
+    }
+
+    if (this.hasTouchScreen()) {
+      this.clearTileInfo();
     }
 
     const stats = getRuntimeStats(this.state);

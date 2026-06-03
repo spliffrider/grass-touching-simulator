@@ -132,13 +132,15 @@ export class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.creditsNames = this.add
-      .text(0, 0, "Cosmodeus\nRemy", {
+      .text(0, 0, "Cosmodeus\nRemy\ntussukarva🇫🇮🇸🇪\n🔪⋆🎀  𝒦𝒾𝓉𝓉𝓎 𝒩💔𝒾𝓇 🎀⋆🔪", {
         fontFamily: "Trebuchet MS, Arial",
-        fontSize: "28px",
+        fontSize: "22px",
         color: "#17491f",
         stroke: "#dfffc8",
         strokeThickness: 4,
         align: "center",
+        lineSpacing: 4,
+        wordWrap: { width: 390 },
       })
       .setOrigin(0.5);
     this.creditsBackHit = this.add
@@ -195,18 +197,18 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private layoutCreditsPanel(): void {
-    const panelWidth = Math.min(420, this.scale.width - 40);
-    const panelHeight = 290;
+    const panelWidth = Math.min(520, this.scale.width - 40);
+    const panelHeight = Math.min(360, this.scale.height - 36);
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
 
     this.creditsBackdrop?.setSize(this.scale.width, this.scale.height);
     this.creditsPanel?.setPosition(centerX, centerY).setSize(panelWidth, panelHeight);
-    this.creditsTitle?.setPosition(centerX, centerY - 86);
-    this.creditsRole?.setPosition(centerX, centerY - 18);
-    this.creditsNames?.setPosition(centerX, centerY + 32);
-    this.creditsBackHit?.setPosition(centerX, centerY + 102);
-    this.creditsBackText?.setPosition(centerX, centerY + 102);
+    this.creditsTitle?.setPosition(centerX, centerY - panelHeight / 2 + 48);
+    this.creditsRole?.setPosition(centerX, centerY - panelHeight / 2 + 100);
+    this.creditsNames?.setPosition(centerX, centerY + 12).setWordWrapWidth(Math.max(220, panelWidth - 50));
+    this.creditsBackHit?.setPosition(centerX, centerY + panelHeight / 2 - 44);
+    this.creditsBackText?.setPosition(centerX, centerY + panelHeight / 2 - 44);
   }
 
   private handleButton(id: TitleButton["id"]): void {
