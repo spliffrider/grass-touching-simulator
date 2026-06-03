@@ -4,7 +4,8 @@
     "description": "A cozy incremental clicker about touching grass. The player clicks top-down grass tiles, earns Grass Touches, unlocks skills, buys seed shop systems, and gradually expands the field.",
     "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
     "github": "https://github.com/spliffrider/grass-touching-simulator",
-    "productionUrl": "https://grass-touching-simulator.vercel.app",
+    "productionUrl": "https://www.grasstouchingsimulator.com",
+    "vercelUrl": "https://grass-touching-simulator.vercel.app",
     "stack": {
       "engine": "Phaser 3",
       "language": "TypeScript",
@@ -169,5 +170,5 @@
       "Grass That Knows Your Browser History"
     ]
   },
-  "newSessionPrompt": "We are continuing Grass Touching Simulator in C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator. Read handoff-summary.json first. The current game is Phaser 3 + TypeScript + Vite, deployed to https://grass-touching-simulator.vercel.app. Latest commit before the handoff file was ab16c58, which expanded the skill tree, seed shop, rare grass, and weather. The next useful work is playtest-driven tuning, skill tree navigation, more seed shop systems, and extra juicy click feedback."
+  "newSessionPrompt": "We are continuing Grass Touching Simulator in C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator. Read handoff-summary.json first. The current game is Phaser 3 + TypeScript + Vite, deployed to https://www.grasstouchingsimulator.com with the Vercel fallback at https://grass-touching-simulator.vercel.app. Latest commit before the handoff file was ab16c58, which expanded the skill tree, seed shop, rare grass, and weather. The next useful work is playtest-driven tuning, skill tree navigation, more seed shop systems, and extra juicy click feedback."
 }
