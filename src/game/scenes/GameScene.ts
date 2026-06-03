@@ -3,25 +3,26 @@ import { GRASS_TIERS, getGrassTier, getNextGrassTier } from "../data/grass-tiers
 import { MILESTONES } from "../data/milestones";
 import { SEED_SHOP_ITEMS, getSeedDropChance } from "../data/seed-shop";
 import { UPGRADES, canUnlockUpgrade, getUpgradeCost } from "../data/upgrades";
+import { getWeather, pickWeather } from "../data/weather";
 import { expandField, tileKey, touchTile, updateRegrowth } from "../systems/FieldSystem";
 import { AudioSystem } from "../systems/AudioSystem";
 import { loadGame, resetSave, saveGame } from "../systems/SaveSystem";
 import { getRuntimeStats } from "../systems/UpgradeSystem";
-import type { FieldTile, GameState, TileKey } from "../types/game-state";
+import type { FieldTile, GameState, TileKey, TouchResult } from "../types/game-state";
 
 const TILE_SIZE = 58;
 const TILE_GAP = 8;
 const BOARD_Y_OFFSET = 24;
 const TREE_WIDTH = 720;
-const TREE_HEIGHT = 390;
+const TREE_HEIGHT = 520;
 const SKILL_NODE_SIZE = 92;
 
 const SKILL_BRANCH_LABELS = [
-  { text: "Touch", x: 72, y: 34, color: "#dfffc8" },
-  { text: "Growth", x: 310, y: 36, color: "#bff4ff" },
-  { text: "Crits", x: 86, y: 342, color: "#ffef78" },
-  { text: "Nature", x: 558, y: 34, color: "#d7fff2" },
-  { text: "Meadow", x: 628, y: 342, color: "#dfffc8" },
+  { text: "Touch", x: 76, y: 36, color: "#dfffc8" },
+  { text: "Growth", x: 330, y: 38, color: "#bff4ff" },
+  { text: "Crits", x: 312, y: 486, color: "#ffef78" },
+  { text: "Nature", x: 548, y: 38, color: "#d7fff2" },
+  { text: "Meadow", x: 628, y: 486, color: "#dfffc8" },
 ];
 
 interface TileView {
@@ -90,6 +91,7 @@ export class GameScene extends Phaser.Scene {
   private seedStatusText!: Phaser.GameObjects.Text;
   private seedBackButton!: Phaser.GameObjects.Container;
   private seedItemViews = new Map<string, SeedShopItemView>();
+  private seedShopScroll = 0;
   private resetArmed = false;
   private lastAutoSaveAt = 0;
   private sprinklerElapsed = 0;
@@ -121,6 +123,7 @@ export class GameScene extends Phaser.Scene {
     saveGame(this.state);
 
     this.cameras.main.setBackgroundColor("#7fc66c");
+    this.updateWeather(Date.now(), false);
     this.createTileTextures();
     this.createHeader();
     this.createTileInfoPanel();
@@ -139,10 +142,20 @@ export class GameScene extends Phaser.Scene {
       this.layoutSkillTree();
       this.layoutSeedShop();
     });
+
+    this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _objects: unknown[], _deltaX: number, deltaY: number) => {
+      if (!this.seedShopOpen) {
+        return;
+      }
+
+      this.seedShopScroll = Math.max(0, this.seedShopScroll + deltaY * 0.75);
+      this.layoutSeedShop();
+    });
   }
 
   update(_time: number, delta: number): void {
     const now = Date.now();
+    this.updateWeather(now, true);
     const stats = getRuntimeStats(this.state);
     const regrown = updateRegrowth(this.state, stats, now);
 
@@ -513,7 +526,13 @@ export class GameScene extends Phaser.Scene {
     const compact = this.scale.width < 560;
     const panelWidth = Math.min(420, this.scale.width - 32);
     const x = (this.scale.width - panelWidth) / 2;
-    let y = compact ? 146 : 154;
+    const itemGap = compact ? 92 : 100;
+    const startY = compact ? 146 : 154;
+    const availableHeight = Math.max(120, this.scale.height - startY - 22);
+    const totalHeight = SEED_SHOP_ITEMS.length * itemGap;
+    const maxScroll = Math.max(0, totalHeight - availableHeight);
+    this.seedShopScroll = Math.min(this.seedShopScroll, maxScroll);
+    let y = startY - this.seedShopScroll;
 
     this.seedBackdrop.setSize(this.scale.width, this.scale.height);
     this.seedTitleText.setFontSize(compact ? 30 : 34);
@@ -527,9 +546,10 @@ export class GameScene extends Phaser.Scene {
     this.seedBackButton.setPosition(this.scale.width - 142, 24);
 
     for (const view of this.seedItemViews.values()) {
-      view.bg.setSize(panelWidth, 92);
+      view.bg.setSize(panelWidth, compact ? 82 : 92);
       view.container.setPosition(x, y);
-      y += 106;
+      view.container.setVisible(y > 118 - itemGap && y < this.scale.height + itemGap);
+      y += itemGap;
     }
   }
 
@@ -627,6 +647,7 @@ export class GameScene extends Phaser.Scene {
   private openSeedShop(): void {
     this.closeSkillTree();
     this.seedShopOpen = true;
+    this.seedShopScroll = 0;
     this.seedRoot.setVisible(true);
     this.audio.play("upgrade");
     this.refreshUi();
@@ -664,6 +685,10 @@ export class GameScene extends Phaser.Scene {
 
     this.state.seeds -= item.cost;
     this.state.seedShopPurchases[item.id] = true;
+    if (item.id === "weather_jar") {
+      this.state.weatherEndsAt = 0;
+      this.updateWeather(Date.now(), false);
+    }
     this.setSeedStatus(`${item.name} unlocked.`);
     this.audio.play("upgrade");
     saveGame(this.state);
@@ -891,15 +916,10 @@ export class GameScene extends Phaser.Scene {
 
     this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     this.refreshTile(tile);
-    this.popAtTile(
-      tile,
-      touch.isCrit
-        ? `CRIT x${touch.critMultiplier.toFixed(1)} +${touch.gained}`
-        : touchedTier.id === "normal"
-          ? `+${touch.gained}`
-          : `${touchedTier.label} +${touch.gained}`,
-      touch.isCrit ? "#ffef78" : touchedTier.id === "normal" ? "#f9ffe5" : "#dfffc8",
-    );
+    this.popAtTile(tile, this.getTouchPopText(touch, touchedTier.label), touch.isCrit ? "#ffef78" : touchedTier.id === "normal" ? "#f9ffe5" : "#dfffc8");
+    if (touch.instantRegrown) {
+      this.popAtTile(tile, "instant regrow", "#dfffc8");
+    }
     this.tryDropSeed(tile, touchedTrait, stats);
     this.cameras.main.shake(touch.isCrit ? 140 : 70, touch.isCrit ? 0.004 : 0.0013);
     this.audio.play(touch.isCrit ? "crit" : "touch");
@@ -907,7 +927,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private tryDropSeed(tile: FieldTile, touchedTrait: FieldTile["trait"], stats: ReturnType<typeof getRuntimeStats>): void {
-    let chance = getSeedDropChance(this.state);
+    let chance = getSeedDropChance(this.state, stats.seedDropBonus);
     chance += touchedTrait === "lush" ? 0.08 : touchedTrait === "dewy" ? 0.04 : 0;
 
     if (Math.random() >= chance) {
@@ -974,14 +994,35 @@ export class GameScene extends Phaser.Scene {
     this.refreshTile(tile);
     this.popAtTile(
       tile,
-      touch.isCrit
-        ? `sprinkler CRIT +${touch.gained}`
-        : touchedTier.id === "normal"
-          ? `sprinkler +${touch.gained}`
-          : `${touchedTier.label} +${touch.gained}`,
+      this.getTouchPopText(touch, touchedTier.id === "normal" ? "sprinkler" : touchedTier.label),
       touch.isCrit ? "#ffef78" : "#d7fff2",
     );
     this.audio.play(touch.isCrit ? "crit" : "touch");
+    saveGame(this.state);
+  }
+
+  private getTouchPopText(touch: TouchResult, label: string): string {
+    const prefix = [label, touch.doubled ? "DOUBLE" : "", touch.isCrit ? `CRIT x${touch.critMultiplier.toFixed(1)}` : ""].filter(Boolean).join(" ");
+    return `${prefix ? `${prefix} ` : ""}+${touch.gained}`;
+  }
+
+  private updateWeather(now: number, announce: boolean): void {
+    if (!this.state.seedShopPurchases.weather_jar) {
+      return;
+    }
+
+    if (this.state.activeWeatherId && this.state.weatherEndsAt && now < this.state.weatherEndsAt) {
+      return;
+    }
+
+    const weather = pickWeather(this.state.activeWeatherId);
+    this.state.activeWeatherId = weather.id;
+    this.state.weatherEndsAt = now + 120000;
+
+    if (announce) {
+      this.showMessage(`${weather.name}: ${weather.description}`, 2600);
+    }
+
     saveGame(this.state);
   }
 
@@ -1343,6 +1384,7 @@ export class GameScene extends Phaser.Scene {
   private refreshUi(): void {
     const nextMilestone = MILESTONES.find((milestone) => !this.state.reachedMilestones.includes(milestone.id));
     const nextTier = getNextGrassTier(this.state);
+    const weather = this.state.seedShopPurchases.weather_jar ? getWeather(this.state.activeWeatherId) : undefined;
     const compact = this.scale.width < 620;
     const resourceSeparator = compact ? "\n" : " | ";
 
@@ -1363,6 +1405,7 @@ export class GameScene extends Phaser.Scene {
           ? `Next surface spread: ${nextMilestone.name} at ${nextMilestone.requiredLifetimeTouches} lifetime touches`
           : "All prototype surface spreads discovered.",
         nextTier ? `Next grass tier: ${nextTier.name} at ${nextTier.unlockAtLifetimeTouches} lifetime touches` : "",
+        weather ? `Weather: ${weather.name} - ${weather.description}` : "",
       ]
         .filter(Boolean)
         .join("\n"),
@@ -1397,9 +1440,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshSeedShop(): void {
+    const stats = getRuntimeStats(this.state);
     this.seedResourceText.setText(
       `Seeds: ${Math.floor(this.state.seeds)} | Lifetime Seeds: ${Math.floor(this.state.lifetimeSeeds)} | Drop Chance: ${Math.round(
-        getSeedDropChance(this.state) * 100,
+        getSeedDropChance(this.state, stats.seedDropBonus) * 100,
       )}%`,
     );
 
@@ -1488,19 +1532,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getUpgradeBranch(upgradeId: string): string {
-    if (["softer_grass", "palm_press", "barefoot_confidence"].includes(upgradeId)) {
+    if (["softer_grass", "palm_press", "two_handed_technique", "mindful_contact", "barefoot_confidence"].includes(upgradeId)) {
       return "Touch";
     }
 
-    if (["faster_regrowth", "fertile_soil"].includes(upgradeId)) {
+    if (["faster_regrowth", "warm_sunlight", "fertile_soil", "root_network", "perennial_patches"].includes(upgradeId)) {
       return "Growth";
     }
 
-    if (["lucky_clover", "dramatic_touch"].includes(upgradeId)) {
+    if (["lucky_clover", "dramatic_touch", "satisfying_crunch", "overreaction"].includes(upgradeId)) {
       return "Crits";
     }
 
-    if (["dew_appreciation", "morning_mist"].includes(upgradeId)) {
+    if (["dew_appreciation", "morning_mist", "dew_respecter", "weather_watching"].includes(upgradeId)) {
       return "Nature";
     }
 

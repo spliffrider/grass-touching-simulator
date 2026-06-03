@@ -6,6 +6,8 @@ export type TileTrait = "normal" | "dewy" | "lush";
 
 export type GrassTierId = "normal" | "thick" | "clover" | "golden";
 
+export type WeatherId = "calm" | "dewy_morning" | "warm_sunlight" | "lucky_breeze" | "seed_wind";
+
 export interface FieldTile {
   x: number;
   y: number;
@@ -33,6 +35,8 @@ export interface GameState {
   upgrades: Record<string, UpgradeState>;
   seedShopPurchases: Record<string, boolean>;
   reachedMilestones: string[];
+  activeWeatherId?: WeatherId;
+  weatherEndsAt?: number;
   lastSavedAt: number;
 }
 
@@ -42,10 +46,17 @@ export interface RuntimeStats {
   dewChance: number;
   critChance: number;
   critMultiplier: number;
+  seedDropBonus: number;
+  rareTierMultiplier: number;
+  rareTouchBonus: number;
+  doubleTouchChance: number;
+  instantRegrowChance: number;
 }
 
 export interface TouchResult {
   gained: number;
   isCrit: boolean;
   critMultiplier: number;
+  doubled: boolean;
+  instantRegrown: boolean;
 }

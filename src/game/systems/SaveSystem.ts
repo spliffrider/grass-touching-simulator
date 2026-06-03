@@ -34,6 +34,8 @@ export function loadGame(): GameState {
       lifetimeSeeds: parsed.lifetimeSeeds ?? 0,
       seedShopPurchases: parsed.seedShopPurchases ?? {},
       reachedMilestones: parsed.reachedMilestones ?? [],
+      activeWeatherId: parsed.activeWeatherId ?? "calm",
+      weatherEndsAt: parsed.weatherEndsAt ?? 0,
     };
   } catch {
     return createInitialState();

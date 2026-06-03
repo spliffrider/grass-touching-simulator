@@ -1,4 +1,4 @@
-import type { GameState, GrassTierId } from "../types/game-state";
+import type { GameState, GrassTierId, RuntimeStats } from "../types/game-state";
 
 export interface GrassTierDefinition {
   id: GrassTierId;
@@ -53,9 +53,12 @@ export function getGrassTier(id: GrassTierId | undefined): GrassTierDefinition {
   return GRASS_TIERS.find((tier) => tier.id === id) ?? GRASS_TIERS[0];
 }
 
-export function pickGrassTier(state: GameState): GrassTierDefinition {
+export function pickGrassTier(state: GameState, stats?: RuntimeStats): GrassTierDefinition {
   const unlocked = GRASS_TIERS.filter((tier) => state.lifetimeGrassTouches >= tier.unlockAtLifetimeTouches);
-  const weighted = unlocked.flatMap((tier) => Array.from({ length: tier.weight }, () => tier));
+  const weighted = unlocked.flatMap((tier) => {
+    const multiplier = tier.id === "normal" ? 1 : (stats?.rareTierMultiplier ?? 1);
+    return Array.from({ length: Math.max(1, Math.round(tier.weight * multiplier)) }, () => tier);
+  });
 
   return Phaser.Utils.Array.GetRandom(weighted);
 }

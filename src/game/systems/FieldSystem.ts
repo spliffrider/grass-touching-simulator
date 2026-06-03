@@ -34,6 +34,8 @@ export function createInitialState(): GameState {
     upgrades: {},
     seedShopPurchases: {},
     reachedMilestones: [],
+    activeWeatherId: "calm",
+    weatherEndsAt: 0,
     lastSavedAt: Date.now(),
   };
 }
@@ -57,26 +59,37 @@ export function createTile(x: number, y: number, trait: TileTrait, tier: GrassTi
 
 export function touchTile(tile: FieldTile, state: GameState, stats: RuntimeStats, now: number): TouchResult {
   if (tile.grassState !== "grown") {
-    return { gained: 0, isCrit: false, critMultiplier: 1 };
+    return { gained: 0, isCrit: false, critMultiplier: 1, doubled: false, instantRegrown: false };
   }
 
   const traitBonus = tile.trait === "lush" ? 2 : tile.trait === "dewy" ? 1 : 0;
   const tier = getGrassTier(tile.tier);
-  const baseGained = Math.max(1, Math.floor(tier.touchValue + stats.touchMultiplier + traitBonus));
+  const rareBonus = tier.id === "normal" ? 0 : stats.rareTouchBonus;
+  const doubled = Math.random() < stats.doubleTouchChance;
+  const baseGained = Math.max(1, Math.floor((tier.touchValue + stats.touchMultiplier + traitBonus + rareBonus) * (doubled ? 2 : 1)));
   const critChance = stats.critChance + (tile.trait === "lush" ? 0.05 : tile.trait === "dewy" ? 0.025 : 0);
   const isCrit = Math.random() < critChance;
   const critMultiplier = isCrit ? stats.critMultiplier : 1;
   const gained = Math.max(1, Math.floor(baseGained * critMultiplier));
+  const instantRegrown = Math.random() < stats.instantRegrowChance;
 
   tile.grassState = "regrowing";
   tile.regrowEndsAt = now + Math.floor(tile.baseRegrowMs * stats.regrowMultiplier);
   tile.trait = "normal";
 
+  if (instantRegrown) {
+    tile.grassState = "grown";
+    tile.regrowEndsAt = 0;
+    tile.trait = pickRegrownTrait(stats, tile);
+    tile.tier = pickGrassTier(state, stats).id;
+    tile.baseTouchValue = getGrassTier(tile.tier).touchValue;
+  }
+
   state.grassTouches += gained;
   state.lifetimeGrassTouches += gained;
   state.totalClickedPatches += 1;
 
-  return { gained, isCrit, critMultiplier };
+  return { gained, isCrit, critMultiplier, doubled, instantRegrown };
 }
 
 export function updateRegrowth(state: GameState, stats: RuntimeStats, now: number): FieldTile[] {
@@ -87,7 +100,7 @@ export function updateRegrowth(state: GameState, stats: RuntimeStats, now: numbe
       tile.grassState = "grown";
       tile.regrowEndsAt = 0;
       tile.trait = pickRegrownTrait(stats, tile);
-      tile.tier = pickGrassTier(state).id;
+      tile.tier = pickGrassTier(state, stats).id;
       tile.baseTouchValue = getGrassTier(tile.tier).touchValue;
       regrown.push(tile);
     }
@@ -115,7 +128,7 @@ export function expandField(state: GameState, tileCount: number, stats: RuntimeS
     const pool = shouldKeepGrowingRunner ? localCandidates : candidates;
     const chosen = pickOrganicCandidate(pool, growthDirection, lastDirection, lastTile);
     const trait = Math.random() < stats.dewChance ? "dewy" : "normal";
-    const tier = pickGrassTier(state).id;
+    const tier = pickGrassTier(state, stats).id;
     const tile = createTile(chosen.x, chosen.y, trait, tier);
     state.field[tileKey(tile.x, tile.y)] = tile;
     added.push(tile);
