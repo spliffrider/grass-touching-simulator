@@ -1,0 +1,173 @@
+{
+  "project": {
+    "title": "Grass Touching Simulator",
+    "description": "A cozy incremental clicker about touching grass. The player clicks top-down grass tiles, earns Grass Touches, unlocks skills, buys seed shop systems, and gradually expands the field.",
+    "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+    "github": "https://github.com/spliffrider/grass-touching-simulator",
+    "productionUrl": "https://grass-touching-simulator.vercel.app",
+    "stack": {
+      "engine": "Phaser 3",
+      "language": "TypeScript",
+      "bundler": "Vite",
+      "hosting": "Vercel"
+    }
+  },
+  "handoff": {
+    "createdAt": "2026-06-03T20:00:35+02:00",
+    "timezone": "Europe/Brussels",
+    "note": "Created at the end of a long context window so a fresh Codex session can continue without losing project memory."
+  },
+  "currentStatus": {
+    "lastCommit": "ab16c58 Expand skill tree and seed shop systems",
+    "branch": "master",
+    "buildCommand": "npm run build",
+    "deployCommand": "vercel --prod --yes",
+    "lastKnownBuild": "Passing locally and on Vercel",
+    "worktreeAtHandoff": "Clean before creating this handoff file"
+  },
+  "importantFiles": {
+    "mainScene": "src/game/scenes/GameScene.ts",
+    "fieldLogic": "src/game/systems/FieldSystem.ts",
+    "runtimeStats": "src/game/systems/UpgradeSystem.ts",
+    "saveLoad": "src/game/systems/SaveSystem.ts",
+    "gameTypes": "src/game/types/game-state.ts",
+    "skillTreeData": "src/game/data/upgrades.ts",
+    "seedShopData": "src/game/data/seed-shop.ts",
+    "grassTierData": "src/game/data/grass-tiers.ts",
+    "weatherData": "src/game/data/weather.ts",
+    "generatedGrassAssets": "public/assets/grass"
+  },
+  "featuresImplemented": [
+    "Title screen inspired by the provided pixel-art mockup.",
+    "Top-down clicker field with grass tiles that disappear when touched and regrow afterward.",
+    "Organic field spread from milestones instead of sterile 1-to-9 square expansion.",
+    "Grass Touches resource and lifetime touch tracking.",
+    "Separate skill tree screen with hover information boxes and clickable upgrade nodes.",
+    "Skill tree branches for touch power, regrowth, crits, nature/dew, rare grass, and late-game Grassmaxxing.",
+    "Seed drops from grass touches.",
+    "Separate seed shop screen with unlockable systems.",
+    "Seed shop items including Seed Pouch, Sprinkler, Wild Spread, Field Journal, Weather Jar, Compost Bin, and Bug Hotel.",
+    "Weather system unlocked by Weather Jar, with rotating effects like Dewy Morning, Warm Sunlight, Lucky Breeze, and Seed Wind.",
+    "Critical touches with stronger pop text and audio feedback.",
+    "Double-touch chance and instant-regrow chance as new upgrade mechanics.",
+    "Progressive grass tiers that appear randomly later and give extra touches.",
+    "Rare grass scaling through skills and shop items.",
+    "Grass tile art upgraded using generated grass assets.",
+    "Sound effects for touching grass and crits.",
+    "Credits menu includes Cosmodeus and Remy as playtesters.",
+    "Mobile/responsive fixes for smaller screens and orientation changes.",
+    "Reset save button made smaller and moved to the bottom right."
+  ],
+  "designDirection": {
+    "tone": "Cozy, silly, meme-aware, satisfying, and increasingly absurd.",
+    "coreFeelGoal": "Clicking grass should feel juicy: good sound, good pop text, good visual feedback, and enough randomness to keep the player wanting one more touch.",
+    "userPreferences": [
+      "No controllable player character.",
+      "Top-down click/tap interaction only.",
+      "Organic field expansion, not perfect square growth.",
+      "Skill tree instead of a plain upgrade shop.",
+      "Seed shop should unlock new mechanics rather than duplicate the skill tree.",
+      "Grassmaxxing is a favored late-game concept."
+    ]
+  },
+  "recentContentPass": {
+    "summary": "Expanded the game beyond raw clicking by adding a larger skill tree, seed shop progression, rare grass modifiers, and weather.",
+    "newSkillConcepts": [
+      "Two-Handed Technique: chance for touches to count twice.",
+      "Mindful Contact: chance for touched patches to instantly regrow.",
+      "Satisfying Crunch: crit and seed drop improvements.",
+      "Overreaction: stronger crit multiplier.",
+      "Warm Sunlight: faster regrowth.",
+      "Root Network: faster regrowth and instant regrow chance.",
+      "Perennial Patches: stronger instant regrow chance.",
+      "Dew Respecter: more dew and more seeds.",
+      "Weather Watching: weather-related reward boosts.",
+      "Grass Identification: rare grass appears more often.",
+      "Better Eyes: rare grass is worth more.",
+      "Clover Magnet: rare grass and crits become more common.",
+      "Premium Pasture: stronger rare grass progression.",
+      "Grassmaxxing: late-game all-around boost."
+    ],
+    "newShopConcepts": [
+      "Field Journal: rare grass appears slightly more often.",
+      "Weather Jar: unlocks rotating weather.",
+      "Compost Bin: improves seed drops and rare grass value.",
+      "Bug Hotel: nudges crits and seeds upward."
+    ]
+  },
+  "knownIssuesAndRisks": [
+    "Skill tree is getting dense. It may need pan/zoom or pages soon.",
+    "Seed shop scroll exists but has no visible scrollbar yet.",
+    "Weather announcements may be subtle because the main HUD refreshes often.",
+    "Phaser makes the production bundle large; Vite warns about chunks over 500 kB. This is expected for now.",
+    "Balance is prototype-level. Costs, unlock timing, and multipliers likely need tuning after playtesting.",
+    "Need continued phone testing, especially landscape/portrait transitions on Samsung Z Flip 7."
+  ],
+  "recommendedNextSteps": [
+    {
+      "priority": 1,
+      "task": "Playtest the new progression from a fresh save.",
+      "details": "Check whether seeds, Weather Jar, rare grass, crits, and Grassmaxxing unlock at satisfying times."
+    },
+    {
+      "priority": 2,
+      "task": "Improve skill tree navigation.",
+      "details": "Add pan/drag and maybe zoom, or split the tree into tabs like Touch, Growth, Nature, Crits, and Weird."
+    },
+    {
+      "priority": 3,
+      "task": "Add more seed shop systems.",
+      "details": "Seeds should unlock new mechanics such as tools, zones, passive creatures, rituals, weather upgrades, or automation."
+    },
+    {
+      "priority": 4,
+      "task": "Add stronger juice.",
+      "details": "Layer touch sound variations, crit bass hits, grass sway, tiny particle bursts, screen pulse, and better rare grass pop text."
+    },
+    {
+      "priority": 5,
+      "task": "Add field biomes or surface evolution.",
+      "details": "Let milestones change the surrounding field from lonely patch to yard, meadow, park, nature reserve, sacred lawn, and cursed internet detox zone."
+    },
+    {
+      "priority": 6,
+      "task": "Expand content vocabulary.",
+      "details": "Add funny upgrade names around touching grass, logging off, going outside, dew, lawn lore, soil, sandals, sunlight, pollen, and wholesome brain healing."
+    },
+    {
+      "priority": 7,
+      "task": "Prepare Steam direction.",
+      "details": "Eventually wrap the web game with Electron or Tauri, add local save/export, settings, achievements, full-screen handling, and Steamworks integration."
+    }
+  ],
+  "futureContentIdeas": {
+    "skillTreeBranches": [
+      "Touch: softer hands, palm slap, two-handed technique, sensory overload, grassmaxxing.",
+      "Growth: roots, compost, sunlight, perennials, lawn memory.",
+      "Nature: dew, weather watching, insects, pollen, wildflowers, biodiversity.",
+      "Crits: lucky clover, dramatic touch, overreaction, forbidden tickle, jackpot patch.",
+      "Automation: sprinkler, rake, lawn whisperer, passive breeze, community park visitors.",
+      "Weird: logging off, terminally online detox, outside aura, suspiciously sentient lawn."
+    ],
+    "seedShopSystems": [
+      "Tool Shed: unlock tools that change how tiles are touched.",
+      "Weather Station: reroll or extend weather.",
+      "Compost Ritual: sacrifice seeds for temporary growth boosts.",
+      "Bug Sanctuary: passive crit or seed effects.",
+      "Picnic Blanket: idle rewards while away.",
+      "Garden Gnome: strange upgrades with strong benefits and weird downsides.",
+      "Map Expansion: unlock new field shapes or special zones."
+    ],
+    "grassTiers": [
+      "Normal Grass",
+      "Thick Grass",
+      "Clover Patch",
+      "Golden Grass",
+      "Moonlit Grass",
+      "Ancient Turf",
+      "Forbidden Lawn",
+      "Grass That Knows Your Browser History"
+    ]
+  },
+  "newSessionPrompt": "We are continuing Grass Touching Simulator in C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator. Read handoff-summary.json first. The current game is Phaser 3 + TypeScript + Vite, deployed to https://grass-touching-simulator.vercel.app. Latest commit before the handoff file was ab16c58, which expanded the skill tree, seed shop, rare grass, and weather. The next useful work is playtest-driven tuning, skill tree navigation, more seed shop systems, and extra juicy click feedback."
+}

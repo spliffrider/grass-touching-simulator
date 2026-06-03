@@ -8,21 +8,23 @@ import { expandField, tileKey, touchTile, updateRegrowth } from "../systems/Fiel
 import { AudioSystem } from "../systems/AudioSystem";
 import { loadGame, resetSave, saveGame } from "../systems/SaveSystem";
 import { getRuntimeStats } from "../systems/UpgradeSystem";
-import type { FieldTile, GameState, TileKey, TouchResult } from "../types/game-state";
+import type { FieldTile, GameState, GrassTierId, TileKey, TileTrait, TouchResult, WeatherId } from "../types/game-state";
 
 const TILE_SIZE = 58;
 const TILE_GAP = 8;
 const BOARD_Y_OFFSET = 24;
-const TREE_WIDTH = 720;
-const TREE_HEIGHT = 520;
-const SKILL_NODE_SIZE = 92;
+const MIN_BOARD_ZOOM = 0.45;
+const MAX_BOARD_ZOOM = 3.2;
+const TREE_WIDTH = 880;
+const TREE_HEIGHT = 560;
+const SKILL_NODE_SIZE = 78;
 
 const SKILL_BRANCH_LABELS = [
-  { text: "Touch", x: 76, y: 36, color: "#dfffc8" },
-  { text: "Growth", x: 330, y: 38, color: "#bff4ff" },
-  { text: "Crits", x: 312, y: 486, color: "#ffef78" },
-  { text: "Nature", x: 548, y: 38, color: "#d7fff2" },
-  { text: "Meadow", x: 628, y: 486, color: "#dfffc8" },
+  { text: "Touch", x: 230, y: 50, color: "#dfffc8" },
+  { text: "Growth", x: 430, y: 190, color: "#bff4ff" },
+  { text: "Nature", x: 660, y: 50, color: "#d7fff2" },
+  { text: "Crits", x: 420, y: 525, color: "#ffef78" },
+  { text: "Meadow", x: 700, y: 335, color: "#dfffc8" },
 ];
 
 interface TileView {
@@ -60,6 +62,13 @@ export class GameScene extends Phaser.Scene {
   private titleText!: Phaser.GameObjects.Text;
   private resourceText!: Phaser.GameObjects.Text;
   private milestoneText!: Phaser.GameObjects.Text;
+  private weatherTint!: Phaser.GameObjects.Rectangle;
+  private weatherBadge!: Phaser.GameObjects.Container;
+  private weatherBadgeBg!: Phaser.GameObjects.Rectangle;
+  private weatherBadgeTitle!: Phaser.GameObjects.Text;
+  private weatherBadgeBody!: Phaser.GameObjects.Text;
+  private weatherParticles?: Phaser.GameObjects.Particles.ParticleEmitter;
+  private activeWeatherVisualId?: WeatherId | "none";
   private skillButton!: Phaser.GameObjects.Container;
   private seedButton!: Phaser.GameObjects.Container;
   private skillRoot!: Phaser.GameObjects.Container;
@@ -100,6 +109,21 @@ export class GameScene extends Phaser.Scene {
   private seedShopOpen = false;
   private selectedSkillId = UPGRADES[0].id;
   private boardScale = 1;
+  private boardZoom = 1;
+  private boardPanX = 0;
+  private boardPanY = 0;
+  private boardBaseCenterX = 0;
+  private boardBaseCenterY = 0;
+  private boardTopY = 0;
+  private boardAvailableWidth = 0;
+  private boardAvailableHeight = 0;
+  private boardScaledWidth = 0;
+  private boardScaledHeight = 0;
+  private isPanningBoard = false;
+  private boardPanStartX = 0;
+  private boardPanStartY = 0;
+  private pointerPanStartX = 0;
+  private pointerPanStartY = 0;
 
   constructor() {
     super("GameScene");
@@ -126,6 +150,7 @@ export class GameScene extends Phaser.Scene {
     this.updateWeather(Date.now(), false);
     this.createTileTextures();
     this.createHeader();
+    this.createWeatherVisuals();
     this.createTileInfoPanel();
     this.createSkillTree();
     this.createSeedShop();
@@ -138,18 +163,51 @@ export class GameScene extends Phaser.Scene {
 
     this.scale.on("resize", () => {
       this.layoutHeader();
+      this.layoutWeatherVisuals();
       this.layoutTiles();
       this.layoutSkillTree();
       this.layoutSeedShop();
     });
 
-    this.input.on("wheel", (_pointer: Phaser.Input.Pointer, _objects: unknown[], _deltaX: number, deltaY: number) => {
-      if (!this.seedShopOpen) {
+    this.input.on("wheel", (pointer: Phaser.Input.Pointer, _objects: unknown[], _deltaX: number, deltaY: number) => {
+      if (this.seedShopOpen) {
+        this.seedShopScroll = Math.max(0, this.seedShopScroll + deltaY * 0.75);
+        this.layoutSeedShop();
         return;
       }
 
-      this.seedShopScroll = Math.max(0, this.seedShopScroll + deltaY * 0.75);
-      this.layoutSeedShop();
+      this.zoomBoard(deltaY, pointer.x, pointer.y);
+    });
+
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, gameObjects: Phaser.GameObjects.GameObject[]) => {
+      if (this.skillTreeOpen || this.seedShopOpen || gameObjects.length > 0) {
+        return;
+      }
+
+      this.isPanningBoard = true;
+      this.boardPanStartX = this.boardPanX;
+      this.boardPanStartY = this.boardPanY;
+      this.pointerPanStartX = pointer.x;
+      this.pointerPanStartY = pointer.y;
+      this.tileInfoPanel.setVisible(false);
+    });
+
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      if (!this.isPanningBoard) {
+        return;
+      }
+
+      this.boardPanX = this.boardPanStartX + pointer.x - this.pointerPanStartX;
+      this.boardPanY = this.boardPanStartY + pointer.y - this.pointerPanStartY;
+      this.layoutTiles();
+    });
+
+    this.input.on("pointerup", () => {
+      this.isPanningBoard = false;
+    });
+
+    this.input.on("pointerupoutside", () => {
+      this.isPanningBoard = false;
     });
   }
 
@@ -216,6 +274,34 @@ export class GameScene extends Phaser.Scene {
     this.seedButton = this.createTextButton("Seeds", () => this.openSeedShop(), 118, 44, 20);
   }
 
+  private createWeatherVisuals(): void {
+    this.weatherTint = this.add
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0xffffff, 0)
+      .setOrigin(0, 0)
+      .setDepth(18)
+      .setVisible(false);
+
+    this.weatherBadge = this.add.container(0, 0).setDepth(21).setVisible(false);
+    this.weatherBadgeBg = this.add
+      .rectangle(0, 0, 280, 58, 0xf4ffdc, 0.94)
+      .setOrigin(0, 0)
+      .setStrokeStyle(3, 0x2d6f36);
+    this.weatherBadgeTitle = this.add.text(14, 8, "", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "17px",
+      color: "#183d20",
+    });
+    this.weatherBadgeBody = this.add.text(14, 31, "", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "12px",
+      color: "#416247",
+      wordWrap: { width: 250 },
+    });
+
+    this.weatherBadge.add([this.weatherBadgeBg, this.weatherBadgeTitle, this.weatherBadgeBody]);
+    this.layoutWeatherVisuals();
+  }
+
   private layoutHeader(): void {
     const compact = this.scale.width < 760;
     const headerWidth = Math.max(220, Math.min(620, this.scale.width - 180));
@@ -232,6 +318,24 @@ export class GameScene extends Phaser.Scene {
     this.milestoneText.setPosition(26, this.resourceText.y + this.resourceText.height + 12);
     this.skillButton.setPosition(this.scale.width - 142, 24);
     this.seedButton.setPosition(this.scale.width - 142, 76);
+    this.layoutWeatherVisuals();
+  }
+
+  private layoutWeatherVisuals(): void {
+    if (!this.weatherTint || !this.weatherBadge) {
+      return;
+    }
+
+    this.weatherTint.setSize(this.scale.width, this.scale.height);
+    const compact = this.scale.width < 720;
+    const badgeWidth = compact ? Math.max(220, this.scale.width - 180) : 280;
+    this.weatherBadgeBg.setSize(badgeWidth, compact ? 66 : 58);
+    this.weatherBadgeBody.setWordWrapWidth(badgeWidth - 30);
+    this.weatherBadge.setPosition(compact ? 26 : this.scale.width - 320, compact ? this.seedButton.y + 58 : 128);
+
+    if (this.state?.seedShopPurchases.weather_jar && this.state.activeWeatherId && this.activeWeatherVisualId === this.state.activeWeatherId) {
+      this.createWeatherParticleEffect(this.state.activeWeatherId);
+    }
   }
 
   private createTileInfoPanel(): void {
@@ -398,11 +502,14 @@ export class GameScene extends Phaser.Scene {
     const shortLandscape = this.scale.width > this.scale.height && this.scale.height < 520;
     const narrowPortrait = this.scale.width < 500 && this.scale.height >= this.scale.width;
     const narrowDesktop = this.scale.width < 760 && !shortLandscape && !narrowPortrait;
+    const sidePanel = !shortLandscape && !narrowPortrait && !narrowDesktop;
+    const reservedSideWidth = sidePanel ? 430 : 48;
+    const reservedBottomHeight = narrowPortrait || narrowDesktop ? 370 : 190;
     const treeScale = shortLandscape
       ? Math.max(0.32, Math.min(0.62, (this.scale.width - 310) / TREE_WIDTH, (this.scale.height - 130) / TREE_HEIGHT))
-      : Math.min(1, (this.scale.width - 48) / TREE_WIDTH, (this.scale.height - 190) / TREE_HEIGHT);
+      : Math.min(1, (this.scale.width - reservedSideWidth) / TREE_WIDTH, (this.scale.height - reservedBottomHeight) / TREE_HEIGHT);
     const treeWidth = TREE_WIDTH * treeScale;
-    const treeX = shortLandscape ? 24 : (this.scale.width - treeWidth) / 2;
+    const treeX = shortLandscape ? 24 : sidePanel ? Math.max(24, (this.scale.width - 372 - treeWidth) / 2) : (this.scale.width - treeWidth) / 2;
     const treeY = shortLandscape ? 124 : 150;
 
     this.skillBackdrop.setSize(this.scale.width, this.scale.height);
@@ -417,7 +524,7 @@ export class GameScene extends Phaser.Scene {
       this.hasTouchScreen() ? "Tap a skill to upgrade it. The info box shows details." : "Hover a skill to inspect it. Click a skill or Upgrade to buy.",
     );
     this.skillStatusText.setPosition(
-      shortLandscape ? this.scale.width / 2 + 20 : this.scale.width / 2,
+      shortLandscape ? this.scale.width / 2 + 20 : sidePanel ? treeX + treeWidth / 2 : this.scale.width / 2,
       shortLandscape ? 72 : this.skillResourceText.y + this.skillResourceText.height + 8,
     );
     this.backButton.setScale(narrowPortrait ? 0.9 : 1);
@@ -431,7 +538,7 @@ export class GameScene extends Phaser.Scene {
         : narrowPortrait || narrowDesktop
           ? (this.scale.width - 330) / 2
           : Math.max(24, this.scale.width - 360),
-      shortLandscape ? 112 : narrowPortrait ? this.scale.height - 310 : this.scale.height - 270,
+      shortLandscape ? 112 : narrowPortrait ? this.scale.height - 310 : sidePanel ? 150 : this.scale.height - 270,
     );
 
     for (const label of this.skillBranchLabels) {
@@ -589,22 +696,40 @@ export class GameScene extends Phaser.Scene {
     this.skillLineGraphics.clear();
 
     for (const upgrade of UPGRADES) {
-      for (const prerequisiteId of upgrade.prerequisiteIds ?? []) {
+      const prerequisiteIds = upgrade.prerequisiteIds ?? [];
+
+      for (const prerequisiteId of prerequisiteIds) {
         const prerequisite = UPGRADES.find((candidate) => candidate.id === prerequisiteId);
         if (!prerequisite) {
           continue;
         }
 
+        const primaryBranch = prerequisiteId === prerequisiteIds[0];
         const prerequisiteLevel = this.state.upgrades[prerequisite.id]?.level ?? 0;
         const upgradeLevel = this.state.upgrades[upgrade.id]?.level ?? 0;
         const active = prerequisiteLevel > 0 && upgradeLevel > 0;
         const available = prerequisiteLevel > 0 && canUnlockUpgrade(this.state, upgrade);
-        const color = active ? 0xdfffc8 : available ? 0x87d6d0 : 0x34473f;
+        const selectedConnection = upgrade.id === this.selectedSkillId || prerequisite.id === this.selectedSkillId;
 
-        this.skillLineGraphics.lineStyle(active ? 5 : 4, color, active || available ? 0.95 : 0.75);
+        if (!primaryBranch && !active && !available && !selectedConnection) {
+          continue;
+        }
+
+        const color = active ? 0xdfffc8 : available ? 0x87d6d0 : 0x34473f;
+        const alpha = primaryBranch ? (active || available ? 0.95 : 0.72) : active || selectedConnection ? 0.55 : 0.28;
+        const width = primaryBranch ? (active ? 5 : 4) : 2;
+        const startX = treeX + prerequisite.tree.x * treeScale + (SKILL_NODE_SIZE / 2) * treeScale;
+        const startY = treeY + prerequisite.tree.y * treeScale;
+        const endX = treeX + upgrade.tree.x * treeScale - (SKILL_NODE_SIZE / 2) * treeScale;
+        const endY = treeY + upgrade.tree.y * treeScale;
+        const elbowX = startX + Math.max(24 * treeScale, (endX - startX) * 0.52);
+
+        this.skillLineGraphics.lineStyle(width, color, alpha);
         this.skillLineGraphics.beginPath();
-        this.skillLineGraphics.moveTo(treeX + prerequisite.tree.x * treeScale, treeY + prerequisite.tree.y * treeScale);
-        this.skillLineGraphics.lineTo(treeX + upgrade.tree.x * treeScale, treeY + upgrade.tree.y * treeScale);
+        this.skillLineGraphics.moveTo(startX, startY);
+        this.skillLineGraphics.lineTo(elbowX, startY);
+        this.skillLineGraphics.lineTo(elbowX, endY);
+        this.skillLineGraphics.lineTo(endX, endY);
         this.skillLineGraphics.strokePath();
       }
     }
@@ -730,6 +855,7 @@ export class GameScene extends Phaser.Scene {
   private resetPrototypeSave(): void {
     this.disarmReset();
     this.state = resetSave();
+    this.resetBoardView();
     this.tileViews.forEach((view) => {
       view.base.destroy();
       view.grass.destroy();
@@ -746,10 +872,41 @@ export class GameScene extends Phaser.Scene {
     this.closeSeedShop();
   }
 
+  private resetBoardView(): void {
+    this.boardZoom = 1;
+    this.boardPanX = 0;
+    this.boardPanY = 0;
+    this.isPanningBoard = false;
+  }
+
   private renderAllTiles(): void {
     for (const tile of Object.values(this.state.field)) {
       this.createTileView(tile);
     }
+    this.layoutTiles();
+  }
+
+  private zoomBoard(deltaY: number, pointerX: number, pointerY: number): void {
+    if (this.skillTreeOpen) {
+      return;
+    }
+
+    const previousZoom = this.boardZoom;
+    const previousScale = this.boardScale;
+    const previousPanX = this.boardPanX;
+    const previousPanY = this.boardPanY;
+    const zoomFactor = Math.exp(-deltaY * 0.0015);
+    this.boardZoom = Phaser.Math.Clamp(this.boardZoom * zoomFactor, MIN_BOARD_ZOOM, MAX_BOARD_ZOOM);
+
+    if (this.boardZoom === previousZoom || previousScale <= 0) {
+      return;
+    }
+
+    const focusWorldX = (pointerX - this.boardBaseCenterX - previousPanX) / previousScale;
+    const focusWorldY = (pointerY - this.boardBaseCenterY - previousPanY) / previousScale;
+    const nextScale = previousScale * (this.boardZoom / previousZoom);
+    this.boardPanX = pointerX - this.boardBaseCenterX - focusWorldX * nextScale;
+    this.boardPanY = pointerY - this.boardBaseCenterY - focusWorldY * nextScale;
     this.layoutTiles();
   }
 
@@ -819,15 +976,21 @@ export class GameScene extends Phaser.Scene {
     const maxY = Math.max(...tiles.map((tile) => tile.y));
     const boardWidth = (maxX - minX + 1) * (TILE_SIZE + TILE_GAP);
     const boardHeight = (maxY - minY + 1) * (TILE_SIZE + TILE_GAP);
-    const topY = Math.max(142, this.milestoneText.y + this.milestoneText.height + 24);
-    const availableWidth = Math.max(120, this.scale.width - 24);
-    const availableHeight = Math.max(120, this.scale.height - topY - 24);
-    this.boardScale = Math.min(1, availableWidth / boardWidth, availableHeight / boardHeight);
-    const centerX = this.scale.width / 2;
-    const centerY = topY + availableHeight / 2 + BOARD_Y_OFFSET * this.boardScale;
+    this.boardTopY = Math.max(142, this.milestoneText.y + this.milestoneText.height + 24);
+    this.boardAvailableWidth = Math.max(120, this.scale.width - 24);
+    this.boardAvailableHeight = Math.max(120, this.scale.height - this.boardTopY - 24);
+    const fitScale = Math.min(1, this.boardAvailableWidth / boardWidth, this.boardAvailableHeight / boardHeight);
+    this.boardScale = fitScale * this.boardZoom;
+    this.boardScaledWidth = boardWidth * this.boardScale;
+    this.boardScaledHeight = boardHeight * this.boardScale;
+    this.boardBaseCenterX = this.scale.width / 2;
+    this.boardBaseCenterY = this.boardTopY + this.boardAvailableHeight / 2 + BOARD_Y_OFFSET * this.boardScale;
+    this.clampBoardPan();
+    const centerX = this.boardBaseCenterX + this.boardPanX;
+    const centerY = this.boardBaseCenterY + this.boardPanY;
     const scaledStep = (TILE_SIZE + TILE_GAP) * this.boardScale;
-    const startX = centerX - (boardWidth * this.boardScale) / 2 + (TILE_SIZE * this.boardScale) / 2;
-    const startY = centerY - (boardHeight * this.boardScale) / 2 + (TILE_SIZE * this.boardScale) / 2;
+    const startX = centerX - this.boardScaledWidth / 2 + (TILE_SIZE * this.boardScale) / 2;
+    const startY = centerY - this.boardScaledHeight / 2 + (TILE_SIZE * this.boardScale) / 2;
 
     for (const tile of tiles) {
       const view = this.tileViews.get(tileKey(tile.x, tile.y));
@@ -855,6 +1018,14 @@ export class GameScene extends Phaser.Scene {
         this.positionTileInfo(hoveredTile);
       }
     }
+  }
+
+  private clampBoardPan(): void {
+    const maxPanX = Math.max(72, (this.boardScaledWidth - this.boardAvailableWidth) / 2 + 72);
+    const maxPanY = Math.max(72, (this.boardScaledHeight - this.boardAvailableHeight) / 2 + 72);
+    const headerSafety = Math.max(0, this.boardTopY - this.boardBaseCenterY + 42);
+    this.boardPanX = Phaser.Math.Clamp(this.boardPanX, -maxPanX, maxPanX);
+    this.boardPanY = Phaser.Math.Clamp(this.boardPanY, headerSafety - maxPanY, maxPanY);
   }
 
   private showTileInfo(tile: FieldTile): void {
@@ -921,8 +1092,8 @@ export class GameScene extends Phaser.Scene {
       this.popAtTile(tile, "instant regrow", "#dfffc8");
     }
     this.tryDropSeed(tile, touchedTrait, stats);
-    this.cameras.main.shake(touch.isCrit ? 140 : 70, touch.isCrit ? 0.004 : 0.0013);
-    this.audio.play(touch.isCrit ? "crit" : "touch");
+    this.shakeForGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
+    this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     saveGame(this.state);
   }
 
@@ -997,8 +1168,30 @@ export class GameScene extends Phaser.Scene {
       this.getTouchPopText(touch, touchedTier.id === "normal" ? "sprinkler" : touchedTier.label),
       touch.isCrit ? "#ffef78" : "#d7fff2",
     );
-    this.audio.play(touch.isCrit ? "crit" : "touch");
+    this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     saveGame(this.state);
+  }
+
+  private shakeForGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean): void {
+    const tierShake = {
+      normal: { duration: 70, intensity: 0.0013 },
+      thick: { duration: 90, intensity: 0.0018 },
+      clover: { duration: 80, intensity: 0.00145 },
+      golden: { duration: 118, intensity: 0.00235 },
+    } satisfies Record<GrassTierId, { duration: number; intensity: number }>;
+    const traitShake = {
+      normal: { duration: 0, intensity: 1 },
+      dewy: { duration: 18, intensity: 0.86 },
+      lush: { duration: 12, intensity: 1.18 },
+    } satisfies Record<TileTrait, { duration: number; intensity: number }>;
+    const base = tierShake[tier];
+    const traitBoost = traitShake[trait];
+    const critDuration = isCrit ? 1.55 : 1;
+    const critIntensity = isCrit ? 2.65 : 1;
+    const duration = Math.round((base.duration + traitBoost.duration) * critDuration);
+    const intensity = Math.min(0.008, base.intensity * traitBoost.intensity * critIntensity);
+
+    this.cameras.main.shake(duration, intensity);
   }
 
   private getTouchPopText(touch: TouchResult, label: string): string {
@@ -1008,10 +1201,12 @@ export class GameScene extends Phaser.Scene {
 
   private updateWeather(now: number, announce: boolean): void {
     if (!this.state.seedShopPurchases.weather_jar) {
+      this.refreshWeatherVisuals();
       return;
     }
 
     if (this.state.activeWeatherId && this.state.weatherEndsAt && now < this.state.weatherEndsAt) {
+      this.refreshWeatherVisuals();
       return;
     }
 
@@ -1023,7 +1218,128 @@ export class GameScene extends Phaser.Scene {
       this.showMessage(`${weather.name}: ${weather.description}`, 2600);
     }
 
+    this.refreshWeatherVisuals();
     saveGame(this.state);
+  }
+
+  private refreshWeatherVisuals(): void {
+    if (!this.weatherTint || !this.weatherBadge || !this.weatherBadgeTitle || !this.weatherBadgeBody) {
+      return;
+    }
+
+    if (!this.state.seedShopPurchases.weather_jar) {
+      this.weatherTint.setVisible(false);
+      this.weatherBadge.setVisible(false);
+      this.weatherParticles?.destroy();
+      this.weatherParticles = undefined;
+      this.activeWeatherVisualId = "none";
+      return;
+    }
+
+    const weather = getWeather(this.state.activeWeatherId);
+    const secondsLeft = Math.max(0, Math.ceil(((this.state.weatherEndsAt ?? 0) - Date.now()) / 1000));
+    const minutes = Math.floor(secondsLeft / 60);
+    const seconds = secondsLeft % 60;
+    const timeText = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+
+    this.weatherBadge.setVisible(!this.skillTreeOpen && !this.seedShopOpen);
+    this.weatherBadgeTitle.setText(`Weather Jar: ${weather.name}`);
+    this.weatherBadgeTitle.setColor(weather.color);
+    this.weatherBadgeBody.setText(`${weather.description} (${timeText})`);
+    this.weatherTint.setVisible(!this.skillTreeOpen && !this.seedShopOpen);
+    this.applyWeatherTint(weather.id);
+
+    if (this.activeWeatherVisualId !== weather.id) {
+      this.activeWeatherVisualId = weather.id;
+      this.createWeatherParticleEffect(weather.id);
+    }
+  }
+
+  private applyWeatherTint(weatherId: WeatherId): void {
+    const tint = {
+      calm: { color: 0xf7ffe8, alpha: 0.035 },
+      dewy_morning: { color: 0xbff4ff, alpha: 0.12 },
+      warm_sunlight: { color: 0xffef78, alpha: 0.11 },
+      lucky_breeze: { color: 0xdfffc8, alpha: 0.08 },
+      seed_wind: { color: 0xfff1a8, alpha: 0.1 },
+    } satisfies Record<WeatherId, { color: number; alpha: number }>;
+    const style = tint[weatherId];
+
+    this.weatherTint.setFillStyle(style.color, style.alpha);
+  }
+
+  private createWeatherParticleEffect(weatherId: WeatherId): void {
+    this.weatherParticles?.destroy();
+    this.weatherParticles = undefined;
+
+    if (weatherId === "calm") {
+      return;
+    }
+
+    const configs = {
+      dewy_morning: {
+        texture: "dew-fleck",
+        config: {
+          x: { min: 12, max: Math.max(12, this.scale.width - 12) },
+          y: -12,
+          lifespan: { min: 1800, max: 3200 },
+          speedX: { min: -6, max: 18 },
+          speedY: { min: 18, max: 42 },
+          scale: { start: 1.1, end: 0.35 },
+          alpha: { start: 0.72, end: 0 },
+          frequency: 120,
+          quantity: 1,
+        },
+      },
+      warm_sunlight: {
+        texture: "sun-fleck",
+        config: {
+          x: { min: 12, max: Math.max(12, this.scale.width - 12) },
+          y: { min: 132, max: Math.max(132, this.scale.height - 24) },
+          lifespan: { min: 1200, max: 2400 },
+          speedX: { min: -8, max: 8 },
+          speedY: { min: -10, max: 4 },
+          scale: { start: 1.4, end: 0 },
+          alpha: { start: 0.62, end: 0 },
+          frequency: 170,
+          quantity: 1,
+        },
+      },
+      lucky_breeze: {
+        texture: "breeze-fleck",
+        config: {
+          x: -18,
+          y: { min: 138, max: Math.max(138, this.scale.height - 20) },
+          lifespan: { min: 1200, max: 2100 },
+          speedX: { min: 95, max: 175 },
+          speedY: { min: -18, max: 18 },
+          rotate: { min: -45, max: 45 },
+          scale: { start: 1.05, end: 0.2 },
+          alpha: { start: 0.68, end: 0 },
+          frequency: 95,
+          quantity: 1,
+        },
+      },
+      seed_wind: {
+        texture: "seed-fleck",
+        config: {
+          x: -16,
+          y: { min: 138, max: Math.max(138, this.scale.height - 20) },
+          lifespan: { min: 1400, max: 2600 },
+          speedX: { min: 80, max: 150 },
+          speedY: { min: -34, max: 10 },
+          gravityY: 22,
+          rotate: { min: -180, max: 180 },
+          scale: { start: 1.2, end: 0.18 },
+          alpha: { start: 0.78, end: 0 },
+          frequency: 85,
+          quantity: 1,
+        },
+      },
+    } satisfies Record<Exclude<WeatherId, "calm">, { texture: string; config: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig }>;
+    const effect = configs[weatherId];
+
+    this.weatherParticles = this.add.particles(0, 0, effect.texture, effect.config).setDepth(19);
   }
 
   private refreshTile(tile: FieldTile): void {
@@ -1265,6 +1581,8 @@ export class GameScene extends Phaser.Scene {
     this.createParticleTexture("dust-fleck", [0xc7975d, 0x8a6139, 0x6f4c2f]);
     this.createParticleTexture("seed-fleck", [0xffe08a, 0xc69232, 0x6d4c19]);
     this.createParticleTexture("crit-fleck", [0xffffff, 0xffef78, 0xff9f43]);
+    this.createParticleTexture("sun-fleck", [0xffffff, 0xffef78, 0xffb347]);
+    this.createParticleTexture("breeze-fleck", [0xf7ffe8, 0xb7eba5, 0x5cae62]);
   }
 
   private createDirtTexture(key: string, baseColor: number, shadowColor: number, stubble = false): void {
@@ -1389,6 +1707,7 @@ export class GameScene extends Phaser.Scene {
     const resourceSeparator = compact ? "\n" : " | ";
 
     this.titleText.setText("Grass Touching Simulator");
+    this.refreshWeatherVisuals();
     this.resourceText.setText(
       [
         `Grass Touches: ${Math.floor(this.state.grassTouches)}`,

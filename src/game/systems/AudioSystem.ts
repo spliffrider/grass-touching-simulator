@@ -1,3 +1,5 @@
+import type { GrassTierId, TileTrait } from "../types/game-state";
+
 type SoundName = "touch" | "regrow" | "upgrade" | "milestone" | "blocked" | "seed" | "crit";
 
 export class AudioSystem {
@@ -57,6 +59,29 @@ export class AudioSystem {
     this.playNow(name);
   }
 
+  playGrassTouch(tier: GrassTierId = "normal", trait: TileTrait = "normal", isCrit = false): void {
+    this.unlock();
+
+    if (!this.context || !this.master) {
+      return;
+    }
+
+    if (this.context.state !== "running" || !this.unlocked) {
+      this.resumePromise ??= this.context
+        .resume()
+        .then(() => {
+          this.unlocked = true;
+        })
+        .finally(() => {
+          this.resumePromise = undefined;
+        });
+      void this.resumePromise.then(() => this.playGrassTouchNow(tier, trait, isCrit));
+      return;
+    }
+
+    this.playGrassTouchNow(tier, trait, isCrit);
+  }
+
   private playNow(name: SoundName): void {
     if (!this.context || !this.master || this.context.state !== "running") {
       return;
@@ -64,7 +89,7 @@ export class AudioSystem {
 
     switch (name) {
       case "touch":
-        this.playGrassTouch();
+        this.playGrassTouchNow("normal", "normal", false);
         break;
       case "regrow":
         this.playRegrow();
@@ -87,12 +112,41 @@ export class AudioSystem {
     }
   }
 
-  private playGrassTouch(): void {
+  private playGrassTouchNow(tier: GrassTierId, trait: TileTrait, isCrit: boolean): void {
     const now = this.now();
-    this.playNoiseSweep(0.18, 720 + Math.random() * 420, 0.23, now);
-    this.playNoiseSweep(0.1, 1900 + Math.random() * 900, 0.095, now + 0.018);
-    this.playTone(116 + Math.random() * 30, 0.06, 0.09, "sine", now);
-    this.playTone(245 + Math.random() * 95, 0.06, 0.055, "triangle", now + 0.018);
+    const tierProfile = {
+      normal: { low: 116, brush: 720, snap: 1900, volume: 1, tone: 245, duration: 1 },
+      thick: { low: 92, brush: 560, snap: 1400, volume: 1.16, tone: 190, duration: 1.18 },
+      clover: { low: 150, brush: 980, snap: 2500, volume: 0.94, tone: 360, duration: 0.92 },
+      golden: { low: 185, brush: 1180, snap: 3100, volume: 1.08, tone: 520, duration: 1 },
+    } satisfies Record<GrassTierId, { low: number; brush: number; snap: number; volume: number; tone: number; duration: number }>;
+    const traitProfile = {
+      normal: { brushOffset: 0, snapOffset: 0, volume: 1, extraPing: 0 },
+      dewy: { brushOffset: 260, snapOffset: 480, volume: 0.9, extraPing: 780 },
+      lush: { brushOffset: -120, snapOffset: 180, volume: 1.12, extraPing: 440 },
+    } satisfies Record<TileTrait, { brushOffset: number; snapOffset: number; volume: number; extraPing: number }>;
+    const tierSound = tierProfile[tier];
+    const traitSound = traitProfile[trait];
+    const critBoost = isCrit ? 1.22 : 1;
+    const volume = tierSound.volume * traitSound.volume * critBoost;
+
+    this.playNoiseSweep(0.18 * tierSound.duration, tierSound.brush + traitSound.brushOffset + Math.random() * 280, 0.22 * volume, now);
+    this.playNoiseSweep(0.09, tierSound.snap + traitSound.snapOffset + Math.random() * 620, 0.085 * volume, now + 0.018);
+    this.playTone(tierSound.low + Math.random() * 26, 0.06, 0.075 * volume, "sine", now);
+    this.playTone(tierSound.tone + Math.random() * 75, 0.065, 0.048 * volume, "triangle", now + 0.02);
+
+    if (traitSound.extraPing > 0) {
+      this.playTone(traitSound.extraPing + Math.random() * 80, 0.055, 0.032 * volume, trait === "dewy" ? "sine" : "triangle", now + 0.04);
+    }
+
+    if (tier === "golden") {
+      this.playTone(880 + Math.random() * 130, 0.12, 0.04 * critBoost, "sine", now + 0.055);
+      this.playTone(1320 + Math.random() * 160, 0.1, 0.025 * critBoost, "sine", now + 0.1);
+    }
+
+    if (isCrit) {
+      this.playCritAccent(now + 0.025);
+    }
   }
 
   private playRegrow(): void {
@@ -116,11 +170,16 @@ export class AudioSystem {
   }
 
   private playCrit(): void {
+    this.playCritAccent(this.now());
+  }
+
+  private playCritAccent(startAt: number): void {
     const now = this.now();
-    this.playNoiseSweep(0.1, 2400 + Math.random() * 800, 0.08, now);
-    this.playTone(220, 0.055, 0.07, "triangle", now);
-    this.playTone(660, 0.08, 0.075, "triangle", now + 0.035);
-    this.playTone(990, 0.1, 0.06, "sine", now + 0.085);
+    const start = Math.max(now, startAt);
+    this.playNoiseSweep(0.1, 2400 + Math.random() * 800, 0.08, start);
+    this.playTone(220, 0.055, 0.07, "triangle", start);
+    this.playTone(660, 0.08, 0.075, "triangle", start + 0.035);
+    this.playTone(990, 0.1, 0.06, "sine", start + 0.085);
   }
 
   private playMilestone(): void {
