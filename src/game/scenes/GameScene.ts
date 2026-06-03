@@ -16,10 +16,20 @@ const TREE_WIDTH = 720;
 const TREE_HEIGHT = 390;
 const SKILL_NODE_SIZE = 92;
 
+const SKILL_BRANCH_LABELS = [
+  { text: "Touch", x: 72, y: 34, color: "#dfffc8" },
+  { text: "Growth", x: 310, y: 36, color: "#bff4ff" },
+  { text: "Crits", x: 86, y: 342, color: "#ffef78" },
+  { text: "Nature", x: 558, y: 34, color: "#d7fff2" },
+  { text: "Meadow", x: 628, y: 342, color: "#dfffc8" },
+];
+
 interface TileView {
   base: Phaser.GameObjects.Image;
   grass: Phaser.GameObjects.Image;
   label: Phaser.GameObjects.Text;
+  outline: Phaser.GameObjects.Rectangle;
+  glint: Phaser.GameObjects.Star;
 }
 
 interface SkillNodeView {
@@ -35,6 +45,12 @@ interface SeedShopItemView {
   container: Phaser.GameObjects.Container;
   bg: Phaser.GameObjects.Rectangle;
   status: Phaser.GameObjects.Text;
+}
+
+interface SkillBranchLabelView {
+  text: Phaser.GameObjects.Text;
+  treeX: number;
+  treeY: number;
 }
 
 export class GameScene extends Phaser.Scene {
@@ -56,9 +72,16 @@ export class GameScene extends Phaser.Scene {
   private skillDetailPanel!: Phaser.GameObjects.Container;
   private skillDetailBg!: Phaser.GameObjects.Rectangle;
   private skillDetailTitle!: Phaser.GameObjects.Text;
+  private skillDetailCategory!: Phaser.GameObjects.Text;
   private skillDetailBody!: Phaser.GameObjects.Text;
   private skillDetailCost!: Phaser.GameObjects.Text;
   private skillBuyButton!: Phaser.GameObjects.Container;
+  private skillBranchLabels: SkillBranchLabelView[] = [];
+  private tileInfoPanel!: Phaser.GameObjects.Container;
+  private tileInfoBg!: Phaser.GameObjects.Rectangle;
+  private tileInfoTitle!: Phaser.GameObjects.Text;
+  private tileInfoBody!: Phaser.GameObjects.Text;
+  private hoveredTileKey?: TileKey;
   private resetButton!: Phaser.GameObjects.Container;
   private seedRoot!: Phaser.GameObjects.Container;
   private seedBackdrop!: Phaser.GameObjects.Rectangle;
@@ -100,6 +123,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor("#7fc66c");
     this.createTileTextures();
     this.createHeader();
+    this.createTileInfoPanel();
     this.createSkillTree();
     this.createSeedShop();
     this.renderAllTiles();
@@ -197,11 +221,34 @@ export class GameScene extends Phaser.Scene {
     this.seedButton.setPosition(this.scale.width - 142, 76);
   }
 
+  private createTileInfoPanel(): void {
+    this.tileInfoPanel = this.add.container(0, 0).setDepth(60).setVisible(false);
+    this.tileInfoBg = this.add
+      .rectangle(0, 0, 230, 112, 0xf4ffdc, 0.97)
+      .setOrigin(0, 0)
+      .setStrokeStyle(3, 0x2d6f36);
+    this.tileInfoTitle = this.add.text(12, 10, "", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "18px",
+      color: "#183d20",
+    });
+    this.tileInfoBody = this.add.text(12, 38, "", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "14px",
+      color: "#416247",
+      lineSpacing: 2,
+      wordWrap: { width: 206 },
+    });
+
+    this.tileInfoPanel.add([this.tileInfoBg, this.tileInfoTitle, this.tileInfoBody]);
+  }
+
   private createSkillTree(): void {
     this.skillRoot?.destroy();
     this.skillNodeViews.clear();
 
     this.skillRoot = this.add.container(0, 0).setDepth(100).setVisible(false);
+    this.skillBranchLabels = [];
     this.skillBackdrop = this.add
       .rectangle(0, 0, this.scale.width, this.scale.height, 0x1c2520, 1)
       .setOrigin(0, 0)
@@ -244,6 +291,21 @@ export class GameScene extends Phaser.Scene {
       this.backButton,
     ]);
 
+    for (const branch of SKILL_BRANCH_LABELS) {
+      const text = this.add
+        .text(0, 0, branch.text, {
+          fontFamily: "Trebuchet MS, Arial",
+          fontSize: "18px",
+          color: branch.color,
+          stroke: "#102318",
+          strokeThickness: 5,
+        })
+        .setOrigin(0.5);
+
+      this.skillBranchLabels.push({ text, treeX: branch.x, treeY: branch.y });
+      this.skillRoot.add(text);
+    }
+
     for (const upgrade of UPGRADES) {
       const container = this.add.container(0, 0);
       const bg = this.add
@@ -284,13 +346,18 @@ export class GameScene extends Phaser.Scene {
       fontSize: "23px",
       color: "#183d20",
     });
-    this.skillDetailBody = this.add.text(16, 46, "", {
+    this.skillDetailCategory = this.add.text(16, 43, "", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "13px",
+      color: "#2d6f36",
+    });
+    this.skillDetailBody = this.add.text(16, 66, "", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "16px",
       color: "#416247",
       wordWrap: { width: 298 },
     });
-    this.skillDetailCost = this.add.text(16, 142, "", {
+    this.skillDetailCost = this.add.text(16, 154, "", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "18px",
       color: "#6d4c19",
@@ -298,7 +365,14 @@ export class GameScene extends Phaser.Scene {
     });
     this.skillBuyButton = this.createTextButton("Upgrade", () => this.upgradeSelectedSkill(), 138, 40, 101);
     this.skillBuyButton.setPosition(16, 216);
-    this.skillDetailPanel.add([this.skillDetailBg, this.skillDetailTitle, this.skillDetailBody, this.skillDetailCost, this.skillBuyButton]);
+    this.skillDetailPanel.add([
+      this.skillDetailBg,
+      this.skillDetailTitle,
+      this.skillDetailCategory,
+      this.skillDetailBody,
+      this.skillDetailCost,
+      this.skillBuyButton,
+    ]);
     this.skillRoot.add(this.skillDetailPanel);
 
     this.resetButton = this.createTextButton("Reset", () => this.handleResetPressed(), 92, 34, 101);
@@ -346,6 +420,12 @@ export class GameScene extends Phaser.Scene {
           : Math.max(24, this.scale.width - 360),
       shortLandscape ? 112 : narrowPortrait ? this.scale.height - 310 : this.scale.height - 270,
     );
+
+    for (const label of this.skillBranchLabels) {
+      label.text.setPosition(treeX + label.treeX * treeScale, treeY + label.treeY * treeScale);
+      label.text.setScale(Math.max(0.72, treeScale));
+      label.text.setVisible(!shortLandscape || treeScale > 0.42);
+    }
 
     for (const upgrade of UPGRADES) {
       const view = this.skillNodeViews.get(upgrade.id);
@@ -628,6 +708,8 @@ export class GameScene extends Phaser.Scene {
     this.tileViews.forEach((view) => {
       view.base.destroy();
       view.grass.destroy();
+      view.outline.destroy();
+      view.glint.destroy();
       view.label.destroy();
     });
     this.tileViews.clear();
@@ -652,10 +734,21 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
 
+    const outline = this.add
+      .rectangle(0, 0, TILE_SIZE + 8, TILE_SIZE + 8, 0xffffff, 0)
+      .setOrigin(0.5)
+      .setStrokeStyle(4, 0xf4ff8a, 0)
+      .setVisible(false);
+
     const grass = this.add
       .image(0, 0, "grass-normal")
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
+
+    const glint = this.add
+      .star(0, 0, 5, 3, 8, 0xfff08a, 0.9)
+      .setStrokeStyle(1, 0xffffff, 0.9)
+      .setVisible(false);
 
     const label = this.add
       .text(0, 0, "", {
@@ -669,8 +762,23 @@ export class GameScene extends Phaser.Scene {
 
     base.on("pointerdown", () => this.handleTileClicked(tile));
     grass.on("pointerdown", () => this.handleTileClicked(tile));
+    base.on("pointerover", () => this.showTileInfo(tile));
+    grass.on("pointerover", () => this.showTileInfo(tile));
+    base.on("pointerout", () => this.hideTileInfo(tile));
+    grass.on("pointerout", () => this.hideTileInfo(tile));
 
-    this.tileViews.set(tileKey(tile.x, tile.y), { base, grass, label });
+    this.tweens.add({
+      targets: glint,
+      scaleX: 1.45,
+      scaleY: 1.45,
+      alpha: 0.35,
+      duration: 700,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+
+    this.tileViews.set(tileKey(tile.x, tile.y), { base, grass, label, outline, glint });
     this.refreshTile(tile);
   }
 
@@ -705,12 +813,63 @@ export class GameScene extends Phaser.Scene {
       const x = startX + (tile.x - minX) * scaledStep;
       const y = startY + (tile.y - minY) * scaledStep;
       view.base.setPosition(x, y);
+      view.outline.setPosition(x, y);
       view.grass.setPosition(x, y);
+      view.glint.setPosition(x + 19 * this.boardScale, y - 20 * this.boardScale);
       view.label.setPosition(x, y);
       view.base.setScale(this.boardScale);
+      view.outline.setScale(this.boardScale);
       view.grass.setScale(this.boardScale * this.getGrassScale(tile));
+      view.glint.setScale(this.boardScale);
       view.label.setScale(this.boardScale);
     }
+
+    if (this.hoveredTileKey) {
+      const hoveredTile = this.state.field[this.hoveredTileKey];
+      if (hoveredTile) {
+        this.positionTileInfo(hoveredTile);
+      }
+    }
+  }
+
+  private showTileInfo(tile: FieldTile): void {
+    this.hoveredTileKey = tileKey(tile.x, tile.y);
+    this.refreshTileInfo(tile);
+    this.positionTileInfo(tile);
+    this.tileInfoPanel.setVisible(true);
+  }
+
+  private hideTileInfo(tile: FieldTile): void {
+    if (this.hoveredTileKey === tileKey(tile.x, tile.y)) {
+      this.hoveredTileKey = undefined;
+      this.tileInfoPanel.setVisible(false);
+    }
+  }
+
+  private refreshTileInfo(tile: FieldTile): void {
+    const tier = getGrassTier(tile.tier);
+    const isGrown = tile.grassState === "grown";
+    const traitValue = tile.trait === "lush" ? 2 : tile.trait === "dewy" ? 1 : 0;
+    const traitLine = tile.trait === "normal" ? "Trait: normal" : `Trait: ${tile.trait} (+${traitValue})`;
+    const tierLine = `Value: ${tier.touchValue}${traitValue > 0 ? ` + ${traitValue}` : ""} before upgrades`;
+    const critLine = tile.trait === "lush" ? "Better crit and seed odds" : tile.trait === "dewy" ? "Slightly better crit and seed odds" : "";
+
+    this.tileInfoTitle.setText(isGrown ? tier.name : "Regrowing Patch");
+    this.tileInfoBody.setText(isGrown ? [tierLine, traitLine, critLine].filter(Boolean).join("\n") : "This patch is growing back.");
+  }
+
+  private positionTileInfo(tile: FieldTile): void {
+    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    if (!view) {
+      return;
+    }
+
+    const panelWidth = 230;
+    const panelHeight = 112;
+    const x = Phaser.Math.Clamp(view.base.x + 28 * this.boardScale, 12, this.scale.width - panelWidth - 12);
+    const y = Phaser.Math.Clamp(view.base.y - panelHeight - 20 * this.boardScale, 12, this.scale.height - panelHeight - 12);
+
+    this.tileInfoPanel.setPosition(x, y);
   }
 
   private handleTileClicked(tile: FieldTile): void {
@@ -835,13 +994,23 @@ export class GameScene extends Phaser.Scene {
     const isGrown = tile.grassState === "grown";
     const tier = getGrassTier(tile.tier);
     const grassTexture = this.getGrassTextureKey(tile);
+    const rareTier = tier.id !== "normal";
+    const highlightColor = tier.id === "golden" ? 0xffef78 : tier.id === "clover" ? 0xb7eba5 : 0x9be86b;
 
     view.grass.setVisible(isGrown);
     view.grass.setTexture(grassTexture);
     view.grass.setScale(this.boardScale * this.getGrassScale(tile));
     view.grass.setAlpha(1);
+    view.outline.setVisible(isGrown && rareTier);
+    view.outline.setStrokeStyle(tier.id === "golden" ? 5 : 4, highlightColor, tier.id === "golden" ? 0.95 : 0.72);
+    view.glint.setVisible(isGrown && rareTier);
+    view.glint.setFillStyle(highlightColor, tier.id === "golden" ? 0.95 : 0.82);
     view.label.setText(isGrown ? this.getTileLabel(tile, tier.label) : "...");
     view.base.setTexture(isGrown ? "tile-dirt" : "tile-stubble");
+
+    if (this.hoveredTileKey === tileKey(tile.x, tile.y)) {
+      this.refreshTileInfo(tile);
+    }
   }
 
   private getGrassScale(tile: FieldTile): number {
@@ -1275,6 +1444,7 @@ export class GameScene extends Phaser.Scene {
       .map((id) => UPGRADES.find((candidate) => candidate.id === id)?.name ?? id);
 
     this.skillDetailTitle.setText(upgrade.name);
+    this.skillDetailCategory.setText(`${this.getUpgradeBranch(upgrade.id)} branch`);
     this.skillDetailBody.setText(`${upgrade.description}\n\nLevel ${level}/${upgrade.maxLevel}`);
 
     if (maxed) {
@@ -1315,6 +1485,26 @@ export class GameScene extends Phaser.Scene {
         );
       }
     });
+  }
+
+  private getUpgradeBranch(upgradeId: string): string {
+    if (["softer_grass", "palm_press", "barefoot_confidence"].includes(upgradeId)) {
+      return "Touch";
+    }
+
+    if (["faster_regrowth", "fertile_soil"].includes(upgradeId)) {
+      return "Growth";
+    }
+
+    if (["lucky_clover", "dramatic_touch"].includes(upgradeId)) {
+      return "Crits";
+    }
+
+    if (["dew_appreciation", "morning_mist"].includes(upgradeId)) {
+      return "Nature";
+    }
+
+    return "Meadow";
   }
 
   private setSeedStatus(message: string): void {
