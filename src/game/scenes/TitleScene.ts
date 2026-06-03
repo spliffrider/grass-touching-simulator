@@ -17,6 +17,11 @@ interface TitleButton {
 
 export class TitleScene extends Phaser.Scene {
   private background!: Phaser.GameObjects.Image;
+  private titleOverlayRoot!: Phaser.GameObjects.Container;
+  private titlePatchGraphics!: Phaser.GameObjects.Graphics;
+  private selectorLeft!: Phaser.GameObjects.Image;
+  private selectorRight!: Phaser.GameObjects.Image;
+  private activeButtonId: TitleButton["id"] = "start";
   private buttons: TitleButton[] = [];
   private noticeText!: Phaser.GameObjects.Text;
   private creditsRoot!: Phaser.GameObjects.Container;
@@ -36,10 +41,13 @@ export class TitleScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image("title-screen", "/assets/title-screen.png");
+    this.load.image("title-selector-leaf", "/assets/title-selector-leaf.png");
+    this.load.image("title-selector-flower", "/assets/title-selector-flower.png");
   }
 
   create(): void {
     this.background = this.add.image(0, 0, "title-screen").setOrigin(0.5);
+    this.createTitleOverlay();
     this.createMenuButton("start", 683, 469, 360, 54);
     this.createMenuButton("continue", 683, 529, 320, 52);
     this.createMenuButton("options", 683, 589, 290, 52);
@@ -87,7 +95,10 @@ export class TitleScene extends Phaser.Scene {
       .setStrokeStyle(4, 0xf7ffe8, 0.9)
       .setVisible(false);
 
-    hit.on("pointerover", () => outline.setVisible(true));
+    hit.on("pointerover", () => {
+      outline.setVisible(true);
+      this.setActiveMenuButton(id);
+    });
     hit.on("pointerout", () => outline.setVisible(false));
     hit.on("pointerdown", () => this.handleButton(id));
 
@@ -105,6 +116,25 @@ export class TitleScene extends Phaser.Scene {
       : undefined;
 
     this.buttons.push({ id, sourceX, sourceY, sourceWidth, sourceHeight, hit, outline, label });
+  }
+
+  private createTitleOverlay(): void {
+    this.titleOverlayRoot = this.add.container(0, 0).setDepth(7);
+    this.titlePatchGraphics = this.add.graphics();
+    this.selectorLeft = this.add.image(0, 0, "title-selector-leaf").setOrigin(0.5);
+    this.selectorRight = this.add.image(0, 0, "title-selector-flower").setOrigin(0.5);
+    this.titleOverlayRoot.add([this.titlePatchGraphics, this.selectorLeft, this.selectorRight]);
+    this.drawTitlePatches();
+  }
+
+  private drawTitlePatches(): void {
+    this.titlePatchGraphics.clear();
+    this.titlePatchGraphics.fillStyle(0xa9cf64, 0.96);
+    this.titlePatchGraphics.fillRect(530, 356, 318, 54);
+    this.titlePatchGraphics.fillStyle(0xa2ca58, 0.96);
+    this.titlePatchGraphics.fillRect(512, 438, 80, 78);
+    this.titlePatchGraphics.fillStyle(0xb0cf61, 0.96);
+    this.titlePatchGraphics.fillRect(814, 438, 86, 78);
   }
 
   private createCreditsPanel(): void {
@@ -180,6 +210,7 @@ export class TitleScene extends Phaser.Scene {
 
     this.background.setPosition(this.scale.width / 2, this.scale.height / 2);
     this.background.setDisplaySize(displayWidth, displayHeight);
+    this.titleOverlayRoot.setPosition(offsetX, offsetY).setScale(scale);
     this.noticeText?.setPosition(this.scale.width / 2, this.scale.height - 34);
 
     for (const button of this.buttons) {
@@ -193,7 +224,26 @@ export class TitleScene extends Phaser.Scene {
       button.label?.setPosition(x, y).setFontSize(Math.max(22, 36 * scale));
     }
 
+    this.layoutMenuSelectors();
     this.layoutCreditsPanel();
+  }
+
+  private setActiveMenuButton(id: TitleButton["id"]): void {
+    this.activeButtonId = id;
+    this.layoutMenuSelectors();
+  }
+
+  private layoutMenuSelectors(): void {
+    const button = this.buttons.find((candidate) => candidate.id === this.activeButtonId) ?? this.buttons[0];
+    if (!button || !this.selectorLeft || !this.selectorRight) {
+      return;
+    }
+
+    const sidePadding = button.id === "credits" ? 46 : 50;
+    this.selectorLeft.setPosition(button.sourceX - button.sourceWidth / 2 - sidePadding, button.sourceY);
+    this.selectorRight.setPosition(button.sourceX + button.sourceWidth / 2 + sidePadding, button.sourceY + 1);
+    this.selectorLeft.setScale(button.id === "credits" ? 0.82 : 1);
+    this.selectorRight.setScale(button.id === "credits" ? 0.82 : 1);
   }
 
   private layoutCreditsPanel(): void {
