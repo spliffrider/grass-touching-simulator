@@ -29,7 +29,8 @@ export class TitleScene extends Phaser.Scene {
   private creditsNames!: Phaser.GameObjects.Text;
   private creditsBackHit!: Phaser.GameObjects.Rectangle;
   private creditsBackText!: Phaser.GameObjects.Text;
-  private menuTheme?: Phaser.Sound.BaseSound;
+  private menuTheme?: HTMLAudioElement;
+  private unlockMenuTheme?: () => void;
   private optionsOpen = false;
   private creditsOpen = false;
 
@@ -41,7 +42,6 @@ export class TitleScene extends Phaser.Scene {
     this.load.image("title-screen", "/assets/title-screen.png");
     this.load.image("title-selector-leaf", "/assets/title-selector-leaf.png");
     this.load.image("title-selector-flower", "/assets/title-selector-flower.png");
-    this.load.audio("menu-theme", "/assets/music/epic_menu_theme_mellow.wav");
   }
 
   create(): void {
@@ -78,33 +78,43 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private startMenuThemeWhenAllowed(): void {
-    this.menuTheme = this.sound.add("menu-theme", { loop: true, volume: 0.32 });
+    this.menuTheme = new Audio("/assets/music/epic_menu_theme_mellow.wav");
+    this.menuTheme.loop = true;
+    this.menuTheme.volume = 0.48;
+    this.menuTheme.preload = "auto";
 
-    if (!this.sound.locked) {
-      this.playMenuTheme();
-      return;
-    }
-
-    this.sound.once(Phaser.Sound.Events.UNLOCKED, () => this.playMenuTheme());
-    this.input.once("pointerdown", () => this.playMenuTheme());
-    this.input.keyboard?.once("keydown", () => this.playMenuTheme());
+    this.unlockMenuTheme = () => this.playMenuTheme();
+    window.addEventListener("pointerdown", this.unlockMenuTheme);
+    window.addEventListener("keydown", this.unlockMenuTheme);
+    window.addEventListener("touchstart", this.unlockMenuTheme);
+    this.playMenuTheme();
   }
 
   private playMenuTheme(): void {
-    if (!this.menuTheme || this.menuTheme.isPlaying) {
+    if (!this.menuTheme || !this.menuTheme.paused) {
       return;
     }
 
-    this.menuTheme.play();
+    void this.menuTheme.play().catch(() => {
+      // Browsers block unprompted audio; the window gesture listeners retry playback.
+    });
   }
 
   private stopMenuTheme(): void {
+    if (this.unlockMenuTheme) {
+      window.removeEventListener("pointerdown", this.unlockMenuTheme);
+      window.removeEventListener("keydown", this.unlockMenuTheme);
+      window.removeEventListener("touchstart", this.unlockMenuTheme);
+      this.unlockMenuTheme = undefined;
+    }
+
     if (!this.menuTheme) {
       return;
     }
 
-    this.menuTheme.stop();
-    this.menuTheme.destroy();
+    this.menuTheme.pause();
+    this.menuTheme.currentTime = 0;
+    this.menuTheme.src = "";
     this.menuTheme = undefined;
   }
 
@@ -257,6 +267,8 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private handleButton(id: TitleButton["id"]): void {
+    this.playMenuTheme();
+
     if (this.creditsOpen && id !== "credits") {
       return;
     }
@@ -287,6 +299,8 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private startOrContinue(): void {
+    this.playMenuTheme();
+
     if (this.creditsOpen) {
       this.closeCredits();
       return;
