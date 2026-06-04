@@ -3,6 +3,7 @@ import { hasSavedGame, resetSave } from "../systems/SaveSystem";
 
 const SOURCE_WIDTH = 1366;
 const SOURCE_HEIGHT = 768;
+const MENU_THEME_PATH = "/assets/music/epic_menu_theme_mellow.wav";
 
 interface TitleButton {
   id: "start" | "continue" | "options" | "quit" | "credits";
@@ -31,6 +32,7 @@ export class TitleScene extends Phaser.Scene {
   private creditsBackText!: Phaser.GameObjects.Text;
   private menuTheme?: HTMLAudioElement;
   private unlockMenuTheme?: () => void;
+  private menuThemeEnabled = true;
   private optionsOpen = false;
   private creditsOpen = false;
 
@@ -78,20 +80,32 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private startMenuThemeWhenAllowed(): void {
-    this.menuTheme = new Audio("/assets/music/epic_menu_theme_mellow.wav");
+    this.menuTheme = new Audio(MENU_THEME_PATH);
     this.menuTheme.loop = true;
-    this.menuTheme.volume = 0.48;
+    this.menuTheme.volume = 0.72;
     this.menuTheme.preload = "auto";
+    this.menuTheme.setAttribute("playsinline", "true");
+    this.menuTheme.style.display = "none";
+    this.menuTheme.addEventListener("error", () => {
+      const code = this.menuTheme?.error?.code ?? "unknown";
+      this.showNotice(`Menu music could not load. Audio error ${code}.`);
+    });
+    this.menuTheme.addEventListener("playing", () => {
+      if (this.optionsOpen) {
+        this.showNotice("Music: on.");
+      }
+    });
+    document.body.appendChild(this.menuTheme);
 
     this.unlockMenuTheme = () => this.playMenuTheme();
-    window.addEventListener("pointerdown", this.unlockMenuTheme);
-    window.addEventListener("keydown", this.unlockMenuTheme);
-    window.addEventListener("touchstart", this.unlockMenuTheme);
+    window.addEventListener("pointerdown", this.unlockMenuTheme, { capture: true });
+    window.addEventListener("keydown", this.unlockMenuTheme, { capture: true });
+    window.addEventListener("touchstart", this.unlockMenuTheme, { capture: true });
     this.playMenuTheme();
   }
 
   private playMenuTheme(): void {
-    if (!this.menuTheme || !this.menuTheme.paused) {
+    if (!this.menuTheme || !this.menuThemeEnabled || !this.menuTheme.paused) {
       return;
     }
 
@@ -102,9 +116,9 @@ export class TitleScene extends Phaser.Scene {
 
   private stopMenuTheme(): void {
     if (this.unlockMenuTheme) {
-      window.removeEventListener("pointerdown", this.unlockMenuTheme);
-      window.removeEventListener("keydown", this.unlockMenuTheme);
-      window.removeEventListener("touchstart", this.unlockMenuTheme);
+      window.removeEventListener("pointerdown", this.unlockMenuTheme, { capture: true });
+      window.removeEventListener("keydown", this.unlockMenuTheme, { capture: true });
+      window.removeEventListener("touchstart", this.unlockMenuTheme, { capture: true });
       this.unlockMenuTheme = undefined;
     }
 
@@ -114,8 +128,32 @@ export class TitleScene extends Phaser.Scene {
 
     this.menuTheme.pause();
     this.menuTheme.currentTime = 0;
+    this.menuTheme.remove();
     this.menuTheme.src = "";
     this.menuTheme = undefined;
+  }
+
+  private toggleMenuTheme(): void {
+    if (!this.menuTheme) {
+      this.showNotice("Music is still waking up. Try once more.");
+      return;
+    }
+
+    if (!this.menuTheme.paused) {
+      this.menuThemeEnabled = false;
+      this.menuTheme.pause();
+      this.showNotice("Music: off.");
+      return;
+    }
+
+    this.menuThemeEnabled = true;
+    void this.menuTheme
+      .play()
+      .then(() => this.showNotice("Music: on."))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.name : "blocked";
+        this.showNotice(`Music blocked by browser: ${message}. Tap Options again.`);
+      });
   }
 
   private createMenuButton(
@@ -287,7 +325,7 @@ export class TitleScene extends Phaser.Scene {
         break;
       case "options":
         this.optionsOpen = !this.optionsOpen;
-        this.showNotice(this.optionsOpen ? "Options: audio starts after your first click." : "");
+        this.toggleMenuTheme();
         break;
       case "credits":
         this.openCredits();
