@@ -29,6 +29,7 @@ export class TitleScene extends Phaser.Scene {
   private creditsNames!: Phaser.GameObjects.Text;
   private creditsBackHit!: Phaser.GameObjects.Rectangle;
   private creditsBackText!: Phaser.GameObjects.Text;
+  private menuTheme?: Phaser.Sound.BaseSound;
   private optionsOpen = false;
   private creditsOpen = false;
 
@@ -40,6 +41,7 @@ export class TitleScene extends Phaser.Scene {
     this.load.image("title-screen", "/assets/title-screen.png");
     this.load.image("title-selector-leaf", "/assets/title-selector-leaf.png");
     this.load.image("title-selector-flower", "/assets/title-selector-flower.png");
+    this.load.audio("menu-theme", "/assets/music/epic_menu_theme_mellow.wav");
   }
 
   create(): void {
@@ -68,9 +70,42 @@ export class TitleScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-ENTER", () => this.startOrContinue());
     this.input.keyboard?.on("keydown-SPACE", () => this.startOrContinue());
     this.input.keyboard?.on("keydown-ESC", () => this.closeCredits());
+    this.startMenuThemeWhenAllowed();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopMenuTheme());
 
     this.scale.on("resize", () => this.layoutTitle());
     this.layoutTitle();
+  }
+
+  private startMenuThemeWhenAllowed(): void {
+    this.menuTheme = this.sound.add("menu-theme", { loop: true, volume: 0.32 });
+
+    if (!this.sound.locked) {
+      this.playMenuTheme();
+      return;
+    }
+
+    this.sound.once(Phaser.Sound.Events.UNLOCKED, () => this.playMenuTheme());
+    this.input.once("pointerdown", () => this.playMenuTheme());
+    this.input.keyboard?.once("keydown", () => this.playMenuTheme());
+  }
+
+  private playMenuTheme(): void {
+    if (!this.menuTheme || this.menuTheme.isPlaying) {
+      return;
+    }
+
+    this.menuTheme.play();
+  }
+
+  private stopMenuTheme(): void {
+    if (!this.menuTheme) {
+      return;
+    }
+
+    this.menuTheme.stop();
+    this.menuTheme.destroy();
+    this.menuTheme = undefined;
   }
 
   private createMenuButton(

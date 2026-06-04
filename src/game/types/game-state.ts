@@ -6,6 +6,8 @@ export type TileTrait = "normal" | "dewy" | "lush";
 
 export type GrassTierId = "normal" | "thick" | "clover" | "golden";
 
+export type SeasonId = "spring" | "summer" | "autumn" | "winter";
+
 export type WeatherId =
   | "calm"
   | "dewy_morning"

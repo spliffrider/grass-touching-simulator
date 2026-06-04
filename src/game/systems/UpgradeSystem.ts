@@ -1,4 +1,5 @@
 import { UPGRADES } from "../data/upgrades";
+import { getSeasonForDate } from "../data/seasons";
 import { getWeather } from "../data/weather";
 import type { GameState, RuntimeStats } from "../types/game-state";
 
@@ -50,6 +51,8 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
   if (state.seedShopPurchases.weather_jar) {
     getWeather(state.activeWeatherId).apply(stats);
   }
+
+  getSeasonForDate(new Date()).apply(stats);
 
   stats.dewChance = Math.min(0.65, stats.dewChance);
   stats.critChance = Math.min(0.45, stats.critChance);

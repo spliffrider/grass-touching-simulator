@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { GRASS_TIERS, getGrassTier, getNextGrassTier } from "../data/grass-tiers";
 import { MILESTONES } from "../data/milestones";
 import { SEED_SHOP_ITEMS, getSeedDropChance } from "../data/seed-shop";
+import { getSeasonForDate } from "../data/seasons";
 import { UPGRADES, canUnlockUpgrade, getUpgradeCost } from "../data/upgrades";
 import { getWeather, pickWeather } from "../data/weather";
 import { expandField, tileKey, touchTile, updateRegrowth } from "../systems/FieldSystem";
@@ -62,6 +63,7 @@ export class GameScene extends Phaser.Scene {
   private titleText!: Phaser.GameObjects.Text;
   private resourceText!: Phaser.GameObjects.Text;
   private milestoneText!: Phaser.GameObjects.Text;
+  private seasonTint!: Phaser.GameObjects.Rectangle;
   private weatherTint!: Phaser.GameObjects.Rectangle;
   private weatherBadge!: Phaser.GameObjects.Container;
   private weatherBadgeBg!: Phaser.GameObjects.Rectangle;
@@ -150,6 +152,7 @@ export class GameScene extends Phaser.Scene {
     this.updateWeather(Date.now(), false);
     this.createTileTextures();
     this.createHeader();
+    this.createSeasonVisuals();
     this.createWeatherVisuals();
     this.createTileInfoPanel();
     this.createSkillTree();
@@ -163,6 +166,7 @@ export class GameScene extends Phaser.Scene {
 
     this.scale.on("resize", () => {
       this.layoutHeader();
+      this.layoutSeasonVisuals();
       this.layoutWeatherVisuals();
       this.layoutTiles();
       this.layoutSkillTree();
@@ -302,6 +306,15 @@ export class GameScene extends Phaser.Scene {
     this.layoutWeatherVisuals();
   }
 
+  private createSeasonVisuals(): void {
+    this.seasonTint = this.add
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0xffffff, 0)
+      .setOrigin(0, 0)
+      .setDepth(17)
+      .setVisible(true);
+    this.layoutSeasonVisuals();
+  }
+
   private layoutHeader(): void {
     const compact = this.scale.width < 760;
     const headerWidth = Math.max(220, Math.min(620, this.scale.width - 180));
@@ -318,7 +331,19 @@ export class GameScene extends Phaser.Scene {
     this.milestoneText.setPosition(26, this.resourceText.y + this.resourceText.height + 12);
     this.skillButton.setPosition(this.scale.width - 142, 24);
     this.seedButton.setPosition(this.scale.width - 142, 76);
+    this.layoutSeasonVisuals();
     this.layoutWeatherVisuals();
+  }
+
+  private layoutSeasonVisuals(): void {
+    if (!this.seasonTint) {
+      return;
+    }
+
+    const season = getSeasonForDate(new Date());
+    this.seasonTint.setSize(this.scale.width, this.scale.height);
+    this.seasonTint.setFillStyle(season.color, season.alpha);
+    this.seasonTint.setVisible(!this.skillTreeOpen && !this.seedShopOpen);
   }
 
   private layoutWeatherVisuals(): void {
@@ -1796,10 +1821,12 @@ export class GameScene extends Phaser.Scene {
     const nextMilestone = MILESTONES.find((milestone) => !this.state.reachedMilestones.includes(milestone.id));
     const nextTier = getNextGrassTier(this.state);
     const weather = this.state.seedShopPurchases.weather_jar ? getWeather(this.state.activeWeatherId) : undefined;
+    const season = getSeasonForDate(new Date());
     const compact = this.scale.width < 620;
     const resourceSeparator = compact ? "\n" : " | ";
 
     this.titleText.setText("Grass Touching Simulator");
+    this.layoutSeasonVisuals();
     this.refreshWeatherVisuals();
     this.resourceText.setText(
       [
@@ -1816,6 +1843,7 @@ export class GameScene extends Phaser.Scene {
         nextMilestone
           ? `Next surface spread: ${nextMilestone.name} at ${nextMilestone.requiredLifetimeTouches} lifetime touches`
           : "All prototype surface spreads discovered.",
+        `Season: ${season.name} - ${season.description}`,
         nextTier ? `Next grass tier: ${nextTier.name} at ${nextTier.unlockAtLifetimeTouches} lifetime touches` : "",
         weather ? `Weather: ${weather.name} - ${weather.description}` : "",
       ]
