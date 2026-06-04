@@ -13,12 +13,14 @@ interface TitleButton {
   hitHeight: number;
   selectorWidth: number;
   hit: Phaser.GameObjects.Rectangle;
+  label: Phaser.GameObjects.Text;
 }
 
 export class TitleScene extends Phaser.Scene {
   private background!: Phaser.GameObjects.Image;
   private selectorLeft!: Phaser.GameObjects.Image;
   private selectorRight!: Phaser.GameObjects.Image;
+  private menuPanel!: Phaser.GameObjects.Graphics;
   private activeButtonId: TitleButton["id"] = "start";
   private buttons: TitleButton[] = [];
   private noticeText!: Phaser.GameObjects.Text;
@@ -31,7 +33,6 @@ export class TitleScene extends Phaser.Scene {
   private creditsBackHit!: Phaser.GameObjects.Rectangle;
   private creditsBackText!: Phaser.GameObjects.Text;
   private menuTheme?: HTMLAudioElement;
-  private unlockMenuTheme?: () => void;
   private menuThemeEnabled = true;
   private optionsOpen = false;
   private creditsOpen = false;
@@ -53,6 +54,7 @@ export class TitleScene extends Phaser.Scene {
     this.createMenuButton("options", 683, 589, 300, 54, 170);
     this.createMenuButton("quit", 683, 650, 230, 54, 105);
     this.createMenuButton("credits", 683, 704, 260, 50, 145);
+    this.menuPanel = this.add.graphics().setDepth(6);
     this.selectorLeft = this.add.image(0, 0, "title-selector-leaf").setOrigin(0.5).setDepth(8);
     this.selectorRight = this.add.image(0, 0, "title-selector-flower").setOrigin(0.5).setDepth(8);
 
@@ -97,10 +99,6 @@ export class TitleScene extends Phaser.Scene {
     });
     document.body.appendChild(this.menuTheme);
 
-    this.unlockMenuTheme = () => this.playMenuTheme();
-    window.addEventListener("pointerdown", this.unlockMenuTheme, { capture: true });
-    window.addEventListener("keydown", this.unlockMenuTheme, { capture: true });
-    window.addEventListener("touchstart", this.unlockMenuTheme, { capture: true });
     this.playMenuTheme();
   }
 
@@ -115,13 +113,6 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private stopMenuTheme(): void {
-    if (this.unlockMenuTheme) {
-      window.removeEventListener("pointerdown", this.unlockMenuTheme, { capture: true });
-      window.removeEventListener("keydown", this.unlockMenuTheme, { capture: true });
-      window.removeEventListener("touchstart", this.unlockMenuTheme, { capture: true });
-      this.unlockMenuTheme = undefined;
-    }
-
     if (!this.menuTheme) {
       return;
     }
@@ -169,11 +160,34 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(9)
       .setInteractive({ useHandCursor: true });
+    const label = this.add
+      .text(0, 0, this.getMenuButtonLabel(id), {
+        fontFamily: "Impact, Trebuchet MS, Arial",
+        fontSize: "42px",
+        color: "#ffe6a3",
+        stroke: "#2b160f",
+        strokeThickness: 7,
+        shadow: { offsetX: 2, offsetY: 3, color: "#f7ffe8", blur: 0, stroke: false, fill: false },
+      })
+      .setOrigin(0.5)
+      .setDepth(7);
 
     hit.on("pointerover", () => this.setActiveMenuButton(id));
     hit.on("pointerdown", () => this.handleButton(id));
 
-    this.buttons.push({ id, sourceX, sourceY, hitWidth, hitHeight, selectorWidth, hit });
+    this.buttons.push({ id, sourceX, sourceY, hitWidth, hitHeight, selectorWidth, hit, label });
+  }
+
+  private getMenuButtonLabel(id: TitleButton["id"]): string {
+    const labels = {
+      start: "START GAME",
+      continue: "CONTINUE",
+      options: "OPTIONS",
+      quit: "QUIT",
+      credits: "CREDITS",
+    } satisfies Record<TitleButton["id"], string>;
+
+    return labels[id];
   }
 
   private createCreditsPanel(): void {
@@ -250,15 +264,40 @@ export class TitleScene extends Phaser.Scene {
     this.background.setPosition(this.scale.width / 2, this.scale.height / 2);
     this.background.setDisplaySize(displayWidth, displayHeight);
     this.noticeText?.setPosition(this.scale.width / 2, this.scale.height - 34);
+    this.drawMenuPanel(scale, offsetX, offsetY);
 
     for (const button of this.buttons) {
       const x = offsetX + button.sourceX * scale;
       const y = offsetY + button.sourceY * scale;
       button.hit.setPosition(x, y).setSize(button.hitWidth * scale, button.hitHeight * scale);
+      button.label.setPosition(x, y - 1 * scale);
+      button.label.setFontSize(Math.max(20, Math.round((button.id === "credits" ? 30 : button.id === "quit" ? 38 : 43) * scale)));
+      button.label.setStroke("#2b160f", Math.max(3, Math.round(7 * scale)));
     }
 
     this.layoutMenuSelectors(scale, offsetX, offsetY);
     this.layoutCreditsPanel();
+  }
+
+  private drawMenuPanel(scale: number, offsetX: number, offsetY: number): void {
+    const x = offsetX + 482 * scale;
+    const y = offsetY + 410 * scale;
+    const width = 402 * scale;
+    const height = 326 * scale;
+    const border = Math.max(3, Math.round(5 * scale));
+    const inset = Math.max(6, Math.round(10 * scale));
+
+    this.menuPanel.clear();
+    this.menuPanel.fillStyle(0x173b20, 0.94);
+    this.menuPanel.fillRect(x, y, width, height);
+    this.menuPanel.fillStyle(0x2d6f36, 0.94);
+    this.menuPanel.fillRect(x + border, y + border, width - border * 2, height - border * 2);
+    this.menuPanel.fillStyle(0xf4ffdc, 0.18);
+    this.menuPanel.fillRect(x + inset, y + inset, width - inset * 2, Math.max(6, 12 * scale));
+    this.menuPanel.lineStyle(border, 0xf7ffe8, 0.95);
+    this.menuPanel.strokeRect(x, y, width, height);
+    this.menuPanel.lineStyle(Math.max(2, Math.round(2 * scale)), 0x102315, 0.75);
+    this.menuPanel.strokeRect(x + inset, y + inset, width - inset * 2, height - inset * 2);
   }
 
   private setActiveMenuButton(id: TitleButton["id"]): void {
@@ -305,8 +344,6 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private handleButton(id: TitleButton["id"]): void {
-    this.playMenuTheme();
-
     if (this.creditsOpen && id !== "credits") {
       return;
     }
@@ -320,6 +357,7 @@ export class TitleScene extends Phaser.Scene {
         if (hasSavedGame()) {
           this.scene.start("GameScene");
         } else {
+          this.playMenuTheme();
           this.showNotice("No save yet. Start Game begins your first patch.");
         }
         break;
@@ -328,9 +366,11 @@ export class TitleScene extends Phaser.Scene {
         this.toggleMenuTheme();
         break;
       case "credits":
+        this.playMenuTheme();
         this.openCredits();
         break;
       case "quit":
+        this.playMenuTheme();
         this.showNotice("Browser version: closing the tab is the quit button.");
         break;
     }
