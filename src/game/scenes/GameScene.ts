@@ -109,6 +109,7 @@ export class GameScene extends Phaser.Scene {
   private audio = new AudioSystem();
   private skillTreeOpen = false;
   private seedShopOpen = false;
+  private readyUnlockKeys = new Set<string>();
   private selectedSkillId = UPGRADES[0].id;
   private boardScale = 1;
   private boardZoom = 1;
@@ -162,6 +163,7 @@ export class GameScene extends Phaser.Scene {
     this.layoutSkillTree();
     this.layoutSeedShop();
     this.refreshUi();
+    this.readyUnlockKeys = this.getReadyUnlockKeys();
     this.showMessage("Touch the grass. Let it regrow. Become reasonable.", 3600);
 
     this.scale.on("resize", () => {
@@ -233,6 +235,7 @@ export class GameScene extends Phaser.Scene {
 
     this.checkMilestones(stats);
     this.updateSprinkler(delta, stats);
+    this.checkReadyUnlocks();
     this.refreshUi();
 
     this.lastAutoSaveAt += delta;
@@ -1998,6 +2001,38 @@ export class GameScene extends Phaser.Scene {
         this.seedStatusText.setText("Seeds unlock new ways to touch grass.");
       }
     });
+  }
+
+  private getReadyUnlockKeys(): Set<string> {
+    const keys = new Set<string>();
+
+    for (const upgrade of UPGRADES) {
+      const level = this.state.upgrades[upgrade.id]?.level ?? 0;
+      const maxed = level >= upgrade.maxLevel;
+      const cost = getUpgradeCost(upgrade, level);
+
+      if (!maxed && canUnlockUpgrade(this.state, upgrade) && this.state.grassTouches >= cost) {
+        keys.add(`upgrade:${upgrade.id}:${level + 1}`);
+      }
+    }
+
+    for (const item of SEED_SHOP_ITEMS) {
+      if (!this.state.seedShopPurchases[item.id] && item.isUnlocked(this.state) && this.state.seeds >= item.cost) {
+        keys.add(`seed:${item.id}`);
+      }
+    }
+
+    return keys;
+  }
+
+  private checkReadyUnlocks(): void {
+    const currentKeys = this.getReadyUnlockKeys();
+    const newlyReady = [...currentKeys].some((key) => !this.readyUnlockKeys.has(key));
+    this.readyUnlockKeys = currentKeys;
+
+    if (newlyReady) {
+      this.audio.play("unlock");
+    }
   }
 
   private bumpSkillNode(upgradeId: string, success: boolean): void {

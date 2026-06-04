@@ -1,6 +1,6 @@
 import type { GrassTierId, TileTrait } from "../types/game-state";
 
-type SoundName = "touch" | "regrow" | "upgrade" | "milestone" | "blocked" | "seed" | "crit";
+type SoundName = "touch" | "regrow" | "upgrade" | "milestone" | "blocked" | "seed" | "crit" | "unlock";
 
 export class AudioSystem {
   private context?: AudioContext;
@@ -109,6 +109,9 @@ export class AudioSystem {
       case "crit":
         this.playCrit();
         break;
+      case "unlock":
+        this.playUnlock();
+        break;
     }
   }
 
@@ -161,6 +164,13 @@ export class AudioSystem {
     this.playTone(360, 0.09, 0.075, "triangle", now);
     this.playTone(540, 0.11, 0.065, "triangle", now + 0.07);
     this.playTone(720, 0.14, 0.06, "sine", now + 0.14);
+  }
+
+  private playUnlock(): void {
+    const now = this.now();
+    this.playTone(880, 0.055, 0.05, "sine", now);
+    this.playTone(1320, 0.08, 0.045, "triangle", now + 0.045);
+    this.playTone(1760, 0.1, 0.035, "sine", now + 0.095);
   }
 
   private playSeed(): void {

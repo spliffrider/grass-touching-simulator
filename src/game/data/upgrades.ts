@@ -23,7 +23,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     id: "softer_grass",
     name: "Softer Grass",
     description: "+1 touch value per level.",
-    baseCost: 8,
+    baseCost: 4,
     costGrowth: 1.7,
     maxLevel: 20,
     tree: { x: 70, y: 285, icon: "1", color: 0x9be86b },
