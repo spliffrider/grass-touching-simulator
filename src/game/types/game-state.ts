@@ -6,7 +6,16 @@ export type TileTrait = "normal" | "dewy" | "lush";
 
 export type GrassTierId = "normal" | "thick" | "clover" | "golden";
 
-export type WeatherId = "calm" | "dewy_morning" | "warm_sunlight" | "lucky_breeze" | "seed_wind";
+export type WeatherId =
+  | "calm"
+  | "dewy_morning"
+  | "warm_sunlight"
+  | "lucky_breeze"
+  | "seed_wind"
+  | "soft_rain"
+  | "pollinator_swarm"
+  | "golden_hour"
+  | "restless_roots";
 
 export interface FieldTile {
   x: number;

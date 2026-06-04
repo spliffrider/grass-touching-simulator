@@ -1111,9 +1111,15 @@ export class GameScene extends Phaser.Scene {
     saveGame(this.state);
   }
 
-  private tryDropSeed(tile: FieldTile, touchedTrait: FieldTile["trait"], stats: ReturnType<typeof getRuntimeStats>): void {
+  private tryDropSeed(
+    tile: FieldTile,
+    touchedTrait: FieldTile["trait"],
+    stats: ReturnType<typeof getRuntimeStats>,
+    chanceScale = 1,
+  ): void {
     let chance = getSeedDropChance(this.state, stats.seedDropBonus);
     chance += touchedTrait === "lush" ? 0.08 : touchedTrait === "dewy" ? 0.04 : 0;
+    chance *= chanceScale;
 
     if (Math.random() >= chance) {
       return;
@@ -1125,8 +1131,10 @@ export class GameScene extends Phaser.Scene {
     this.emitSeedBurst(tile);
     this.audio.play("seed");
 
-    if (this.state.seedShopPurchases.wild_spread && Math.random() < 0.35) {
-      const addedTiles = expandField(this.state, 1, stats);
+    const wildSpreadChance = this.state.seedShopPurchases.seed_catalog ? 0.55 : 0.35;
+    const wildSpreadTileCount = this.state.seedShopPurchases.seed_catalog ? 2 : 1;
+    if (this.state.seedShopPurchases.wild_spread && Math.random() < wildSpreadChance) {
+      const addedTiles = expandField(this.state, wildSpreadTileCount, stats);
 
       for (const addedTile of addedTiles) {
         this.createTileView(addedTile);
@@ -1157,7 +1165,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.sprinklerElapsed += delta;
-    if (this.sprinklerElapsed < 4800) {
+    const sprinklerInterval = this.state.seedShopPurchases.sprinkler_timer ? 3200 : 4800;
+    if (this.sprinklerElapsed < sprinklerInterval) {
       return;
     }
 
@@ -1182,6 +1191,12 @@ export class GameScene extends Phaser.Scene {
       this.getTouchPopText(touch, touchedTier.id === "normal" ? "sprinkler" : touchedTier.label),
       touch.isCrit ? "#ffef78" : "#d7fff2",
     );
+    if (touch.instantRegrown) {
+      this.popAtTile(tile, "instant regrow", "#dfffc8");
+    }
+    if (this.state.seedShopPurchases.self_seeding_nozzle) {
+      this.tryDropSeed(tile, touchedTrait, stats, 0.45);
+    }
     this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     saveGame(this.state);
   }
@@ -1226,7 +1241,7 @@ export class GameScene extends Phaser.Scene {
 
     const weather = pickWeather(this.state.activeWeatherId);
     this.state.activeWeatherId = weather.id;
-    this.state.weatherEndsAt = now + 120000;
+    this.state.weatherEndsAt = now + (this.state.seedShopPurchases.rain_barrel ? 150000 : 120000);
 
     if (announce) {
       this.showMessage(`${weather.name}: ${weather.description}`, 2600);
@@ -1276,6 +1291,10 @@ export class GameScene extends Phaser.Scene {
       warm_sunlight: { color: 0xffef78, alpha: 0.11 },
       lucky_breeze: { color: 0xdfffc8, alpha: 0.08 },
       seed_wind: { color: 0xfff1a8, alpha: 0.1 },
+      soft_rain: { color: 0xa8e8ff, alpha: 0.12 },
+      pollinator_swarm: { color: 0xffe08a, alpha: 0.08 },
+      golden_hour: { color: 0xffd565, alpha: 0.13 },
+      restless_roots: { color: 0xb7eba5, alpha: 0.1 },
     } satisfies Record<WeatherId, { color: number; alpha: number }>;
     const style = tint[weatherId];
 
@@ -1347,6 +1366,66 @@ export class GameScene extends Phaser.Scene {
           scale: { start: 1.2, end: 0.18 },
           alpha: { start: 0.78, end: 0 },
           frequency: 85,
+          quantity: 1,
+        },
+      },
+      soft_rain: {
+        texture: "dew-fleck",
+        config: {
+          x: { min: 12, max: Math.max(12, this.scale.width - 12) },
+          y: -12,
+          lifespan: { min: 1500, max: 2800 },
+          speedX: { min: -18, max: 8 },
+          speedY: { min: 90, max: 145 },
+          gravityY: 38,
+          scale: { start: 0.9, end: 0.16 },
+          alpha: { start: 0.62, end: 0 },
+          frequency: 55,
+          quantity: 1,
+        },
+      },
+      pollinator_swarm: {
+        texture: "seed-fleck",
+        config: {
+          x: { min: 12, max: Math.max(12, this.scale.width - 12) },
+          y: { min: 136, max: Math.max(136, this.scale.height - 28) },
+          lifespan: { min: 900, max: 1700 },
+          speedX: { min: -42, max: 42 },
+          speedY: { min: -32, max: 28 },
+          rotate: { min: -90, max: 90 },
+          scale: { start: 0.95, end: 0.2 },
+          alpha: { start: 0.66, end: 0 },
+          frequency: 80,
+          quantity: 1,
+        },
+      },
+      golden_hour: {
+        texture: "sun-fleck",
+        config: {
+          x: { min: 12, max: Math.max(12, this.scale.width - 12) },
+          y: { min: 132, max: Math.max(132, this.scale.height - 24) },
+          lifespan: { min: 1300, max: 2600 },
+          speedX: { min: -10, max: 14 },
+          speedY: { min: -8, max: 6 },
+          scale: { start: 1.7, end: 0 },
+          alpha: { start: 0.76, end: 0 },
+          frequency: 125,
+          quantity: 1,
+        },
+      },
+      restless_roots: {
+        texture: "grass-fleck",
+        config: {
+          x: { min: 12, max: Math.max(12, this.scale.width - 12) },
+          y: { min: 150, max: Math.max(150, this.scale.height - 20) },
+          lifespan: { min: 900, max: 1600 },
+          speedX: { min: -18, max: 18 },
+          speedY: { min: -78, max: -26 },
+          gravityY: 60,
+          rotate: { min: -140, max: 140 },
+          scale: { start: 1.1, end: 0.18 },
+          alpha: { start: 0.72, end: 0 },
+          frequency: 105,
           quantity: 1,
         },
       },

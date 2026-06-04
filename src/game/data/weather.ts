@@ -54,6 +54,46 @@ export const WEATHER_TYPES: WeatherDefinition[] = [
       stats.seedDropBonus += 0.08;
     },
   },
+  {
+    id: "soft_rain",
+    name: "Soft Rain",
+    description: "Grass regrows faster and dewy patches appear more often.",
+    color: "#a8e8ff",
+    apply: (stats) => {
+      stats.regrowMultiplier *= 0.82;
+      stats.dewChance += 0.1;
+    },
+  },
+  {
+    id: "pollinator_swarm",
+    name: "Pollinator Swarm",
+    description: "Seeds and crits both get a friendly nudge.",
+    color: "#ffe08a",
+    apply: (stats) => {
+      stats.seedDropBonus += 0.045;
+      stats.critChance += 0.055;
+    },
+  },
+  {
+    id: "golden_hour",
+    name: "Golden Hour",
+    description: "Rare grass shows up more often and feels extra valuable.",
+    color: "#ffd565",
+    apply: (stats) => {
+      stats.rareTierMultiplier += 0.38;
+      stats.rareTouchBonus += 2;
+    },
+  },
+  {
+    id: "restless_roots",
+    name: "Restless Roots",
+    description: "Touched patches sometimes spring back immediately.",
+    color: "#b7eba5",
+    apply: (stats) => {
+      stats.instantRegrowChance += 0.08;
+      stats.regrowMultiplier *= 0.92;
+    },
+  },
 ];
 
 export function getWeather(id: WeatherId | undefined): WeatherDefinition {

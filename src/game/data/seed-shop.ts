@@ -58,6 +58,41 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
     cost: 24,
     isUnlocked: (state) => state.seedShopPurchases.compost_bin === true,
   },
+  {
+    id: "rain_barrel",
+    name: "Rain Barrel",
+    description: "Weather lasts longer and gently improves regrowth.",
+    cost: 22,
+    isUnlocked: (state) => state.seedShopPurchases.weather_jar === true,
+  },
+  {
+    id: "sprinkler_timer",
+    name: "Sprinkler Timer",
+    description: "Tiny Sprinkler touches grass more often.",
+    cost: 28,
+    isUnlocked: (state) => state.seedShopPurchases.bug_hotel === true,
+  },
+  {
+    id: "self_seeding_nozzle",
+    name: "Self-Seeding Nozzle",
+    description: "Tiny Sprinkler can find the occasional seed.",
+    cost: 32,
+    isUnlocked: (state) => state.seedShopPurchases.sprinkler_timer === true,
+  },
+  {
+    id: "clover_press",
+    name: "Clover Press",
+    description: "Rare grass and crits become slightly more common.",
+    cost: 34,
+    isUnlocked: (state) => state.seedShopPurchases.bug_hotel === true,
+  },
+  {
+    id: "seed_catalog",
+    name: "Seed Catalog",
+    description: "Wild Spread sprouts more often and can add extra patches.",
+    cost: 40,
+    isUnlocked: (state) => state.seedShopPurchases.wild_spread === true && state.seedShopPurchases.clover_press === true,
+  },
 ];
 
 export function getSeedDropChance(state: GameState, bonus = 0): number {
@@ -73,6 +108,10 @@ export function getSeedDropChance(state: GameState, bonus = 0): number {
 
   if (state.seedShopPurchases.bug_hotel) {
     chance += 0.02;
+  }
+
+  if (state.seedShopPurchases.self_seeding_nozzle) {
+    chance += 0.015;
   }
 
   return Math.min(0.55, chance + bonus);

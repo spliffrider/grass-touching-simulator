@@ -37,6 +37,16 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
     stats.critChance += 0.025;
   }
 
+  if (state.seedShopPurchases.rain_barrel) {
+    stats.dewChance += 0.03;
+    stats.regrowMultiplier *= 0.94;
+  }
+
+  if (state.seedShopPurchases.clover_press) {
+    stats.rareTierMultiplier += 0.35;
+    stats.critChance += 0.02;
+  }
+
   if (state.seedShopPurchases.weather_jar) {
     getWeather(state.activeWeatherId).apply(stats);
   }
