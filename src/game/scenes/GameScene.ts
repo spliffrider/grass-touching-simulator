@@ -1613,15 +1613,18 @@ export class GameScene extends Phaser.Scene {
     stats: ReturnType<typeof getRuntimeStats>,
     chanceScale = 1,
   ): void {
+    const guaranteedGold = (touchedTier === "golden" ? 5 : 0) + (touch.isCrit ? 1 : 0);
     const chance = getGoldDropChance(this.state, stats, touchedTrait, touchedTier, touch, chanceScale);
+    const randomGold = guaranteedGold > 0 ? 0 : Math.random() < chance ? 1 : 0;
+    const totalGold = guaranteedGold + randomGold;
 
-    if (Math.random() >= chance) {
+    if (totalGold <= 0) {
       return;
     }
 
-    this.state.gold += 1;
-    this.state.lifetimeGold += 1;
-    this.popAtTile(tile, "+1 gold", "#ffef78");
+    this.state.gold += totalGold;
+    this.state.lifetimeGold += totalGold;
+    this.popAtTile(tile, `+${totalGold} gold`, "#ffef78");
     this.emitGoldBurst(tile);
     this.audio.play("gold");
   }
