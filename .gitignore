@@ -3,5 +3,7 @@ dist/
 .vite/
 npm-debug.log*
 prototype-screenshot.png
+handoff-summary*.json
+alternative assets/
 
 .vercel
