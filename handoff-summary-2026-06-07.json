@@ -1,0 +1,125 @@
+{
+  "project": {
+    "name": "Grass Touching Simulator",
+    "description": "A cozy Phaser 3 browser game about touching grass, growing a field, unlocking skills, seeds, weather, seasons, and tactile progression.",
+    "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+    "stack": [
+      "TypeScript",
+      "Phaser 3",
+      "Vite",
+      "Vercel"
+    ],
+    "repository": "https://github.com/spliffrider/grass-touching-simulator.git",
+    "productionUrl": "https://grasstouchingsimulator.com/",
+    "wwwProductionUrl": "https://www.grasstouchingsimulator.com/",
+    "vercelUrl": "https://grass-touching-simulator.vercel.app/"
+  },
+  "handoff": {
+    "createdAt": "2026-06-07",
+    "createdFor": "Codex continuation / future development session",
+    "filename": "handoff-summary-2026-06-07.json",
+    "readFirst": true
+  },
+  "currentStatus": {
+    "branch": "master",
+    "latestCommit": "4ea4fbf Speed up first upgrade and add unlock cue",
+    "remoteTracking": "master...origin/master",
+    "worktreeAtCreation": "clean except older untracked handoff-summary-2026-06-04.json and this new handoff file",
+    "deployment": "Latest build was pushed to GitHub and deployed to Vercel production. Vercel reported the deploy was aliased to grasstouchingsimulator.com.",
+    "userVerificationPreference": "The user prefers to verify/playtest in their own browser and with Discord playtesters."
+  },
+  "recentCommits": [
+    {
+      "hash": "4ea4fbf",
+      "message": "Speed up first upgrade and add unlock cue"
+    },
+    {
+      "hash": "45f577c",
+      "message": "Cover title menu artifacts and fix music toggle"
+    },
+    {
+      "hash": "b99dbcc",
+      "message": "Improve title music unlock handling"
+    },
+    {
+      "hash": "32b621e",
+      "message": "Fix title menu music playback"
+    },
+    {
+      "hash": "0d4a954",
+      "message": "Add seasonal effects and menu music"
+    },
+    {
+      "hash": "7fba00d",
+      "message": "Add new seed shop and weather content"
+    },
+    {
+      "hash": "059a7a7",
+      "message": "Restore pixel art title screen"
+    }
+  ],
+  "importantFiles": {
+    "titleScene": "src/game/scenes/TitleScene.ts",
+    "mainGameScene": "src/game/scenes/GameScene.ts",
+    "upgradesData": "src/game/data/upgrades.ts",
+    "seedShopData": "src/game/data/seed-shop.ts",
+    "weatherData": "src/game/data/weather.ts",
+    "seasonsData": "src/game/data/seasons.ts",
+    "runtimeStats": "src/game/systems/UpgradeSystem.ts",
+    "audioSystem": "src/game/systems/AudioSystem.ts",
+    "persistentState": "src/game/systems/SaveSystem.ts",
+    "titleBackground": "public/assets/title-screen.png",
+    "menuTheme": "public/assets/music/epic_menu_theme_mellow.wav",
+    "grassTiles": "public/assets/tiles/"
+  },
+  "sessionWorkCompleted": [
+    "Added several new Weather Jar moods: Soft Rain, Pollinator Swarm, Golden Hour, and Restless Roots.",
+    "Added new seed shop content: Rain Barrel, Sprinkler Timer, Self-Seeding Nozzle, Clover Press, and Seed Catalog.",
+    "Wired new behavior for longer weather, faster sprinkler ticks, sprinkler seed drops, stronger Wild Spread, rare/crit boosts, and related weather visuals.",
+    "Added seasons based on the player's local machine date. Spring, Summer, Autumn, and Winter apply subtle runtime stat modifiers and a soft season tint.",
+    "Added a menu theme WAV at public/assets/music/epic_menu_theme_mellow.wav and wired title-screen playback.",
+    "Iterated on title music unlock handling because the user heard no music. Current implementation uses a native HTMLAudioElement and the Options button as an explicit music toggle/status.",
+    "Covered baked-in title menu artifact rectangles with a Phaser-rendered pixel-style menu plaque and re-rendered menu labels in code.",
+    "Fixed an Options click bug where the first click could start menu music and immediately toggle it off.",
+    "Reduced the first Softer Grass upgrade base cost from 8 to 4 grass touches.",
+    "Added a bright three-note unlock cue that fires when an upgrade level or seed shop item becomes newly affordable."
+  ],
+  "playtesterContext": {
+    "discordPlaytesters": true,
+    "feedbackSoFar": "Some Discord playtesters already like the game because the tactile feel is addictive.",
+    "recommendedFeedbackPrompt": "Ask testers what felt good, what felt slow, what annoyed them, and whether title music starts after clicking Options."
+  },
+  "knownIssuesAndRisks": [
+    "Menu music may still need verification in the user's browser. If it still says Music: on but is silent, convert the WAV to MP3/OGG and load multiple sources.",
+    "The title artifact fix is a rendered menu plaque overlay, not a cleaned bitmap. Verify whether the user likes the look; if not, do a proper art cleanup pass or regenerate/repair only the menu-band region.",
+    "The old title PNG still contains baked-in translucent artifact rectangles under the overlay.",
+    "The title plaque currently changes the menu presentation more than a pure image cleanup would. This was chosen as the safest shippable fix after local inpainting/patch attempts looked worse.",
+    "The skill tree is improved but may still be dense on phone screens when many nodes are unlocked.",
+    "Progression balance at high touch counts is still prototype-level.",
+    "Large fields plus zoom/pan should continue to be phone-tested for performance and ergonomics.",
+    "Vite warns about the Phaser bundle being larger than 500 kB after minification. Not urgent unless load time becomes a real issue."
+  ],
+  "recommendedNextSteps": [
+    "Have the user hard-refresh the live site and verify the title plaque, Options music toggle, and first-upgrade pacing.",
+    "If music is still silent, convert epic_menu_theme_mellow.wav to MP3 and/or OGG, update TitleScene to provide fallback sources, and redeploy.",
+    "If the plaque feels too intrusive, replace it with a proper cleaned title-screen bitmap or ask for/source a cleaner title art file.",
+    "Add a small visible build/version marker or changelog line during rapid Discord playtests.",
+    "Keep tuning early game pacing around the first 1-5 minutes now that Softer Grass unlocks at 4 touches.",
+    "Continue adding seed/weather/field content in small deployable slices.",
+    "Improve mobile skill tree usability with zoom, sections, or a cleaner mobile layout."
+  ],
+  "commands": {
+    "install": "npm install",
+    "dev": "npm run dev",
+    "build": "npm run build",
+    "deployProduction": "vercel --prod --yes",
+    "gitStatus": "git status --short --branch",
+    "gitRecentLog": "git log -10 --oneline --decorate"
+  },
+  "localEnvironmentNotes": [
+    "During image cleanup attempts, Python user packages pillow, numpy, and opencv-python were installed with: python -m pip install --user pillow opencv-python.",
+    "Temporary image preview files and tmp/title-history were removed before the final commits.",
+    "Do not commit handoff-summary-2026-06-04.json unless explicitly requested; it remains untracked."
+  ],
+  "handoffPromptForNextSession": "Read handoff-summary-2026-06-07.json first. The live game is intended to be on https://grasstouchingsimulator.com/. Latest commit at handoff is 4ea4fbf Speed up first upgrade and add unlock cue. Preserve the pixel-art title style, verify title music and the menu plaque with the user, and prefer quick build/deploy loops for Discord playtesting feedback."
+}

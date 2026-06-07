@@ -19,6 +19,8 @@ export type WeatherId =
   | "golden_hour"
   | "restless_roots";
 
+export const CURRENT_SAVE_VERSION = 2;
+
 export interface FieldTile {
   x: number;
   y: number;
@@ -44,6 +46,7 @@ export interface InventoryEntry {
 }
 
 export interface GameState {
+  saveVersion: number;
   grassTouches: number;
   seeds: number;
   lifetimeSeeds: number;

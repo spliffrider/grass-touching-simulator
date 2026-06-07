@@ -1,0 +1,172 @@
+{
+  "project": {
+    "name": "Grass Touching Simulator",
+    "description": "A cozy Phaser 3 browser game about touching grass, growing a field, unlocking skills, seeds, weather, seasons, gold, inventory, consumables, and animal companions.",
+    "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+    "stack": [
+      "TypeScript",
+      "Phaser 3",
+      "Vite",
+      "Vercel"
+    ],
+    "repository": "https://github.com/spliffrider/grass-touching-simulator.git",
+    "productionUrl": "https://grasstouchingsimulator.com/",
+    "wwwProductionUrl": "https://www.grasstouchingsimulator.com/",
+    "latestVercelDeploymentUrl": "https://grass-touching-simulator-6wv1aog5n-sensitech.vercel.app/"
+  },
+  "handoff": {
+    "createdAt": "2026-06-07",
+    "createdFor": "New Codex context window focused on code efficiency, architecture cleanup, and future-proofing.",
+    "filename": "handoff-summary-2026-06-07-optimization.json",
+    "readFirst": true
+  },
+  "currentStatus": {
+    "branch": "master",
+    "latestCommit": "532c194 Tune gold rewards for rare touches",
+    "remoteTracking": "master...origin/master",
+    "gitPushed": true,
+    "deployment": "Latest commit was pushed to GitHub and deployed to Vercel production. Vercel reported the deploy was aliased to grasstouchingsimulator.com.",
+    "worktreeAtCreation": "Clean except untracked handoff-summary-2026-06-04.json, handoff-summary-2026-06-07.json, and this new handoff file.",
+    "userNextIntent": "Start making the codebase more efficient before adding many more systems and complexity."
+  },
+  "recentCommits": [
+    {
+      "hash": "532c194",
+      "message": "Tune gold rewards for rare touches"
+    },
+    {
+      "hash": "0fd84fc",
+      "message": "Add gold currency and companion store"
+    },
+    {
+      "hash": "4ea4fbf",
+      "message": "Speed up first upgrade and add unlock cue"
+    },
+    {
+      "hash": "45f577c",
+      "message": "Cover title menu artifacts and fix music toggle"
+    },
+    {
+      "hash": "b99dbcc",
+      "message": "Improve title music unlock handling"
+    },
+    {
+      "hash": "32b621e",
+      "message": "Fix title menu music playback"
+    },
+    {
+      "hash": "0d4a954",
+      "message": "Add seasonal effects and menu music"
+    },
+    {
+      "hash": "7fba00d",
+      "message": "Add new seed shop and weather content"
+    }
+  ],
+  "importantFiles": {
+    "mainGameScene": "src/game/scenes/GameScene.ts",
+    "titleScene": "src/game/scenes/TitleScene.ts",
+    "gameStateTypes": "src/game/types/game-state.ts",
+    "saveSystem": "src/game/systems/SaveSystem.ts",
+    "fieldSystem": "src/game/systems/FieldSystem.ts",
+    "upgradeSystem": "src/game/systems/UpgradeSystem.ts",
+    "audioSystem": "src/game/systems/AudioSystem.ts",
+    "inventorySystem": "src/game/systems/InventorySystem.ts",
+    "goldEconomy": "src/game/data/economy.ts",
+    "goldStoreData": "src/game/data/gold-store.ts",
+    "seedShopData": "src/game/data/seed-shop.ts",
+    "weatherData": "src/game/data/weather.ts",
+    "seasonsData": "src/game/data/seasons.ts",
+    "buildInfo": "src/game/data/build-info.ts",
+    "audioSettings": "src/game/data/audio-settings.ts"
+  },
+  "latestSessionWorkCompleted": [
+    "Added a tiny playtest build label on the title screen and in-game HUD.",
+    "Added title-screen music options with a saved volume slider and music toggle.",
+    "Added an in-game Options button and volume slider sharing the same saved music volume.",
+    "Added gold and lifetimeGold to GameState, with save migration defaults for existing playtest saves.",
+    "Added an inventory state shape and InventorySystem helper functions.",
+    "Added gold drop logic lower than seed drops, plus gold particles and a brighter coin sound.",
+    "Added deterministic gold rewards: golden grass touches give 5 gold; crit touches give 1 gold; golden crits give 6 gold.",
+    "Added a Gold Store panel with consumables and animals.",
+    "Added consumables: Pocket Sunshine regrows resting patches; Seed Satchel grants 5 seeds.",
+    "Added animal companions: Field Mouse, Bee Hive, Chicken, Sheep, and Meadow Rabbit.",
+    "Bee Hives periodically improve nearby patch clusters.",
+    "Chickens periodically improve a patch or scratch up gold.",
+    "Sheep periodically touch grass and generate gold.",
+    "Animals are currently passive inventory companions, not placed world objects."
+  ],
+  "verificationCompleted": [
+    "npm run build passes locally.",
+    "The only recurring build warning is Vite's chunk-size warning for the large Phaser/game bundle.",
+    "Desktop title/options/game HUD/store layouts were visually checked in the in-app browser.",
+    "Mobile title/options/game HUD/store layouts were visually checked at a 390x844 viewport.",
+    "Mobile Store scrolling was checked after adding the longer animal list.",
+    "Latest production Vercel deploy completed and was aliased to grasstouchingsimulator.com."
+  ],
+  "knownIssuesAndRisks": [
+    "GameScene.ts has grown very large and now owns too many concerns: HUD layout, tiles, weather visuals, skill tree, seed shop, gold store, options, inventory actions, animal passives, particles, and persistence calls.",
+    "Vite warns that the main bundled JS chunk is over 500 kB after minification. The latest local builds were around 1.3 MB minified and about 346 kB gzipped. Phaser is likely the biggest contributor, but GameScene concentration and lack of code splitting should be reviewed.",
+    "Store animals are implemented as passive inventory effects. There is no placement UI or visible animal sprite system yet.",
+    "Animal/passive balance is prototype-level and may need tuning after playtesting.",
+    "Gold economy may grow quickly once golden grass, crits, sheep, chickens, and random drops interact.",
+    "Options volume currently affects menu music only. In-game procedural sound effects still use AudioSystem's fixed master gain.",
+    "Title credits text in source may contain mojibake from earlier sessions; avoid editing credits names blindly without confirming intended text.",
+    "Untracked handoff JSON files remain local and should not be committed unless the user asks."
+  ],
+  "optimizationTargets": [
+    {
+      "priority": "high",
+      "target": "Split GameScene.ts by responsibility",
+      "notes": "Extract store UI, seed shop UI, options panel, skill tree UI, animal companion runtime, weather visuals, and HUD helpers into focused modules/classes. Keep GameScene as an orchestrator."
+    },
+    {
+      "priority": "high",
+      "target": "Introduce small systems for runtime behavior",
+      "notes": "Animal companion timers/effects, gold drops, sprinkler automation, and weather updates can become systems with clear inputs and outputs."
+    },
+    {
+      "priority": "high",
+      "target": "Reduce UI duplication",
+      "notes": "Seed Shop and Gold Store have similar scrollable card panels. Options panels exist in both title and game scenes. Extract reusable panel/card/button/slider helpers where it reduces real duplication."
+    },
+    {
+      "priority": "medium",
+      "target": "Bundle-size strategy",
+      "notes": "Confirm Phaser's contribution to the bundle, evaluate whether raising chunkSizeWarningLimit is acceptable, and consider lazy-loading scenes or non-critical systems. Avoid premature micro-optimizations before measuring."
+    },
+    {
+      "priority": "medium",
+      "target": "Performance under large fields",
+      "notes": "Review Object.values(state.field) calls inside update loops and passive systems. Consider cached grown/regrowing tile lists or bounded scans once fields become large."
+    },
+    {
+      "priority": "medium",
+      "target": "Save schema/migration hygiene",
+      "notes": "Saves currently use v1 and merge parsed state over createInitialState. As systems grow, introduce explicit migrations or schema versioning."
+    },
+    {
+      "priority": "low",
+      "target": "Audio settings consistency",
+      "notes": "Consider shared user audio settings for menu music and in-game procedural SFX volume."
+    }
+  ],
+  "recommendedNextStepsForNewContext": [
+    "Read this handoff first, then run git status --short --branch and npm run build.",
+    "Start with an architectural map of GameScene.ts: list major regions by line range and responsibility.",
+    "Choose a first low-risk extraction, likely GoldStore UI/data handling or AnimalCompanionSystem, and keep behavior identical.",
+    "After each extraction, run npm run build and do one visual smoke check of the affected panel/gameplay path.",
+    "Do not commit handoff JSON files unless explicitly requested.",
+    "After optimization changes are ready, commit, push, and deploy to Vercel only when the user asks or when a coherent optimization slice is complete."
+  ],
+  "commands": {
+    "install": "npm install",
+    "dev": "npm run dev",
+    "build": "npm run build",
+    "preview": "npm run preview",
+    "deployProduction": "vercel --prod --yes",
+    "gitStatus": "git status --short --branch",
+    "gitRecentLog": "git log -12 --oneline --decorate"
+  },
+  "handoffPromptForNextSession": "Read handoff-summary-2026-06-07-optimization.json first. The user wants to start optimizing and organizing the codebase before adding many more systems. Latest committed and deployed state is 532c194 Tune gold rewards for rare touches on master/origin/master. Focus on GameScene decomposition, runtime systems, duplicated UI helpers, and bundle/performance strategy. Preserve behavior during refactors and run npm run build after each slice."
+}

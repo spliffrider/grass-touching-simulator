@@ -1,6 +1,5 @@
 import Phaser from "phaser";
 import { DEFAULT_MUSIC_VOLUME, readStoredMusicVolume, writeStoredMusicVolume } from "../data/audio-settings";
-import { getGoldDropChance } from "../data/economy";
 import { GRASS_TIERS, getGrassTier, getNextGrassTier } from "../data/grass-tiers";
 import { BUILD_LABEL } from "../data/build-info";
 import { GOLD_STORE_ITEMS } from "../data/gold-store";
@@ -9,12 +8,16 @@ import { SEED_SHOP_ITEMS, getSeedDropChance } from "../data/seed-shop";
 import { getSeasonForDate } from "../data/seasons";
 import { UPGRADES, canUnlockUpgrade, getUpgradeCost } from "../data/upgrades";
 import { getWeather, pickWeather } from "../data/weather";
-import { expandField, tileKey, touchTile, updateRegrowth } from "../systems/FieldSystem";
+import { expandField, getFieldBounds, getFieldTiles, getRegrowingTiles, tileKey, touchTile, updateRegrowth } from "../systems/FieldSystem";
 import { addInventoryItem, consumeInventoryItem, getInventoryQuantity } from "../systems/InventorySystem";
+import { AnimalCompanionSystem } from "../systems/AnimalCompanionSystem";
 import { AudioSystem } from "../systems/AudioSystem";
+import { DropSystem, type DropFeedback } from "../systems/DropSystem";
 import { loadGame, resetSave, saveGame } from "../systems/SaveSystem";
+import { SprinklerSystem } from "../systems/SprinklerSystem";
 import { getRuntimeStats } from "../systems/UpgradeSystem";
 import type { FieldTile, GameState, GrassTierId, TileKey, TileTrait, TouchResult, WeatherId } from "../types/game-state";
+import { createTextButton, setTextButtonEnabled, setTextButtonText } from "../ui/buttons";
 
 const TILE_SIZE = 58;
 const TILE_GAP = 8;
@@ -139,10 +142,9 @@ export class GameScene extends Phaser.Scene {
   private storeScroll = 0;
   private resetArmed = false;
   private lastAutoSaveAt = 0;
-  private sprinklerElapsed = 0;
-  private beeHiveElapsed = 0;
-  private chickenElapsed = 0;
-  private sheepElapsed = 0;
+  private sprinkler = new SprinklerSystem();
+  private animalCompanions = new AnimalCompanionSystem();
+  private drops = new DropSystem();
   private audio = new AudioSystem();
   private skillTreeOpen = false;
   private seedShopOpen = false;
@@ -351,10 +353,10 @@ export class GameScene extends Phaser.Scene {
       })
       .setDepth(20);
 
-    this.skillButton = this.createTextButton("Skills", () => this.openSkillTree(), 118, 44, 20);
-    this.seedButton = this.createTextButton("Seeds", () => this.openSeedShop(), 118, 44, 20);
-    this.storeButton = this.createTextButton("Store", () => this.openGoldStore(), 118, 44, 20);
-    this.optionsButton = this.createTextButton("Options", () => this.openOptions(), 118, 44, 20);
+    this.skillButton = createTextButton(this, "Skills", () => this.openSkillTree(), 118, 44, 20);
+    this.seedButton = createTextButton(this, "Seeds", () => this.openSeedShop(), 118, 44, 20);
+    this.storeButton = createTextButton(this, "Store", () => this.openGoldStore(), 118, 44, 20);
+    this.optionsButton = createTextButton(this, "Options", () => this.openOptions(), 118, 44, 20);
   }
 
   private createWeatherVisuals(): void {
@@ -506,7 +508,7 @@ export class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
 
-    this.backButton = this.createTextButton("Back", () => this.closeSkillTree(), 118, 44, 101);
+    this.backButton = createTextButton(this, "Back", () => this.closeSkillTree(), 118, 44, 101);
     this.skillLineGraphics = this.add.graphics();
     this.skillRoot.add([
       this.skillBackdrop,
@@ -589,7 +591,7 @@ export class GameScene extends Phaser.Scene {
       color: "#6d4c19",
       wordWrap: { width: 298 },
     });
-    this.skillBuyButton = this.createTextButton("Upgrade", () => this.upgradeSelectedSkill(), 138, 40, 101);
+    this.skillBuyButton = createTextButton(this, "Upgrade", () => this.upgradeSelectedSkill(), 138, 40, 101);
     this.skillBuyButton.setPosition(16, 216);
     this.skillDetailPanel.add([
       this.skillDetailBg,
@@ -601,7 +603,7 @@ export class GameScene extends Phaser.Scene {
     ]);
     this.skillRoot.add(this.skillDetailPanel);
 
-    this.resetButton = this.createTextButton("Reset", () => this.handleResetPressed(), 92, 34, 101);
+    this.resetButton = createTextButton(this, "Reset", () => this.handleResetPressed(), 92, 34, 101);
     this.skillRoot.add(this.resetButton);
 
     this.layoutSkillTree();
@@ -701,7 +703,7 @@ export class GameScene extends Phaser.Scene {
         strokeThickness: 4,
       })
       .setOrigin(0.5, 0);
-    this.seedBackButton = this.createTextButton("Back", () => this.closeSeedShop(), 118, 44, 106);
+    this.seedBackButton = createTextButton(this, "Back", () => this.closeSeedShop(), 118, 44, 106);
 
     this.seedRoot.add([this.seedBackdrop, this.seedTitleText, this.seedResourceText, this.seedStatusText, this.seedBackButton]);
 
@@ -801,7 +803,7 @@ export class GameScene extends Phaser.Scene {
         strokeThickness: 4,
       })
       .setOrigin(0.5, 0);
-    this.storeBackButton = this.createTextButton("Back", () => this.closeGoldStore(), 118, 44, 109);
+    this.storeBackButton = createTextButton(this, "Back", () => this.closeGoldStore(), 118, 44, 109);
 
     this.storeRoot.add([this.storeBackdrop, this.storeTitleText, this.storeResourceText, this.storeStatusText, this.storeBackButton]);
 
@@ -905,7 +907,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
     this.optionsVolumeKnob = this.add.circle(0, 0, 14, 0xf7ffe8, 1).setStrokeStyle(4, 0x17491f).setInteractive({ useHandCursor: true });
-    this.optionsBackButton = this.createTextButton("Back", () => this.closeOptions(), 118, 44, 111);
+    this.optionsBackButton = createTextButton(this, "Back", () => this.closeOptions(), 118, 44, 111);
 
     this.optionsVolumeHit.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startMusicVolumeDrag(pointer));
     this.optionsVolumeKnob.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startMusicVolumeDrag(pointer));
@@ -948,34 +950,6 @@ export class GameScene extends Phaser.Scene {
   private refreshOptionsPanel(): void {
     this.optionsVolumeLabel?.setText(`Music volume: ${Math.round(this.musicVolume * 100)}%`);
     this.layoutOptionsPanel();
-  }
-
-  private createTextButton(
-    text: string,
-    onClick: () => void,
-    width: number,
-    height: number,
-    depth: number,
-  ): Phaser.GameObjects.Container {
-    const button = this.add.container(0, 0).setDepth(depth);
-    const bg = this.add
-      .rectangle(0, 0, width, height, 0xf4ffdc, 0.96)
-      .setOrigin(0, 0)
-      .setStrokeStyle(3, 0x2d6f36)
-      .setInteractive({ useHandCursor: true });
-    const label = this.add
-      .text(width / 2, height / 2, text, {
-        fontFamily: "Trebuchet MS, Arial",
-        fontSize: height < 40 ? "14px" : "18px",
-        color: "#183d20",
-      })
-      .setOrigin(0.5);
-
-    bg.on("pointerdown", onClick);
-    button.add([bg, label]);
-    button.setData("bg", bg);
-    button.setData("label", label);
-    return button;
   }
 
   private hasTouchScreen(): boolean {
@@ -1202,7 +1176,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private usePocketSunshine(): void {
-    const restingTiles = Object.values(this.state.field).filter((tile) => tile.grassState === "regrowing");
+    const restingTiles = getRegrowingTiles(this.state);
     if (restingTiles.length === 0) {
       this.setStoreStatus("No resting patches need sunshine right now.");
       this.audio.play("blocked");
@@ -1268,7 +1242,7 @@ export class GameScene extends Phaser.Scene {
   private handleResetPressed(): void {
     if (!this.resetArmed) {
       this.resetArmed = true;
-      this.setButtonText(this.resetButton, "Confirm?");
+      setTextButtonText(this.resetButton, "Confirm?");
       this.setSkillStatus("Tap Confirm? to reset your save.");
       this.audio.play("blocked");
       this.time.delayedCall(2600, () => this.disarmReset());
@@ -1280,26 +1254,14 @@ export class GameScene extends Phaser.Scene {
 
   private disarmReset(): void {
     this.resetArmed = false;
-    this.setButtonText(this.resetButton, "Reset");
-  }
-
-  private setButtonText(button: Phaser.GameObjects.Container, text: string): void {
-    const label = button.getData("label") as Phaser.GameObjects.Text | undefined;
-    label?.setText(text);
-  }
-
-  private setButtonEnabled(button: Phaser.GameObjects.Container, enabled: boolean): void {
-    const bg = button.getData("bg") as Phaser.GameObjects.Rectangle | undefined;
-    const label = button.getData("label") as Phaser.GameObjects.Text | undefined;
-
-    bg?.setFillStyle(enabled ? 0xf4ffdc : 0xb9c8ab, enabled ? 0.96 : 0.74);
-    bg?.setStrokeStyle(3, enabled ? 0x2d6f36 : 0x63715d);
-    label?.setColor(enabled ? "#183d20" : "#53604f");
+    setTextButtonText(this.resetButton, "Reset");
   }
 
   private resetPrototypeSave(): void {
     this.disarmReset();
     this.state = resetSave();
+    this.sprinkler.reset();
+    this.animalCompanions.reset();
     this.resetBoardView();
     this.tileViews.forEach((view) => {
       view.base.destroy();
@@ -1325,7 +1287,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private renderAllTiles(): void {
-    for (const tile of Object.values(this.state.field)) {
+    for (const tile of getFieldTiles(this.state)) {
       this.createTileView(tile);
     }
     this.layoutTiles();
@@ -1410,17 +1372,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   private layoutTiles(): void {
-    const tiles = Object.values(this.state.field);
+    const tiles = getFieldTiles(this.state);
+    const bounds = getFieldBounds(this.state);
     if (tiles.length === 0) {
       return;
     }
 
-    const minX = Math.min(...tiles.map((tile) => tile.x));
-    const maxX = Math.max(...tiles.map((tile) => tile.x));
-    const minY = Math.min(...tiles.map((tile) => tile.y));
-    const maxY = Math.max(...tiles.map((tile) => tile.y));
-    const boardWidth = (maxX - minX + 1) * (TILE_SIZE + TILE_GAP);
-    const boardHeight = (maxY - minY + 1) * (TILE_SIZE + TILE_GAP);
+    if (!bounds) {
+      return;
+    }
+
+    const boardWidth = bounds.width * (TILE_SIZE + TILE_GAP);
+    const boardHeight = bounds.height * (TILE_SIZE + TILE_GAP);
     this.boardTopY = Math.max(142, this.milestoneText.y + this.milestoneText.height + 24);
     this.boardAvailableWidth = Math.max(120, this.scale.width - 24);
     this.boardAvailableHeight = Math.max(120, this.scale.height - this.boardTopY - 24);
@@ -1443,8 +1406,8 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
 
-      const x = startX + (tile.x - minX) * scaledStep;
-      const y = startY + (tile.y - minY) * scaledStep;
+      const x = startX + (tile.x - bounds.minX) * scaledStep;
+      const y = startY + (tile.y - bounds.minY) * scaledStep;
       view.base.setPosition(x, y);
       view.outline.setPosition(x, y);
       view.grass.setPosition(x, y);
@@ -1550,50 +1513,22 @@ export class GameScene extends Phaser.Scene {
     if (touch.instantRegrown) {
       this.popAtTile(tile, "instant regrow", "#dfffc8");
     }
-    this.tryDropSeed(tile, touchedTrait, stats);
-    this.tryDropGold(tile, touchedTrait, touchedTier.id, touch, stats);
+    this.drops.tryDropSeed(this.state, tile, touchedTrait, stats, this.getDropFeedback());
+    this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier.id, touch, stats, this.getDropFeedback());
     this.shakeForGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     saveGame(this.state);
   }
 
-  private tryDropSeed(
-    tile: FieldTile,
-    touchedTrait: FieldTile["trait"],
-    stats: ReturnType<typeof getRuntimeStats>,
-    chanceScale = 1,
-  ): void {
-    let chance = getSeedDropChance(this.state, stats.seedDropBonus);
-    chance += touchedTrait === "lush" ? 0.08 : touchedTrait === "dewy" ? 0.04 : 0;
-    chance *= chanceScale;
-
-    if (Math.random() >= chance) {
-      return;
-    }
-
-    this.state.seeds += 1;
-    this.state.lifetimeSeeds += 1;
-    this.popAtTile(tile, "+1 seed", "#fff1a8");
-    this.emitSeedBurst(tile);
-    this.audio.play("seed");
-
-    const wildSpreadChance = this.state.seedShopPurchases.seed_catalog ? 0.55 : 0.35;
-    const wildSpreadTileCount = this.state.seedShopPurchases.seed_catalog ? 2 : 1;
-    if (this.state.seedShopPurchases.wild_spread && Math.random() < wildSpreadChance) {
-      const addedTiles = expandField(this.state, wildSpreadTileCount, stats);
-
-      for (const addedTile of addedTiles) {
-        this.createTileView(addedTile);
-      }
-
-      if (addedTiles.length > 0) {
-        this.layoutTiles();
-        for (const addedTile of addedTiles) {
-          this.popAtTile(addedTile, "sprout", "#dfffc8");
-        }
-        this.audio.play("regrow");
-      }
-    }
+  private getDropFeedback(): DropFeedback {
+    return {
+      createTileView: (tile) => this.createTileView(tile),
+      layoutTiles: () => this.layoutTiles(),
+      popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
+      emitSeedBurst: (tile) => this.emitSeedBurst(tile),
+      emitGoldBurst: (tile) => this.emitGoldBurst(tile),
+      playSound: (sound) => this.audio.play(sound),
+    };
   }
 
   private emitSeedBurst(tile: FieldTile): void {
@@ -1603,30 +1538,6 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.emitBurst("seed-fleck", view.base.x, view.base.y - 8, 18, 0.82, 0.32);
-  }
-
-  private tryDropGold(
-    tile: FieldTile,
-    touchedTrait: FieldTile["trait"],
-    touchedTier: GrassTierId,
-    touch: TouchResult,
-    stats: ReturnType<typeof getRuntimeStats>,
-    chanceScale = 1,
-  ): void {
-    const guaranteedGold = (touchedTier === "golden" ? 5 : 0) + (touch.isCrit ? 1 : 0);
-    const chance = getGoldDropChance(this.state, stats, touchedTrait, touchedTier, touch, chanceScale);
-    const randomGold = guaranteedGold > 0 ? 0 : Math.random() < chance ? 1 : 0;
-    const totalGold = guaranteedGold + randomGold;
-
-    if (totalGold <= 0) {
-      return;
-    }
-
-    this.state.gold += totalGold;
-    this.state.lifetimeGold += totalGold;
-    this.popAtTile(tile, `+${totalGold} gold`, "#ffef78");
-    this.emitGoldBurst(tile);
-    this.audio.play("gold");
   }
 
   private emitGoldBurst(tile: FieldTile): void {
@@ -1639,46 +1550,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateSprinkler(delta: number, stats: ReturnType<typeof getRuntimeStats>): void {
-    if (!this.state.seedShopPurchases.sprinkler || this.skillTreeOpen || this.seedShopOpen || this.storeOpen || this.optionsOpen) {
+    if (this.skillTreeOpen || this.seedShopOpen || this.storeOpen || this.optionsOpen) {
       return;
     }
 
-    this.sprinklerElapsed += delta;
-    const sprinklerInterval = this.state.seedShopPurchases.sprinkler_timer ? 3200 : 4800;
-    if (this.sprinklerElapsed < sprinklerInterval) {
-      return;
-    }
+    const changed = this.sprinkler.update(delta, this.state, stats, {
+      refreshTile: (tile) => this.refreshTile(tile),
+      popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
+      playTouchFeedback: (tile, touchedTrait, isCrit) => this.playTouchFeedback(tile, touchedTrait, isCrit),
+      tryDropSeed: (tile, touchedTrait, runtimeStats, chanceScale) =>
+        this.drops.tryDropSeed(this.state, tile, touchedTrait, runtimeStats, this.getDropFeedback(), chanceScale),
+      tryDropGold: (tile, touchedTrait, touchedTier, touch, runtimeStats, chanceScale) =>
+        this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier, touch, runtimeStats, this.getDropFeedback(), chanceScale),
+      playGrassTouch: (tier, trait, isCrit) => this.audio.playGrassTouch(tier, trait, isCrit),
+    });
 
-    this.sprinklerElapsed = 0;
-    const grownTiles = Object.values(this.state.field).filter((tile) => tile.grassState === "grown");
-    const tile = Phaser.Utils.Array.GetRandom(grownTiles);
-    if (!tile) {
-      return;
+    if (changed) {
+      saveGame(this.state);
     }
-
-    const touchedTrait = tile.trait;
-    const touchedTier = getGrassTier(tile.tier);
-    const touch = touchTile(tile, this.state, stats, Date.now());
-    if (touch.gained === 0) {
-      return;
-    }
-
-    this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
-    this.refreshTile(tile);
-    this.popAtTile(
-      tile,
-      this.getTouchPopText(touch, touchedTier.id === "normal" ? "sprinkler" : touchedTier.label),
-      touch.isCrit ? "#ffef78" : "#d7fff2",
-    );
-    if (touch.instantRegrown) {
-      this.popAtTile(tile, "instant regrow", "#dfffc8");
-    }
-    if (this.state.seedShopPurchases.self_seeding_nozzle) {
-      this.tryDropSeed(tile, touchedTrait, stats, 0.45);
-    }
-    this.tryDropGold(tile, touchedTrait, touchedTier.id, touch, stats, 0.35);
-    this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
-    saveGame(this.state);
   }
 
   private updateAnimalCompanions(delta: number, stats: ReturnType<typeof getRuntimeStats>): void {
@@ -1686,123 +1575,18 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const beeHives = getInventoryQuantity(this.state, "bee_hive");
-    const chickens = getInventoryQuantity(this.state, "chicken");
-    const sheep = getInventoryQuantity(this.state, "sheep");
+    const changed = this.animalCompanions.update(delta, this.state, stats, {
+      refreshTile: (tile) => this.refreshTile(tile),
+      popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
+      emitGoldBurst: (tile) => this.emitGoldBurst(tile),
+      playTouchFeedback: (tile, touchedTrait, isCrit) => this.playTouchFeedback(tile, touchedTrait, isCrit),
+      playSound: (sound) => this.audio.play(sound),
+      playGrassTouch: (tier, trait, isCrit) => this.audio.playGrassTouch(tier, trait, isCrit),
+    });
 
-    if (beeHives > 0) {
-      this.beeHiveElapsed += delta;
-      const beeInterval = Math.max(4200, 9500 - beeHives * 1500);
-      if (this.beeHiveElapsed >= beeInterval) {
-        this.beeHiveElapsed = 0;
-        this.pollinateFromBeeHive(beeHives);
-        saveGame(this.state);
-      }
+    if (changed) {
+      saveGame(this.state);
     }
-
-    if (chickens > 0) {
-      this.chickenElapsed += delta;
-      const chickenInterval = Math.max(5200, 10500 - chickens * 1700);
-      if (this.chickenElapsed >= chickenInterval) {
-        this.chickenElapsed = 0;
-        this.runChickenForage(chickens);
-        saveGame(this.state);
-      }
-    }
-
-    if (sheep > 0) {
-      this.sheepElapsed += delta;
-      const sheepInterval = Math.max(6200, 13200 - sheep * 2100);
-      if (this.sheepElapsed >= sheepInterval) {
-        this.sheepElapsed = 0;
-        this.runSheepGraze(stats, sheep);
-        saveGame(this.state);
-      }
-    }
-  }
-
-  private pollinateFromBeeHive(beeHives: number): void {
-    const tiles = Object.values(this.state.field);
-    const anchor = Phaser.Utils.Array.GetRandom(tiles);
-    if (!anchor) {
-      return;
-    }
-
-    const cluster = [
-      anchor,
-      this.state.field[tileKey(anchor.x + 1, anchor.y)],
-      this.state.field[tileKey(anchor.x - 1, anchor.y)],
-      this.state.field[tileKey(anchor.x, anchor.y + 1)],
-      this.state.field[tileKey(anchor.x, anchor.y - 1)],
-    ].filter((tile): tile is FieldTile => tile !== undefined);
-    const improvedTiles = Phaser.Utils.Array.Shuffle(cluster).slice(0, Math.min(cluster.length, 2 + beeHives));
-
-    for (const tile of improvedTiles) {
-      if (tile.grassState === "regrowing") {
-        const remainingMs = Math.max(0, tile.regrowEndsAt - Date.now());
-        tile.regrowEndsAt = Date.now() + Math.floor(remainingMs * 0.58);
-      } else {
-        tile.trait = Math.random() < 0.36 ? "lush" : "dewy";
-      }
-
-      this.refreshTile(tile);
-      this.popAtTile(tile, "pollinated", "#fff1a8");
-    }
-
-    if (improvedTiles.length > 0) {
-      this.audio.play("regrow");
-    }
-  }
-
-  private runChickenForage(chickens: number): void {
-    const tiles = Object.values(this.state.field);
-    const tile = Phaser.Utils.Array.GetRandom(tiles);
-    if (!tile) {
-      return;
-    }
-
-    if (Math.random() < 0.42 + chickens * 0.1) {
-      tile.trait = tile.trait === "lush" ? "lush" : Math.random() < 0.42 ? "lush" : "dewy";
-      if (tile.grassState === "regrowing") {
-        tile.regrowEndsAt = Math.min(tile.regrowEndsAt, Date.now() + 900);
-      }
-      this.refreshTile(tile);
-      this.popAtTile(tile, "scratch", "#fff1a8");
-      this.audio.play("seed");
-      return;
-    }
-
-    this.state.gold += 1;
-    this.state.lifetimeGold += 1;
-    this.popAtTile(tile, "+1 gold", "#ffef78");
-    this.emitGoldBurst(tile);
-    this.audio.play("gold");
-  }
-
-  private runSheepGraze(stats: ReturnType<typeof getRuntimeStats>, sheep: number): void {
-    const grownTiles = Object.values(this.state.field).filter((tile) => tile.grassState === "grown");
-    const tile = Phaser.Utils.Array.GetRandom(grownTiles);
-    if (!tile) {
-      return;
-    }
-
-    const touchedTrait = tile.trait;
-    const touchedTier = getGrassTier(tile.tier);
-    const touch = touchTile(tile, this.state, stats, Date.now());
-    if (touch.gained === 0) {
-      return;
-    }
-
-    const goldGained = Math.max(1, Math.min(3, sheep));
-    this.state.gold += goldGained;
-    this.state.lifetimeGold += goldGained;
-    this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
-    this.refreshTile(tile);
-    this.popAtTile(tile, `sheep +${touch.gained}`, "#dfffc8");
-    this.popAtTile(tile, `+${goldGained} gold`, "#ffef78");
-    this.emitGoldBurst(tile);
-    this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
-    this.audio.play("gold");
   }
 
   private shakeForGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean): void {
@@ -2557,28 +2341,28 @@ export class GameScene extends Phaser.Scene {
 
     if (maxed) {
       this.skillDetailCost.setText("Fully unlocked.");
-      this.setButtonText(this.skillBuyButton, "Maxed");
-      this.setButtonEnabled(this.skillBuyButton, false);
+      setTextButtonText(this.skillBuyButton, "Maxed");
+      setTextButtonEnabled(this.skillBuyButton, false);
     } else if (missingPrerequisites.length > 0) {
       this.skillDetailCost.setText(`Requires: ${missingPrerequisites.join(", ")}`);
-      this.setButtonText(this.skillBuyButton, "Locked");
-      this.setButtonEnabled(this.skillBuyButton, false);
+      setTextButtonText(this.skillBuyButton, "Locked");
+      setTextButtonEnabled(this.skillBuyButton, false);
     } else if (!upgrade.isUnlocked(this.state)) {
       this.skillDetailCost.setText("Keep touching grass to reveal this.");
-      this.setButtonText(this.skillBuyButton, "Locked");
-      this.setButtonEnabled(this.skillBuyButton, false);
+      setTextButtonText(this.skillBuyButton, "Locked");
+      setTextButtonEnabled(this.skillBuyButton, false);
     } else if (this.state.grassTouches < cost) {
       this.skillDetailCost.setText(
         `Cost: ${cost} Grass Touches\nYou have: ${Math.floor(this.state.grassTouches)}\nNeed: ${
           cost - Math.floor(this.state.grassTouches)
         } more`,
       );
-      this.setButtonText(this.skillBuyButton, `Need ${cost - Math.floor(this.state.grassTouches)}`);
-      this.setButtonEnabled(this.skillBuyButton, false);
+      setTextButtonText(this.skillBuyButton, `Need ${cost - Math.floor(this.state.grassTouches)}`);
+      setTextButtonEnabled(this.skillBuyButton, false);
     } else {
       this.skillDetailCost.setText(`Cost: ${cost} Grass Touches\nYou have: ${Math.floor(this.state.grassTouches)}\nReady to upgrade`);
-      this.setButtonText(this.skillBuyButton, "Upgrade");
-      this.setButtonEnabled(this.skillBuyButton, true);
+      setTextButtonText(this.skillBuyButton, "Upgrade");
+      setTextButtonEnabled(this.skillBuyButton, true);
     }
   }
 

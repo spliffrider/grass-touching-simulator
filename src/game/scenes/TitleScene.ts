@@ -54,6 +54,7 @@ export class TitleScene extends Phaser.Scene {
   private optionsOpen = false;
   private creditsOpen = false;
   private draggingVolume = false;
+  private titleReady = false;
   private volumeSliderX = 0;
   private volumeSliderWidth = 1;
 
@@ -68,6 +69,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.titleReady = true;
     this.menuThemeVolume = readStoredMusicVolume();
     this.background = this.add.image(0, 0, "title-screen").setOrigin(0.5);
     this.createMenuButton("start", 683, 469, 390, 56, 220);
@@ -119,7 +121,10 @@ export class TitleScene extends Phaser.Scene {
       this.draggingVolume = false;
     });
     this.startMenuThemeWhenAllowed();
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopMenuTheme());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.titleReady = false;
+      this.stopMenuTheme();
+    });
 
     this.scale.on("resize", () => this.layoutTitle());
     this.layoutTitle();
@@ -552,6 +557,10 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private showNotice(message: string): void {
+    if (!this.titleReady || !this.noticeText?.active) {
+      return;
+    }
+
     this.noticeText.setText(message);
   }
 

@@ -1,4 +1,5 @@
 import { getGrassTier, pickGrassTier } from "../data/grass-tiers";
+import { CURRENT_SAVE_VERSION } from "../types/game-state";
 import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileKey, TileTrait, TouchResult } from "../types/game-state";
 
 const NEIGHBORS = [
@@ -17,12 +18,63 @@ interface ExpansionCandidate {
   distanceFromCenter: number;
 }
 
+export interface FieldBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  width: number;
+  height: number;
+}
+
 export function tileKey(x: number, y: number): TileKey {
   return `${x},${y}`;
 }
 
+export function getFieldTiles(state: GameState): FieldTile[] {
+  return Object.values(state.field);
+}
+
+export function getGrownTiles(state: GameState): FieldTile[] {
+  return getFieldTiles(state).filter((tile) => tile.grassState === "grown");
+}
+
+export function getRegrowingTiles(state: GameState): FieldTile[] {
+  return getFieldTiles(state).filter((tile) => tile.grassState === "regrowing");
+}
+
+export function getFieldBounds(state: GameState): FieldBounds | undefined {
+  const tiles = getFieldTiles(state);
+  if (tiles.length === 0) {
+    return undefined;
+  }
+
+  let minX = tiles[0].x;
+  let maxX = tiles[0].x;
+  let minY = tiles[0].y;
+  let maxY = tiles[0].y;
+
+  for (let index = 1; index < tiles.length; index += 1) {
+    const tile = tiles[index];
+    minX = Math.min(minX, tile.x);
+    maxX = Math.max(maxX, tile.x);
+    minY = Math.min(minY, tile.y);
+    maxY = Math.max(maxY, tile.y);
+  }
+
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    width: maxX - minX + 1,
+    height: maxY - minY + 1,
+  };
+}
+
 export function createInitialState(): GameState {
   return {
+    saveVersion: CURRENT_SAVE_VERSION,
     grassTouches: 0,
     seeds: 0,
     lifetimeSeeds: 0,
@@ -98,7 +150,7 @@ export function touchTile(tile: FieldTile, state: GameState, stats: RuntimeStats
 export function updateRegrowth(state: GameState, stats: RuntimeStats, now: number): FieldTile[] {
   const regrown: FieldTile[] = [];
 
-  for (const tile of Object.values(state.field)) {
+  for (const tile of getFieldTiles(state)) {
     if (tile.grassState === "regrowing" && now >= tile.regrowEndsAt) {
       tile.grassState = "grown";
       tile.regrowEndsAt = 0;
@@ -163,7 +215,7 @@ function getExpansionCandidates(state: GameState): ExpansionCandidate[] {
   const candidates = new Map<TileKey, ExpansionCandidate>();
   const center = getFieldCenter(state);
 
-  for (const tile of Object.values(state.field)) {
+  for (const tile of getFieldTiles(state)) {
     for (const neighbor of NEIGHBORS) {
       const x = tile.x + neighbor.x;
       const y = tile.y + neighbor.y;
@@ -225,22 +277,19 @@ function pickOrganicCandidate(
 }
 
 function pickGrowthDirection(state: GameState): { x: number; y: number } {
-  const tiles = Object.values(state.field);
-  const minX = Math.min(...tiles.map((tile) => tile.x));
-  const maxX = Math.max(...tiles.map((tile) => tile.x));
-  const minY = Math.min(...tiles.map((tile) => tile.y));
-  const maxY = Math.max(...tiles.map((tile) => tile.y));
-  const width = maxX - minX + 1;
-  const height = maxY - minY + 1;
+  const bounds = getFieldBounds(state);
+  if (!bounds) {
+    return Phaser.Utils.Array.GetRandom(NEIGHBORS);
+  }
 
-  if (width > height + 2 && Math.random() < 0.65) {
+  if (bounds.width > bounds.height + 2 && Math.random() < 0.65) {
     return Phaser.Utils.Array.GetRandom([
       { x: 0, y: 1 },
       { x: 0, y: -1 },
     ]);
   }
 
-  if (height > width + 2 && Math.random() < 0.65) {
+  if (bounds.height > bounds.width + 2 && Math.random() < 0.65) {
     return Phaser.Utils.Array.GetRandom([
       { x: 1, y: 0 },
       { x: -1, y: 0 },
@@ -269,7 +318,7 @@ function bendDirection(direction: { x: number; y: number }): { x: number; y: num
 }
 
 function getFieldCenter(state: GameState): { x: number; y: number } {
-  const tiles = Object.values(state.field);
+  const tiles = getFieldTiles(state);
   return {
     x: tiles.reduce((sum, tile) => sum + tile.x, 0) / tiles.length,
     y: tiles.reduce((sum, tile) => sum + tile.y, 0) / tiles.length,
