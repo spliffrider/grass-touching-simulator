@@ -11,6 +11,7 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
     critChance: 0.05,
     critMultiplier: 3,
     seedDropBonus: 0,
+    goldDropBonus: 0,
     rareTierMultiplier: 1,
     rareTouchBonus: 0,
     doubleTouchChance: 0,
@@ -52,12 +53,22 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
     getWeather(state.activeWeatherId).apply(stats);
   }
 
+  if (state.inventory.field_mouse?.quantity > 0) {
+    stats.goldDropBonus += 0.006;
+  }
+
+  if (state.inventory.meadow_rabbit?.quantity > 0) {
+    stats.seedDropBonus += 0.012;
+    stats.dewChance += 0.012;
+  }
+
   getSeasonForDate(new Date()).apply(stats);
 
   stats.dewChance = Math.min(0.65, stats.dewChance);
   stats.critChance = Math.min(0.45, stats.critChance);
   stats.critMultiplier = Math.min(8, stats.critMultiplier);
   stats.seedDropBonus = Math.min(0.35, stats.seedDropBonus);
+  stats.goldDropBonus = Math.min(0.14, stats.goldDropBonus);
   stats.rareTierMultiplier = Math.min(4, Math.max(1, stats.rareTierMultiplier));
   stats.rareTouchBonus = Math.min(20, stats.rareTouchBonus);
   stats.doubleTouchChance = Math.min(0.5, stats.doubleTouchChance);

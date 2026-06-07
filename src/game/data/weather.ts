@@ -77,11 +77,12 @@ export const WEATHER_TYPES: WeatherDefinition[] = [
   {
     id: "golden_hour",
     name: "Golden Hour",
-    description: "Rare grass shows up more often and feels extra valuable.",
+    description: "Rare grass shows up more often and gold feels a little closer.",
     color: "#ffd565",
     apply: (stats) => {
       stats.rareTierMultiplier += 0.38;
       stats.rareTouchBonus += 2;
+      stats.goldDropBonus += 0.018;
     },
   },
   {

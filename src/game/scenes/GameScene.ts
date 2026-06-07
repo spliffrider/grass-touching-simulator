@@ -1,11 +1,16 @@
 import Phaser from "phaser";
+import { DEFAULT_MUSIC_VOLUME, readStoredMusicVolume, writeStoredMusicVolume } from "../data/audio-settings";
+import { getGoldDropChance } from "../data/economy";
 import { GRASS_TIERS, getGrassTier, getNextGrassTier } from "../data/grass-tiers";
+import { BUILD_LABEL } from "../data/build-info";
+import { GOLD_STORE_ITEMS } from "../data/gold-store";
 import { MILESTONES } from "../data/milestones";
 import { SEED_SHOP_ITEMS, getSeedDropChance } from "../data/seed-shop";
 import { getSeasonForDate } from "../data/seasons";
 import { UPGRADES, canUnlockUpgrade, getUpgradeCost } from "../data/upgrades";
 import { getWeather, pickWeather } from "../data/weather";
 import { expandField, tileKey, touchTile, updateRegrowth } from "../systems/FieldSystem";
+import { addInventoryItem, consumeInventoryItem, getInventoryQuantity } from "../systems/InventorySystem";
 import { AudioSystem } from "../systems/AudioSystem";
 import { loadGame, resetSave, saveGame } from "../systems/SaveSystem";
 import { getRuntimeStats } from "../systems/UpgradeSystem";
@@ -51,6 +56,14 @@ interface SeedShopItemView {
   status: Phaser.GameObjects.Text;
 }
 
+interface GoldStoreItemView {
+  itemId: string;
+  container: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Rectangle;
+  description: Phaser.GameObjects.Text;
+  status: Phaser.GameObjects.Text;
+}
+
 interface SkillBranchLabelView {
   text: Phaser.GameObjects.Text;
   treeX: number;
@@ -61,6 +74,7 @@ export class GameScene extends Phaser.Scene {
   private state!: GameState;
   private tileViews = new Map<TileKey, TileView>();
   private titleText!: Phaser.GameObjects.Text;
+  private buildLabelText!: Phaser.GameObjects.Text;
   private resourceText!: Phaser.GameObjects.Text;
   private milestoneText!: Phaser.GameObjects.Text;
   private seasonTint!: Phaser.GameObjects.Rectangle;
@@ -73,6 +87,8 @@ export class GameScene extends Phaser.Scene {
   private activeWeatherVisualId?: WeatherId | "none";
   private skillButton!: Phaser.GameObjects.Container;
   private seedButton!: Phaser.GameObjects.Container;
+  private storeButton!: Phaser.GameObjects.Container;
+  private optionsButton!: Phaser.GameObjects.Container;
   private skillRoot!: Phaser.GameObjects.Container;
   private skillBackdrop!: Phaser.GameObjects.Rectangle;
   private skillTitleText!: Phaser.GameObjects.Text;
@@ -102,13 +118,40 @@ export class GameScene extends Phaser.Scene {
   private seedStatusText!: Phaser.GameObjects.Text;
   private seedBackButton!: Phaser.GameObjects.Container;
   private seedItemViews = new Map<string, SeedShopItemView>();
+  private storeRoot!: Phaser.GameObjects.Container;
+  private storeBackdrop!: Phaser.GameObjects.Rectangle;
+  private storeTitleText!: Phaser.GameObjects.Text;
+  private storeResourceText!: Phaser.GameObjects.Text;
+  private storeStatusText!: Phaser.GameObjects.Text;
+  private storeBackButton!: Phaser.GameObjects.Container;
+  private storeItemViews = new Map<string, GoldStoreItemView>();
+  private optionsRoot!: Phaser.GameObjects.Container;
+  private optionsBackdrop!: Phaser.GameObjects.Rectangle;
+  private optionsPanel!: Phaser.GameObjects.Rectangle;
+  private optionsTitleText!: Phaser.GameObjects.Text;
+  private optionsVolumeLabel!: Phaser.GameObjects.Text;
+  private optionsVolumeTrack!: Phaser.GameObjects.Rectangle;
+  private optionsVolumeFill!: Phaser.GameObjects.Rectangle;
+  private optionsVolumeHit!: Phaser.GameObjects.Rectangle;
+  private optionsVolumeKnob!: Phaser.GameObjects.Arc;
+  private optionsBackButton!: Phaser.GameObjects.Container;
   private seedShopScroll = 0;
+  private storeScroll = 0;
   private resetArmed = false;
   private lastAutoSaveAt = 0;
   private sprinklerElapsed = 0;
+  private beeHiveElapsed = 0;
+  private chickenElapsed = 0;
+  private sheepElapsed = 0;
   private audio = new AudioSystem();
   private skillTreeOpen = false;
   private seedShopOpen = false;
+  private storeOpen = false;
+  private optionsOpen = false;
+  private musicVolume = DEFAULT_MUSIC_VOLUME;
+  private draggingMusicVolume = false;
+  private musicVolumeSliderX = 0;
+  private musicVolumeSliderWidth = 1;
   private readyUnlockKeys = new Set<string>();
   private selectedSkillId = UPGRADES[0].id;
   private boardScale = 1;
@@ -147,6 +190,7 @@ export class GameScene extends Phaser.Scene {
 
   create(data?: { newGame?: boolean }): void {
     this.state = data?.newGame ? resetSave() : loadGame();
+    this.musicVolume = readStoredMusicVolume();
     saveGame(this.state);
 
     this.cameras.main.setBackgroundColor("#7fc66c");
@@ -158,6 +202,8 @@ export class GameScene extends Phaser.Scene {
     this.createTileInfoPanel();
     this.createSkillTree();
     this.createSeedShop();
+    this.createGoldStore();
+    this.createOptionsPanel();
     this.renderAllTiles();
     this.layoutHeader();
     this.layoutSkillTree();
@@ -173,12 +219,24 @@ export class GameScene extends Phaser.Scene {
       this.layoutTiles();
       this.layoutSkillTree();
       this.layoutSeedShop();
+      this.layoutGoldStore();
+      this.layoutOptionsPanel();
     });
 
     this.input.on("wheel", (pointer: Phaser.Input.Pointer, _objects: unknown[], _deltaX: number, deltaY: number) => {
+      if (this.optionsOpen) {
+        return;
+      }
+
       if (this.seedShopOpen) {
         this.seedShopScroll = Math.max(0, this.seedShopScroll + deltaY * 0.75);
         this.layoutSeedShop();
+        return;
+      }
+
+      if (this.storeOpen) {
+        this.storeScroll = Math.max(0, this.storeScroll + deltaY * 0.75);
+        this.layoutGoldStore();
         return;
       }
 
@@ -186,7 +244,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, gameObjects: Phaser.GameObjects.GameObject[]) => {
-      if (this.skillTreeOpen || this.seedShopOpen || gameObjects.length > 0) {
+      if (this.skillTreeOpen || this.seedShopOpen || this.storeOpen || this.optionsOpen || gameObjects.length > 0) {
         return;
       }
 
@@ -210,11 +268,15 @@ export class GameScene extends Phaser.Scene {
 
     this.input.on("pointerup", () => {
       this.isPanningBoard = false;
+      this.draggingMusicVolume = false;
     });
 
     this.input.on("pointerupoutside", () => {
       this.isPanningBoard = false;
+      this.draggingMusicVolume = false;
     });
+
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleMusicVolumeDrag(pointer));
   }
 
   update(_time: number, delta: number): void {
@@ -235,6 +297,7 @@ export class GameScene extends Phaser.Scene {
 
     this.checkMilestones(stats);
     this.updateSprinkler(delta, stats);
+    this.updateAnimalCompanions(delta, stats);
     this.checkReadyUnlocks();
     this.refreshUi();
 
@@ -255,6 +318,17 @@ export class GameScene extends Phaser.Scene {
         strokeThickness: 6,
       })
       .setDepth(20);
+
+    this.buildLabelText = this.add
+      .text(26, 50, BUILD_LABEL, {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "13px",
+        color: "#f7ffe8",
+        stroke: "#17491f",
+        strokeThickness: 4,
+      })
+      .setDepth(20)
+      .setAlpha(0.82);
 
     this.resourceText = this.add
       .text(26, 62, "", {
@@ -279,6 +353,8 @@ export class GameScene extends Phaser.Scene {
 
     this.skillButton = this.createTextButton("Skills", () => this.openSkillTree(), 118, 44, 20);
     this.seedButton = this.createTextButton("Seeds", () => this.openSeedShop(), 118, 44, 20);
+    this.storeButton = this.createTextButton("Store", () => this.openGoldStore(), 118, 44, 20);
+    this.optionsButton = this.createTextButton("Options", () => this.openOptions(), 118, 44, 20);
   }
 
   private createWeatherVisuals(): void {
@@ -324,16 +400,21 @@ export class GameScene extends Phaser.Scene {
 
     this.titleText.setFontSize(compact ? 22 : 30);
     this.titleText.setWordWrapWidth(headerWidth);
+    this.buildLabelText.setFontSize(compact ? 12 : 13);
+    this.buildLabelText.setWordWrapWidth(headerWidth);
     this.resourceText.setFontSize(compact ? 15 : 18);
     this.resourceText.setWordWrapWidth(headerWidth);
     this.milestoneText.setFontSize(compact ? 13 : 16);
     this.milestoneText.setWordWrapWidth(headerWidth);
 
     this.titleText.setPosition(24, compact ? 18 : 18);
-    this.resourceText.setPosition(26, this.titleText.y + this.titleText.height + 10);
+    this.buildLabelText.setPosition(26, this.titleText.y + this.titleText.height + 1);
+    this.resourceText.setPosition(26, this.buildLabelText.y + this.buildLabelText.height + 8);
     this.milestoneText.setPosition(26, this.resourceText.y + this.resourceText.height + 12);
     this.skillButton.setPosition(this.scale.width - 142, 24);
     this.seedButton.setPosition(this.scale.width - 142, 76);
+    this.storeButton.setPosition(this.scale.width - 142, 128);
+    this.optionsButton.setPosition(this.scale.width - 142, 180);
     this.layoutSeasonVisuals();
     this.layoutWeatherVisuals();
   }
@@ -346,7 +427,7 @@ export class GameScene extends Phaser.Scene {
     const season = getSeasonForDate(new Date());
     this.seasonTint.setSize(this.scale.width, this.scale.height);
     this.seasonTint.setFillStyle(season.color, season.alpha);
-    this.seasonTint.setVisible(!this.skillTreeOpen && !this.seedShopOpen);
+    this.seasonTint.setVisible(!this.skillTreeOpen && !this.seedShopOpen && !this.storeOpen && !this.optionsOpen);
   }
 
   private layoutWeatherVisuals(): void {
@@ -359,7 +440,7 @@ export class GameScene extends Phaser.Scene {
     const badgeWidth = compact ? Math.max(220, this.scale.width - 180) : 280;
     this.weatherBadgeBg.setSize(badgeWidth, compact ? 66 : 58);
     this.weatherBadgeBody.setWordWrapWidth(badgeWidth - 30);
-    this.weatherBadge.setPosition(compact ? 26 : this.scale.width - 320, compact ? this.seedButton.y + 58 : 128);
+    this.weatherBadge.setPosition(compact ? 26 : this.scale.width - 320, compact ? this.optionsButton.y + 58 : 232);
 
     if (this.state?.seedShopPurchases.weather_jar && this.state.activeWeatherId && this.activeWeatherVisualId === this.state.activeWeatherId) {
       this.createWeatherParticleEffect(this.state.activeWeatherId);
@@ -688,6 +769,187 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private createGoldStore(): void {
+    this.storeRoot?.destroy();
+    this.storeItemViews.clear();
+
+    this.storeRoot = this.add.container(0, 0).setDepth(108).setVisible(false);
+    this.storeBackdrop = this.add
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x2a2f1c, 1)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.storeTitleText = this.add.text(0, 0, "Gold Store", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "34px",
+      color: "#f7ffe8",
+      stroke: "#17491f",
+      strokeThickness: 6,
+    });
+    this.storeResourceText = this.add.text(0, 0, "", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "18px",
+      color: "#173b20",
+      backgroundColor: "#fff1a8",
+      padding: { x: 12, y: 8 },
+    });
+    this.storeStatusText = this.add
+      .text(0, 0, "Gold buys consumables and field companions.", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "16px",
+        color: "#f7ffe8",
+        stroke: "#17491f",
+        strokeThickness: 4,
+      })
+      .setOrigin(0.5, 0);
+    this.storeBackButton = this.createTextButton("Back", () => this.closeGoldStore(), 118, 44, 109);
+
+    this.storeRoot.add([this.storeBackdrop, this.storeTitleText, this.storeResourceText, this.storeStatusText, this.storeBackButton]);
+
+    for (const item of GOLD_STORE_ITEMS) {
+      const container = this.add.container(0, 0);
+      const bg = this.add
+        .rectangle(0, 0, 430, 98, 0xfff8d4, 0.96)
+        .setOrigin(0, 0)
+        .setStrokeStyle(3, 0x8f6a1a)
+        .setInteractive({ useHandCursor: true });
+      const name = this.add.text(14, 10, item.name, {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "20px",
+        color: "#183d20",
+      });
+      const description = this.add.text(14, 38, item.description, {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "14px",
+        color: "#5f5425",
+        wordWrap: { width: 402 },
+      });
+      const status = this.add.text(14, 74, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "15px",
+        color: "#6d4c19",
+      });
+
+      bg.on("pointerdown", () => this.handleGoldStoreItemPressed(item.id));
+      container.add([bg, name, description, status]);
+      this.storeItemViews.set(item.id, { itemId: item.id, container, bg, description, status });
+      this.storeRoot.add(container);
+    }
+
+    this.layoutGoldStore();
+  }
+
+  private layoutGoldStore(): void {
+    const compact = this.scale.width < 560;
+    const panelWidth = Math.min(430, this.scale.width - 32);
+    const x = (this.scale.width - panelWidth) / 2;
+    const itemHeight = compact ? 112 : 98;
+    const itemGap = itemHeight + 10;
+    const startY = compact ? 150 : 158;
+    const availableHeight = Math.max(120, this.scale.height - startY - 22);
+    const totalHeight = GOLD_STORE_ITEMS.length * itemGap;
+    const maxScroll = Math.max(0, totalHeight - availableHeight);
+    this.storeScroll = Math.min(this.storeScroll, maxScroll);
+    let y = startY - this.storeScroll;
+
+    this.storeBackdrop.setSize(this.scale.width, this.scale.height);
+    this.storeTitleText.setFontSize(compact ? 30 : 34);
+    this.storeResourceText.setFontSize(compact ? 14 : 18);
+    this.storeStatusText.setFontSize(compact ? 13 : 16);
+    this.storeStatusText.setWordWrapWidth(Math.max(240, this.scale.width - 48));
+    this.storeTitleText.setPosition(24, 24);
+    this.storeResourceText.setPosition(26, compact ? 72 : 78);
+    this.storeStatusText.setPosition(this.scale.width / 2, compact ? 110 : 116);
+    this.storeBackButton.setScale(compact ? 0.9 : 1);
+    this.storeBackButton.setPosition(this.scale.width - 142, 24);
+
+    for (const view of this.storeItemViews.values()) {
+      view.bg.setSize(panelWidth, itemHeight);
+      view.description.setFontSize(compact ? 13 : 14);
+      view.description.setWordWrapWidth(Math.max(220, panelWidth - 28));
+      view.status.setPosition(14, itemHeight - 24);
+      view.status.setWordWrapWidth(Math.max(220, panelWidth - 28));
+      view.container.setPosition(x, y);
+      view.container.setVisible(y > 118 - itemGap && y < this.scale.height + itemGap);
+      y += itemGap;
+    }
+  }
+
+  private createOptionsPanel(): void {
+    this.optionsRoot = this.add.container(0, 0).setDepth(110).setVisible(false);
+    this.optionsBackdrop = this.add
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x102315, 0.62)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.optionsPanel = this.add
+      .rectangle(0, 0, 460, 210, 0xf4ffdc, 0.98)
+      .setOrigin(0.5)
+      .setStrokeStyle(5, 0x2d6f36);
+    this.optionsTitleText = this.add
+      .text(0, 0, "Options", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "34px",
+        color: "#183d20",
+      })
+      .setOrigin(0.5);
+    this.optionsVolumeLabel = this.add
+      .text(0, 0, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "18px",
+        color: "#416247",
+      })
+      .setOrigin(0.5);
+    this.optionsVolumeTrack = this.add.rectangle(0, 0, 320, 12, 0x9bbf7e, 1).setOrigin(0, 0.5);
+    this.optionsVolumeFill = this.add.rectangle(0, 0, 220, 12, 0x2d6f36, 1).setOrigin(0, 0.5);
+    this.optionsVolumeHit = this.add
+      .rectangle(0, 0, 350, 44, 0xffffff, 0.001)
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    this.optionsVolumeKnob = this.add.circle(0, 0, 14, 0xf7ffe8, 1).setStrokeStyle(4, 0x17491f).setInteractive({ useHandCursor: true });
+    this.optionsBackButton = this.createTextButton("Back", () => this.closeOptions(), 118, 44, 111);
+
+    this.optionsVolumeHit.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startMusicVolumeDrag(pointer));
+    this.optionsVolumeKnob.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startMusicVolumeDrag(pointer));
+    this.optionsRoot.add([
+      this.optionsBackdrop,
+      this.optionsPanel,
+      this.optionsTitleText,
+      this.optionsVolumeLabel,
+      this.optionsVolumeTrack,
+      this.optionsVolumeFill,
+      this.optionsVolumeHit,
+      this.optionsVolumeKnob,
+      this.optionsBackButton,
+    ]);
+    this.refreshOptionsPanel();
+  }
+
+  private layoutOptionsPanel(): void {
+    const panelWidth = Math.min(500, this.scale.width - 36);
+    const panelHeight = Math.min(220, this.scale.height - 48);
+    const centerX = this.scale.width / 2;
+    const centerY = this.scale.height / 2;
+    const trackWidth = Math.max(190, panelWidth - 120);
+    const trackX = centerX - trackWidth / 2;
+    const trackY = centerY + 2;
+
+    this.optionsBackdrop?.setSize(this.scale.width, this.scale.height);
+    this.optionsPanel?.setPosition(centerX, centerY).setSize(panelWidth, panelHeight);
+    this.optionsTitleText?.setPosition(centerX, centerY - panelHeight / 2 + 44);
+    this.optionsVolumeLabel?.setPosition(centerX, centerY - 34);
+    this.optionsVolumeTrack?.setPosition(trackX, trackY).setSize(trackWidth, 12);
+    this.optionsVolumeFill?.setPosition(trackX, trackY).setSize(trackWidth * this.musicVolume, 12);
+    this.optionsVolumeHit?.setPosition(centerX, trackY).setSize(trackWidth + 36, 44);
+    this.optionsVolumeKnob?.setPosition(trackX + trackWidth * this.musicVolume, trackY);
+    this.optionsBackButton?.setPosition(centerX - 59, centerY + panelHeight / 2 - 58);
+    this.musicVolumeSliderX = trackX;
+    this.musicVolumeSliderWidth = trackWidth;
+  }
+
+  private refreshOptionsPanel(): void {
+    this.optionsVolumeLabel?.setText(`Music volume: ${Math.round(this.musicVolume * 100)}%`);
+    this.layoutOptionsPanel();
+  }
+
   private createTextButton(
     text: string,
     onClick: () => void,
@@ -783,6 +1045,8 @@ export class GameScene extends Phaser.Scene {
 
   private openSkillTree(): void {
     this.closeSeedShop();
+    this.closeGoldStore();
+    this.closeOptions();
     this.skillTreeOpen = true;
     this.skillRoot.setVisible(true);
     this.disarmReset();
@@ -799,6 +1063,8 @@ export class GameScene extends Phaser.Scene {
 
   private openSeedShop(): void {
     this.closeSkillTree();
+    this.closeGoldStore();
+    this.closeOptions();
     this.seedShopOpen = true;
     this.seedShopScroll = 0;
     this.seedRoot.setVisible(true);
@@ -809,6 +1075,157 @@ export class GameScene extends Phaser.Scene {
   private closeSeedShop(): void {
     this.seedShopOpen = false;
     this.seedRoot?.setVisible(false);
+    this.refreshUi();
+  }
+
+  private openGoldStore(): void {
+    this.closeSkillTree();
+    this.closeSeedShop();
+    this.closeOptions();
+    this.storeOpen = true;
+    this.storeScroll = 0;
+    this.storeRoot.setVisible(true);
+    this.audio.play("upgrade");
+    this.refreshUi();
+  }
+
+  private closeGoldStore(): void {
+    this.storeOpen = false;
+    this.storeRoot?.setVisible(false);
+    this.refreshUi();
+  }
+
+  private openOptions(): void {
+    this.closeSkillTree();
+    this.closeSeedShop();
+    this.closeGoldStore();
+    this.optionsOpen = true;
+    this.optionsRoot.setVisible(true);
+    this.audio.play("upgrade");
+    this.refreshOptionsPanel();
+    this.refreshUi();
+  }
+
+  private closeOptions(): void {
+    this.optionsOpen = false;
+    this.draggingMusicVolume = false;
+    this.optionsRoot?.setVisible(false);
+    this.refreshUi();
+  }
+
+  private startMusicVolumeDrag(pointer: Phaser.Input.Pointer): void {
+    this.draggingMusicVolume = true;
+    this.setMusicVolumeFromPointer(pointer);
+  }
+
+  private handleMusicVolumeDrag(pointer: Phaser.Input.Pointer): void {
+    if (!this.draggingMusicVolume || !this.optionsOpen) {
+      return;
+    }
+
+    this.setMusicVolumeFromPointer(pointer);
+  }
+
+  private setMusicVolumeFromPointer(pointer: Phaser.Input.Pointer): void {
+    const nextVolume = Phaser.Math.Clamp((pointer.x - this.musicVolumeSliderX) / this.musicVolumeSliderWidth, 0, 1);
+    this.musicVolume = writeStoredMusicVolume(nextVolume);
+    this.refreshOptionsPanel();
+  }
+
+  private handleGoldStoreItemPressed(itemId: string): void {
+    const item = GOLD_STORE_ITEMS.find((candidate) => candidate.id === itemId);
+    if (!item) {
+      return;
+    }
+
+    const quantity = getInventoryQuantity(this.state, item.id);
+    if (item.kind === "consumable" && quantity > 0) {
+      this.useGoldStoreItem(item.id);
+      return;
+    }
+
+    this.buyGoldStoreItem(item.id);
+  }
+
+  private buyGoldStoreItem(itemId: string): void {
+    const item = GOLD_STORE_ITEMS.find((candidate) => candidate.id === itemId);
+
+    if (!item || !item.isUnlocked(this.state)) {
+      this.setStoreStatus("That store shelf has not unlocked yet.");
+      this.audio.play("blocked");
+      this.refreshUi();
+      return;
+    }
+
+    const quantity = getInventoryQuantity(this.state, item.id);
+    if (item.maxQuantity !== undefined && quantity >= item.maxQuantity) {
+      this.setStoreStatus(`${item.name} is already with you.`);
+      this.audio.play("blocked");
+      this.refreshUi();
+      return;
+    }
+
+    if (this.state.gold < item.cost) {
+      this.setStoreStatus(`${item.name} costs ${item.cost} gold. You have ${Math.floor(this.state.gold)}.`);
+      this.audio.play("blocked");
+      this.refreshUi();
+      return;
+    }
+
+    this.state.gold -= item.cost;
+    addInventoryItem(this.state, item.id, item.kind);
+    this.setStoreStatus(`${item.name} added to inventory.`);
+    this.audio.play(item.kind === "animal" ? "milestone" : "upgrade");
+    saveGame(this.state);
+    this.refreshUi();
+  }
+
+  private useGoldStoreItem(itemId: string): void {
+    switch (itemId) {
+      case "pocket_sunshine":
+        this.usePocketSunshine();
+        break;
+      case "seed_satchel":
+        if (!consumeInventoryItem(this.state, itemId)) {
+          this.setStoreStatus("You do not have that item yet.");
+          this.audio.play("blocked");
+          return;
+        }
+        this.state.seeds += 5;
+        this.state.lifetimeSeeds += 5;
+        this.setStoreStatus("Seed Satchel opened into 5 seeds.");
+        this.audio.play("seed");
+        saveGame(this.state);
+        this.refreshUi();
+        break;
+    }
+  }
+
+  private usePocketSunshine(): void {
+    const restingTiles = Object.values(this.state.field).filter((tile) => tile.grassState === "regrowing");
+    if (restingTiles.length === 0) {
+      this.setStoreStatus("No resting patches need sunshine right now.");
+      this.audio.play("blocked");
+      return;
+    }
+
+    if (!consumeInventoryItem(this.state, "pocket_sunshine")) {
+      this.setStoreStatus("You do not have Pocket Sunshine yet.");
+      this.audio.play("blocked");
+      return;
+    }
+
+    for (const tile of restingTiles) {
+      tile.grassState = "grown";
+      tile.regrowEndsAt = 0;
+      tile.trait = "dewy";
+      this.refreshTile(tile);
+      this.popAtTile(tile, "sunny", "#ffef78");
+    }
+
+    this.setStoreStatus(`Pocket Sunshine regrew ${restingTiles.length} patch${restingTiles.length === 1 ? "" : "es"}.`);
+    this.audio.play("regrow");
+    saveGame(this.state);
     this.refreshUi();
   }
 
@@ -1107,7 +1524,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleTileClicked(tile: FieldTile): void {
-    if (this.skillTreeOpen || this.seedShopOpen) {
+    if (this.skillTreeOpen || this.seedShopOpen || this.storeOpen || this.optionsOpen) {
       return;
     }
 
@@ -1134,6 +1551,7 @@ export class GameScene extends Phaser.Scene {
       this.popAtTile(tile, "instant regrow", "#dfffc8");
     }
     this.tryDropSeed(tile, touchedTrait, stats);
+    this.tryDropGold(tile, touchedTrait, touchedTier.id, touch, stats);
     this.shakeForGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     saveGame(this.state);
@@ -1187,8 +1605,38 @@ export class GameScene extends Phaser.Scene {
     this.emitBurst("seed-fleck", view.base.x, view.base.y - 8, 18, 0.82, 0.32);
   }
 
+  private tryDropGold(
+    tile: FieldTile,
+    touchedTrait: FieldTile["trait"],
+    touchedTier: GrassTierId,
+    touch: TouchResult,
+    stats: ReturnType<typeof getRuntimeStats>,
+    chanceScale = 1,
+  ): void {
+    const chance = getGoldDropChance(this.state, stats, touchedTrait, touchedTier, touch, chanceScale);
+
+    if (Math.random() >= chance) {
+      return;
+    }
+
+    this.state.gold += 1;
+    this.state.lifetimeGold += 1;
+    this.popAtTile(tile, "+1 gold", "#ffef78");
+    this.emitGoldBurst(tile);
+    this.audio.play("gold");
+  }
+
+  private emitGoldBurst(tile: FieldTile): void {
+    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    if (!view) {
+      return;
+    }
+
+    this.emitBurst("gold-fleck", view.base.x, view.base.y - 10, 14, 0.7, 0.24);
+  }
+
   private updateSprinkler(delta: number, stats: ReturnType<typeof getRuntimeStats>): void {
-    if (!this.state.seedShopPurchases.sprinkler || this.skillTreeOpen || this.seedShopOpen) {
+    if (!this.state.seedShopPurchases.sprinkler || this.skillTreeOpen || this.seedShopOpen || this.storeOpen || this.optionsOpen) {
       return;
     }
 
@@ -1225,8 +1673,133 @@ export class GameScene extends Phaser.Scene {
     if (this.state.seedShopPurchases.self_seeding_nozzle) {
       this.tryDropSeed(tile, touchedTrait, stats, 0.45);
     }
+    this.tryDropGold(tile, touchedTrait, touchedTier.id, touch, stats, 0.35);
     this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     saveGame(this.state);
+  }
+
+  private updateAnimalCompanions(delta: number, stats: ReturnType<typeof getRuntimeStats>): void {
+    if (this.skillTreeOpen || this.seedShopOpen || this.storeOpen || this.optionsOpen) {
+      return;
+    }
+
+    const beeHives = getInventoryQuantity(this.state, "bee_hive");
+    const chickens = getInventoryQuantity(this.state, "chicken");
+    const sheep = getInventoryQuantity(this.state, "sheep");
+
+    if (beeHives > 0) {
+      this.beeHiveElapsed += delta;
+      const beeInterval = Math.max(4200, 9500 - beeHives * 1500);
+      if (this.beeHiveElapsed >= beeInterval) {
+        this.beeHiveElapsed = 0;
+        this.pollinateFromBeeHive(beeHives);
+        saveGame(this.state);
+      }
+    }
+
+    if (chickens > 0) {
+      this.chickenElapsed += delta;
+      const chickenInterval = Math.max(5200, 10500 - chickens * 1700);
+      if (this.chickenElapsed >= chickenInterval) {
+        this.chickenElapsed = 0;
+        this.runChickenForage(chickens);
+        saveGame(this.state);
+      }
+    }
+
+    if (sheep > 0) {
+      this.sheepElapsed += delta;
+      const sheepInterval = Math.max(6200, 13200 - sheep * 2100);
+      if (this.sheepElapsed >= sheepInterval) {
+        this.sheepElapsed = 0;
+        this.runSheepGraze(stats, sheep);
+        saveGame(this.state);
+      }
+    }
+  }
+
+  private pollinateFromBeeHive(beeHives: number): void {
+    const tiles = Object.values(this.state.field);
+    const anchor = Phaser.Utils.Array.GetRandom(tiles);
+    if (!anchor) {
+      return;
+    }
+
+    const cluster = [
+      anchor,
+      this.state.field[tileKey(anchor.x + 1, anchor.y)],
+      this.state.field[tileKey(anchor.x - 1, anchor.y)],
+      this.state.field[tileKey(anchor.x, anchor.y + 1)],
+      this.state.field[tileKey(anchor.x, anchor.y - 1)],
+    ].filter((tile): tile is FieldTile => tile !== undefined);
+    const improvedTiles = Phaser.Utils.Array.Shuffle(cluster).slice(0, Math.min(cluster.length, 2 + beeHives));
+
+    for (const tile of improvedTiles) {
+      if (tile.grassState === "regrowing") {
+        const remainingMs = Math.max(0, tile.regrowEndsAt - Date.now());
+        tile.regrowEndsAt = Date.now() + Math.floor(remainingMs * 0.58);
+      } else {
+        tile.trait = Math.random() < 0.36 ? "lush" : "dewy";
+      }
+
+      this.refreshTile(tile);
+      this.popAtTile(tile, "pollinated", "#fff1a8");
+    }
+
+    if (improvedTiles.length > 0) {
+      this.audio.play("regrow");
+    }
+  }
+
+  private runChickenForage(chickens: number): void {
+    const tiles = Object.values(this.state.field);
+    const tile = Phaser.Utils.Array.GetRandom(tiles);
+    if (!tile) {
+      return;
+    }
+
+    if (Math.random() < 0.42 + chickens * 0.1) {
+      tile.trait = tile.trait === "lush" ? "lush" : Math.random() < 0.42 ? "lush" : "dewy";
+      if (tile.grassState === "regrowing") {
+        tile.regrowEndsAt = Math.min(tile.regrowEndsAt, Date.now() + 900);
+      }
+      this.refreshTile(tile);
+      this.popAtTile(tile, "scratch", "#fff1a8");
+      this.audio.play("seed");
+      return;
+    }
+
+    this.state.gold += 1;
+    this.state.lifetimeGold += 1;
+    this.popAtTile(tile, "+1 gold", "#ffef78");
+    this.emitGoldBurst(tile);
+    this.audio.play("gold");
+  }
+
+  private runSheepGraze(stats: ReturnType<typeof getRuntimeStats>, sheep: number): void {
+    const grownTiles = Object.values(this.state.field).filter((tile) => tile.grassState === "grown");
+    const tile = Phaser.Utils.Array.GetRandom(grownTiles);
+    if (!tile) {
+      return;
+    }
+
+    const touchedTrait = tile.trait;
+    const touchedTier = getGrassTier(tile.tier);
+    const touch = touchTile(tile, this.state, stats, Date.now());
+    if (touch.gained === 0) {
+      return;
+    }
+
+    const goldGained = Math.max(1, Math.min(3, sheep));
+    this.state.gold += goldGained;
+    this.state.lifetimeGold += goldGained;
+    this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
+    this.refreshTile(tile);
+    this.popAtTile(tile, `sheep +${touch.gained}`, "#dfffc8");
+    this.popAtTile(tile, `+${goldGained} gold`, "#ffef78");
+    this.emitGoldBurst(tile);
+    this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
+    this.audio.play("gold");
   }
 
   private shakeForGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean): void {
@@ -1299,11 +1872,11 @@ export class GameScene extends Phaser.Scene {
     const seconds = secondsLeft % 60;
     const timeText = `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
-    this.weatherBadge.setVisible(!this.skillTreeOpen && !this.seedShopOpen);
+    this.weatherBadge.setVisible(!this.skillTreeOpen && !this.seedShopOpen && !this.storeOpen && !this.optionsOpen);
     this.weatherBadgeTitle.setText(`Weather Jar: ${weather.name}`);
     this.weatherBadgeTitle.setColor(weather.color);
     this.weatherBadgeBody.setText(`${weather.description} (${timeText})`);
-    this.weatherTint.setVisible(!this.skillTreeOpen && !this.seedShopOpen);
+    this.weatherTint.setVisible(!this.skillTreeOpen && !this.seedShopOpen && !this.storeOpen && !this.optionsOpen);
     this.applyWeatherTint(weather.id);
 
     if (this.activeWeatherVisualId !== weather.id) {
@@ -1701,6 +2274,7 @@ export class GameScene extends Phaser.Scene {
     this.createParticleTexture("dew-fleck", [0xd7fff2, 0xa9f2bc, 0x75d894]);
     this.createParticleTexture("dust-fleck", [0xc7975d, 0x8a6139, 0x6f4c2f]);
     this.createParticleTexture("seed-fleck", [0xffe08a, 0xc69232, 0x6d4c19]);
+    this.createParticleTexture("gold-fleck", [0xffffff, 0xffef78, 0xc69232]);
     this.createParticleTexture("crit-fleck", [0xffffff, 0xffef78, 0xff9f43]);
     this.createParticleTexture("sun-fleck", [0xffffff, 0xffef78, 0xffb347]);
     this.createParticleTexture("breeze-fleck", [0xf7ffe8, 0xb7eba5, 0x5cae62]);
@@ -1835,12 +2409,14 @@ export class GameScene extends Phaser.Scene {
       [
         `Grass Touches: ${Math.floor(this.state.grassTouches)}`,
         `Seeds: ${Math.floor(this.state.seeds)}`,
+        `Gold: ${Math.floor(this.state.gold)}`,
         `Lifetime: ${Math.floor(this.state.lifetimeGrassTouches)}`,
         `Patches: ${Object.keys(this.state.field).length}`,
       ].join(resourceSeparator),
     );
     this.skillResourceText.setText(`Grass Touches: ${Math.floor(this.state.grassTouches)}`);
     this.refreshSeedShop();
+    this.refreshGoldStore();
     this.milestoneText.setText(
       [
         nextMilestone
@@ -1915,6 +2491,48 @@ export class GameScene extends Phaser.Scene {
         view.status.setColor("#6d4c19");
       } else {
         view.status.setText(`Cost: ${item.cost} seeds | Ready`);
+        view.status.setColor("#26652e");
+      }
+    }
+  }
+
+  private refreshGoldStore(): void {
+    this.storeResourceText.setText(`Gold: ${Math.floor(this.state.gold)} | Lifetime Gold: ${Math.floor(this.state.lifetimeGold)}`);
+
+    for (const item of GOLD_STORE_ITEMS) {
+      const view = this.storeItemViews.get(item.id);
+      if (!view) {
+        continue;
+      }
+
+      const quantity = getInventoryQuantity(this.state, item.id);
+      const unlocked = item.isUnlocked(this.state);
+      const affordable = this.state.gold >= item.cost;
+      const maxed = item.maxQuantity !== undefined && quantity >= item.maxQuantity;
+      const owned = quantity > 0;
+
+      view.container.setAlpha(unlocked || owned ? 1 : 0.72);
+      view.bg.setFillStyle(owned ? 0xfff1a8 : 0xfff8d4, unlocked || owned ? 0.96 : 0.68);
+      view.bg.setStrokeStyle(3, maxed ? 0x85d35e : affordable && unlocked ? 0xffef78 : 0x8f6a1a);
+
+      if (!unlocked && !owned) {
+        view.status.setText("Locked");
+        view.status.setColor("#c8d1cc");
+      } else if (maxed) {
+        view.status.setText(item.maxQuantity ? `Owned: ${quantity}/${item.maxQuantity} | Passive active` : "Owned | Passive active");
+        view.status.setColor("#26652e");
+      } else if (item.kind === "consumable" && owned) {
+        view.status.setText(`Owned: ${quantity} | Tap to use`);
+        view.status.setColor("#26652e");
+      } else if (item.kind === "animal" && owned && item.maxQuantity !== undefined) {
+        const countText = `Owned: ${quantity}/${item.maxQuantity}`;
+        view.status.setText(affordable ? `${countText} | Cost: ${item.cost} gold | Tap to add` : `${countText} | Need ${item.cost - Math.floor(this.state.gold)} more`);
+        view.status.setColor(affordable ? "#26652e" : "#6d4c19");
+      } else if (!affordable) {
+        view.status.setText(`Cost: ${item.cost} gold | Need ${item.cost - Math.floor(this.state.gold)} more`);
+        view.status.setColor("#6d4c19");
+      } else {
+        view.status.setText(`Cost: ${item.cost} gold | Tap to buy`);
         view.status.setColor("#26652e");
       }
     }
@@ -2003,6 +2621,15 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private setStoreStatus(message: string): void {
+    this.storeStatusText.setText(message);
+    this.time.delayedCall(1900, () => {
+      if (this.storeOpen) {
+        this.storeStatusText.setText("Gold buys consumables and field companions.");
+      }
+    });
+  }
+
   private getReadyUnlockKeys(): Set<string> {
     const keys = new Set<string>();
 
@@ -2019,6 +2646,14 @@ export class GameScene extends Phaser.Scene {
     for (const item of SEED_SHOP_ITEMS) {
       if (!this.state.seedShopPurchases[item.id] && item.isUnlocked(this.state) && this.state.seeds >= item.cost) {
         keys.add(`seed:${item.id}`);
+      }
+    }
+
+    for (const item of GOLD_STORE_ITEMS) {
+      const quantity = getInventoryQuantity(this.state, item.id);
+      const maxed = item.maxQuantity !== undefined && quantity >= item.maxQuantity;
+      if (!maxed && item.isUnlocked(this.state) && this.state.gold >= item.cost) {
+        keys.add(`gold:${item.id}:${quantity}`);
       }
     }
 

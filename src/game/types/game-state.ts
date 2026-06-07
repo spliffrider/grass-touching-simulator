@@ -36,15 +36,25 @@ export interface UpgradeState {
   level: number;
 }
 
+export type InventoryItemKind = "consumable" | "animal";
+
+export interface InventoryEntry {
+  quantity: number;
+  kind: InventoryItemKind;
+}
+
 export interface GameState {
   grassTouches: number;
   seeds: number;
   lifetimeSeeds: number;
+  gold: number;
+  lifetimeGold: number;
   lifetimeGrassTouches: number;
   totalClickedPatches: number;
   field: Record<TileKey, FieldTile>;
   upgrades: Record<string, UpgradeState>;
   seedShopPurchases: Record<string, boolean>;
+  inventory: Record<string, InventoryEntry>;
   reachedMilestones: string[];
   activeWeatherId?: WeatherId;
   weatherEndsAt?: number;
@@ -58,6 +68,7 @@ export interface RuntimeStats {
   critChance: number;
   critMultiplier: number;
   seedDropBonus: number;
+  goldDropBonus: number;
   rareTierMultiplier: number;
   rareTouchBonus: number;
   doubleTouchChance: number;

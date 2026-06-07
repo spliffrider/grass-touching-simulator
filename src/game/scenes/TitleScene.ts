@@ -1,4 +1,6 @@
 import Phaser from "phaser";
+import { DEFAULT_MUSIC_VOLUME, readStoredMusicVolume, writeStoredMusicVolume } from "../data/audio-settings";
+import { BUILD_LABEL } from "../data/build-info";
 import { hasSavedGame, resetSave } from "../systems/SaveSystem";
 
 const SOURCE_WIDTH = 1366;
@@ -32,10 +34,28 @@ export class TitleScene extends Phaser.Scene {
   private creditsNames!: Phaser.GameObjects.Text;
   private creditsBackHit!: Phaser.GameObjects.Rectangle;
   private creditsBackText!: Phaser.GameObjects.Text;
+  private buildLabelText!: Phaser.GameObjects.Text;
+  private optionsRoot!: Phaser.GameObjects.Container;
+  private optionsBackdrop!: Phaser.GameObjects.Rectangle;
+  private optionsPanel!: Phaser.GameObjects.Rectangle;
+  private optionsTitle!: Phaser.GameObjects.Text;
+  private volumeLabel!: Phaser.GameObjects.Text;
+  private volumeTrack!: Phaser.GameObjects.Rectangle;
+  private volumeFill!: Phaser.GameObjects.Rectangle;
+  private volumeHit!: Phaser.GameObjects.Rectangle;
+  private volumeKnob!: Phaser.GameObjects.Arc;
+  private musicToggleHit!: Phaser.GameObjects.Rectangle;
+  private musicToggleText!: Phaser.GameObjects.Text;
+  private optionsBackHit!: Phaser.GameObjects.Rectangle;
+  private optionsBackText!: Phaser.GameObjects.Text;
   private menuTheme?: HTMLAudioElement;
   private menuThemeEnabled = true;
+  private menuThemeVolume = DEFAULT_MUSIC_VOLUME;
   private optionsOpen = false;
   private creditsOpen = false;
+  private draggingVolume = false;
+  private volumeSliderX = 0;
+  private volumeSliderWidth = 1;
 
   constructor() {
     super("TitleScene");
@@ -48,6 +68,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.menuThemeVolume = readStoredMusicVolume();
     this.background = this.add.image(0, 0, "title-screen").setOrigin(0.5);
     this.createMenuButton("start", 683, 469, 390, 56, 220);
     this.createMenuButton("continue", 683, 529, 350, 54, 205);
@@ -69,11 +90,34 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(10);
 
+    this.buildLabelText = this.add
+      .text(0, 0, BUILD_LABEL, {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "13px",
+        color: "#f7ffe8",
+        stroke: "#17491f",
+        strokeThickness: 4,
+      })
+      .setOrigin(1, 1)
+      .setDepth(10)
+      .setAlpha(0.82);
+
     this.createCreditsPanel();
+    this.createOptionsPanel();
 
     this.input.keyboard?.on("keydown-ENTER", () => this.startOrContinue());
     this.input.keyboard?.on("keydown-SPACE", () => this.startOrContinue());
-    this.input.keyboard?.on("keydown-ESC", () => this.closeCredits());
+    this.input.keyboard?.on("keydown-ESC", () => {
+      this.closeCredits();
+      this.closeOptions();
+    });
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleVolumeDrag(pointer));
+    this.input.on("pointerup", () => {
+      this.draggingVolume = false;
+    });
+    this.input.on("pointerupoutside", () => {
+      this.draggingVolume = false;
+    });
     this.startMenuThemeWhenAllowed();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopMenuTheme());
 
@@ -84,7 +128,7 @@ export class TitleScene extends Phaser.Scene {
   private startMenuThemeWhenAllowed(): void {
     this.menuTheme = new Audio(MENU_THEME_PATH);
     this.menuTheme.loop = true;
-    this.menuTheme.volume = 0.72;
+    this.menuTheme.volume = this.menuThemeVolume;
     this.menuTheme.preload = "auto";
     this.menuTheme.setAttribute("playsinline", "true");
     this.menuTheme.style.display = "none";
@@ -95,6 +139,7 @@ export class TitleScene extends Phaser.Scene {
     this.menuTheme.addEventListener("playing", () => {
       if (this.optionsOpen) {
         this.showNotice("Music: on.");
+        this.refreshOptionsPanel();
       }
     });
     document.body.appendChild(this.menuTheme);
@@ -107,9 +152,12 @@ export class TitleScene extends Phaser.Scene {
       return;
     }
 
-    void this.menuTheme.play().catch(() => {
-      // Browsers block unprompted audio; the window gesture listeners retry playback.
-    });
+    void this.menuTheme
+      .play()
+      .then(() => this.refreshOptionsPanel())
+      .catch(() => {
+        // Browsers block unprompted audio; menu interactions retry playback.
+      });
   }
 
   private stopMenuTheme(): void {
@@ -134,13 +182,18 @@ export class TitleScene extends Phaser.Scene {
       this.menuThemeEnabled = false;
       this.menuTheme.pause();
       this.showNotice("Music: off.");
+      this.refreshOptionsPanel();
       return;
     }
 
     this.menuThemeEnabled = true;
+    this.menuTheme.volume = this.menuThemeVolume;
     void this.menuTheme
       .play()
-      .then(() => this.showNotice("Music: on."))
+      .then(() => {
+        this.showNotice("Music: on.");
+        this.refreshOptionsPanel();
+      })
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.name : "blocked";
         this.showNotice(`Music blocked by browser: ${message}. Tap Options again.`);
@@ -251,6 +304,83 @@ export class TitleScene extends Phaser.Scene {
     ]);
   }
 
+  private createOptionsPanel(): void {
+    this.optionsRoot = this.add.container(0, 0).setDepth(28).setVisible(false);
+    this.optionsBackdrop = this.add
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x102315, 0.46)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.optionsPanel = this.add
+      .rectangle(0, 0, 460, 220, 0xf4ffdc, 0.98)
+      .setOrigin(0.5)
+      .setStrokeStyle(5, 0x2d6f36);
+    this.optionsTitle = this.add
+      .text(0, 0, "Options", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "34px",
+        color: "#183d20",
+      })
+      .setOrigin(0.5);
+    this.volumeLabel = this.add
+      .text(0, 0, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "18px",
+        color: "#416247",
+      })
+      .setOrigin(0.5);
+    this.volumeTrack = this.add.rectangle(0, 0, 320, 12, 0x9bbf7e, 1).setOrigin(0, 0.5);
+    this.volumeFill = this.add.rectangle(0, 0, 220, 12, 0x2d6f36, 1).setOrigin(0, 0.5);
+    this.volumeHit = this.add
+      .rectangle(0, 0, 350, 44, 0xffffff, 0.001)
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    this.volumeKnob = this.add.circle(0, 0, 14, 0xf7ffe8, 1).setStrokeStyle(4, 0x17491f).setInteractive({ useHandCursor: true });
+    this.musicToggleHit = this.add
+      .rectangle(0, 0, 136, 42, 0xe9ffd0, 0.98)
+      .setOrigin(0.5)
+      .setStrokeStyle(3, 0x2d6f36)
+      .setInteractive({ useHandCursor: true });
+    this.musicToggleText = this.add
+      .text(0, 0, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "18px",
+        color: "#183d20",
+      })
+      .setOrigin(0.5);
+    this.optionsBackHit = this.add
+      .rectangle(0, 0, 100, 42, 0xe9ffd0, 0.98)
+      .setOrigin(0.5)
+      .setStrokeStyle(3, 0x2d6f36)
+      .setInteractive({ useHandCursor: true });
+    this.optionsBackText = this.add
+      .text(0, 0, "Back", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "18px",
+        color: "#183d20",
+      })
+      .setOrigin(0.5);
+
+    this.volumeHit.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startVolumeDrag(pointer));
+    this.volumeKnob.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startVolumeDrag(pointer));
+    this.musicToggleHit.on("pointerdown", () => this.toggleMenuTheme());
+    this.optionsBackHit.on("pointerdown", () => this.closeOptions());
+    this.optionsRoot.add([
+      this.optionsBackdrop,
+      this.optionsPanel,
+      this.optionsTitle,
+      this.volumeLabel,
+      this.volumeTrack,
+      this.volumeFill,
+      this.volumeHit,
+      this.volumeKnob,
+      this.musicToggleHit,
+      this.musicToggleText,
+      this.optionsBackHit,
+      this.optionsBackText,
+    ]);
+    this.refreshOptionsPanel();
+  }
+
   private layoutTitle(): void {
     const shortLandscape = this.scale.width > this.scale.height && this.scale.height < 520;
     const scale = shortLandscape
@@ -264,7 +394,9 @@ export class TitleScene extends Phaser.Scene {
     this.background.setPosition(this.scale.width / 2, this.scale.height / 2);
     this.background.setDisplaySize(displayWidth, displayHeight);
     this.noticeText?.setPosition(this.scale.width / 2, this.scale.height - 34);
+    this.buildLabelText?.setPosition(this.scale.width - 14, this.scale.height - 10);
     this.drawMenuPanel(scale, offsetX, offsetY);
+    this.layoutOptionsPanel();
 
     for (const button of this.buttons) {
       const x = offsetX + button.sourceX * scale;
@@ -343,6 +475,32 @@ export class TitleScene extends Phaser.Scene {
     this.creditsBackText?.setPosition(centerX, centerY + panelHeight / 2 - 44);
   }
 
+  private layoutOptionsPanel(): void {
+    const panelWidth = Math.min(500, this.scale.width - 36);
+    const panelHeight = Math.min(230, this.scale.height - 48);
+    const centerX = this.scale.width / 2;
+    const centerY = this.scale.height / 2;
+    const trackWidth = Math.max(190, panelWidth - 120);
+    const trackX = centerX - trackWidth / 2;
+    const trackY = centerY - 5;
+    const buttonY = centerY + panelHeight / 2 - 45;
+
+    this.optionsBackdrop?.setSize(this.scale.width, this.scale.height);
+    this.optionsPanel?.setPosition(centerX, centerY).setSize(panelWidth, panelHeight);
+    this.optionsTitle?.setPosition(centerX, centerY - panelHeight / 2 + 42);
+    this.volumeLabel?.setPosition(centerX, centerY - 42);
+    this.volumeTrack?.setPosition(trackX, trackY).setSize(trackWidth, 12);
+    this.volumeFill?.setPosition(trackX, trackY).setSize(trackWidth * this.menuThemeVolume, 12);
+    this.volumeHit?.setPosition(centerX, trackY).setSize(trackWidth + 36, 44);
+    this.volumeKnob?.setPosition(trackX + trackWidth * this.menuThemeVolume, trackY);
+    this.musicToggleHit?.setPosition(centerX - 72, buttonY);
+    this.musicToggleText?.setPosition(centerX - 72, buttonY);
+    this.optionsBackHit?.setPosition(centerX + 86, buttonY);
+    this.optionsBackText?.setPosition(centerX + 86, buttonY);
+    this.volumeSliderX = trackX;
+    this.volumeSliderWidth = trackWidth;
+  }
+
   private handleButton(id: TitleButton["id"]): void {
     if (this.creditsOpen && id !== "credits") {
       return;
@@ -362,10 +520,10 @@ export class TitleScene extends Phaser.Scene {
         }
         break;
       case "options":
-        this.optionsOpen = !this.optionsOpen;
-        this.toggleMenuTheme();
+        this.openOptions();
         break;
       case "credits":
+        this.closeOptions();
         this.playMenuTheme();
         this.openCredits();
         break;
@@ -395,6 +553,65 @@ export class TitleScene extends Phaser.Scene {
 
   private showNotice(message: string): void {
     this.noticeText.setText(message);
+  }
+
+  private openOptions(): void {
+    this.closeCredits();
+    this.optionsOpen = true;
+    this.optionsRoot.setVisible(true);
+    this.playMenuTheme();
+    this.refreshOptionsPanel();
+    this.showNotice("Drag the slider to set menu music volume.");
+  }
+
+  private closeOptions(): void {
+    this.optionsOpen = false;
+    this.draggingVolume = false;
+    this.optionsRoot?.setVisible(false);
+  }
+
+  private startVolumeDrag(pointer: Phaser.Input.Pointer): void {
+    this.draggingVolume = true;
+    this.setVolumeFromPointer(pointer);
+    this.playMenuTheme();
+  }
+
+  private handleVolumeDrag(pointer: Phaser.Input.Pointer): void {
+    if (!this.draggingVolume || !this.optionsOpen) {
+      return;
+    }
+
+    this.setVolumeFromPointer(pointer);
+  }
+
+  private setVolumeFromPointer(pointer: Phaser.Input.Pointer): void {
+    const nextVolume = Phaser.Math.Clamp((pointer.x - this.volumeSliderX) / this.volumeSliderWidth, 0, 1);
+    this.setMenuThemeVolume(nextVolume);
+  }
+
+  private setMenuThemeVolume(volume: number): void {
+    this.menuThemeVolume = writeStoredMusicVolume(volume);
+
+    if (this.menuTheme) {
+      this.menuTheme.volume = this.menuThemeVolume;
+    }
+
+    if (this.menuThemeVolume <= 0) {
+      this.menuThemeEnabled = false;
+      this.menuTheme?.pause();
+      this.showNotice("Music: muted.");
+    } else if (!this.menuThemeEnabled) {
+      this.menuThemeEnabled = true;
+      this.playMenuTheme();
+    }
+
+    this.refreshOptionsPanel();
+  }
+
+  private refreshOptionsPanel(): void {
+    this.volumeLabel?.setText(`Music volume: ${Math.round(this.menuThemeVolume * 100)}%`);
+    this.musicToggleText?.setText(this.menuThemeEnabled && !this.menuTheme?.paused ? "Music: On" : "Music: Off");
+    this.layoutOptionsPanel();
   }
 
   private openCredits(): void {

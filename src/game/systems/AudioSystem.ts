@@ -1,6 +1,6 @@
 import type { GrassTierId, TileTrait } from "../types/game-state";
 
-type SoundName = "touch" | "regrow" | "upgrade" | "milestone" | "blocked" | "seed" | "crit" | "unlock";
+type SoundName = "touch" | "regrow" | "upgrade" | "milestone" | "blocked" | "seed" | "gold" | "crit" | "unlock";
 
 export class AudioSystem {
   private context?: AudioContext;
@@ -106,6 +106,9 @@ export class AudioSystem {
       case "seed":
         this.playSeed();
         break;
+      case "gold":
+        this.playGold();
+        break;
       case "crit":
         this.playCrit();
         break;
@@ -179,6 +182,15 @@ export class AudioSystem {
     this.playTone(940 + Math.random() * 80, 0.08, 0.045, "triangle", now + 0.045);
   }
 
+  private playGold(): void {
+    const now = this.now();
+    this.playCoinStrike(1320, 0.12, 0.065, now);
+    this.playCoinStrike(1760, 0.1, 0.048, now + 0.055);
+    this.playTone(660, 0.06, 0.032, "triangle", now);
+    this.playTone(2460, 0.045, 0.018, "sine", now + 0.022);
+    this.playTone(2960, 0.05, 0.014, "sine", now + 0.08);
+  }
+
   private playCrit(): void {
     this.playCritAccent(this.now());
   }
@@ -224,6 +236,30 @@ export class AudioSystem {
     gain.connect(this.master!);
     oscillator.start(startAt);
     oscillator.stop(startAt + duration + 0.02);
+  }
+
+  private playCoinStrike(frequency: number, duration: number, volume: number, startAt: number): void {
+    const main = this.context!.createOscillator();
+    const shimmer = this.context!.createOscillator();
+    const gain = this.context!.createGain();
+
+    main.type = "triangle";
+    shimmer.type = "sine";
+    main.frequency.setValueAtTime(frequency, startAt);
+    main.frequency.exponentialRampToValueAtTime(frequency * 0.94, startAt + duration);
+    shimmer.frequency.setValueAtTime(frequency * 2.03, startAt);
+    shimmer.frequency.exponentialRampToValueAtTime(frequency * 1.82, startAt + duration * 0.85);
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+
+    main.connect(gain);
+    shimmer.connect(gain);
+    gain.connect(this.master!);
+    main.start(startAt);
+    shimmer.start(startAt);
+    main.stop(startAt + duration + 0.02);
+    shimmer.stop(startAt + duration + 0.02);
   }
 
   private playNoiseSweep(duration: number, frequency: number, volume: number, startAt: number): void {

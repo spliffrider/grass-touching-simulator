@@ -26,6 +26,8 @@ export function createInitialState(): GameState {
     grassTouches: 0,
     seeds: 0,
     lifetimeSeeds: 0,
+    gold: 0,
+    lifetimeGold: 0,
     lifetimeGrassTouches: 0,
     totalClickedPatches: 0,
     field: {
@@ -33,6 +35,7 @@ export function createInitialState(): GameState {
     },
     upgrades: {},
     seedShopPurchases: {},
+    inventory: {},
     reachedMilestones: [],
     activeWeatherId: "calm",
     weatherEndsAt: 0,
