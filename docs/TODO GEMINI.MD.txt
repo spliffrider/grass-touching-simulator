@@ -1,0 +1,101 @@
+This project manual is incredibly clean and well-architected. The strict separation where `GameScene` handles orchestration and visuals while the `src/game/systems/` directory owns the state-mutating gameplay logic is exactly what you want for a scalable incremental game. It's also the perfect structure for a vibe-coding workflow with an agent-first IDE like Antigravity, as you can easily isolate context window updates to just the specific system and data files you are expanding.
+
+To push the simulation aspects and introduce some roguelike elements into Cozy Grass Touching Simulator, here are a few systems you could add to drastically increase the depth, complexity, and decision-making for the player.
+
+### 1. Spatial Synergies (Grid-Based Placement)
+
+Right now, your animals are passive inventory companions and your `SprinklerSystem` acts as a baseline automation. You can add massive simulation depth by making the grid matter.
+
+* **The Concept:** Allow players to place Sprinklers, Bee Hives, or new structures directly onto specific `tileKey(x, y)` coordinates. These structures buff adjacent tiles (e.g., a Bee Hive makes surrounding grass regrow 20% faster; a Sprinkler waters a 3x3 area).
+
+
+* **Implementation:**
+* Create a `PlacementSystem.ts` in `src/game/systems/`.
+
+
+* Update `AnimalCompanionSystem` and `SprinklerSystem` to query neighbors using your existing `getFieldBounds(state)` and `getFieldTiles(state)` helpers.
+
+
+* If a player places a Chicken near a `grass-golden.png` tile, maybe it has a chance to dig up premium artifacts.
+
+
+
+
+
+### 2. A Prestige / Rebirth System (The Roguelike Loop)
+
+Every great incremental game needs a meta-progression loop. Once the player unlocks everything in the `seed-shop.ts` and maxes their `UPGRADES` tree, they need a reason to reset.
+
+* **The Concept:** The player "mows the world," resetting their field, standard currencies, and basic upgrades, but they earn a new persistent meta-currency (e.g., "Golden Clippings" or "Life Force"). This currency is spent on permanent, game-altering mutations.
+* **Implementation:**
+* Add the new meta-currency and lifetime total to `GameState` in `src/game/types/game-state.ts`.
+
+
+* Create a `PrestigeSystem.ts` that handles the wipe, utilizing `createInitialState` but retaining the new meta-currency and specific milestone flags.
+
+
+* Add a new shop data file (e.g., `src/game/data/mutations.ts`) where purchases tap into `UpgradeSystem` to apply massive multipliers to `RuntimeStats`.
+
+
+
+
+
+### 3. Cross-Breeding & Genetics (Crafting)
+
+Instead of just buying the next grass tier from the `seed-shop.ts`, make the player earn it through experimentation.
+
+* **The Concept:** When a `grass-thick.png` tile and a `grass-clover.png` tile grow next to each other, they have a small chance to spawn a mutated seed drop.
+
+
+* **Implementation:**
+* Create a `MutationSystem.ts` that runs on a timer.
+* It scans `getGrownTiles(state)` looking for specific adjacency pairs.
+
+
+* When a pair is found, it triggers a feedback callback to `GameScene` to pop a visual effect and drops a new seed type into the player's inventory using `InventorySystem.ts` helpers.
+
+
+
+
+
+### 4. Dynamic Weather Events & Invasions
+
+You already have a `weather_jar` unlocking weather mechanics. You can turn this into an active gameplay layer to balance out the passive automation.
+
+* **The Concept:** Certain weather types (defined in `src/game/data/weather.ts`) bring dynamic challenges. For example, a "Drought" slows regrowth, or a "Windstorm" blows in Invasive Weeds. Weeds must be actively clicked (touched) to remove them, or they will slowly overwrite adjacent grass tiles, ruining spatial synergies.
+
+
+* **Implementation:**
+* Expand `WEATHER_TYPES` to include an `onTick` or `spawnChance` property.
+
+
+* Create an `InvasionSystem.ts` that updates the `Record<TileKey, FieldTile>` by flipping regular grass to weeds.
+
+
+* Return `changed: true` so `GameScene` knows to save the game and update the visuals.
+
+
+
+
+
+### 5. Equipment & Tools
+
+Give the player a loadout.
+
+* **The Concept:** Instead of just passive upgrades, the player can equip specific gloves or boots that change how they interact with the game. A "Heavy Boot" might harvest a 3x3 area but disable critical hits, while "Golden Shears" double gold drops but slow down the base touch rate.
+* **Implementation:**
+* Add an `equippedGear` property to `GameState`.
+
+
+* Add a new folder/file like `src/game/data/equipment.ts` for definitions.
+* Wire it into the existing `UpgradeSystem` so that equipped gear dynamically modifies `RuntimeStats` during the `GameScene.update` loop.
+
+
+
+
+
+---
+
+Because you've kept your `UpgradeSystem` and `RuntimeStats` so cleanly decoupled from the UI, layering any of these mathematical complexities on top will be remarkably smooth.
+
+Which of these systems feels like the most natural next step for the vibe you're going for?
