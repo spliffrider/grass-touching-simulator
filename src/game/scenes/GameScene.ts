@@ -1728,7 +1728,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private layoutWorldObjects(): void {
-    if (this.worldObjectViews.size === 0 || this.boardScaledWidth <= 0 || this.boardScaledHeight <= 0) {
+    if (this.worldObjectViews.size === 0) {
       for (const view of this.worldObjectViews.values()) {
         view.container.setVisible(false);
       }
@@ -1736,14 +1736,16 @@ export class GameScene extends Phaser.Scene {
     }
 
     const activeObjects = this.getActiveWorldObjects();
-    const rowScale = Phaser.Math.Clamp(this.boardScale * 0.88, 0.5, 1);
-    const spacing = 62 * rowScale;
-    const centerX = this.boardBaseCenterX + this.boardPanX;
-    const centerY = this.boardBaseCenterY + this.boardPanY;
-    const rowWidth = Math.max(0, (activeObjects.length - 1) * spacing);
-    const unclampedY = centerY + this.boardScaledHeight / 2 + 44 * rowScale;
-    const y = Phaser.Math.Clamp(unclampedY, this.boardTopY + 52 * rowScale, this.scale.height - 48 * rowScale);
-    const startX = centerX - rowWidth / 2;
+    const dockScale = this.scale.width < 620 ? 0.68 : 0.76;
+    const horizontal = this.scale.height < 560 || this.scale.width < 620;
+    const spacing = horizontal ? 70 * dockScale : 78 * dockScale;
+    const dockX = Phaser.Math.Clamp(48, 34, Math.max(34, this.scale.width - 44));
+    const dockTop = Math.max(this.boardTopY + 44, this.milestoneText.y + this.milestoneText.height + 34);
+    const maxDockY = this.scale.height - 50 * dockScale;
+    const neededHeight = Math.max(0, (activeObjects.length - 1) * spacing);
+    const verticalStartY = Phaser.Math.Clamp(dockTop, this.boardTopY + 34, Math.max(this.boardTopY + 34, maxDockY - neededHeight));
+    const horizontalY = Phaser.Math.Clamp(this.scale.height - 54 * dockScale, this.boardTopY + 42, this.scale.height - 38);
+    const horizontalStartX = Math.max(42 * dockScale, (this.scale.width - (activeObjects.length - 1) * spacing) / 2);
 
     activeObjects.forEach((object, index) => {
       const view = this.worldObjectViews.get(object.id);
@@ -1751,13 +1753,14 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      const x = Phaser.Math.Clamp(startX + index * spacing, 38 * rowScale, this.scale.width - 38 * rowScale);
+      const x = horizontal ? horizontalStartX + index * spacing : dockX;
+      const y = horizontal ? horizontalY : verticalStartY + index * spacing;
       view.container.setVisible(!this.skillTreeOpen && !this.seedShopOpen && !this.storeOpen && !this.optionsOpen);
       view.container.setPosition(x, y);
-      view.container.setScale(rowScale);
+      view.container.setScale(dockScale);
       view.shadow.setScale(1 + Math.sin(Date.now() * 0.002 + index) * 0.03, 1);
       view.sprite.setDisplaySize(56, 56);
-      view.label.setFontSize(rowScale < 0.68 ? 11 : 12);
+      view.label.setFontSize(dockScale < 0.7 ? 11 : 12);
     });
   }
 
