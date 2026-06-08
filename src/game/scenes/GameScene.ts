@@ -27,6 +27,7 @@ const MAX_BOARD_ZOOM = 3.2;
 const TREE_WIDTH = 880;
 const TREE_HEIGHT = 560;
 const SKILL_NODE_SIZE = 78;
+const SHOP_ICON_SIZE = 48;
 
 const SKILL_BRANCH_LABELS = [
   { text: "Touch", x: 230, y: 50, color: "#dfffc8" },
@@ -35,6 +36,40 @@ const SKILL_BRANCH_LABELS = [
   { text: "Crits", x: 420, y: 525, color: "#ffef78" },
   { text: "Meadow", x: 700, y: 335, color: "#dfffc8" },
 ];
+
+const SEED_SHOP_ICON_KEYS: Record<string, string> = {
+  seed_pouch: "item-seed-pouch",
+  sprinkler: "world-tiny-sprinkler",
+  wild_spread: "item-wild-spread",
+  field_journal: "item-field-journal",
+  weather_jar: "item-weather-jar",
+  compost_bin: "item-compost-bin",
+  bug_hotel: "item-bug-hotel",
+  rain_barrel: "item-rain-barrel",
+  sprinkler_timer: "item-sprinkler-timer",
+  self_seeding_nozzle: "item-self-seeding-nozzle",
+  clover_press: "item-clover-press",
+  seed_catalog: "item-seed-catalog",
+};
+
+const GOLD_STORE_ICON_KEYS: Record<string, string> = {
+  pocket_sunshine: "item-pocket-sunshine",
+  seed_satchel: "item-seed-satchel",
+  field_mouse: "world-field-mouse",
+  bee_hive: "world-bee-hive",
+  chicken: "world-chicken",
+  sheep: "world-sheep",
+  meadow_rabbit: "world-meadow-rabbit",
+};
+
+const WORLD_OBJECTS = [
+  { id: "sprinkler", textureKey: "world-tiny-sprinkler", label: "sprinkler", kind: "seed" },
+  { id: "bee_hive", textureKey: "world-bee-hive", label: "hive", kind: "inventory" },
+  { id: "chicken", textureKey: "world-chicken", label: "chicken", kind: "inventory" },
+  { id: "sheep", textureKey: "world-sheep", label: "sheep", kind: "inventory" },
+  { id: "field_mouse", textureKey: "world-field-mouse", label: "mouse", kind: "inventory" },
+  { id: "meadow_rabbit", textureKey: "world-meadow-rabbit", label: "rabbit", kind: "inventory" },
+] satisfies Array<{ id: string; textureKey: string; label: string; kind: "seed" | "inventory" }>;
 
 interface TileView {
   base: Phaser.GameObjects.Image;
@@ -56,6 +91,10 @@ interface SeedShopItemView {
   itemId: string;
   container: Phaser.GameObjects.Container;
   bg: Phaser.GameObjects.Rectangle;
+  iconBg: Phaser.GameObjects.Rectangle;
+  icon: Phaser.GameObjects.Image;
+  name: Phaser.GameObjects.Text;
+  description: Phaser.GameObjects.Text;
   status: Phaser.GameObjects.Text;
 }
 
@@ -63,8 +102,21 @@ interface GoldStoreItemView {
   itemId: string;
   container: Phaser.GameObjects.Container;
   bg: Phaser.GameObjects.Rectangle;
+  iconBg: Phaser.GameObjects.Rectangle;
+  icon: Phaser.GameObjects.Image;
+  name: Phaser.GameObjects.Text;
   description: Phaser.GameObjects.Text;
   status: Phaser.GameObjects.Text;
+}
+
+interface WorldObjectView {
+  id: string;
+  quantity: number;
+  container: Phaser.GameObjects.Container;
+  shadow: Phaser.GameObjects.Ellipse;
+  sprite: Phaser.GameObjects.Image;
+  label: Phaser.GameObjects.Text;
+  ambience: Phaser.GameObjects.GameObject[];
 }
 
 interface SkillBranchLabelView {
@@ -76,6 +128,7 @@ interface SkillBranchLabelView {
 export class GameScene extends Phaser.Scene {
   private state!: GameState;
   private tileViews = new Map<TileKey, TileView>();
+  private worldObjectViews = new Map<string, WorldObjectView>();
   private titleText!: Phaser.GameObjects.Text;
   private buildLabelText!: Phaser.GameObjects.Text;
   private resourceText!: Phaser.GameObjects.Text;
@@ -188,6 +241,27 @@ export class GameScene extends Phaser.Scene {
       this.load.image(`grass-${tier.id}-dewy`, `/assets/tiles/grass-${tier.id}-dewy.png`);
       this.load.image(`grass-${tier.id}-lush`, `/assets/tiles/grass-${tier.id}-lush.png`);
     }
+
+    this.load.image("world-tiny-sprinkler", "/assets/world/tiny-sprinkler.png");
+    this.load.image("world-bee-hive", "/assets/world/bee-hive.png");
+    this.load.image("world-chicken", "/assets/world/chicken.png");
+    this.load.image("world-field-mouse", "/assets/world/field-mouse.png");
+    this.load.image("world-meadow-rabbit", "/assets/world/meadow-rabbit.png");
+    this.load.image("world-sheep", "/assets/world/sheep.png");
+
+    for (const itemKey of new Set([...Object.values(SEED_SHOP_ICON_KEYS), ...Object.values(GOLD_STORE_ICON_KEYS)])) {
+      if (itemKey.startsWith("world-")) {
+        continue;
+      }
+
+      this.load.image(itemKey, `/assets/ui/items/${itemKey.replace("item-", "")}.png`);
+    }
+
+    this.load.image("effect-water-drop", "/assets/effects/water-drop.png");
+    this.load.image("effect-pollen-fleck", "/assets/effects/pollen-fleck.png");
+    this.load.image("effect-bee-pixel", "/assets/effects/bee-pixel.png");
+    this.load.image("effect-gold-coin", "/assets/effects/gold-coin.png");
+    this.load.image("effect-seed-kernel", "/assets/effects/seed-kernel.png");
   }
 
   create(data?: { newGame?: boolean }): void {
@@ -714,26 +788,31 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0, 0)
         .setStrokeStyle(3, 0x2d6f36)
         .setInteractive({ useHandCursor: true });
-      const name = this.add.text(14, 10, item.name, {
+      const iconBg = this.add
+        .rectangle(14, 14, SHOP_ICON_SIZE + 10, SHOP_ICON_SIZE + 10, 0xdfffc8, 0.74)
+        .setOrigin(0, 0)
+        .setStrokeStyle(2, 0x85d35e, 0.62);
+      const icon = this.add.image(43, 43, SEED_SHOP_ICON_KEYS[item.id] ?? "item-seed-pouch").setDisplaySize(SHOP_ICON_SIZE, SHOP_ICON_SIZE);
+      const name = this.add.text(78, 10, item.name, {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "20px",
         color: "#183d20",
       });
-      const description = this.add.text(14, 38, item.description, {
+      const description = this.add.text(78, 38, item.description, {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "14px",
         color: "#416247",
-        wordWrap: { width: 392 },
+        wordWrap: { width: 326 },
       });
-      const status = this.add.text(14, 68, "", {
+      const status = this.add.text(78, 68, "", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "15px",
         color: "#6d4c19",
       });
 
       bg.on("pointerdown", () => this.buySeedShopItem(item.id));
-      container.add([bg, name, description, status]);
-      this.seedItemViews.set(item.id, { itemId: item.id, container, bg, status });
+      container.add([bg, iconBg, icon, name, description, status]);
+      this.seedItemViews.set(item.id, { itemId: item.id, container, bg, iconBg, icon, name, description, status });
       this.seedRoot.add(container);
     }
 
@@ -764,7 +843,24 @@ export class GameScene extends Phaser.Scene {
     this.seedBackButton.setPosition(this.scale.width - 142, 24);
 
     for (const view of this.seedItemViews.values()) {
-      view.bg.setSize(panelWidth, compact ? 82 : 92);
+      const itemHeight = compact ? 86 : 92;
+      const textX = compact ? 70 : 78;
+      const iconSize = compact ? 42 : SHOP_ICON_SIZE;
+      const iconFrame = iconSize + 10;
+
+      view.bg.setSize(panelWidth, itemHeight);
+      view.iconBg.setPosition(12, compact ? 14 : 14);
+      view.iconBg.setSize(iconFrame, iconFrame);
+      view.icon.setPosition(12 + iconFrame / 2, (compact ? 14 : 14) + iconFrame / 2);
+      view.icon.setDisplaySize(iconSize, iconSize);
+      view.name.setPosition(textX, compact ? 8 : 10);
+      view.name.setFontSize(compact ? 18 : 20);
+      view.name.setWordWrapWidth(Math.max(160, panelWidth - textX - 12));
+      view.description.setPosition(textX, compact ? 34 : 38);
+      view.description.setFontSize(compact ? 13 : 14);
+      view.description.setWordWrapWidth(Math.max(160, panelWidth - textX - 12));
+      view.status.setPosition(textX, itemHeight - 24);
+      view.status.setWordWrapWidth(Math.max(160, panelWidth - textX - 12));
       view.container.setPosition(x, y);
       view.container.setVisible(y > 118 - itemGap && y < this.scale.height + itemGap);
       y += itemGap;
@@ -814,26 +910,31 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0, 0)
         .setStrokeStyle(3, 0x8f6a1a)
         .setInteractive({ useHandCursor: true });
-      const name = this.add.text(14, 10, item.name, {
+      const iconBg = this.add
+        .rectangle(14, 15, SHOP_ICON_SIZE + 10, SHOP_ICON_SIZE + 10, 0xfff1a8, 0.72)
+        .setOrigin(0, 0)
+        .setStrokeStyle(2, 0xc69232, 0.58);
+      const icon = this.add.image(43, 44, GOLD_STORE_ICON_KEYS[item.id] ?? "item-pocket-sunshine").setDisplaySize(SHOP_ICON_SIZE, SHOP_ICON_SIZE);
+      const name = this.add.text(78, 10, item.name, {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "20px",
         color: "#183d20",
       });
-      const description = this.add.text(14, 38, item.description, {
+      const description = this.add.text(78, 38, item.description, {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "14px",
         color: "#5f5425",
-        wordWrap: { width: 402 },
+        wordWrap: { width: 334 },
       });
-      const status = this.add.text(14, 74, "", {
+      const status = this.add.text(78, 74, "", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "15px",
         color: "#6d4c19",
       });
 
       bg.on("pointerdown", () => this.handleGoldStoreItemPressed(item.id));
-      container.add([bg, name, description, status]);
-      this.storeItemViews.set(item.id, { itemId: item.id, container, bg, description, status });
+      container.add([bg, iconBg, icon, name, description, status]);
+      this.storeItemViews.set(item.id, { itemId: item.id, container, bg, iconBg, icon, name, description, status });
       this.storeRoot.add(container);
     }
 
@@ -865,11 +966,23 @@ export class GameScene extends Phaser.Scene {
     this.storeBackButton.setPosition(this.scale.width - 142, 24);
 
     for (const view of this.storeItemViews.values()) {
+      const textX = compact ? 70 : 78;
+      const iconSize = compact ? 42 : SHOP_ICON_SIZE;
+      const iconFrame = iconSize + 10;
+
       view.bg.setSize(panelWidth, itemHeight);
+      view.iconBg.setPosition(12, compact ? 16 : 15);
+      view.iconBg.setSize(iconFrame, iconFrame);
+      view.icon.setPosition(12 + iconFrame / 2, (compact ? 16 : 15) + iconFrame / 2);
+      view.icon.setDisplaySize(iconSize, iconSize);
+      view.name.setPosition(textX, compact ? 8 : 10);
+      view.name.setFontSize(compact ? 18 : 20);
+      view.name.setWordWrapWidth(Math.max(160, panelWidth - textX - 12));
+      view.description.setPosition(textX, compact ? 34 : 38);
       view.description.setFontSize(compact ? 13 : 14);
-      view.description.setWordWrapWidth(Math.max(220, panelWidth - 28));
-      view.status.setPosition(14, itemHeight - 24);
-      view.status.setWordWrapWidth(Math.max(220, panelWidth - 28));
+      view.description.setWordWrapWidth(Math.max(160, panelWidth - textX - 12));
+      view.status.setPosition(textX, itemHeight - 24);
+      view.status.setWordWrapWidth(Math.max(160, panelWidth - textX - 12));
       view.container.setPosition(x, y);
       view.container.setVisible(y > 118 - itemGap && y < this.scale.height + itemGap);
       y += itemGap;
@@ -1152,6 +1265,7 @@ export class GameScene extends Phaser.Scene {
     this.audio.play(item.kind === "animal" ? "milestone" : "upgrade");
     saveGame(this.state);
     this.refreshUi();
+    this.playGoldStoreItemSuccess(item.id);
   }
 
   private useGoldStoreItem(itemId: string): void {
@@ -1171,6 +1285,7 @@ export class GameScene extends Phaser.Scene {
         this.audio.play("seed");
         saveGame(this.state);
         this.refreshUi();
+        this.playGoldStoreItemSuccess(itemId);
         break;
     }
   }
@@ -1201,6 +1316,7 @@ export class GameScene extends Phaser.Scene {
     this.audio.play("regrow");
     saveGame(this.state);
     this.refreshUi();
+    this.playGoldStoreItemSuccess("pocket_sunshine");
   }
 
   private buySeedShopItem(itemId: string): void {
@@ -1237,6 +1353,7 @@ export class GameScene extends Phaser.Scene {
     this.audio.play("upgrade");
     saveGame(this.state);
     this.refreshUi();
+    this.playSeedShopItemSuccess(item.id);
   }
 
   private handleResetPressed(): void {
@@ -1271,6 +1388,8 @@ export class GameScene extends Phaser.Scene {
       view.label.destroy();
     });
     this.tileViews.clear();
+    this.worldObjectViews.forEach((view) => view.container.destroy());
+    this.worldObjectViews.clear();
     this.selectedSkillId = UPGRADES[0].id;
     this.renderAllTiles();
     this.refreshUi();
@@ -1420,12 +1539,325 @@ export class GameScene extends Phaser.Scene {
       view.label.setScale(this.boardScale);
     }
 
+    this.layoutWorldObjects();
+
     if (this.hoveredTileKey) {
       const hoveredTile = this.state.field[this.hoveredTileKey];
       if (hoveredTile) {
         this.positionTileInfo(hoveredTile);
       }
     }
+  }
+
+  private syncWorldObjects(): void {
+    const activeObjects = this.getActiveWorldObjects();
+    const activeIds = new Set(activeObjects.map((object) => object.id));
+
+    for (const [id, view] of this.worldObjectViews) {
+      if (!activeIds.has(id)) {
+        view.container.destroy();
+        this.worldObjectViews.delete(id);
+      }
+    }
+
+    for (const object of activeObjects) {
+      const existing = this.worldObjectViews.get(object.id);
+      if (existing) {
+        existing.quantity = object.quantity;
+        existing.label.setText(object.quantity > 1 ? `${object.label} x${object.quantity}` : object.label);
+        continue;
+      }
+
+      const container = this.add.container(0, 0).setDepth(36);
+      const shadow = this.add.ellipse(0, 4, 42, 14, 0x214c26, 0.22);
+      const sprite = this.add.image(0, 0, object.textureKey).setOrigin(0.5, 1);
+      const label = this.add
+        .text(0, 15, object.quantity > 1 ? `${object.label} x${object.quantity}` : object.label, {
+          fontFamily: "Trebuchet MS, Arial",
+          fontSize: "12px",
+          color: "#f7ffe8",
+          stroke: "#17491f",
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5, 0);
+      const ambience = this.createWorldObjectAmbience(object.id);
+
+      container.add([shadow, ...ambience, sprite, label]);
+      this.worldObjectViews.set(object.id, { id: object.id, quantity: object.quantity, container, shadow, sprite, label, ambience });
+
+      this.tweens.add({
+        targets: sprite,
+        y: -4,
+        duration: 1500 + Phaser.Math.Between(0, 420),
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+    }
+  }
+
+  private getActiveWorldObjects(): Array<{ id: string; textureKey: string; label: string; quantity: number }> {
+    return WORLD_OBJECTS.flatMap((object) => {
+      const quantity = object.kind === "seed" ? (this.state.seedShopPurchases[object.id] ? 1 : 0) : getInventoryQuantity(this.state, object.id);
+
+      if (quantity <= 0) {
+        return [];
+      }
+
+      return [{ id: object.id, textureKey: object.textureKey, label: object.label, quantity }];
+    });
+  }
+
+  private createWorldObjectAmbience(id: string): Phaser.GameObjects.GameObject[] {
+    if (id === "sprinkler") {
+      const drop = this.add.image(16, -38, "effect-water-drop").setScale(0.72).setAlpha(0.72);
+      const shine = this.add.star(-17, -42, 4, 2, 8, 0xd7fff2, 0.72).setStrokeStyle(1, 0xffffff, 0.8);
+
+      this.tweens.add({
+        targets: drop,
+        y: -28,
+        alpha: 0.18,
+        duration: 920,
+        delay: Phaser.Math.Between(0, 500),
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      this.tweens.add({
+        targets: shine,
+        angle: 35,
+        scaleX: 1.35,
+        scaleY: 1.35,
+        alpha: 0.16,
+        duration: 1180,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+
+      return [drop, shine];
+    }
+
+    if (id === "bee_hive") {
+      return Array.from({ length: 4 }, (_value, index) => {
+        const bee = this.add
+          .image(Phaser.Math.Between(-23, 23), Phaser.Math.Between(-43, -20), "effect-bee-pixel")
+          .setScale(0.55)
+          .setAlpha(0.82);
+
+        this.tweens.add({
+          targets: bee,
+          x: bee.x + Phaser.Math.Between(-12, 12),
+          y: bee.y + Phaser.Math.Between(-8, 8),
+          angle: index % 2 === 0 ? 18 : -18,
+          duration: 640 + index * 130,
+          delay: index * 80,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+
+        return bee;
+      });
+    }
+
+    if (id === "chicken") {
+      const dust = this.add.image(-18, -5, "dust-fleck").setScale(1.35).setAlpha(0.5);
+
+      this.tweens.add({
+        targets: dust,
+        x: -10,
+        alpha: 0.08,
+        duration: 1040,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+
+      return [dust];
+    }
+
+    if (id === "sheep") {
+      const fleck = this.add.image(20, -18, "grass-fleck").setScale(1.25).setAlpha(0.58);
+
+      this.tweens.add({
+        targets: fleck,
+        y: -25,
+        angle: 16,
+        alpha: 0.12,
+        duration: 1280,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+
+      return [fleck];
+    }
+
+    if (id === "field_mouse" || id === "meadow_rabbit") {
+      const seed = this.add.image(18, -16, "effect-seed-kernel").setScale(0.68).setAlpha(0.58);
+
+      this.tweens.add({
+        targets: seed,
+        y: -22,
+        angle: 22,
+        alpha: 0.16,
+        duration: 1220,
+        delay: id === "meadow_rabbit" ? 240 : 0,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+
+      return [seed];
+    }
+
+    return [];
+  }
+
+  private layoutWorldObjects(): void {
+    if (this.worldObjectViews.size === 0 || this.boardScaledWidth <= 0 || this.boardScaledHeight <= 0) {
+      for (const view of this.worldObjectViews.values()) {
+        view.container.setVisible(false);
+      }
+      return;
+    }
+
+    const activeObjects = this.getActiveWorldObjects();
+    const rowScale = Phaser.Math.Clamp(this.boardScale * 0.88, 0.5, 1);
+    const spacing = 62 * rowScale;
+    const centerX = this.boardBaseCenterX + this.boardPanX;
+    const centerY = this.boardBaseCenterY + this.boardPanY;
+    const rowWidth = Math.max(0, (activeObjects.length - 1) * spacing);
+    const unclampedY = centerY + this.boardScaledHeight / 2 + 44 * rowScale;
+    const y = Phaser.Math.Clamp(unclampedY, this.boardTopY + 52 * rowScale, this.scale.height - 48 * rowScale);
+    const startX = centerX - rowWidth / 2;
+
+    activeObjects.forEach((object, index) => {
+      const view = this.worldObjectViews.get(object.id);
+      if (!view) {
+        return;
+      }
+
+      const x = Phaser.Math.Clamp(startX + index * spacing, 38 * rowScale, this.scale.width - 38 * rowScale);
+      view.container.setVisible(!this.skillTreeOpen && !this.seedShopOpen && !this.storeOpen && !this.optionsOpen);
+      view.container.setPosition(x, y);
+      view.container.setScale(rowScale);
+      view.shadow.setScale(1 + Math.sin(Date.now() * 0.002 + index) * 0.03, 1);
+      view.sprite.setDisplaySize(56, 56);
+      view.label.setFontSize(rowScale < 0.68 ? 11 : 12);
+    });
+  }
+
+  private getWorldObjectOrigin(id: string): { x: number; y: number } | undefined {
+    const view = this.worldObjectViews.get(id);
+    if (!view || !view.container.visible) {
+      return undefined;
+    }
+
+    return {
+      x: view.container.x,
+      y: view.container.y - 28 * view.container.scaleY,
+    };
+  }
+
+  private pulseWorldObject(id: string, color: number): void {
+    const view = this.worldObjectViews.get(id);
+    if (!view || !view.container.visible) {
+      return;
+    }
+
+    const origin = this.getWorldObjectOrigin(id);
+    if (!origin) {
+      return;
+    }
+
+    const pulse = this.add
+      .ellipse(origin.x, origin.y + 12 * view.container.scaleY, 58 * view.container.scaleX, 34 * view.container.scaleY, color, 0.16)
+      .setStrokeStyle(3, color, 0.72)
+      .setDepth(37);
+    const flash = this.add
+      .star(origin.x, origin.y - 2 * view.container.scaleY, 5, 4 * view.container.scaleX, 18 * view.container.scaleY, color, 0.68)
+      .setStrokeStyle(2, 0xffffff, 0.82)
+      .setDepth(38);
+
+    view.sprite.setAlpha(0.78);
+    this.time.delayedCall(130, () => view.sprite.setAlpha(1));
+
+    this.tweens.add({
+      targets: pulse,
+      scaleX: 1.55,
+      scaleY: 1.35,
+      alpha: 0,
+      duration: 360,
+      ease: "Sine.easeOut",
+      onComplete: () => pulse.destroy(),
+    });
+
+    this.tweens.add({
+      targets: flash,
+      angle: 36,
+      scaleX: 1.32,
+      scaleY: 1.32,
+      alpha: 0,
+      duration: 320,
+      ease: "Sine.easeOut",
+      onComplete: () => flash.destroy(),
+    });
+  }
+
+  private spawnWorldActionArc(
+    texture: string,
+    sourceId: string,
+    targetX: number,
+    targetY: number,
+    count: number,
+    color: number,
+  ): void {
+    const origin = this.getWorldObjectOrigin(sourceId);
+    if (!origin) {
+      return;
+    }
+
+    this.pulseWorldObject(sourceId, color);
+
+    for (let index = 0; index < count; index += 1) {
+      this.time.delayedCall(index * 55, () => {
+        this.spawnActionArcSprite(texture, origin.x, origin.y, targetX, targetY, index);
+      });
+    }
+  }
+
+  private spawnActionArcSprite(texture: string, startX: number, startY: number, targetX: number, targetY: number, index: number): void {
+    const start = new Phaser.Math.Vector2(startX + Phaser.Math.Between(-5, 5), startY + Phaser.Math.Between(-4, 4));
+    const end = new Phaser.Math.Vector2(targetX + Phaser.Math.Between(-10, 10), targetY + Phaser.Math.Between(-8, 8));
+    const control = new Phaser.Math.Vector2(
+      (start.x + end.x) / 2 + Phaser.Math.Between(-42, 42),
+      Math.min(start.y, end.y) - Phaser.Math.Between(34, 78),
+    );
+    const curve = new Phaser.Curves.QuadraticBezier(start, control, end);
+    const progress = { value: 0 };
+    const sprite = this.add
+      .image(start.x, start.y, texture)
+      .setDepth(83)
+      .setScale(Math.max(1.25, this.boardScale * 1.85))
+      .setAlpha(0.92);
+    const baseScale = sprite.scaleX;
+
+    this.tweens.add({
+      targets: progress,
+      value: 1,
+      duration: 520 + index * 32,
+      ease: "Sine.easeInOut",
+      onUpdate: () => {
+        const point = curve.getPoint(progress.value);
+        sprite.setPosition(point.x, point.y);
+        sprite.setAngle(220 * progress.value * (index % 2 === 0 ? 1 : -1));
+        sprite.setScale(baseScale * (1 - progress.value * 0.22));
+        sprite.setAlpha(Phaser.Math.Linear(0.92, 0.55, progress.value));
+      },
+      onComplete: () => sprite.destroy(),
+    });
   }
 
   private clampBoardPan(): void {
@@ -1526,7 +1958,7 @@ export class GameScene extends Phaser.Scene {
       layoutTiles: () => this.layoutTiles(),
       popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
       emitSeedBurst: (tile) => this.emitSeedBurst(tile),
-      emitGoldBurst: (tile) => this.emitGoldBurst(tile),
+      emitGoldBurst: (tile, amount) => this.emitGoldBurst(tile, amount),
       playSound: (sound) => this.audio.play(sound),
     };
   }
@@ -1538,15 +1970,17 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.emitBurst("seed-fleck", view.base.x, view.base.y - 8, 18, 0.82, 0.32);
+    this.spawnRewardArc("effect-seed-kernel", view.base.x, view.base.y - 8, "seed");
   }
 
-  private emitGoldBurst(tile: FieldTile): void {
+  private emitGoldBurst(tile: FieldTile, amount = 1): void {
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (!view) {
       return;
     }
 
     this.emitBurst("gold-fleck", view.base.x, view.base.y - 10, 14, 0.7, 0.24);
+    this.spawnRewardArc("effect-gold-coin", view.base.x, view.base.y - 10, "gold", amount);
   }
 
   private updateSprinkler(delta: number, stats: ReturnType<typeof getRuntimeStats>): void {
@@ -1557,6 +1991,7 @@ export class GameScene extends Phaser.Scene {
     const changed = this.sprinkler.update(delta, this.state, stats, {
       refreshTile: (tile) => this.refreshTile(tile),
       popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
+      playSprinklerBurst: (tile) => this.playSprinklerBurst(tile),
       playTouchFeedback: (tile, touchedTrait, isCrit) => this.playTouchFeedback(tile, touchedTrait, isCrit),
       tryDropSeed: (tile, touchedTrait, runtimeStats, chanceScale) =>
         this.drops.tryDropSeed(this.state, tile, touchedTrait, runtimeStats, this.getDropFeedback(), chanceScale),
@@ -1578,7 +2013,8 @@ export class GameScene extends Phaser.Scene {
     const changed = this.animalCompanions.update(delta, this.state, stats, {
       refreshTile: (tile) => this.refreshTile(tile),
       popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
-      emitGoldBurst: (tile) => this.emitGoldBurst(tile),
+      emitGoldBurst: (tile, amount) => this.emitGoldBurst(tile, amount),
+      playCompanionAction: (tile, action) => this.playCompanionAction(tile, action),
       playTouchFeedback: (tile, touchedTrait, isCrit) => this.playTouchFeedback(tile, touchedTrait, isCrit),
       playSound: (sound) => this.audio.play(sound),
       playGrassTouch: (tier, trait, isCrit) => this.audio.playGrassTouch(tier, trait, isCrit),
@@ -1950,6 +2386,124 @@ export class GameScene extends Phaser.Scene {
     this.emitBurst(tile.trait === "dewy" ? "dew-fleck" : "grass-fleck", view.label.x, view.label.y, 10, 0.55, 0.22);
   }
 
+  private playSprinklerBurst(tile: FieldTile): void {
+    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    if (!view) {
+      return;
+    }
+
+    const x = view.label.x;
+    const y = view.label.y;
+    this.spawnWorldActionArc("effect-water-drop", "sprinkler", x, y - 12 * this.boardScale, 4, 0xa8e8ff);
+    const ring = this.add
+      .ellipse(x, y, TILE_SIZE * 0.42 * this.boardScale, TILE_SIZE * 0.24 * this.boardScale, 0xa8e8ff, 0.22)
+      .setStrokeStyle(3, 0xd7fff2, 0.9)
+      .setDepth(38);
+    const sparkle = this.add
+      .star(x, y - 17 * this.boardScale, 6, TILE_SIZE * 0.08 * this.boardScale, TILE_SIZE * 0.33 * this.boardScale, 0xd7fff2, 0.78)
+      .setStrokeStyle(2, 0xffffff, 0.85)
+      .setDepth(39);
+
+    this.emitBurst("effect-water-drop", x, y - 14 * this.boardScale, 30, 1.28, 0.5);
+
+    this.tweens.add({
+      targets: ring,
+      scaleX: 1.85,
+      scaleY: 1.45,
+      alpha: 0,
+      duration: 420,
+      ease: "Sine.easeOut",
+      onComplete: () => ring.destroy(),
+    });
+
+    this.tweens.add({
+      targets: sparkle,
+      angle: 35,
+      scaleX: 1.32,
+      scaleY: 1.32,
+      y: sparkle.y - 7 * this.boardScale,
+      alpha: 0,
+      duration: 360,
+      ease: "Sine.easeOut",
+      onComplete: () => sparkle.destroy(),
+    });
+  }
+
+  private playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze"): void {
+    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    if (!view) {
+      return;
+    }
+
+    const x = view.label.x;
+    const y = view.label.y;
+
+    if (action === "pollinate") {
+      this.spawnWorldActionArc("effect-pollen-fleck", "bee_hive", x, y - 12 * this.boardScale, 5, 0xffef78);
+      this.emitBurst("effect-pollen-fleck", x, y - 12 * this.boardScale, 14, 0.62, 0.1);
+      this.emitBurst("effect-bee-pixel", x - 5 * this.boardScale, y - 18 * this.boardScale, 6, 0.38, 0.02);
+      this.addCompanionPing(x, y - 18 * this.boardScale, 0xffef78, 0xffffff);
+      return;
+    }
+
+    if (action === "scratch") {
+      this.spawnWorldActionArc("dust-fleck", "chicken", x, y + 8 * this.boardScale, 3, 0xfff1a8);
+      this.emitBurst("dust-fleck", x, y + 13 * this.boardScale, 16, 0.72, 0.25);
+      this.addScratchMarks(x, y);
+      return;
+    }
+
+    if (action === "forage") {
+      this.spawnWorldActionArc("effect-gold-coin", "chicken", x, y - 7 * this.boardScale, 2, 0xffef78);
+      this.emitBurst("dust-fleck", x, y + 11 * this.boardScale, 12, 0.58, 0.22);
+      this.addCompanionPing(x, y - 12 * this.boardScale, 0xffef78, 0xffffff);
+      return;
+    }
+
+    this.spawnWorldActionArc("grass-fleck", "sheep", x, y - 2 * this.boardScale, 4, 0xdfffc8);
+    this.emitBurst("grass-fleck", x, y - 3 * this.boardScale, 18, 0.86, 0.34);
+    this.addCompanionPing(x, y - 13 * this.boardScale, 0xdfffc8, 0xf7ffe8);
+  }
+
+  private addCompanionPing(x: number, y: number, color: number, strokeColor: number): void {
+    const ping = this.add
+      .star(x, y, 5, TILE_SIZE * 0.07 * this.boardScale, TILE_SIZE * 0.28 * this.boardScale, color, 0.78)
+      .setStrokeStyle(2, strokeColor, 0.9)
+      .setDepth(38);
+
+    this.tweens.add({
+      targets: ping,
+      angle: 40,
+      scaleX: 1.45,
+      scaleY: 1.45,
+      y: y - 12 * this.boardScale,
+      alpha: 0,
+      duration: 430,
+      ease: "Sine.easeOut",
+      onComplete: () => ping.destroy(),
+    });
+  }
+
+  private addScratchMarks(x: number, y: number): void {
+    const marks = this.add.graphics().setDepth(38);
+    const size = TILE_SIZE * this.boardScale;
+    marks.lineStyle(Math.max(2, 3 * this.boardScale), 0xfff1a8, 0.9);
+
+    for (let index = 0; index < 3; index += 1) {
+      const offset = (index - 1) * size * 0.13;
+      marks.lineBetween(x - size * 0.2 + offset, y - size * 0.12, x + size * 0.08 + offset, y + size * 0.17);
+    }
+
+    this.tweens.add({
+      targets: marks,
+      alpha: 0,
+      y: marks.y + 5 * this.boardScale,
+      duration: 420,
+      ease: "Sine.easeOut",
+      onComplete: () => marks.destroy(),
+    });
+  }
+
   private playBlockedTileFeedback(tile: FieldTile): void {
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (!view) {
@@ -2204,6 +2758,8 @@ export class GameScene extends Phaser.Scene {
     this.skillResourceText.setText(`Grass Touches: ${Math.floor(this.state.grassTouches)}`);
     this.refreshSeedShop();
     this.refreshGoldStore();
+    this.syncWorldObjects();
+    this.layoutWorldObjects();
     this.milestoneText.setText(
       [
         nextMilestone
@@ -2408,12 +2964,112 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private playSeedShopItemSuccess(itemId: string): void {
+    const view = this.seedItemViews.get(itemId);
+    if (!view || !this.seedShopOpen || !view.container.visible) {
+      return;
+    }
+
+    this.playShopItemSuccess(view.container, view.bg, view.iconBg, view.icon, 0x85d35e);
+  }
+
   private setStoreStatus(message: string): void {
     this.storeStatusText.setText(message);
     this.time.delayedCall(1900, () => {
       if (this.storeOpen) {
         this.storeStatusText.setText("Gold buys consumables and field companions.");
       }
+    });
+  }
+
+  private playGoldStoreItemSuccess(itemId: string): void {
+    const view = this.storeItemViews.get(itemId);
+    if (!view || !this.storeOpen || !view.container.visible) {
+      return;
+    }
+
+    this.playShopItemSuccess(view.container, view.bg, view.iconBg, view.icon, 0xffef78);
+  }
+
+  private playShopItemSuccess(
+    container: Phaser.GameObjects.Container,
+    bg: Phaser.GameObjects.Rectangle,
+    iconBg: Phaser.GameObjects.Rectangle,
+    icon: Phaser.GameObjects.Image,
+    color: number,
+  ): void {
+    const iconX = container.x + icon.x * container.scaleX;
+    const iconY = container.y + icon.y * container.scaleY;
+    const iconScaleX = icon.scaleX;
+    const iconScaleY = icon.scaleY;
+    const pop = this.add
+      .image(iconX, iconY, icon.texture.key)
+      .setDisplaySize(icon.displayWidth, icon.displayHeight)
+      .setDepth(125)
+      .setAlpha(0.96);
+    const burst = this.add
+      .star(iconX, iconY, 6, 7, 27, color, 0.5)
+      .setStrokeStyle(2, 0xffffff, 0.75)
+      .setDepth(124);
+
+    this.tweens.killTweensOf([container, icon, bg, iconBg]);
+    container.setScale(1);
+    icon.setScale(iconScaleX, iconScaleY);
+    bg.setAlpha(1);
+    iconBg.setAlpha(1);
+
+    this.tweens.add({
+      targets: container,
+      scaleX: 1.018,
+      scaleY: 1.018,
+      duration: 75,
+      yoyo: true,
+      ease: "Sine.easeOut",
+      onComplete: () => container.setScale(1),
+    });
+
+    this.tweens.add({
+      targets: icon,
+      scaleX: iconScaleX * 1.18,
+      scaleY: iconScaleY * 1.18,
+      duration: 90,
+      yoyo: true,
+      ease: "Back.easeOut",
+      onComplete: () => icon.setScale(iconScaleX, iconScaleY),
+    });
+
+    this.tweens.add({
+      targets: [bg, iconBg],
+      alpha: 0.82,
+      duration: 90,
+      yoyo: true,
+      ease: "Sine.easeOut",
+      onComplete: () => {
+        bg.setAlpha(1);
+        iconBg.setAlpha(1);
+      },
+    });
+
+    this.tweens.add({
+      targets: pop,
+      y: iconY - 34,
+      scaleX: 1.28,
+      scaleY: 1.28,
+      alpha: 0,
+      duration: 520,
+      ease: "Sine.easeOut",
+      onComplete: () => pop.destroy(),
+    });
+
+    this.tweens.add({
+      targets: burst,
+      angle: 45,
+      scaleX: 1.42,
+      scaleY: 1.42,
+      alpha: 0,
+      duration: 380,
+      ease: "Sine.easeOut",
+      onComplete: () => burst.destroy(),
     });
   }
 
@@ -2538,6 +3194,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         this.layoutTiles();
+        this.playTileDropCascade(addedTiles);
         this.showMessage(milestone.message, 3200);
         this.audio.play("milestone");
         saveGame(this.state);
@@ -2572,6 +3229,151 @@ export class GameScene extends Phaser.Scene {
       duration: 760,
       ease: "Sine.easeOut",
       onComplete: () => pop.destroy(),
+    });
+  }
+
+  private playTileDropCascade(tiles: FieldTile[]): void {
+    if (tiles.length === 0) {
+      return;
+    }
+
+    this.cameras.main.shake(420, 0.0045);
+
+    tiles.forEach((tile, index) => {
+      this.playTileDropIn(tile, index * 85);
+    });
+  }
+
+  private playTileDropIn(tile: FieldTile, delay: number): void {
+    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    if (!view) {
+      return;
+    }
+
+    const dropDistance = Math.max(86, 210 * this.boardScale);
+    const parts = [view.base, view.outline, view.grass, view.label];
+
+    this.tweens.killTweensOf(parts);
+
+    for (const part of parts) {
+      const finalX = part.x;
+      const finalY = part.y;
+      const finalScaleX = part.scaleX;
+      const finalScaleY = part.scaleY;
+      const finalAlpha = part.alpha;
+
+      part.setPosition(finalX, finalY - dropDistance);
+      part.setScale(finalScaleX * 0.82, finalScaleY * 0.82);
+      part.setAlpha(0);
+
+      this.tweens.add({
+        targets: part,
+        x: finalX,
+        y: finalY,
+        scaleX: finalScaleX,
+        scaleY: finalScaleY,
+        alpha: finalAlpha,
+        delay,
+        duration: 560,
+        ease: "Bounce.easeOut",
+        onComplete: () => {
+          part.setPosition(finalX, finalY);
+          part.setScale(finalScaleX, finalScaleY);
+          part.setAlpha(finalAlpha);
+        },
+      });
+    }
+
+    this.time.delayedCall(delay + 430, () => {
+      const thud = this.add
+        .ellipse(view.base.x, view.base.y + 11 * this.boardScale, TILE_SIZE * 0.72 * this.boardScale, TILE_SIZE * 0.22 * this.boardScale, 0x214c26, 0.22)
+        .setDepth(28);
+
+      this.tweens.add({
+        targets: thud,
+        scaleX: 1.45,
+        alpha: 0,
+        duration: 280,
+        ease: "Sine.easeOut",
+        onComplete: () => thud.destroy(),
+      });
+    });
+  }
+
+  private spawnRewardArc(texture: string, startX: number, startY: number, kind: "seed" | "gold", amount = 1): void {
+    const spriteCount = Phaser.Math.Clamp(Math.ceil(amount), 1, 4);
+
+    for (let index = 0; index < spriteCount; index += 1) {
+      this.time.delayedCall(index * 42, () => this.spawnRewardArcSprite(texture, startX, startY, kind, index));
+    }
+  }
+
+  private spawnRewardArcSprite(texture: string, startX: number, startY: number, kind: "seed" | "gold", index: number): void {
+    const target = this.getRewardArcTarget(kind);
+    const start = new Phaser.Math.Vector2(startX + Phaser.Math.Between(-8, 8), startY + Phaser.Math.Between(-5, 5));
+    const end = new Phaser.Math.Vector2(target.x + Phaser.Math.Between(-7, 7), target.y + Phaser.Math.Between(-5, 5));
+    const control = new Phaser.Math.Vector2(
+      (start.x + end.x) / 2 + Phaser.Math.Between(-34, 34),
+      Math.min(start.y, end.y) - Phaser.Math.Between(72, 136),
+    );
+    const curve = new Phaser.Curves.QuadraticBezier(start, control, end);
+    const progress = { value: 0 };
+    const sprite = this.add
+      .image(start.x, start.y, texture)
+      .setDepth(82)
+      .setScale(Math.max(1.8, this.boardScale * 2.35))
+      .setAlpha(0.95);
+    const baseScale = sprite.scaleX;
+
+    this.tweens.add({
+      targets: progress,
+      value: 1,
+      duration: 620 + index * 26,
+      ease: "Sine.easeInOut",
+      onUpdate: () => {
+        const point = curve.getPoint(progress.value);
+        sprite.setPosition(point.x, point.y);
+        sprite.setAngle((kind === "gold" ? 420 : 260) * progress.value);
+        sprite.setScale(baseScale * (1 - progress.value * 0.34));
+        sprite.setAlpha(Phaser.Math.Linear(0.95, 0.68, progress.value));
+      },
+      onComplete: () => {
+        sprite.destroy();
+        this.bumpResourceHud();
+      },
+    });
+  }
+
+  private getRewardArcTarget(kind: "seed" | "gold"): { x: number; y: number } {
+    const bounds = this.resourceText.getBounds();
+
+    if (this.scale.width < 620) {
+      const lineHeight = Math.max(18, bounds.height / 5);
+      const lineIndex = kind === "seed" ? 1 : 2;
+      return {
+        x: bounds.x + Math.min(bounds.width - 18, 92),
+        y: bounds.y + lineHeight * (lineIndex + 0.5),
+      };
+    }
+
+    return {
+      x: bounds.x + bounds.width * (kind === "seed" ? 0.36 : 0.52),
+      y: bounds.y + bounds.height * 0.5,
+    };
+  }
+
+  private bumpResourceHud(): void {
+    this.tweens.killTweensOf(this.resourceText);
+    this.resourceText.setScale(1);
+
+    this.tweens.add({
+      targets: this.resourceText,
+      scaleX: 1.035,
+      scaleY: 1.035,
+      duration: 70,
+      yoyo: true,
+      ease: "Sine.easeOut",
+      onComplete: () => this.resourceText.setScale(1),
     });
   }
 

@@ -6,7 +6,8 @@ import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait } from 
 export interface AnimalCompanionFeedback {
   refreshTile(tile: FieldTile): void;
   popAtTile(tile: FieldTile, text: string, color: string): void;
-  emitGoldBurst(tile: FieldTile): void;
+  emitGoldBurst(tile: FieldTile, amount?: number): void;
+  playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze"): void;
   playTouchFeedback(tile: FieldTile, touchedTrait: TileTrait, isCrit: boolean): void;
   playSound(sound: "regrow" | "seed" | "gold"): void;
   playGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean): void;
@@ -84,6 +85,7 @@ export class AnimalCompanionSystem {
       }
 
       feedback.refreshTile(tile);
+      feedback.playCompanionAction(tile, "pollinate");
       feedback.popAtTile(tile, "pollinated", "#fff1a8");
     }
 
@@ -107,6 +109,7 @@ export class AnimalCompanionSystem {
         tile.regrowEndsAt = Math.min(tile.regrowEndsAt, Date.now() + 900);
       }
       feedback.refreshTile(tile);
+      feedback.playCompanionAction(tile, "scratch");
       feedback.popAtTile(tile, "scratch", "#fff1a8");
       feedback.playSound("seed");
       return true;
@@ -114,6 +117,7 @@ export class AnimalCompanionSystem {
 
     state.gold += 1;
     state.lifetimeGold += 1;
+    feedback.playCompanionAction(tile, "forage");
     feedback.popAtTile(tile, "+1 gold", "#ffef78");
     feedback.emitGoldBurst(tile);
     feedback.playSound("gold");
@@ -137,11 +141,12 @@ export class AnimalCompanionSystem {
     const goldGained = Math.max(1, Math.min(3, sheep));
     state.gold += goldGained;
     state.lifetimeGold += goldGained;
+    feedback.playCompanionAction(tile, "graze");
     feedback.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     feedback.refreshTile(tile);
     feedback.popAtTile(tile, `sheep +${touch.gained}`, "#dfffc8");
     feedback.popAtTile(tile, `+${goldGained} gold`, "#ffef78");
-    feedback.emitGoldBurst(tile);
+    feedback.emitGoldBurst(tile, goldGained);
     feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     feedback.playSound("gold");
     return true;

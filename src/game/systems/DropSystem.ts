@@ -8,7 +8,7 @@ export interface DropFeedback {
   layoutTiles(): void;
   popAtTile(tile: FieldTile, text: string, color: string): void;
   emitSeedBurst(tile: FieldTile): void;
-  emitGoldBurst(tile: FieldTile): void;
+  emitGoldBurst(tile: FieldTile, amount?: number): void;
   playSound(sound: "seed" | "regrow" | "gold"): void;
 }
 
@@ -78,7 +78,7 @@ export class DropSystem {
     state.gold += totalGold;
     state.lifetimeGold += totalGold;
     feedback.popAtTile(tile, `+${totalGold} gold`, "#ffef78");
-    feedback.emitGoldBurst(tile);
+    feedback.emitGoldBurst(tile, totalGold);
     feedback.playSound("gold");
     return true;
   }

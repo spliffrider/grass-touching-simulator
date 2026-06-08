@@ -5,6 +5,7 @@ import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait, TouchR
 export interface SprinklerFeedback {
   refreshTile(tile: FieldTile): void;
   popAtTile(tile: FieldTile, text: string, color: string): void;
+  playSprinklerBurst(tile: FieldTile): void;
   playTouchFeedback(tile: FieldTile, touchedTrait: TileTrait, isCrit: boolean): void;
   tryDropSeed(tile: FieldTile, touchedTrait: TileTrait, stats: RuntimeStats, chanceScale: number): void;
   tryDropGold(
@@ -50,6 +51,7 @@ export class SprinklerSystem {
       return false;
     }
 
+    feedback.playSprinklerBurst(tile);
     feedback.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     feedback.refreshTile(tile);
     feedback.popAtTile(
