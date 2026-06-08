@@ -27,6 +27,11 @@ const MAX_BOARD_ZOOM = 3.2;
 const TREE_WIDTH = 880;
 const TREE_HEIGHT = 560;
 const SKILL_NODE_SIZE = 78;
+const SKILL_MAP_X_SCALE = 0.72;
+const SKILL_MAP_Y_SCALE = 0.86;
+const SKILL_NODE_VISUAL_SIZE = 58;
+const SKILL_DETAIL_WIDTH = 360;
+const SKILL_DETAIL_HEIGHT = 400;
 const SHOP_ICON_SIZE = 48;
 const PANEL_SLICE = 18;
 
@@ -624,7 +629,7 @@ export class GameScene extends Phaser.Scene {
     this.skillTitleText = this.add.text(0, 0, "Grass Skill Tree", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "34px",
-      color: "#f7ffe8",
+      color: "#f4df6a",
       stroke: "#06190f",
       strokeThickness: 6,
     });
@@ -632,9 +637,9 @@ export class GameScene extends Phaser.Scene {
     this.skillResourceText = this.add.text(0, 0, "", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "18px",
-      color: "#f7ffe8",
-      backgroundColor: "#0f3d22",
-      padding: { x: 12, y: 8 },
+      color: "#d6e6d0",
+      stroke: "#06190f",
+      strokeThickness: 4,
     });
 
     this.skillStatusText = this.add
@@ -677,17 +682,17 @@ export class GameScene extends Phaser.Scene {
     for (const upgrade of UPGRADES) {
       const container = this.add.container(0, 0);
       const bg = this.add
-        .rectangle(0, 0, SKILL_NODE_SIZE, SKILL_NODE_SIZE, 0x2a3730, 1)
+        .rectangle(0, 0, SKILL_NODE_SIZE, SKILL_NODE_SIZE, 0xffffff, 0.001)
         .setOrigin(0.5)
-        .setStrokeStyle(4, upgrade.tree.color)
+        .setStrokeStyle(1, upgrade.tree.color, 0)
         .setInteractive({ useHandCursor: true });
-      const frame = this.add.image(0, 0, "node-hexagon-frame").setDisplaySize(90, 90).setAlpha(0.88);
-      const iconPlate = this.add.circle(0, -10, 24, 0xf7ffe8, 0.1).setStrokeStyle(2, upgrade.tree.color, 0.46);
-      const icon = this.add.image(0, -10, getSkillIconKey(upgrade.id)).setDisplaySize(42, 42);
+      const frame = this.add.image(0, 0, "node-hexagon-frame").setDisplaySize(SKILL_NODE_VISUAL_SIZE, SKILL_NODE_VISUAL_SIZE).setAlpha(0.88);
+      const iconPlate = this.add.circle(0, -4, 17, 0xf7ffe8, 0.08).setStrokeStyle(1, upgrade.tree.color, 0.38);
+      const icon = this.add.image(0, -4, getSkillIconKey(upgrade.id)).setDisplaySize(25, 25);
       const lockedIcon = this.add
-        .text(0, -12, "?", {
+        .text(0, -7, "?", {
           fontFamily: "Trebuchet MS, Arial",
-          fontSize: "28px",
+          fontSize: "24px",
           color: "#f7ffe8",
           align: "center",
           stroke: "#102318",
@@ -695,9 +700,9 @@ export class GameScene extends Phaser.Scene {
         })
         .setOrigin(0.5);
       const level = this.add
-        .text(0, 22, "", {
+        .text(0, 17, "", {
           fontFamily: "Trebuchet MS, Arial",
-          fontSize: "15px",
+          fontSize: "10px",
           color: "#dfffc8",
         })
         .setOrigin(0.5);
@@ -711,35 +716,39 @@ export class GameScene extends Phaser.Scene {
 
     this.skillDetailPanel = this.add.container(0, 0);
     this.skillDetailBg = this.add
-      .nineslice(0, 0, "panel-emerald", undefined, 330, 272, PANEL_SLICE, PANEL_SLICE, PANEL_SLICE, PANEL_SLICE)
+      .nineslice(0, 0, "panel-emerald", undefined, SKILL_DETAIL_WIDTH, SKILL_DETAIL_HEIGHT, PANEL_SLICE, PANEL_SLICE, PANEL_SLICE, PANEL_SLICE)
       .setOrigin(0, 0)
       .setAlpha(0.98);
-    this.skillDetailTitle = this.add.text(16, 14, "", {
+    this.skillDetailTitle = this.add.text(24, 26, "", {
       fontFamily: "Trebuchet MS, Arial",
-      fontSize: "23px",
-      color: "#f7ffe8",
+      fontSize: "24px",
+      color: "#f4df6a",
       stroke: "#071b11",
       strokeThickness: 4,
     });
-    this.skillDetailCategory = this.add.text(16, 43, "", {
+    this.skillDetailCategory = this.add.text(24, 60, "", {
       fontFamily: "Trebuchet MS, Arial",
-      fontSize: "13px",
-      color: "#b7eba5",
+      fontSize: "14px",
+      color: "#8cae89",
     });
-    this.skillDetailBody = this.add.text(16, 66, "", {
+    this.skillDetailBody = this.add.text(24, 94, "", {
       fontFamily: "Trebuchet MS, Arial",
-      fontSize: "16px",
-      color: "#dfffc8",
-      wordWrap: { width: 298 },
+      fontSize: "15px",
+      color: "#d6e6d0",
+      lineSpacing: 3,
+      wordWrap: { width: SKILL_DETAIL_WIDTH - 52 },
     });
-    this.skillDetailCost = this.add.text(16, 154, "", {
+    this.skillDetailCost = this.add.text(24, 262, "", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "18px",
-      color: "#fff1a8",
-      wordWrap: { width: 298 },
+      color: "#f4df6a",
+      stroke: "#071b11",
+      strokeThickness: 3,
+      lineSpacing: 2,
+      wordWrap: { width: SKILL_DETAIL_WIDTH - 52 },
     });
-    this.skillBuyButton = createTextButton(this, "Upgrade", () => this.upgradeSelectedSkill(), 138, 40, 101);
-    this.skillBuyButton.setPosition(16, 216);
+    this.skillBuyButton = createTextButton(this, "Upgrade", () => this.upgradeSelectedSkill(), 260, 44, 101);
+    this.skillBuyButton.setPosition(50, 340);
     this.skillDetailPanel.add([
       this.skillDetailBg,
       this.skillDetailTitle,
@@ -762,13 +771,15 @@ export class GameScene extends Phaser.Scene {
     const narrowDesktop = this.scale.width < 760 && !shortLandscape && !narrowPortrait;
     const sidePanel = !shortLandscape && !narrowPortrait && !narrowDesktop;
     const reservedSideWidth = sidePanel ? 430 : 48;
-    const reservedBottomHeight = narrowPortrait || narrowDesktop ? 370 : 190;
+    const reservedBottomHeight = narrowPortrait || narrowDesktop ? 420 : 140;
+    const mapWidth = TREE_WIDTH * SKILL_MAP_X_SCALE;
+    const mapHeight = TREE_HEIGHT * SKILL_MAP_Y_SCALE;
     const treeScale = shortLandscape
-      ? Math.max(0.32, Math.min(0.62, (this.scale.width - 310) / TREE_WIDTH, (this.scale.height - 130) / TREE_HEIGHT))
-      : Math.min(1, (this.scale.width - reservedSideWidth) / TREE_WIDTH, (this.scale.height - reservedBottomHeight) / TREE_HEIGHT);
-    const treeWidth = TREE_WIDTH * treeScale;
-    const treeX = shortLandscape ? 24 : sidePanel ? Math.max(24, (this.scale.width - 372 - treeWidth) / 2) : (this.scale.width - treeWidth) / 2;
-    const treeY = shortLandscape ? 124 : 150;
+      ? Math.max(0.38, Math.min(0.7, (this.scale.width - 310) / mapWidth, (this.scale.height - 126) / mapHeight))
+      : Math.min(1, (this.scale.width - reservedSideWidth) / mapWidth, (this.scale.height - reservedBottomHeight) / mapHeight);
+    const treeWidth = mapWidth * treeScale;
+    const treeX = shortLandscape ? 34 : sidePanel ? Math.max(70, (this.scale.width - reservedSideWidth - treeWidth) / 2) : (this.scale.width - treeWidth) / 2;
+    const treeY = shortLandscape ? 118 : narrowPortrait || narrowDesktop ? 136 : 158;
 
     this.skillBackdrop.setSize(this.scale.width, this.scale.height);
     this.skillBackdropPattern?.setPosition(this.scale.width / 2, this.scale.height / 2).setDisplaySize(this.scale.width, this.scale.height);
@@ -777,17 +788,17 @@ export class GameScene extends Phaser.Scene {
     this.skillResourceText.setFontSize(shortLandscape || narrowPortrait ? 14 : 18);
     this.skillStatusText.setFontSize(shortLandscape || narrowPortrait ? 13 : 16);
     this.skillStatusText.setWordWrapWidth(Math.max(220, this.scale.width - 48));
-    this.skillTitleText.setPosition(24, 24);
-    this.skillResourceText.setPosition(26, shortLandscape ? 62 : 78);
+    this.skillTitleText.setPosition(shortLandscape ? 22 : 52, shortLandscape ? 22 : 42);
+    this.skillResourceText.setPosition(shortLandscape ? 24 : 54, shortLandscape ? 58 : 82);
     this.skillStatusText.setText(
       this.hasTouchScreen() ? "Tap a skill to upgrade it. The info box shows details." : "Hover a skill to inspect it. Click a skill or Upgrade to buy.",
     );
     this.skillStatusText.setPosition(
       shortLandscape ? this.scale.width / 2 + 20 : sidePanel ? treeX + treeWidth / 2 : this.scale.width / 2,
-      shortLandscape ? 72 : this.skillResourceText.y + this.skillResourceText.height + 8,
+      shortLandscape ? 72 : 118,
     );
     this.backButton.setScale(narrowPortrait ? 0.9 : 1);
-    this.backButton.setPosition(this.scale.width - 142, 24);
+    this.backButton.setPosition(this.scale.width - (shortLandscape ? 130 : 166), shortLandscape ? 20 : 42);
     this.resetButton.setScale(shortLandscape ? 0.78 : narrowPortrait ? 0.86 : 0.88);
     this.resetButton.setPosition(this.scale.width - 108, this.scale.height - (shortLandscape ? 42 : narrowPortrait ? 46 : 48));
     this.skillDetailPanel.setScale(shortLandscape ? 0.72 : narrowPortrait ? 1 : 1);
@@ -795,15 +806,14 @@ export class GameScene extends Phaser.Scene {
       shortLandscape
         ? this.scale.width - 252
         : narrowPortrait || narrowDesktop
-          ? (this.scale.width - 330) / 2
-          : Math.max(24, this.scale.width - 360),
-      shortLandscape ? 112 : narrowPortrait ? this.scale.height - 310 : sidePanel ? 150 : this.scale.height - 270,
+          ? (this.scale.width - SKILL_DETAIL_WIDTH) / 2
+          : Math.max(24, this.scale.width - 410),
+      shortLandscape ? 112 : narrowPortrait ? this.scale.height - 430 : sidePanel ? 150 : this.scale.height - 420,
     );
+    this.skillDetailBg.setSize(SKILL_DETAIL_WIDTH, SKILL_DETAIL_HEIGHT);
 
     for (const label of this.skillBranchLabels) {
-      label.text.setPosition(treeX + label.treeX * treeScale, treeY + label.treeY * treeScale);
-      label.text.setScale(Math.max(0.72, treeScale));
-      label.text.setVisible(!shortLandscape || treeScale > 0.42);
+      label.text.setVisible(false);
     }
 
     for (const upgrade of UPGRADES) {
@@ -812,7 +822,8 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
 
-      view.container.setPosition(treeX + upgrade.tree.x * treeScale, treeY + upgrade.tree.y * treeScale);
+      const point = this.getSkillTreePoint(upgrade, treeScale, treeX, treeY);
+      view.container.setPosition(point.x, point.y);
       view.container.setScale(treeScale);
     }
 
@@ -1143,8 +1154,41 @@ export class GameScene extends Phaser.Scene {
     return navigator.maxTouchPoints > 0;
   }
 
+  private getSkillTreePoint(
+    upgrade: (typeof UPGRADES)[number],
+    treeScale: number,
+    treeX: number,
+    treeY: number,
+  ): { x: number; y: number } {
+    return {
+      x: treeX + upgrade.tree.x * SKILL_MAP_X_SCALE * treeScale,
+      y: treeY + upgrade.tree.y * SKILL_MAP_Y_SCALE * treeScale,
+    };
+  }
+
   private drawSkillLines(treeScale: number, treeX: number, treeY: number): void {
     this.skillLineGraphics.clear();
+    this.skillLineGraphics.fillStyle(0x000000, 0.4);
+    this.skillLineGraphics.fillCircle(treeX + 155 * treeScale, treeY + 138 * treeScale, 95 * treeScale);
+    this.skillLineGraphics.fillCircle(treeX + 265 * treeScale, treeY + 250 * treeScale, 132 * treeScale);
+    this.skillLineGraphics.fillCircle(treeX + 420 * treeScale, treeY + 210 * treeScale, 74 * treeScale);
+
+    const starPoints = [
+      [84, 60],
+      [205, 42],
+      [335, 96],
+      [520, 54],
+      [610, 128],
+      [112, 376],
+      [292, 420],
+      [482, 374],
+      [625, 456],
+    ];
+
+    this.skillLineGraphics.fillStyle(0xf4df6a, 0.26);
+    for (const [x, y] of starPoints) {
+      this.skillLineGraphics.fillCircle(treeX + x * treeScale, treeY + y * treeScale, Math.max(1.2, 2 * treeScale));
+    }
 
     for (const upgrade of UPGRADES) {
       const prerequisiteIds = upgrade.prerequisiteIds ?? [];
@@ -1166,35 +1210,28 @@ export class GameScene extends Phaser.Scene {
           continue;
         }
 
-        const color = active ? 0xdfffc8 : available ? 0xf5ec72 : selectedConnection ? 0xb7eba5 : 0x2f5141;
-        const alpha = primaryBranch ? (active || available ? 0.94 : 0.42) : active || selectedConnection ? 0.5 : 0.2;
-        const width = primaryBranch ? (active ? 4 : 3) : 2;
-        const startX = treeX + prerequisite.tree.x * treeScale + (SKILL_NODE_SIZE / 2) * treeScale;
-        const startY = treeY + prerequisite.tree.y * treeScale;
-        const endX = treeX + upgrade.tree.x * treeScale - (SKILL_NODE_SIZE / 2) * treeScale;
-        const endY = treeY + upgrade.tree.y * treeScale;
-        const elbowX = startX + Math.max(24 * treeScale, (endX - startX) * 0.52);
+        const color = active ? 0xffe460 : available ? 0xffd24a : selectedConnection ? 0xf4df6a : 0x44624c;
+        const alpha = primaryBranch ? (active || available || selectedConnection ? 0.9 : 0.3) : active || selectedConnection ? 0.55 : 0.18;
+        const width = primaryBranch ? Math.max(2, 2.4 * treeScale) : Math.max(1.2, 1.6 * treeScale);
+        const start = this.getSkillTreePoint(prerequisite, treeScale, treeX, treeY);
+        const end = this.getSkillTreePoint(upgrade, treeScale, treeX, treeY);
 
-        this.skillLineGraphics.lineStyle(width + 6, 0x77d78f, alpha * 0.12);
+        this.skillLineGraphics.lineStyle(width + 7 * treeScale, 0xff9c00, alpha * 0.22);
         this.skillLineGraphics.beginPath();
-        this.skillLineGraphics.moveTo(startX, startY);
-        this.skillLineGraphics.lineTo(elbowX, startY);
-        this.skillLineGraphics.lineTo(elbowX, endY);
-        this.skillLineGraphics.lineTo(endX, endY);
+        this.skillLineGraphics.moveTo(start.x, start.y);
+        this.skillLineGraphics.lineTo(end.x, end.y);
         this.skillLineGraphics.strokePath();
 
         this.skillLineGraphics.lineStyle(width, color, alpha);
         this.skillLineGraphics.beginPath();
-        this.skillLineGraphics.moveTo(startX, startY);
-        this.skillLineGraphics.lineTo(elbowX, startY);
-        this.skillLineGraphics.lineTo(elbowX, endY);
-        this.skillLineGraphics.lineTo(endX, endY);
+        this.skillLineGraphics.moveTo(start.x, start.y);
+        this.skillLineGraphics.lineTo(end.x, end.y);
         this.skillLineGraphics.strokePath();
 
         if (active || available || selectedConnection) {
           this.skillLineGraphics.fillStyle(color, Math.min(0.82, alpha + 0.1));
-          this.skillLineGraphics.fillCircle(startX, startY, Math.max(2.2, 3.2 * treeScale));
-          this.skillLineGraphics.fillCircle(endX, endY, Math.max(2.2, 3.2 * treeScale));
+          this.skillLineGraphics.fillCircle(start.x, start.y, Math.max(2.2, 3.2 * treeScale));
+          this.skillLineGraphics.fillCircle(end.x, end.y, Math.max(2.2, 3.2 * treeScale));
         }
       }
     }
@@ -2847,7 +2884,7 @@ export class GameScene extends Phaser.Scene {
         `Patches: ${Object.keys(this.state.field).length}`,
       ].join(resourceSeparator),
     );
-    this.skillResourceText.setText(`Grass Touches: ${Math.floor(this.state.grassTouches)}`);
+    this.skillResourceText.setText(`Available Grass Touches: ${Math.floor(this.state.grassTouches)}`);
     this.refreshSeedShop();
     this.refreshGoldStore();
     this.syncWorldObjects();
@@ -2879,22 +2916,21 @@ export class GameScene extends Phaser.Scene {
       }
 
       const selected = upgrade.id === this.selectedSkillId;
-      const fill = level > 0 ? 0x263f2d : unlocked ? 0x2f3e36 : 0x202a25;
-      const stroke = selected ? 0xf7ffe8 : available ? 0xf5ec72 : level > 0 ? upgrade.tree.color : 0x51615a;
+      const stroke = selected ? 0xffe460 : available ? 0xf4df6a : level > 0 ? upgrade.tree.color : 0x506056;
 
       view.container.setAlpha(unlocked || level > 0 ? 1 : 0.5);
-      view.bg.setFillStyle(fill, selected ? 0.72 : 0.5);
-      view.bg.setStrokeStyle(selected ? 3 : 2, stroke, selected || available ? 0.72 : 0.42);
+      view.bg.setFillStyle(0xffffff, 0.001);
+      view.bg.setStrokeStyle(1, stroke, 0);
       view.frame.setTint(stroke);
-      view.frame.setAlpha(selected ? 1 : available ? 0.92 : level > 0 ? 0.78 : 0.46);
-      view.frame.setDisplaySize(selected ? 96 : 90, selected ? 96 : 90);
+      view.frame.setAlpha(selected ? 1 : available ? 0.96 : level > 0 ? 0.86 : 0.46);
+      view.frame.setDisplaySize(selected ? 70 : SKILL_NODE_VISUAL_SIZE, selected ? 70 : SKILL_NODE_VISUAL_SIZE);
       view.icon.setTexture(getSkillIconKey(upgrade.id));
       view.icon.setVisible(unlocked || level > 0);
       view.icon.setAlpha(available ? 1 : level > 0 ? 0.95 : 0.72);
       view.icon.setTint(level > 0 || unlocked ? 0xffffff : 0x8fa08f);
       view.lockedIcon.setVisible(!unlocked && level === 0);
-      view.level.setText(level > 0 || unlocked ? `Lv ${level}/${upgrade.maxLevel}` : "locked");
-      view.level.setColor(available ? "#f7ffe8" : level > 0 ? "#dfffc8" : "#c8d1cc");
+      view.level.setText(`Lv ${level}/${upgrade.maxLevel}`);
+      view.level.setColor(available || selected ? "#f4df6a" : level > 0 ? "#dfffc8" : "#7c8b82");
     }
 
     this.refreshSkillDetail();
@@ -3008,14 +3044,14 @@ export class GameScene extends Phaser.Scene {
       setTextButtonEnabled(this.skillBuyButton, false);
     } else if (this.state.grassTouches < cost) {
       this.skillDetailCost.setText(
-        `Cost: ${cost} Grass Touches\nYou have: ${Math.floor(this.state.grassTouches)}\nNeed: ${
+        `Cost to Upgrade: ${cost} Grass Touches\nYou have: ${Math.floor(this.state.grassTouches)}\nNeed: ${
           cost - Math.floor(this.state.grassTouches)
         } more`,
       );
       setTextButtonText(this.skillBuyButton, `Need ${cost - Math.floor(this.state.grassTouches)}`);
       setTextButtonEnabled(this.skillBuyButton, false);
     } else {
-      this.skillDetailCost.setText(`Cost: ${cost} Grass Touches\nYou have: ${Math.floor(this.state.grassTouches)}\nReady to upgrade`);
+      this.skillDetailCost.setText(`Cost to Upgrade: ${cost} Grass Touches\nYou have: ${Math.floor(this.state.grassTouches)}\nReady to upgrade`);
       setTextButtonText(this.skillBuyButton, "Upgrade");
       setTextButtonEnabled(this.skillBuyButton, true);
     }
