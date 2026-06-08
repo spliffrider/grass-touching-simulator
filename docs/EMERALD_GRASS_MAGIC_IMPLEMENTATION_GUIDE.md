@@ -252,3 +252,62 @@ body {
   color: #ffe460;
 }
 ```
+
+---
+
+### Step 8: Implement the 'Mystic Constellation' Skill Screen (Approved Option)
+To achieve the glowing star-map look from the **Mystic Constellation** redesign:
+
+#### A. Preload the Hexagon Frame:
+In [GameScene.ts](file:///c:/Users/rafbu/OneDrive/Documenten/Grass%20Touching%20Simulator/src/game/scenes/GameScene.ts#L236)'s `preload` phase, load the new hexagon frame:
+```typescript
+this.load.image("node-hexagon-frame", "/assets/ui/node-hexagon-frame.png");
+```
+
+#### B. Replace Square Nodes with Hexagons:
+In `createSkillTree()` (around line 620), replace the flat rectangle backgrounds with the new hexagon sprite. Phaser's `setTint` will color the frame according to the branch:
+```typescript
+// REPLACE:
+// const bg = this.add.rectangle(0, 0, SKILL_NODE_SIZE, SKILL_NODE_SIZE, 0x2a3730, 1)
+//   .setOrigin(0.5)
+//   .setStrokeStyle(4, upgrade.tree.color)
+//   .setInteractive({ useHandCursor: true });
+
+// WITH:
+const bg = this.add.image(0, 0, "node-hexagon-frame")
+  .setOrigin(0.5)
+  .setInteractive({ useHandCursor: true });
+
+// Tint node border dynamically according to branch/prerequisites
+if (state === "locked") {
+  bg.setTint(0x445548); // dark forest/grey tint
+  bg.setAlpha(0.65);
+} else if (state === "unlocked") {
+  bg.setTint(upgrade.tree.color);
+  bg.setAlpha(0.85);
+} else {
+  bg.setTint(0xffd700); // gold glow for active/maxed skills
+  bg.setAlpha(1.0);
+}
+```
+
+#### C. Draw Glowing Connection Lines:
+In `drawSkillLines(treeScale, treeX, treeY)` (around line 1084), draw a two-pass line to simulate an outer glow and bright core light trail:
+```typescript
+// Clear line graphics as usual
+this.skillLineGraphics.clear();
+
+// For each active connection between nodes:
+// 1. Draw outer glow path
+this.skillLineGraphics.lineStyle(6 * treeScale, 0xff9c00, 0.4); // thicker amber glow
+this.skillLineGraphics.lineBetween(x1, y1, x2, y2);
+
+// 2. Draw inner bright core path
+this.skillLineGraphics.lineStyle(2 * treeScale, 0xffe460, 1.0); // thin gold core
+this.skillLineGraphics.lineBetween(x1, y1, x2, y2);
+```
+
+#### D. Sky Backdrop Color & Spores:
+* In `createSkillTree()`, change the skill tree screen backdrop fill style to a very dark forest emerald green (`0x051f0c` instead of `0x1c2520`).
+* Make the background particle spore emitter visible when the skill tree is open, drifting behind the nodes for a living, floating nebula effect.
+
