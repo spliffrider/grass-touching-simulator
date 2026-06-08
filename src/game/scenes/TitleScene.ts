@@ -28,7 +28,7 @@ export class TitleScene extends Phaser.Scene {
   private noticeText!: Phaser.GameObjects.Text;
   private creditsRoot!: Phaser.GameObjects.Container;
   private creditsBackdrop!: Phaser.GameObjects.Rectangle;
-  private creditsPanel!: Phaser.GameObjects.Rectangle;
+  private creditsPanel!: Phaser.GameObjects.NineSlice;
   private creditsTitle!: Phaser.GameObjects.Text;
   private creditsRole!: Phaser.GameObjects.Text;
   private creditsNames!: Phaser.GameObjects.Text;
@@ -37,7 +37,7 @@ export class TitleScene extends Phaser.Scene {
   private buildLabelText!: Phaser.GameObjects.Text;
   private optionsRoot!: Phaser.GameObjects.Container;
   private optionsBackdrop!: Phaser.GameObjects.Rectangle;
-  private optionsPanel!: Phaser.GameObjects.Rectangle;
+  private optionsPanel!: Phaser.GameObjects.NineSlice;
   private optionsTitle!: Phaser.GameObjects.Text;
   private volumeLabel!: Phaser.GameObjects.Text;
   private volumeTrack!: Phaser.GameObjects.Rectangle;
@@ -63,7 +63,8 @@ export class TitleScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image("title-screen", "/assets/title-screen.png");
+    this.load.image("title-screen", "/assets/title-screen-emerald.png");
+    this.load.image("panel-emerald", "/assets/ui/panel-emerald.png");
     this.load.image("title-selector-leaf", "/assets/title-selector-leaf.png");
     this.load.image("title-selector-flower", "/assets/title-selector-flower.png");
   }
@@ -251,33 +252,35 @@ export class TitleScene extends Phaser.Scene {
   private createCreditsPanel(): void {
     this.creditsRoot = this.add.container(0, 0).setDepth(30).setVisible(false);
     this.creditsBackdrop = this.add
-      .rectangle(0, 0, this.scale.width, this.scale.height, 0x102315, 0.78)
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x06190f, 0.8)
       .setOrigin(0, 0)
       .setInteractive();
     this.creditsPanel = this.add
-      .rectangle(0, 0, 420, 290, 0xf4ffdc, 0.98)
+      .nineslice(0, 0, "panel-emerald", undefined, 420, 290, 18, 18, 18, 18)
       .setOrigin(0.5)
-      .setStrokeStyle(5, 0x2d6f36);
+      .setAlpha(0.98);
     this.creditsTitle = this.add
       .text(0, 0, "Credits", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "38px",
-        color: "#183d20",
+        color: "#f7ffe8",
+        stroke: "#092213",
+        strokeThickness: 5,
       })
       .setOrigin(0.5);
     this.creditsRole = this.add
       .text(0, 0, "Playtesters", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "20px",
-        color: "#416247",
+        color: "#b7eba5",
       })
       .setOrigin(0.5);
     this.creditsNames = this.add
       .text(0, 0, "Cosmodeus\nRemy\ntussukarva🇫🇮🇸🇪\n🔪⋆🎀  𝒦𝒾𝓉𝓉𝓎 𝒩💔𝒾𝓇 🎀⋆🔪", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "22px",
-        color: "#17491f",
-        stroke: "#dfffc8",
+        color: "#f7ffe8",
+        stroke: "#12341c",
         strokeThickness: 4,
         align: "center",
         lineSpacing: 4,
@@ -312,34 +315,36 @@ export class TitleScene extends Phaser.Scene {
   private createOptionsPanel(): void {
     this.optionsRoot = this.add.container(0, 0).setDepth(28).setVisible(false);
     this.optionsBackdrop = this.add
-      .rectangle(0, 0, this.scale.width, this.scale.height, 0x102315, 0.46)
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x06190f, 0.58)
       .setOrigin(0, 0)
       .setInteractive();
     this.optionsPanel = this.add
-      .rectangle(0, 0, 460, 220, 0xf4ffdc, 0.98)
+      .nineslice(0, 0, "panel-emerald", undefined, 460, 220, 18, 18, 18, 18)
       .setOrigin(0.5)
-      .setStrokeStyle(5, 0x2d6f36);
+      .setAlpha(0.98);
     this.optionsTitle = this.add
       .text(0, 0, "Options", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "34px",
-        color: "#183d20",
+        color: "#f7ffe8",
+        stroke: "#092213",
+        strokeThickness: 5,
       })
       .setOrigin(0.5);
     this.volumeLabel = this.add
       .text(0, 0, "", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "18px",
-        color: "#416247",
+        color: "#b7eba5",
       })
       .setOrigin(0.5);
-    this.volumeTrack = this.add.rectangle(0, 0, 320, 12, 0x9bbf7e, 1).setOrigin(0, 0.5);
-    this.volumeFill = this.add.rectangle(0, 0, 220, 12, 0x2d6f36, 1).setOrigin(0, 0.5);
+    this.volumeTrack = this.add.rectangle(0, 0, 320, 12, 0x163b22, 1).setOrigin(0, 0.5);
+    this.volumeFill = this.add.rectangle(0, 0, 220, 12, 0xb7eba5, 1).setOrigin(0, 0.5);
     this.volumeHit = this.add
       .rectangle(0, 0, 350, 44, 0xffffff, 0.001)
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
-    this.volumeKnob = this.add.circle(0, 0, 14, 0xf7ffe8, 1).setStrokeStyle(4, 0x17491f).setInteractive({ useHandCursor: true });
+    this.volumeKnob = this.add.circle(0, 0, 14, 0xf7ffe8, 1).setStrokeStyle(4, 0xb7eba5).setInteractive({ useHandCursor: true });
     this.musicToggleHit = this.add
       .rectangle(0, 0, 136, 42, 0xe9ffd0, 0.98)
       .setOrigin(0.5)
@@ -425,15 +430,15 @@ export class TitleScene extends Phaser.Scene {
     const inset = Math.max(6, Math.round(10 * scale));
 
     this.menuPanel.clear();
-    this.menuPanel.fillStyle(0x173b20, 0.94);
+    this.menuPanel.fillStyle(0x071b11, 0.88);
     this.menuPanel.fillRect(x, y, width, height);
-    this.menuPanel.fillStyle(0x2d6f36, 0.94);
+    this.menuPanel.fillStyle(0x0f3d22, 0.72);
     this.menuPanel.fillRect(x + border, y + border, width - border * 2, height - border * 2);
-    this.menuPanel.fillStyle(0xf4ffdc, 0.18);
+    this.menuPanel.fillStyle(0xb7eba5, 0.16);
     this.menuPanel.fillRect(x + inset, y + inset, width - inset * 2, Math.max(6, 12 * scale));
-    this.menuPanel.lineStyle(border, 0xf7ffe8, 0.95);
+    this.menuPanel.lineStyle(border, 0xb7eba5, 0.86);
     this.menuPanel.strokeRect(x, y, width, height);
-    this.menuPanel.lineStyle(Math.max(2, Math.round(2 * scale)), 0x102315, 0.75);
+    this.menuPanel.lineStyle(Math.max(2, Math.round(2 * scale)), 0x05130b, 0.78);
     this.menuPanel.strokeRect(x + inset, y + inset, width - inset * 2, height - inset * 2);
   }
 
