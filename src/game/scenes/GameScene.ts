@@ -37,6 +37,8 @@ const SKILL_BRANCH_LABELS = [
   { text: "Meadow", x: 700, y: 335, color: "#dfffc8" },
 ];
 
+const getSkillIconKey = (upgradeId: string): string => `skill-${upgradeId.replace(/_/g, "-")}`;
+
 const SEED_SHOP_ICON_KEYS: Record<string, string> = {
   seed_pouch: "item-seed-pouch",
   sprinkler: "world-tiny-sprinkler",
@@ -83,7 +85,8 @@ interface SkillNodeView {
   upgradeId: string;
   container: Phaser.GameObjects.Container;
   bg: Phaser.GameObjects.Rectangle;
-  icon: Phaser.GameObjects.Text;
+  icon: Phaser.GameObjects.Image;
+  lockedIcon: Phaser.GameObjects.Text;
   level: Phaser.GameObjects.Text;
 }
 
@@ -255,6 +258,11 @@ export class GameScene extends Phaser.Scene {
       }
 
       this.load.image(itemKey, `/assets/ui/items/${itemKey.replace("item-", "")}.png`);
+    }
+
+    for (const upgrade of UPGRADES) {
+      const fileName = upgrade.id.replace(/_/g, "-");
+      this.load.image(getSkillIconKey(upgrade.id), `/assets/ui/skills/${fileName}.png`);
     }
 
     this.load.image("effect-water-drop", "/assets/effects/water-drop.png");
@@ -615,12 +623,16 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setStrokeStyle(4, upgrade.tree.color)
         .setInteractive({ useHandCursor: true });
-      const icon = this.add
-        .text(0, -16, upgrade.tree.icon, {
+      const iconPlate = this.add.circle(0, -10, 24, 0xf7ffe8, 0.12).setStrokeStyle(2, upgrade.tree.color, 0.42);
+      const icon = this.add.image(0, -10, getSkillIconKey(upgrade.id)).setDisplaySize(42, 42);
+      const lockedIcon = this.add
+        .text(0, -12, "?", {
           fontFamily: "Trebuchet MS, Arial",
-          fontSize: "19px",
+          fontSize: "28px",
           color: "#f7ffe8",
           align: "center",
+          stroke: "#102318",
+          strokeThickness: 5,
         })
         .setOrigin(0.5);
       const level = this.add
@@ -631,10 +643,10 @@ export class GameScene extends Phaser.Scene {
         })
         .setOrigin(0.5);
 
-      container.add([bg, icon, level]);
+      container.add([bg, iconPlate, icon, lockedIcon, level]);
       bg.on("pointerover", () => this.previewSkill(upgrade.id));
       bg.on("pointerdown", () => this.upgradeSkill(upgrade.id));
-      this.skillNodeViews.set(upgrade.id, { upgradeId: upgrade.id, container, bg, icon, level });
+      this.skillNodeViews.set(upgrade.id, { upgradeId: upgrade.id, container, bg, icon, lockedIcon, level });
       this.skillRoot.add(container);
     }
 
@@ -2793,7 +2805,11 @@ export class GameScene extends Phaser.Scene {
       view.container.setAlpha(unlocked || level > 0 ? 1 : 0.5);
       view.bg.setFillStyle(fill, 1);
       view.bg.setStrokeStyle(selected ? 6 : 4, stroke, 1);
-      view.icon.setText(unlocked || level > 0 ? upgrade.tree.icon : "?");
+      view.icon.setTexture(getSkillIconKey(upgrade.id));
+      view.icon.setVisible(unlocked || level > 0);
+      view.icon.setAlpha(available ? 1 : level > 0 ? 0.95 : 0.72);
+      view.icon.setTint(level > 0 || unlocked ? 0xffffff : 0x8fa08f);
+      view.lockedIcon.setVisible(!unlocked && level === 0);
       view.level.setText(level > 0 || unlocked ? `Lv ${level}/${upgrade.maxLevel}` : "locked");
       view.level.setColor(available ? "#f7ffe8" : level > 0 ? "#dfffc8" : "#c8d1cc");
     }
