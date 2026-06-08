@@ -134,7 +134,7 @@ export class GameScene extends Phaser.Scene {
   private state!: GameState;
   private tileViews = new Map<TileKey, TileView>();
   private worldObjectViews = new Map<string, WorldObjectView>();
-  private emeraldBackground!: Phaser.GameObjects.TileSprite;
+  private emeraldBackground!: Phaser.GameObjects.Image;
   private ambientSpores?: Phaser.GameObjects.Particles.ParticleEmitter;
   private titleText!: Phaser.GameObjects.Text;
   private buildLabelText!: Phaser.GameObjects.Text;
@@ -154,7 +154,7 @@ export class GameScene extends Phaser.Scene {
   private optionsButton!: Phaser.GameObjects.Container;
   private skillRoot!: Phaser.GameObjects.Container;
   private skillBackdrop!: Phaser.GameObjects.Rectangle;
-  private skillBackdropPattern!: Phaser.GameObjects.TileSprite;
+  private skillBackdropPattern!: Phaser.GameObjects.Image;
   private skillTitleText!: Phaser.GameObjects.Text;
   private skillResourceText!: Phaser.GameObjects.Text;
   private skillStatusText!: Phaser.GameObjects.Text;
@@ -380,11 +380,6 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     const now = Date.now();
-    if (this.emeraldBackground) {
-      this.emeraldBackground.tilePositionX += delta * 0.0012;
-      this.emeraldBackground.tilePositionY += delta * 0.0008;
-    }
-
     this.updateWeather(now, true);
     const stats = getRuntimeStats(this.state);
     const regrown = updateRegrowth(this.state, stats, now);
@@ -500,10 +495,11 @@ export class GameScene extends Phaser.Scene {
 
   private createEmeraldBackdrop(): void {
     this.emeraldBackground = this.add
-      .tileSprite(0, 0, this.scale.width, this.scale.height, "emerald-bg")
-      .setOrigin(0, 0)
+      .image(this.scale.width / 2, this.scale.height / 2, "emerald-bg")
+      .setOrigin(0.5)
       .setDepth(-20)
       .setAlpha(0.76);
+    this.layoutEmeraldBackdrop();
     this.createAmbientSpores();
   }
 
@@ -512,7 +508,8 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.emeraldBackground.setSize(this.scale.width, this.scale.height);
+    this.emeraldBackground.setPosition(this.scale.width / 2, this.scale.height / 2);
+    this.emeraldBackground.setDisplaySize(this.scale.width, this.scale.height);
     this.createAmbientSpores();
   }
 
@@ -620,8 +617,8 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive();
     this.skillBackdropPattern = this.add
-      .tileSprite(0, 0, this.scale.width, this.scale.height, "emerald-bg")
-      .setOrigin(0, 0)
+      .image(this.scale.width / 2, this.scale.height / 2, "emerald-bg")
+      .setOrigin(0.5)
       .setAlpha(0.18);
 
     this.skillTitleText = this.add.text(0, 0, "Grass Skill Tree", {
@@ -774,7 +771,7 @@ export class GameScene extends Phaser.Scene {
     const treeY = shortLandscape ? 124 : 150;
 
     this.skillBackdrop.setSize(this.scale.width, this.scale.height);
-    this.skillBackdropPattern?.setSize(this.scale.width, this.scale.height);
+    this.skillBackdropPattern?.setPosition(this.scale.width / 2, this.scale.height / 2).setDisplaySize(this.scale.width, this.scale.height);
     this.skillTitleText.setText(narrowPortrait ? "Skills" : "Grass Skill Tree");
     this.skillTitleText.setFontSize(shortLandscape ? 25 : narrowPortrait ? 30 : 34);
     this.skillResourceText.setFontSize(shortLandscape || narrowPortrait ? 14 : 18);
