@@ -4,6 +4,7 @@ import { GRASS_TIERS, getGrassTier, getNextGrassTier } from "../data/grass-tiers
 import { BUILD_LABEL } from "../data/build-info";
 import { GOLD_STORE_ITEMS } from "../data/gold-store";
 import { MILESTONES } from "../data/milestones";
+import { QUESTS, formatQuestReward } from "../data/quests";
 import { SEED_SHOP_ITEMS, getSeedDropChance } from "../data/seed-shop";
 import { getSeasonForDate } from "../data/seasons";
 import { UPGRADES, canUnlockUpgrade, getUpgradeCost } from "../data/upgrades";
@@ -119,6 +120,17 @@ interface GoldStoreItemView {
   status: Phaser.GameObjects.Text;
 }
 
+interface QuestItemView {
+  questId: string;
+  container: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Rectangle;
+  name: Phaser.GameObjects.Text;
+  description: Phaser.GameObjects.Text;
+  progress: Phaser.GameObjects.Text;
+  reward: Phaser.GameObjects.Text;
+  claimButton: Phaser.GameObjects.Container;
+}
+
 interface WorldObjectView {
   id: string;
   quantity: number;
@@ -154,6 +166,7 @@ export class GameScene extends Phaser.Scene {
   private weatherParticles?: Phaser.GameObjects.Particles.ParticleEmitter;
   private activeWeatherVisualId?: WeatherId | "none";
   private skillButton!: Phaser.GameObjects.Container;
+  private questButton!: Phaser.GameObjects.Container;
   private seedButton!: Phaser.GameObjects.Container;
   private storeButton!: Phaser.GameObjects.Container;
   private optionsButton!: Phaser.GameObjects.Container;
@@ -194,6 +207,13 @@ export class GameScene extends Phaser.Scene {
   private storeStatusText!: Phaser.GameObjects.Text;
   private storeBackButton!: Phaser.GameObjects.Container;
   private storeItemViews = new Map<string, GoldStoreItemView>();
+  private questRoot!: Phaser.GameObjects.Container;
+  private questBackdrop!: Phaser.GameObjects.Rectangle;
+  private questTitleText!: Phaser.GameObjects.Text;
+  private questResourceText!: Phaser.GameObjects.Text;
+  private questStatusText!: Phaser.GameObjects.Text;
+  private questBackButton!: Phaser.GameObjects.Container;
+  private questItemViews = new Map<string, QuestItemView>();
   private optionsRoot!: Phaser.GameObjects.Container;
   private optionsBackdrop!: Phaser.GameObjects.Rectangle;
   private optionsPanel!: Phaser.GameObjects.Rectangle;
@@ -204,6 +224,7 @@ export class GameScene extends Phaser.Scene {
   private optionsVolumeHit!: Phaser.GameObjects.Rectangle;
   private optionsVolumeKnob!: Phaser.GameObjects.Arc;
   private optionsBackButton!: Phaser.GameObjects.Container;
+  private questScroll = 0;
   private seedShopScroll = 0;
   private storeScroll = 0;
   private resetArmed = false;
@@ -213,6 +234,7 @@ export class GameScene extends Phaser.Scene {
   private drops = new DropSystem();
   private audio = new AudioSystem();
   private skillTreeOpen = false;
+  private questLogOpen = false;
   private seedShopOpen = false;
   private storeOpen = false;
   private optionsOpen = false;
@@ -221,6 +243,7 @@ export class GameScene extends Phaser.Scene {
   private musicVolumeSliderX = 0;
   private musicVolumeSliderWidth = 1;
   private readyUnlockKeys = new Set<string>();
+  private readyQuestKeys = new Set<string>();
   private selectedSkillId = UPGRADES[0].id;
   private boardScale = 1;
   private boardZoom = 1;
@@ -304,6 +327,7 @@ export class GameScene extends Phaser.Scene {
     this.createWeatherVisuals();
     this.createTileInfoPanel();
     this.createSkillTree();
+    this.createQuestLog();
     this.createSeedShop();
     this.createGoldStore();
     this.createOptionsPanel();
@@ -313,6 +337,7 @@ export class GameScene extends Phaser.Scene {
     this.layoutSeedShop();
     this.refreshUi();
     this.readyUnlockKeys = this.getReadyUnlockKeys();
+    this.readyQuestKeys = this.getReadyQuestKeys();
     this.showMessage("Touch the grass. Let it regrow. Become reasonable.", 3600);
 
     this.scale.on("resize", () => {
@@ -322,13 +347,18 @@ export class GameScene extends Phaser.Scene {
       this.layoutWeatherVisuals();
       this.layoutTiles();
       this.layoutSkillTree();
+      this.layoutQuestLog();
       this.layoutSeedShop();
       this.layoutGoldStore();
       this.layoutOptionsPanel();
     });
 
     this.input.on("wheel", (pointer: Phaser.Input.Pointer, _objects: unknown[], _deltaX: number, deltaY: number) => {
-      if (this.optionsOpen) {
+      if (this.optionsOpen || this.questLogOpen) {
+        if (this.questLogOpen) {
+          this.questScroll = Math.max(0, this.questScroll + deltaY * 0.75);
+          this.layoutQuestLog();
+        }
         return;
       }
 
@@ -348,7 +378,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, gameObjects: Phaser.GameObjects.GameObject[]) => {
-      if (this.skillTreeOpen || this.seedShopOpen || this.storeOpen || this.optionsOpen || gameObjects.length > 0) {
+      if (this.hasBlockingOverlayOpen() || gameObjects.length > 0) {
         return;
       }
 
@@ -403,6 +433,7 @@ export class GameScene extends Phaser.Scene {
     this.updateSprinkler(delta, stats);
     this.updateAnimalCompanions(delta, stats);
     this.checkReadyUnlocks();
+    this.checkReadyQuests();
     this.refreshUi();
 
     this.lastAutoSaveAt += delta;
@@ -456,6 +487,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(20);
 
     this.skillButton = createTextButton(this, "Skills", () => this.openSkillTree(), 118, 44, 20);
+    this.questButton = createTextButton(this, "Quests", () => this.openQuestLog(), 118, 44, 20);
     this.seedButton = createTextButton(this, "Seeds", () => this.openSeedShop(), 118, 44, 20);
     this.storeButton = createTextButton(this, "Store", () => this.openGoldStore(), 118, 44, 20);
     this.optionsButton = createTextButton(this, "Options", () => this.openOptions(), 118, 44, 20);
@@ -554,9 +586,10 @@ export class GameScene extends Phaser.Scene {
     this.resourceText.setPosition(26, this.buildLabelText.y + this.buildLabelText.height + 8);
     this.milestoneText.setPosition(26, this.resourceText.y + this.resourceText.height + 12);
     this.skillButton.setPosition(this.scale.width - 142, 24);
-    this.seedButton.setPosition(this.scale.width - 142, 76);
-    this.storeButton.setPosition(this.scale.width - 142, 128);
-    this.optionsButton.setPosition(this.scale.width - 142, 180);
+    this.questButton.setPosition(this.scale.width - 142, 76);
+    this.seedButton.setPosition(this.scale.width - 142, 128);
+    this.storeButton.setPosition(this.scale.width - 142, 180);
+    this.optionsButton.setPosition(this.scale.width - 142, 232);
     this.layoutSeasonVisuals();
     this.layoutWeatherVisuals();
   }
@@ -569,7 +602,7 @@ export class GameScene extends Phaser.Scene {
     const season = getSeasonForDate(new Date());
     this.seasonTint.setSize(this.scale.width, this.scale.height);
     this.seasonTint.setFillStyle(season.color, season.alpha);
-    this.seasonTint.setVisible(!this.skillTreeOpen && !this.seedShopOpen && !this.storeOpen && !this.optionsOpen);
+    this.seasonTint.setVisible(!this.hasBlockingOverlayOpen());
   }
 
   private layoutWeatherVisuals(): void {
@@ -828,6 +861,131 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.drawSkillLines(treeScale, treeX, treeY);
+  }
+
+  private createQuestLog(): void {
+    this.questRoot?.destroy();
+    this.questItemViews.clear();
+
+    this.questRoot = this.add.container(0, 0).setDepth(104).setVisible(false);
+    this.questBackdrop = this.add
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x071b11, 0.98)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.questTitleText = this.add.text(0, 0, "Quest Log", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "34px",
+      color: "#f4df6a",
+      stroke: "#06190f",
+      strokeThickness: 6,
+    });
+    this.questResourceText = this.add.text(0, 0, "", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "18px",
+      color: "#f7ffe8",
+      backgroundColor: "#0f3d22",
+      padding: { x: 12, y: 8 },
+    });
+    this.questStatusText = this.add
+      .text(0, 0, "Complete small goals and claim the rewards.", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "16px",
+        color: "#dfffc8",
+        stroke: "#06190f",
+        strokeThickness: 4,
+      })
+      .setOrigin(0.5, 0);
+    this.questBackButton = createTextButton(this, "Back", () => this.closeQuestLog(), 118, 44, 105);
+    this.questRoot.add([this.questBackdrop, this.questTitleText, this.questResourceText, this.questStatusText, this.questBackButton]);
+
+    for (const quest of QUESTS) {
+      const container = this.add.container(0, 0);
+      const bg = this.add
+        .rectangle(0, 0, 460, 106, 0x12341c, 0.95)
+        .setOrigin(0, 0)
+        .setStrokeStyle(3, 0xb7eba5, 0.72);
+      const name = this.add.text(14, 10, quest.name, {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "20px",
+        color: "#f7ffe8",
+      });
+      const description = this.add.text(14, 38, quest.description, {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "13px",
+        color: "#d6e6d0",
+        wordWrap: { width: 278 },
+      });
+      const progress = this.add.text(14, 74, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "14px",
+        color: "#b7eba5",
+      });
+      const reward = this.add.text(300, 20, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "13px",
+        color: "#f4df6a",
+        align: "center",
+        wordWrap: { width: 140 },
+      });
+      const claimButton = createTextButton(this, "Claim", () => this.claimQuestReward(quest.id), 120, 36, 105);
+      claimButton.setPosition(312, 60);
+
+      container.add([bg, name, description, progress, reward, claimButton]);
+      this.questItemViews.set(quest.id, { questId: quest.id, container, bg, name, description, progress, reward, claimButton });
+      this.questRoot.add(container);
+    }
+
+    this.layoutQuestLog();
+  }
+
+  private layoutQuestLog(): void {
+    if (!this.questRoot) {
+      return;
+    }
+
+    const compact = this.scale.width < 620;
+    const panelWidth = Math.min(520, this.scale.width - 32);
+    const itemHeight = compact ? 126 : 106;
+    const itemGap = itemHeight + 10;
+    const startY = compact ? 150 : 154;
+    const availableHeight = Math.max(120, this.scale.height - startY - 22);
+    const totalHeight = QUESTS.length * itemGap;
+    const maxScroll = Math.max(0, totalHeight - availableHeight);
+    const x = (this.scale.width - panelWidth) / 2;
+    this.questScroll = Math.min(this.questScroll, maxScroll);
+    let y = startY - this.questScroll;
+
+    this.questBackdrop.setSize(this.scale.width, this.scale.height);
+    this.questTitleText.setFontSize(compact ? 30 : 34);
+    this.questResourceText.setFontSize(compact ? 14 : 18);
+    this.questStatusText.setFontSize(compact ? 13 : 16);
+    this.questStatusText.setWordWrapWidth(Math.max(240, this.scale.width - 48));
+    this.questTitleText.setPosition(24, 24);
+    this.questResourceText.setPosition(26, compact ? 72 : 78);
+    this.questStatusText.setPosition(this.scale.width / 2, compact ? 108 : 112);
+    this.questBackButton.setScale(compact ? 0.9 : 1);
+    this.questBackButton.setPosition(this.scale.width - 142, 24);
+
+    for (const view of this.questItemViews.values()) {
+      const claimX = panelWidth - 136;
+      const textWidth = Math.max(170, panelWidth - (compact ? 34 : 178));
+
+      view.bg.setSize(panelWidth, itemHeight);
+      view.name.setPosition(14, 10);
+      view.name.setFontSize(compact ? 18 : 20);
+      view.name.setWordWrapWidth(textWidth);
+      view.description.setPosition(14, compact ? 36 : 38);
+      view.description.setWordWrapWidth(textWidth);
+      view.progress.setPosition(14, compact ? 86 : 74);
+      view.reward.setPosition(compact ? 14 : claimX - 6, compact ? 64 : 18);
+      view.reward.setWordWrapWidth(compact ? textWidth : 140);
+      view.reward.setAlign(compact ? "left" : "center");
+      view.claimButton.setScale(compact ? 0.88 : 1);
+      view.claimButton.setPosition(compact ? panelWidth - 122 : claimX, compact ? 82 : 60);
+      view.container.setPosition(x, y);
+      view.container.setVisible(y > 118 - itemGap && y < this.scale.height + itemGap);
+      y += itemGap;
+    }
   }
 
   private createSeedShop(): void {
@@ -1154,6 +1312,10 @@ export class GameScene extends Phaser.Scene {
     return navigator.maxTouchPoints > 0;
   }
 
+  private hasBlockingOverlayOpen(): boolean {
+    return this.skillTreeOpen || this.questLogOpen || this.seedShopOpen || this.storeOpen || this.optionsOpen;
+  }
+
   private getSkillTreePoint(
     upgrade: (typeof UPGRADES)[number],
     treeScale: number,
@@ -1256,6 +1418,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private openSkillTree(): void {
+    this.closeQuestLog();
     this.closeSeedShop();
     this.closeGoldStore();
     this.closeOptions();
@@ -1273,8 +1436,27 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
   }
 
+  private openQuestLog(): void {
+    this.closeSkillTree();
+    this.closeSeedShop();
+    this.closeGoldStore();
+    this.closeOptions();
+    this.questLogOpen = true;
+    this.questScroll = 0;
+    this.questRoot.setVisible(true);
+    this.audio.play("upgrade");
+    this.refreshUi();
+  }
+
+  private closeQuestLog(): void {
+    this.questLogOpen = false;
+    this.questRoot?.setVisible(false);
+    this.refreshUi();
+  }
+
   private openSeedShop(): void {
     this.closeSkillTree();
+    this.closeQuestLog();
     this.closeGoldStore();
     this.closeOptions();
     this.seedShopOpen = true;
@@ -1292,6 +1474,7 @@ export class GameScene extends Phaser.Scene {
 
   private openGoldStore(): void {
     this.closeSkillTree();
+    this.closeQuestLog();
     this.closeSeedShop();
     this.closeOptions();
     this.storeOpen = true;
@@ -1309,6 +1492,7 @@ export class GameScene extends Phaser.Scene {
 
   private openOptions(): void {
     this.closeSkillTree();
+    this.closeQuestLog();
     this.closeSeedShop();
     this.closeGoldStore();
     this.optionsOpen = true;
@@ -1520,7 +1704,10 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
     this.showMessage("Fresh start. One patch. Infinite responsibility.", 2600);
     this.closeSkillTree();
+    this.closeQuestLog();
     this.closeSeedShop();
+    this.closeGoldStore();
+    this.closeOptions();
   }
 
   private resetBoardView(): void {
@@ -1868,7 +2055,7 @@ export class GameScene extends Phaser.Scene {
 
       const x = horizontal ? horizontalStartX + index * spacing : dockX;
       const y = horizontal ? horizontalY : verticalStartY + index * spacing;
-      view.container.setVisible(!this.skillTreeOpen && !this.seedShopOpen && !this.storeOpen && !this.optionsOpen);
+      view.container.setVisible(!this.hasBlockingOverlayOpen());
       view.container.setPosition(x, y);
       view.container.setScale(dockScale);
       view.shadow.setScale(1 + Math.sin(Date.now() * 0.002 + index) * 0.03, 1);
@@ -2047,7 +2234,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleTileClicked(tile: FieldTile): void {
-    if (this.skillTreeOpen || this.seedShopOpen || this.storeOpen || this.optionsOpen) {
+    if (this.hasBlockingOverlayOpen()) {
       return;
     }
 
@@ -2112,7 +2299,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateSprinkler(delta: number, stats: ReturnType<typeof getRuntimeStats>): void {
-    if (this.skillTreeOpen || this.seedShopOpen || this.storeOpen || this.optionsOpen) {
+    if (this.hasBlockingOverlayOpen()) {
       return;
     }
 
@@ -2134,7 +2321,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateAnimalCompanions(delta: number, stats: ReturnType<typeof getRuntimeStats>): void {
-    if (this.skillTreeOpen || this.seedShopOpen || this.storeOpen || this.optionsOpen) {
+    if (this.hasBlockingOverlayOpen()) {
       return;
     }
 
@@ -2223,11 +2410,11 @@ export class GameScene extends Phaser.Scene {
     const seconds = secondsLeft % 60;
     const timeText = `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
-    this.weatherBadge.setVisible(!this.skillTreeOpen && !this.seedShopOpen && !this.storeOpen && !this.optionsOpen);
+    this.weatherBadge.setVisible(!this.hasBlockingOverlayOpen());
     this.weatherBadgeTitle.setText(`Weather Jar: ${weather.name}`);
     this.weatherBadgeTitle.setColor(weather.color);
     this.weatherBadgeBody.setText(`${weather.description} (${timeText})`);
-    this.weatherTint.setVisible(!this.skillTreeOpen && !this.seedShopOpen && !this.storeOpen && !this.optionsOpen);
+    this.weatherTint.setVisible(!this.hasBlockingOverlayOpen());
     this.applyWeatherTint(weather.id);
 
     if (this.activeWeatherVisualId !== weather.id) {
@@ -2865,6 +3052,8 @@ export class GameScene extends Phaser.Scene {
 
   private refreshUi(): void {
     const nextMilestone = MILESTONES.find((milestone) => !this.state.reachedMilestones.includes(milestone.id));
+    const nextQuest = QUESTS.find((quest) => !this.state.claimedQuestIds.includes(quest.id));
+    const readyQuestCount = this.getReadyQuestKeys().size;
     const nextTier = getNextGrassTier(this.state);
     const weather = this.state.seedShopPurchases.weather_jar ? getWeather(this.state.activeWeatherId) : undefined;
     const season = getSeasonForDate(new Date());
@@ -2872,7 +3061,7 @@ export class GameScene extends Phaser.Scene {
     const resourceSeparator = compact ? "\n" : " | ";
 
     this.titleText.setText("Grass Touching Simulator");
-    this.ambientSpores?.setVisible(!this.skillTreeOpen && !this.seedShopOpen && !this.storeOpen && !this.optionsOpen);
+    this.ambientSpores?.setVisible(!this.hasBlockingOverlayOpen());
     this.layoutSeasonVisuals();
     this.refreshWeatherVisuals();
     this.resourceText.setText(
@@ -2885,6 +3074,7 @@ export class GameScene extends Phaser.Scene {
       ].join(resourceSeparator),
     );
     this.skillResourceText.setText(`Available Grass Touches: ${Math.floor(this.state.grassTouches)}`);
+    this.refreshQuestLog();
     this.refreshSeedShop();
     this.refreshGoldStore();
     this.syncWorldObjects();
@@ -2895,6 +3085,11 @@ export class GameScene extends Phaser.Scene {
           ? `Next surface spread: ${nextMilestone.name} at ${nextMilestone.requiredLifetimeTouches} lifetime touches`
           : "All prototype surface spreads discovered.",
         `Season: ${season.name} - ${season.description}`,
+        readyQuestCount > 0
+          ? `Quest ready: ${readyQuestCount} reward${readyQuestCount === 1 ? "" : "s"} waiting`
+          : nextQuest
+            ? `Next quest: ${nextQuest.name} - ${nextQuest.getProgress(this.state)}`
+            : "All current quests claimed.",
         nextTier ? `Next grass tier: ${nextTier.name} at ${nextTier.unlockAtLifetimeTouches} lifetime touches` : "",
         weather ? `Weather: ${weather.name} - ${weather.description}` : "",
       ]
@@ -2934,6 +3129,117 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.refreshSkillDetail();
+  }
+
+  private refreshQuestLog(): void {
+    const readyCount = QUESTS.filter((quest) => quest.isComplete(this.state) && !this.state.claimedQuestIds.includes(quest.id)).length;
+    const claimedCount = this.state.claimedQuestIds.length;
+
+    setTextButtonText(this.questButton, readyCount > 0 ? `Quests (${readyCount})` : "Quests");
+    this.questResourceText?.setText(`Claimed: ${claimedCount}/${QUESTS.length} | Ready: ${readyCount}`);
+
+    for (const quest of QUESTS) {
+      const view = this.questItemViews.get(quest.id);
+      if (!view) {
+        continue;
+      }
+
+      const complete = quest.isComplete(this.state);
+      const claimed = this.state.claimedQuestIds.includes(quest.id);
+
+      view.bg.setFillStyle(claimed ? 0x20351f : complete ? 0x1c4728 : 0x12341c, claimed ? 0.74 : 0.95);
+      view.bg.setStrokeStyle(3, claimed ? 0x51615a : complete ? 0xf4df6a : 0xb7eba5, complete ? 0.9 : 0.62);
+      view.container.setAlpha(claimed ? 0.72 : 1);
+      view.progress.setText(claimed ? "Claimed" : quest.getProgress(this.state));
+      view.progress.setColor(complete ? "#f4df6a" : "#b7eba5");
+      view.reward.setText(`Reward:\n${formatQuestReward(quest.reward)}`);
+      setTextButtonText(view.claimButton, claimed ? "Claimed" : complete ? "Claim" : "Locked");
+      setTextButtonEnabled(view.claimButton, complete && !claimed);
+    }
+  }
+
+  private claimQuestReward(questId: string): void {
+    const quest = QUESTS.find((candidate) => candidate.id === questId);
+
+    if (!quest || this.state.claimedQuestIds.includes(questId)) {
+      this.audio.play("blocked");
+      return;
+    }
+
+    if (!quest.isComplete(this.state)) {
+      this.questStatusText.setText("That quest is not ready yet.");
+      this.audio.play("blocked");
+      return;
+    }
+
+    this.state.claimedQuestIds.push(questId);
+    this.state.grassTouches += quest.reward.grassTouches ?? 0;
+    this.state.seeds += quest.reward.seeds ?? 0;
+    this.state.lifetimeSeeds += quest.reward.seeds ?? 0;
+    this.state.gold += quest.reward.gold ?? 0;
+    this.state.lifetimeGold += quest.reward.gold ?? 0;
+    this.questStatusText.setText(`${quest.name} claimed: ${formatQuestReward(quest.reward)}.`);
+    this.audio.play("milestone");
+    saveGame(this.state);
+    this.readyQuestKeys = this.getReadyQuestKeys();
+    this.playQuestClaimFeedback(questId);
+    this.refreshUi();
+  }
+
+  private playQuestClaimFeedback(questId: string): void {
+    const view = this.questItemViews.get(questId);
+    if (!view || !this.questLogOpen || !view.container.visible) {
+      this.bumpResourceHud();
+      return;
+    }
+
+    const x = view.container.x + view.bg.width / 2;
+    const y = view.container.y + view.bg.height / 2;
+    const burst = this.add
+      .star(x, y, 7, 12, 42, 0xf4df6a, 0.62)
+      .setStrokeStyle(2, 0xf7ffe8, 0.72)
+      .setDepth(118);
+    const pop = this.add
+      .text(x, y - 8, "claimed", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "18px",
+        color: "#f7ffe8",
+        stroke: "#06190f",
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5)
+      .setDepth(119);
+
+    this.tweens.killTweensOf(view.container);
+    view.container.setScale(1);
+    this.tweens.add({
+      targets: view.container,
+      scaleX: 1.018,
+      scaleY: 1.018,
+      duration: 75,
+      yoyo: true,
+      ease: "Sine.easeOut",
+      onComplete: () => view.container.setScale(1),
+    });
+    this.tweens.add({
+      targets: burst,
+      angle: 45,
+      scaleX: 1.35,
+      scaleY: 1.35,
+      alpha: 0,
+      duration: 420,
+      ease: "Sine.easeOut",
+      onComplete: () => burst.destroy(),
+    });
+    this.tweens.add({
+      targets: pop,
+      y: y - 40,
+      alpha: 0,
+      duration: 620,
+      ease: "Sine.easeOut",
+      onComplete: () => pop.destroy(),
+    });
+    this.bumpResourceHud();
   }
 
   private refreshSeedShop(): void {
@@ -3246,6 +3552,24 @@ export class GameScene extends Phaser.Scene {
     if (newlyReady) {
       this.audio.play("unlock");
     }
+  }
+
+  private getReadyQuestKeys(): Set<string> {
+    return new Set(QUESTS.filter((quest) => quest.isComplete(this.state) && !this.state.claimedQuestIds.includes(quest.id)).map((quest) => quest.id));
+  }
+
+  private checkReadyQuests(): void {
+    const currentKeys = this.getReadyQuestKeys();
+    const newlyReadyId = [...currentKeys].find((key) => !this.readyQuestKeys.has(key));
+    this.readyQuestKeys = currentKeys;
+
+    if (!newlyReadyId) {
+      return;
+    }
+
+    const quest = QUESTS.find((candidate) => candidate.id === newlyReadyId);
+    this.audio.play("unlock");
+    this.showMessage(quest ? `Quest complete: ${quest.name}. Claim it in the Quest Log.` : "Quest complete. Claim it in the Quest Log.", 3200);
   }
 
   private bumpSkillNode(upgradeId: string, success: boolean): void {

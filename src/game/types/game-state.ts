@@ -59,6 +59,7 @@ export interface GameState {
   seedShopPurchases: Record<string, boolean>;
   inventory: Record<string, InventoryEntry>;
   reachedMilestones: string[];
+  claimedQuestIds: string[];
   activeWeatherId?: WeatherId;
   weatherEndsAt?: number;
   lastSavedAt: number;

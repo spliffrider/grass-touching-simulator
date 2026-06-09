@@ -56,6 +56,9 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
     reachedMilestones: Array.isArray(saved.reachedMilestones)
       ? saved.reachedMilestones.filter((milestone): milestone is string => typeof milestone === "string")
       : initial.reachedMilestones,
+    claimedQuestIds: Array.isArray(saved.claimedQuestIds)
+      ? saved.claimedQuestIds.filter((questId): questId is string => typeof questId === "string")
+      : initial.claimedQuestIds,
     activeWeatherId: readWeatherId(saved.activeWeatherId, initial.activeWeatherId),
     weatherEndsAt: readNumber(saved.weatherEndsAt, initial.weatherEndsAt ?? 0),
     lastSavedAt: readNumber(saved.lastSavedAt, initial.lastSavedAt),

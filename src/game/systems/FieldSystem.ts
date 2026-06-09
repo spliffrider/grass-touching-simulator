@@ -89,6 +89,7 @@ export function createInitialState(): GameState {
     seedShopPurchases: {},
     inventory: {},
     reachedMilestones: [],
+    claimedQuestIds: [],
     activeWeatherId: "calm",
     weatherEndsAt: 0,
     lastSavedAt: Date.now(),

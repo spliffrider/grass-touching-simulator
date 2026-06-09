@@ -63,7 +63,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image("title-screen", "/assets/title-screen-emerald.png");
+    this.load.image("title-screen", "/assets/title-screen.png");
     this.load.image("panel-emerald", "/assets/ui/panel-emerald.png");
     this.load.image("title-selector-leaf", "/assets/title-selector-leaf.png");
     this.load.image("title-selector-flower", "/assets/title-selector-flower.png");
