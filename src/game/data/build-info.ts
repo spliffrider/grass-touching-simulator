@@ -1,1 +1,3 @@
-export const BUILD_LABEL = "Playtest build 2026-06-07";
+const buildDate = typeof __BUILD_DATE__ === "string" ? __BUILD_DATE__ : new Date().toISOString().slice(0, 10);
+
+export const BUILD_LABEL = `Playtest build ${buildDate}`;
