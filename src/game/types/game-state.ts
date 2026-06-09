@@ -19,7 +19,7 @@ export type WeatherId =
   | "golden_hour"
   | "restless_roots";
 
-export const CURRENT_SAVE_VERSION = 2;
+export const CURRENT_SAVE_VERSION = 3;
 
 export interface FieldTile {
   x: number;
@@ -45,6 +45,13 @@ export interface InventoryEntry {
   kind: InventoryItemKind;
 }
 
+export interface JournalState {
+  discoveredGrassTiers: GrassTierId[];
+  discoveredTileTraits: TileTrait[];
+  seenWeatherIds: WeatherId[];
+  bestComboCount: number;
+}
+
 export interface GameState {
   saveVersion: number;
   grassTouches: number;
@@ -60,6 +67,7 @@ export interface GameState {
   inventory: Record<string, InventoryEntry>;
   reachedMilestones: string[];
   claimedQuestIds: string[];
+  journal: JournalState;
   activeWeatherId?: WeatherId;
   weatherEndsAt?: number;
   lastSavedAt: number;

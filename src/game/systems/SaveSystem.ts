@@ -1,7 +1,7 @@
 import { createInitialState } from "./FieldSystem";
 import { getGrassTier } from "../data/grass-tiers";
 import { CURRENT_SAVE_VERSION } from "../types/game-state";
-import type { FieldTile, GameState, InventoryEntry, TileKey, UpgradeState, WeatherId } from "../types/game-state";
+import type { FieldTile, GameState, GrassTierId, InventoryEntry, JournalState, TileKey, TileTrait, UpgradeState, WeatherId } from "../types/game-state";
 
 const SAVE_KEY = "grass-touching-simulator.save.v1";
 
@@ -59,6 +59,7 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
     claimedQuestIds: Array.isArray(saved.claimedQuestIds)
       ? saved.claimedQuestIds.filter((questId): questId is string => typeof questId === "string")
       : initial.claimedQuestIds,
+    journal: readJournal(saved.journal, initial.journal),
     activeWeatherId: readWeatherId(saved.activeWeatherId, initial.activeWeatherId),
     weatherEndsAt: readNumber(saved.weatherEndsAt, initial.weatherEndsAt ?? 0),
     lastSavedAt: readNumber(saved.lastSavedAt, initial.lastSavedAt),
@@ -105,6 +106,52 @@ function readBooleanRecord(value: unknown): Record<string, boolean> {
   }
 
   return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean"));
+}
+
+function readJournal(value: unknown, fallback: JournalState): JournalState {
+  if (!isRecord(value)) {
+    return fallback;
+  }
+
+  return {
+    discoveredGrassTiers: readGrassTierArray(value.discoveredGrassTiers, fallback.discoveredGrassTiers),
+    discoveredTileTraits: readTileTraitArray(value.discoveredTileTraits, fallback.discoveredTileTraits),
+    seenWeatherIds: readWeatherIdArray(value.seenWeatherIds, fallback.seenWeatherIds),
+    bestComboCount: readNumber(value.bestComboCount, fallback.bestComboCount),
+  };
+}
+
+function readGrassTierArray(value: unknown, fallback: GrassTierId[]): GrassTierId[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const tiers = value.filter((tier): tier is GrassTierId => tier === "normal" || tier === "thick" || tier === "clover" || tier === "golden");
+  return unique(tiers.length > 0 ? tiers : fallback);
+}
+
+function readTileTraitArray(value: unknown, fallback: TileTrait[]): TileTrait[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const traits = value.filter((trait): trait is TileTrait => trait === "normal" || trait === "dewy" || trait === "lush");
+  return unique(traits.length > 0 ? traits : fallback);
+}
+
+function readWeatherIdArray(value: unknown, fallback: WeatherId[]): WeatherId[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const weatherIds = value
+    .map((weatherId) => readWeatherId(weatherId, undefined))
+    .filter((weatherId): weatherId is WeatherId => weatherId !== undefined);
+  return unique(weatherIds.length > 0 ? weatherIds : fallback);
+}
+
+function unique<T extends string>(values: T[]): T[] {
+  return [...new Set(values)];
 }
 
 function readNumber(value: unknown, fallback: number): number {

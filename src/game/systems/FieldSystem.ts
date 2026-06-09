@@ -90,6 +90,12 @@ export function createInitialState(): GameState {
     inventory: {},
     reachedMilestones: [],
     claimedQuestIds: [],
+    journal: {
+      discoveredGrassTiers: ["normal"],
+      discoveredTileTraits: ["normal"],
+      seenWeatherIds: ["calm"],
+      bestComboCount: 0,
+    },
     activeWeatherId: "calm",
     weatherEndsAt: 0,
     lastSavedAt: Date.now(),

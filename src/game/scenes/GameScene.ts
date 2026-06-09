@@ -3,12 +3,13 @@ import { DEFAULT_MUSIC_VOLUME, readStoredMusicVolume, writeStoredMusicVolume } f
 import { GRASS_TIERS, getGrassTier, getNextGrassTier } from "../data/grass-tiers";
 import { BUILD_LABEL } from "../data/build-info";
 import { GOLD_STORE_ITEMS } from "../data/gold-store";
+import { JOURNAL_COMPANION_NOTES, JOURNAL_GRASS_NOTES, JOURNAL_TRAIT_NOTES, JOURNAL_WEATHER_NOTES } from "../data/journal";
 import { MILESTONES } from "../data/milestones";
 import { QUESTS, formatQuestProgress, formatQuestReward, isQuestAvailable, isQuestClaimable } from "../data/quests";
 import { SEED_SHOP_ITEMS, getSeedDropChance } from "../data/seed-shop";
 import { getSeasonForDate } from "../data/seasons";
 import { UPGRADES, canUnlockUpgrade, getUpgradeCost } from "../data/upgrades";
-import { getWeather, pickWeather } from "../data/weather";
+import { WEATHER_TYPES, getWeather, pickWeather } from "../data/weather";
 import { expandField, getFieldBounds, getFieldTiles, getRegrowingTiles, tileKey, touchTile, updateRegrowth } from "../systems/FieldSystem";
 import { addInventoryItem, consumeInventoryItem, getInventoryQuantity } from "../systems/InventorySystem";
 import { AnimalCompanionSystem } from "../systems/AnimalCompanionSystem";
@@ -174,6 +175,7 @@ export class GameScene extends Phaser.Scene {
   private questButton!: Phaser.GameObjects.Container;
   private seedButton!: Phaser.GameObjects.Container;
   private storeButton!: Phaser.GameObjects.Container;
+  private journalButton!: Phaser.GameObjects.Container;
   private optionsButton!: Phaser.GameObjects.Container;
   private skillRoot!: Phaser.GameObjects.Container;
   private skillBackdrop!: Phaser.GameObjects.Rectangle;
@@ -219,6 +221,13 @@ export class GameScene extends Phaser.Scene {
   private questStatusText!: Phaser.GameObjects.Text;
   private questBackButton!: Phaser.GameObjects.Container;
   private questItemViews = new Map<string, QuestItemView>();
+  private journalRoot!: Phaser.GameObjects.Container;
+  private journalBackdrop!: Phaser.GameObjects.Rectangle;
+  private journalTitleText!: Phaser.GameObjects.Text;
+  private journalResourceText!: Phaser.GameObjects.Text;
+  private journalStatusText!: Phaser.GameObjects.Text;
+  private journalBodyText!: Phaser.GameObjects.Text;
+  private journalBackButton!: Phaser.GameObjects.Container;
   private optionsRoot!: Phaser.GameObjects.Container;
   private optionsBackdrop!: Phaser.GameObjects.Rectangle;
   private optionsPanel!: Phaser.GameObjects.Rectangle;
@@ -230,6 +239,7 @@ export class GameScene extends Phaser.Scene {
   private optionsVolumeKnob!: Phaser.GameObjects.Arc;
   private optionsBackButton!: Phaser.GameObjects.Container;
   private questScroll = 0;
+  private journalScroll = 0;
   private seedShopScroll = 0;
   private storeScroll = 0;
   private resetArmed = false;
@@ -241,6 +251,7 @@ export class GameScene extends Phaser.Scene {
   private audio = new AudioSystem();
   private skillTreeOpen = false;
   private questLogOpen = false;
+  private journalOpen = false;
   private seedShopOpen = false;
   private storeOpen = false;
   private optionsOpen = false;
@@ -322,6 +333,7 @@ export class GameScene extends Phaser.Scene {
   create(data?: { newGame?: boolean }): void {
     this.state = data?.newGame ? resetSave() : loadGame();
     this.musicVolume = readStoredMusicVolume();
+    this.updateJournalDiscoveries();
     saveGame(this.state);
 
     this.cameras.main.setBackgroundColor("#06190f");
@@ -334,6 +346,7 @@ export class GameScene extends Phaser.Scene {
     this.createTileInfoPanel();
     this.createSkillTree();
     this.createQuestLog();
+    this.createJournal();
     this.createSeedShop();
     this.createGoldStore();
     this.createOptionsPanel();
@@ -354,16 +367,21 @@ export class GameScene extends Phaser.Scene {
       this.layoutTiles();
       this.layoutSkillTree();
       this.layoutQuestLog();
+      this.layoutJournal();
       this.layoutSeedShop();
       this.layoutGoldStore();
       this.layoutOptionsPanel();
     });
 
     this.input.on("wheel", (pointer: Phaser.Input.Pointer, _objects: unknown[], _deltaX: number, deltaY: number) => {
-      if (this.optionsOpen || this.questLogOpen) {
+      if (this.optionsOpen || this.questLogOpen || this.journalOpen) {
         if (this.questLogOpen) {
           this.questScroll = Math.max(0, this.questScroll + deltaY * 0.75);
           this.layoutQuestLog();
+        }
+        if (this.journalOpen) {
+          this.journalScroll = Math.max(0, this.journalScroll + deltaY * 0.75);
+          this.layoutJournal();
         }
         return;
       }
@@ -437,10 +455,15 @@ export class GameScene extends Phaser.Scene {
 
     this.checkMilestones(stats);
     this.combo.update(now);
+    let journalChanged = this.updateJournalDiscoveries();
     this.updateSprinkler(delta, stats);
     this.updateAnimalCompanions(delta, stats);
     this.checkReadyUnlocks();
     this.checkReadyQuests();
+    journalChanged = this.updateJournalDiscoveries() || journalChanged;
+    if (journalChanged) {
+      saveGame(this.state);
+    }
     this.refreshUi();
 
     this.lastAutoSaveAt += delta;
@@ -514,6 +537,7 @@ export class GameScene extends Phaser.Scene {
     this.questButton = createTextButton(this, "Quests", () => this.openQuestLog(), 118, 44, 20);
     this.seedButton = createTextButton(this, "Seeds", () => this.openSeedShop(), 118, 44, 20);
     this.storeButton = createTextButton(this, "Store", () => this.openGoldStore(), 118, 44, 20);
+    this.journalButton = createTextButton(this, "Journal", () => this.openJournal(), 118, 44, 20);
     this.optionsButton = createTextButton(this, "Options", () => this.openOptions(), 118, 44, 20);
   }
 
@@ -614,7 +638,8 @@ export class GameScene extends Phaser.Scene {
     this.questButton.setPosition(this.scale.width - 142, 76);
     this.seedButton.setPosition(this.scale.width - 142, 128);
     this.storeButton.setPosition(this.scale.width - 142, 180);
-    this.optionsButton.setPosition(this.scale.width - 142, 232);
+    this.journalButton.setPosition(this.scale.width - 142, 232);
+    this.optionsButton.setPosition(this.scale.width - 142, this.state?.seedShopPurchases.field_journal ? 284 : 232);
     this.layoutSeasonVisuals();
     this.layoutWeatherVisuals();
   }
@@ -1033,6 +1058,87 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private createJournal(): void {
+    this.journalRoot?.destroy();
+
+    this.journalRoot = this.add.container(0, 0).setDepth(106).setVisible(false);
+    this.journalBackdrop = this.add
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x18321e, 1)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.journalTitleText = this.add.text(0, 0, "Field Journal", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "34px",
+      color: "#f7ffe8",
+      stroke: "#17491f",
+      strokeThickness: 6,
+    });
+    this.journalResourceText = this.add.text(0, 0, "", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "18px",
+      color: "#173b20",
+      backgroundColor: "#e9ffd0",
+      padding: { x: 12, y: 8 },
+    });
+    this.journalStatusText = this.add
+      .text(0, 0, "A living record of grass, weather, companions, and suspiciously productive habits.", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "16px",
+        color: "#f7ffe8",
+        stroke: "#17491f",
+        strokeThickness: 4,
+      })
+      .setOrigin(0.5, 0);
+    this.journalBodyText = this.add.text(0, 0, "", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "16px",
+      color: "#f7ffe8",
+      stroke: "#06190f",
+      strokeThickness: 3,
+      lineSpacing: 5,
+      wordWrap: { width: 620 },
+    });
+    this.journalBackButton = createTextButton(this, "Back", () => this.closeJournal(), 118, 44, 107);
+
+    this.journalRoot.add([
+      this.journalBackdrop,
+      this.journalTitleText,
+      this.journalResourceText,
+      this.journalStatusText,
+      this.journalBodyText,
+      this.journalBackButton,
+    ]);
+
+    this.layoutJournal();
+  }
+
+  private layoutJournal(): void {
+    if (!this.journalRoot) {
+      return;
+    }
+
+    const compact = this.scale.width < 620;
+    const panelWidth = Math.min(680, this.scale.width - 40);
+    const startY = compact ? 154 : 162;
+    const availableHeight = Math.max(120, this.scale.height - startY - 26);
+    const maxScroll = Math.max(0, this.journalBodyText.height - availableHeight);
+    this.journalScroll = Math.min(this.journalScroll, maxScroll);
+
+    this.journalBackdrop.setSize(this.scale.width, this.scale.height);
+    this.journalTitleText.setFontSize(compact ? 30 : 34);
+    this.journalResourceText.setFontSize(compact ? 14 : 18);
+    this.journalStatusText.setFontSize(compact ? 13 : 16);
+    this.journalStatusText.setWordWrapWidth(Math.max(240, this.scale.width - 48));
+    this.journalBodyText.setFontSize(compact ? 14 : 16);
+    this.journalBodyText.setWordWrapWidth(panelWidth);
+    this.journalTitleText.setPosition(24, 24);
+    this.journalResourceText.setPosition(26, compact ? 72 : 78);
+    this.journalStatusText.setPosition(this.scale.width / 2, compact ? 108 : 112);
+    this.journalBodyText.setPosition((this.scale.width - panelWidth) / 2, startY - this.journalScroll);
+    this.journalBackButton.setScale(compact ? 0.9 : 1);
+    this.journalBackButton.setPosition(this.scale.width - 142, 24);
+  }
+
   private createSeedShop(): void {
     this.seedRoot?.destroy();
     this.seedItemViews.clear();
@@ -1358,7 +1464,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private hasBlockingOverlayOpen(): boolean {
-    return this.skillTreeOpen || this.questLogOpen || this.seedShopOpen || this.storeOpen || this.optionsOpen;
+    return this.skillTreeOpen || this.questLogOpen || this.journalOpen || this.seedShopOpen || this.storeOpen || this.optionsOpen;
   }
 
   private getSkillTreePoint(
@@ -1464,6 +1570,7 @@ export class GameScene extends Phaser.Scene {
 
   private openSkillTree(): void {
     this.closeQuestLog();
+    this.closeJournal();
     this.closeSeedShop();
     this.closeGoldStore();
     this.closeOptions();
@@ -1483,6 +1590,7 @@ export class GameScene extends Phaser.Scene {
 
   private openQuestLog(): void {
     this.closeSkillTree();
+    this.closeJournal();
     this.closeSeedShop();
     this.closeGoldStore();
     this.closeOptions();
@@ -1499,9 +1607,35 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
   }
 
+  private openJournal(): void {
+    if (!this.state.seedShopPurchases.field_journal) {
+      this.showMessage("Buy the Field Journal in the Seed Shop first.", 2200);
+      this.audio.play("blocked");
+      return;
+    }
+
+    this.closeSkillTree();
+    this.closeQuestLog();
+    this.closeSeedShop();
+    this.closeGoldStore();
+    this.closeOptions();
+    this.journalOpen = true;
+    this.journalScroll = 0;
+    this.journalRoot.setVisible(true);
+    this.audio.play("upgrade");
+    this.refreshUi();
+  }
+
+  private closeJournal(): void {
+    this.journalOpen = false;
+    this.journalRoot?.setVisible(false);
+    this.refreshUi();
+  }
+
   private openSeedShop(): void {
     this.closeSkillTree();
     this.closeQuestLog();
+    this.closeJournal();
     this.closeGoldStore();
     this.closeOptions();
     this.seedShopOpen = true;
@@ -1520,6 +1654,7 @@ export class GameScene extends Phaser.Scene {
   private openGoldStore(): void {
     this.closeSkillTree();
     this.closeQuestLog();
+    this.closeJournal();
     this.closeSeedShop();
     this.closeOptions();
     this.storeOpen = true;
@@ -1538,6 +1673,7 @@ export class GameScene extends Phaser.Scene {
   private openOptions(): void {
     this.closeSkillTree();
     this.closeQuestLog();
+    this.closeJournal();
     this.closeSeedShop();
     this.closeGoldStore();
     this.optionsOpen = true;
@@ -2292,6 +2428,8 @@ export class GameScene extends Phaser.Scene {
     const touchedTrait = tile.trait;
     const touchedTier = getGrassTier(tile.tier);
     const now = Date.now();
+    this.addJournalValue(this.state.journal.discoveredGrassTiers, touchedTier.id);
+    this.addJournalValue(this.state.journal.discoveredTileTraits, touchedTrait);
     const touch = touchTile(tile, this.state, stats, now);
 
     if (touch.gained === 0) {
@@ -2302,6 +2440,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     const combo = this.combo.recordManualTouch(now, touch.gained);
+    if (combo.count > this.state.journal.bestComboCount) {
+      this.state.journal.bestComboCount = combo.count;
+    }
     if (combo.bonusTouches > 0) {
       this.state.grassTouches += combo.bonusTouches;
       this.state.lifetimeGrassTouches += combo.bonusTouches;
@@ -3176,6 +3317,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshComboBadge();
     this.skillResourceText.setText(`Available Grass Touches: ${Math.floor(this.state.grassTouches)}`);
     this.refreshQuestLog();
+    this.refreshJournal();
     this.refreshSeedShop();
     this.refreshGoldStore();
     this.syncWorldObjects();
@@ -3278,6 +3420,128 @@ export class GameScene extends Phaser.Scene {
       setTextButtonText(view.claimButton, claimed ? "Claimed" : complete ? "Claim" : "Locked");
       setTextButtonEnabled(view.claimButton, complete && !claimed);
     }
+  }
+
+  private refreshJournal(): void {
+    if (!this.journalRoot) {
+      return;
+    }
+
+    const journalUnlocked = this.state.seedShopPurchases.field_journal === true;
+    this.journalButton.setVisible(journalUnlocked);
+    this.journalButton.setPosition(this.scale.width - 142, 232);
+    this.optionsButton.setPosition(this.scale.width - 142, journalUnlocked ? 284 : 232);
+
+    const ownedCompanions = GOLD_STORE_ITEMS.filter((item) => item.kind === "animal" && getInventoryQuantity(this.state, item.id) > 0);
+    this.journalResourceText.setText(
+      [
+        `Grass: ${this.state.journal.discoveredGrassTiers.length}/${GRASS_TIERS.length}`,
+        `Weather: ${this.state.journal.seenWeatherIds.length}/${WEATHER_TYPES.length}`,
+        `Companions: ${ownedCompanions.length}/${GOLD_STORE_ITEMS.filter((item) => item.kind === "animal").length}`,
+      ].join(" | "),
+    );
+
+    this.journalBodyText.setText(
+      [
+        this.formatJournalGrassSection(),
+        this.formatJournalTraitSection(),
+        this.formatJournalWeatherSection(),
+        this.formatJournalCompanionSection(),
+        this.formatJournalProgressSection(),
+      ].join("\n\n"),
+    );
+    this.layoutJournal();
+  }
+
+  private updateJournalDiscoveries(): boolean {
+    let changed = false;
+
+    for (const tile of getFieldTiles(this.state)) {
+      changed = this.addJournalValue(this.state.journal.discoveredGrassTiers, tile.tier) || changed;
+      changed = this.addJournalValue(this.state.journal.discoveredTileTraits, tile.trait) || changed;
+    }
+
+    if (this.state.activeWeatherId) {
+      changed = this.addJournalValue(this.state.journal.seenWeatherIds, this.state.activeWeatherId) || changed;
+    }
+
+    if (this.combo.getCount() > this.state.journal.bestComboCount) {
+      this.state.journal.bestComboCount = this.combo.getCount();
+      changed = true;
+    }
+
+    return changed;
+  }
+
+  private addJournalValue<T extends string>(values: T[], value: T): boolean {
+    if (values.includes(value)) {
+      return false;
+    }
+
+    values.push(value);
+    return true;
+  }
+
+  private formatJournalGrassSection(): string {
+    return [
+      "Grass Specimens",
+      ...GRASS_TIERS.map((tier) =>
+        this.state.journal.discoveredGrassTiers.includes(tier.id)
+          ? `- ${tier.name}: ${JOURNAL_GRASS_NOTES[tier.id]}`
+          : `- Undiscovered grass at ${tier.unlockAtLifetimeTouches} lifetime touches.`,
+      ),
+    ].join("\n");
+  }
+
+  private formatJournalTraitSection(): string {
+    const traits: TileTrait[] = ["normal", "dewy", "lush"];
+
+    return [
+      "Tile Traits",
+      ...traits.map((trait) =>
+        this.state.journal.discoveredTileTraits.includes(trait)
+          ? `- ${this.formatTraitName(trait)}: ${JOURNAL_TRAIT_NOTES[trait]}`
+          : `- Unknown trait: Keep touching and regrowing patches.`,
+      ),
+    ].join("\n");
+  }
+
+  private formatJournalWeatherSection(): string {
+    return [
+      "Weather Observed",
+      ...WEATHER_TYPES.map((weather) =>
+        this.state.journal.seenWeatherIds.includes(weather.id)
+          ? `- ${weather.name}: ${JOURNAL_WEATHER_NOTES[weather.id]}`
+          : `- Unseen weather: ${this.state.seedShopPurchases.weather_jar ? "Wait for the Weather Jar to shift." : "Unlock the Weather Jar."}`,
+      ),
+    ].join("\n");
+  }
+
+  private formatJournalCompanionSection(): string {
+    const animals = GOLD_STORE_ITEMS.filter((item) => item.kind === "animal");
+
+    return [
+      "Companions",
+      ...animals.map((item) => {
+        const quantity = getInventoryQuantity(this.state, item.id);
+        return quantity > 0
+          ? `- ${item.name} x${quantity}: ${JOURNAL_COMPANION_NOTES[item.id] ?? item.description}`
+          : `- Undiscovered companion: ${item.isUnlocked(this.state) ? "Available in the Gold Store." : "Keep earning gold and meeting companions."}`;
+      }),
+    ].join("\n");
+  }
+
+  private formatJournalProgressSection(): string {
+    return [
+      "Progress Notes",
+      `- Milestones reached: ${this.state.reachedMilestones.length}/${MILESTONES.length}`,
+      `- Quests claimed: ${this.state.claimedQuestIds.length}/${QUESTS.length}`,
+      `- Best manual combo: ${this.state.journal.bestComboCount}`,
+    ].join("\n");
+  }
+
+  private formatTraitName(trait: TileTrait): string {
+    return trait === "dewy" ? "Dewy" : trait === "lush" ? "Lush" : "Normal";
   }
 
   private claimQuestReward(questId: string): void {
