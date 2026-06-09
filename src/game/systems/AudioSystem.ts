@@ -59,7 +59,7 @@ export class AudioSystem {
     this.playNow(name);
   }
 
-  playGrassTouch(tier: GrassTierId = "normal", trait: TileTrait = "normal", isCrit = false): void {
+  playGrassTouch(tier: GrassTierId = "normal", trait: TileTrait = "normal", isCrit = false, comboCount = 0): void {
     this.unlock();
 
     if (!this.context || !this.master) {
@@ -75,11 +75,11 @@ export class AudioSystem {
         .finally(() => {
           this.resumePromise = undefined;
         });
-      void this.resumePromise.then(() => this.playGrassTouchNow(tier, trait, isCrit));
+      void this.resumePromise.then(() => this.playGrassTouchNow(tier, trait, isCrit, comboCount));
       return;
     }
 
-    this.playGrassTouchNow(tier, trait, isCrit);
+    this.playGrassTouchNow(tier, trait, isCrit, comboCount);
   }
 
   private playNow(name: SoundName): void {
@@ -89,7 +89,7 @@ export class AudioSystem {
 
     switch (name) {
       case "touch":
-        this.playGrassTouchNow("normal", "normal", false);
+        this.playGrassTouchNow("normal", "normal", false, 0);
         break;
       case "regrow":
         this.playRegrow();
@@ -118,7 +118,7 @@ export class AudioSystem {
     }
   }
 
-  private playGrassTouchNow(tier: GrassTierId, trait: TileTrait, isCrit: boolean): void {
+  private playGrassTouchNow(tier: GrassTierId, trait: TileTrait, isCrit: boolean, comboCount: number): void {
     const now = this.now();
     const tierProfile = {
       normal: { low: 116, brush: 720, snap: 1900, volume: 1, tone: 245, duration: 1 },
@@ -134,20 +134,21 @@ export class AudioSystem {
     const tierSound = tierProfile[tier];
     const traitSound = traitProfile[trait];
     const critBoost = isCrit ? 1.22 : 1;
+    const comboPitch = 1 + Math.min(40, Math.max(0, comboCount)) * 0.006;
     const volume = tierSound.volume * traitSound.volume * critBoost;
 
-    this.playNoiseSweep(0.18 * tierSound.duration, tierSound.brush + traitSound.brushOffset + Math.random() * 280, 0.22 * volume, now);
-    this.playNoiseSweep(0.09, tierSound.snap + traitSound.snapOffset + Math.random() * 620, 0.085 * volume, now + 0.018);
-    this.playTone(tierSound.low + Math.random() * 26, 0.06, 0.075 * volume, "sine", now);
-    this.playTone(tierSound.tone + Math.random() * 75, 0.065, 0.048 * volume, "triangle", now + 0.02);
+    this.playNoiseSweep(0.18 * tierSound.duration, (tierSound.brush + traitSound.brushOffset + Math.random() * 280) * comboPitch, 0.22 * volume, now);
+    this.playNoiseSweep(0.09, (tierSound.snap + traitSound.snapOffset + Math.random() * 620) * comboPitch, 0.085 * volume, now + 0.018);
+    this.playTone((tierSound.low + Math.random() * 26) * comboPitch, 0.06, 0.075 * volume, "sine", now);
+    this.playTone((tierSound.tone + Math.random() * 75) * comboPitch, 0.065, 0.048 * volume, "triangle", now + 0.02);
 
     if (traitSound.extraPing > 0) {
-      this.playTone(traitSound.extraPing + Math.random() * 80, 0.055, 0.032 * volume, trait === "dewy" ? "sine" : "triangle", now + 0.04);
+      this.playTone((traitSound.extraPing + Math.random() * 80) * comboPitch, 0.055, 0.032 * volume, trait === "dewy" ? "sine" : "triangle", now + 0.04);
     }
 
     if (tier === "golden") {
-      this.playTone(880 + Math.random() * 130, 0.12, 0.04 * critBoost, "sine", now + 0.055);
-      this.playTone(1320 + Math.random() * 160, 0.1, 0.025 * critBoost, "sine", now + 0.1);
+      this.playTone((880 + Math.random() * 130) * comboPitch, 0.12, 0.04 * critBoost, "sine", now + 0.055);
+      this.playTone((1320 + Math.random() * 160) * comboPitch, 0.1, 0.025 * critBoost, "sine", now + 0.1);
     }
 
     if (isCrit) {

@@ -4,7 +4,7 @@ import { GRASS_TIERS, getGrassTier, getNextGrassTier } from "../data/grass-tiers
 import { BUILD_LABEL } from "../data/build-info";
 import { GOLD_STORE_ITEMS } from "../data/gold-store";
 import { MILESTONES } from "../data/milestones";
-import { QUESTS, formatQuestReward } from "../data/quests";
+import { QUESTS, formatQuestProgress, formatQuestReward, isQuestAvailable, isQuestClaimable } from "../data/quests";
 import { SEED_SHOP_ITEMS, getSeedDropChance } from "../data/seed-shop";
 import { getSeasonForDate } from "../data/seasons";
 import { UPGRADES, canUnlockUpgrade, getUpgradeCost } from "../data/upgrades";
@@ -13,6 +13,7 @@ import { expandField, getFieldBounds, getFieldTiles, getRegrowingTiles, tileKey,
 import { addInventoryItem, consumeInventoryItem, getInventoryQuantity } from "../systems/InventorySystem";
 import { AnimalCompanionSystem } from "../systems/AnimalCompanionSystem";
 import { AudioSystem } from "../systems/AudioSystem";
+import { ComboSystem, type ComboResult } from "../systems/ComboSystem";
 import { DropSystem, type DropFeedback } from "../systems/DropSystem";
 import { loadGame, resetSave, saveGame } from "../systems/SaveSystem";
 import { SprinklerSystem } from "../systems/SprinklerSystem";
@@ -156,6 +157,10 @@ export class GameScene extends Phaser.Scene {
   private titleText!: Phaser.GameObjects.Text;
   private buildLabelText!: Phaser.GameObjects.Text;
   private resourceText!: Phaser.GameObjects.Text;
+  private comboBadge!: Phaser.GameObjects.Container;
+  private comboBadgeBg!: Phaser.GameObjects.Rectangle;
+  private comboBadgeText!: Phaser.GameObjects.Text;
+  private comboBadgeMeter!: Phaser.GameObjects.Rectangle;
   private milestoneText!: Phaser.GameObjects.Text;
   private seasonTint!: Phaser.GameObjects.Rectangle;
   private weatherTint!: Phaser.GameObjects.Rectangle;
@@ -231,6 +236,7 @@ export class GameScene extends Phaser.Scene {
   private lastAutoSaveAt = 0;
   private sprinkler = new SprinklerSystem();
   private animalCompanions = new AnimalCompanionSystem();
+  private combo = new ComboSystem();
   private drops = new DropSystem();
   private audio = new AudioSystem();
   private skillTreeOpen = false;
@@ -430,6 +436,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.checkMilestones(stats);
+    this.combo.update(now);
     this.updateSprinkler(delta, stats);
     this.updateAnimalCompanions(delta, stats);
     this.checkReadyUnlocks();
@@ -474,6 +481,23 @@ export class GameScene extends Phaser.Scene {
         padding: { x: 12, y: 8 },
       })
       .setDepth(20);
+
+    this.comboBadge = this.add.container(0, 0).setDepth(22).setVisible(false);
+    this.comboBadgeBg = this.add
+      .rectangle(0, 0, 178, 40, 0x12341c, 0.94)
+      .setOrigin(0, 0.5)
+      .setStrokeStyle(2, 0xf4df6a, 0.78);
+    this.comboBadgeText = this.add
+      .text(12, -10, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "16px",
+        color: "#f7ffe8",
+        stroke: "#06190f",
+        strokeThickness: 3,
+      })
+      .setOrigin(0, 0.5);
+    this.comboBadgeMeter = this.add.rectangle(12, 12, 0, 4, 0xf4df6a, 0.92).setOrigin(0, 0.5);
+    this.comboBadge.add([this.comboBadgeBg, this.comboBadgeText, this.comboBadgeMeter]);
 
     this.milestoneText = this.add
       .text(26, 108, "", {
@@ -578,13 +602,14 @@ export class GameScene extends Phaser.Scene {
     this.buildLabelText.setWordWrapWidth(headerWidth);
     this.resourceText.setFontSize(compact ? 15 : 18);
     this.resourceText.setWordWrapWidth(headerWidth);
+    this.comboBadgeText.setFontSize(compact ? 14 : 16);
     this.milestoneText.setFontSize(compact ? 13 : 16);
     this.milestoneText.setWordWrapWidth(headerWidth);
 
     this.titleText.setPosition(24, compact ? 18 : 18);
     this.buildLabelText.setPosition(26, this.titleText.y + this.titleText.height + 1);
     this.resourceText.setPosition(26, this.buildLabelText.y + this.buildLabelText.height + 8);
-    this.milestoneText.setPosition(26, this.resourceText.y + this.resourceText.height + 12);
+    this.milestoneText.setPosition(26, this.layoutComboBadge());
     this.skillButton.setPosition(this.scale.width - 142, 24);
     this.questButton.setPosition(this.scale.width - 142, 76);
     this.seedButton.setPosition(this.scale.width - 142, 128);
@@ -592,6 +617,26 @@ export class GameScene extends Phaser.Scene {
     this.optionsButton.setPosition(this.scale.width - 142, 232);
     this.layoutSeasonVisuals();
     this.layoutWeatherVisuals();
+  }
+
+  private layoutComboBadge(): number {
+    const compact = this.scale.width < 760;
+    const badgeWidth = compact ? 158 : 178;
+    const badgeHeight = compact ? 36 : 40;
+    const resourceBottom = this.resourceText.y + this.resourceText.height;
+    const rightUiLeft = this.scale.width - 156;
+    const fitsRight = !compact && this.resourceText.x + this.resourceText.width + badgeWidth + 22 < rightUiLeft;
+
+    this.comboBadgeBg.setSize(badgeWidth, badgeHeight);
+    this.comboBadgeMeter.setPosition(12, compact ? 10 : 12);
+
+    if (fitsRight) {
+      this.comboBadge.setPosition(this.resourceText.x + this.resourceText.width + 12, this.resourceText.y + this.resourceText.height / 2);
+      return resourceBottom + 12;
+    }
+
+    this.comboBadge.setPosition(26, resourceBottom + 24);
+    return resourceBottom + badgeHeight + 20;
   }
 
   private layoutSeasonVisuals(): void {
@@ -904,7 +949,7 @@ export class GameScene extends Phaser.Scene {
         .rectangle(0, 0, 460, 106, 0x12341c, 0.95)
         .setOrigin(0, 0)
         .setStrokeStyle(3, 0xb7eba5, 0.72);
-      const name = this.add.text(14, 10, quest.name, {
+      const name = this.add.text(14, 10, `${quest.category}: ${quest.name}`, {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "20px",
         color: "#f7ffe8",
@@ -1688,6 +1733,7 @@ export class GameScene extends Phaser.Scene {
     this.state = resetSave();
     this.sprinkler.reset();
     this.animalCompanions.reset();
+    this.combo.reset();
     this.resetBoardView();
     this.tileViews.forEach((view) => {
       view.base.destroy();
@@ -2245,7 +2291,8 @@ export class GameScene extends Phaser.Scene {
     const stats = getRuntimeStats(this.state);
     const touchedTrait = tile.trait;
     const touchedTier = getGrassTier(tile.tier);
-    const touch = touchTile(tile, this.state, stats, Date.now());
+    const now = Date.now();
+    const touch = touchTile(tile, this.state, stats, now);
 
     if (touch.gained === 0) {
       this.popAtTile(tile, "regrowing", "#fff2b2");
@@ -2254,16 +2301,23 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const combo = this.combo.recordManualTouch(now, touch.gained);
+    if (combo.bonusTouches > 0) {
+      this.state.grassTouches += combo.bonusTouches;
+      this.state.lifetimeGrassTouches += combo.bonusTouches;
+    }
+
     this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     this.refreshTile(tile);
     this.popAtTile(tile, this.getTouchPopText(touch, touchedTier.label), touch.isCrit ? "#ffef78" : touchedTier.id === "normal" ? "#f9ffe5" : "#dfffc8");
+    this.playComboFeedback(tile, combo);
     if (touch.instantRegrown) {
       this.popAtTile(tile, "instant regrow", "#dfffc8");
     }
     this.drops.tryDropSeed(this.state, tile, touchedTrait, stats, this.getDropFeedback());
     this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier.id, touch, stats, this.getDropFeedback());
     this.shakeForGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
-    this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
+    this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, combo.count);
     saveGame(this.state);
   }
 
@@ -2365,6 +2419,52 @@ export class GameScene extends Phaser.Scene {
   private getTouchPopText(touch: TouchResult, label: string): string {
     const prefix = [label, touch.doubled ? "DOUBLE" : "", touch.isCrit ? `CRIT x${touch.critMultiplier.toFixed(1)}` : ""].filter(Boolean).join(" ");
     return `${prefix ? `${prefix} ` : ""}+${touch.gained}`;
+  }
+
+  private playComboFeedback(tile: FieldTile, combo: ComboResult): void {
+    if (combo.count < 2) {
+      return;
+    }
+
+    if (combo.bonusTouches > 0) {
+      this.popAtTile(tile, `combo +${combo.bonusTouches}`, "#f4df6a");
+    } else {
+      this.popAtTile(tile, `${combo.count} combo`, "#b7eba5");
+    }
+
+    this.refreshComboBadge();
+    this.bumpComboBadge();
+
+    if (!combo.thresholdReached) {
+      return;
+    }
+
+    const multiplier = combo.multiplier.toFixed(combo.multiplier >= 2 ? 0 : 2);
+    this.showMessage(`${combo.thresholdReached} combo! Touch streak x${multiplier}.`, 1600);
+    this.audio.play(combo.thresholdReached >= 15 ? "unlock" : "crit");
+
+    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    if (view) {
+      this.emitBurst("crit-fleck", view.label.x, view.label.y - 12, 26, 1.1 + Math.min(1, combo.thresholdReached / 40), 0.16);
+    }
+  }
+
+  private bumpComboBadge(): void {
+    if (!this.comboBadge.visible) {
+      return;
+    }
+
+    this.tweens.killTweensOf(this.comboBadge);
+    this.comboBadge.setScale(1);
+    this.tweens.add({
+      targets: this.comboBadge,
+      scaleX: 1.05,
+      scaleY: 1.05,
+      duration: 70,
+      yoyo: true,
+      ease: "Sine.easeOut",
+      onComplete: () => this.comboBadge.setScale(1),
+    });
   }
 
   private updateWeather(now: number, announce: boolean): void {
@@ -3052,7 +3152,7 @@ export class GameScene extends Phaser.Scene {
 
   private refreshUi(): void {
     const nextMilestone = MILESTONES.find((milestone) => !this.state.reachedMilestones.includes(milestone.id));
-    const nextQuest = QUESTS.find((quest) => !this.state.claimedQuestIds.includes(quest.id));
+    const nextQuest = QUESTS.find((quest) => !this.state.claimedQuestIds.includes(quest.id) && isQuestAvailable(this.state, quest));
     const readyQuestCount = this.getReadyQuestKeys().size;
     const nextTier = getNextGrassTier(this.state);
     const weather = this.state.seedShopPurchases.weather_jar ? getWeather(this.state.activeWeatherId) : undefined;
@@ -3073,6 +3173,7 @@ export class GameScene extends Phaser.Scene {
         `Patches: ${Object.keys(this.state.field).length}`,
       ].join(resourceSeparator),
     );
+    this.refreshComboBadge();
     this.skillResourceText.setText(`Available Grass Touches: ${Math.floor(this.state.grassTouches)}`);
     this.refreshQuestLog();
     this.refreshSeedShop();
@@ -3088,7 +3189,7 @@ export class GameScene extends Phaser.Scene {
         readyQuestCount > 0
           ? `Quest ready: ${readyQuestCount} reward${readyQuestCount === 1 ? "" : "s"} waiting`
           : nextQuest
-            ? `Next quest: ${nextQuest.name} - ${nextQuest.getProgress(this.state)}`
+            ? `Next quest: ${nextQuest.name} - ${formatQuestProgress(nextQuest, this.state)}`
             : "All current quests claimed.",
         nextTier ? `Next grass tier: ${nextTier.name} at ${nextTier.unlockAtLifetimeTouches} lifetime touches` : "",
         weather ? `Weather: ${weather.name} - ${weather.description}` : "",
@@ -3096,7 +3197,7 @@ export class GameScene extends Phaser.Scene {
         .filter(Boolean)
         .join("\n"),
     );
-    this.milestoneText.setPosition(26, this.resourceText.y + this.resourceText.height + 12);
+    this.milestoneText.setPosition(26, this.layoutComboBadge());
 
     for (const upgrade of UPGRADES) {
       const view = this.skillNodeViews.get(upgrade.id);
@@ -3131,8 +3232,28 @@ export class GameScene extends Phaser.Scene {
     this.refreshSkillDetail();
   }
 
+  private refreshComboBadge(): void {
+    const count = this.combo.getCount();
+    const show = count >= 2 && !this.hasBlockingOverlayOpen();
+    this.comboBadge.setVisible(show);
+
+    if (!show) {
+      return;
+    }
+
+    const multiplier = this.combo.getMultiplier();
+    const remaining = Phaser.Math.Clamp((this.combo.getExpiresAt() - Date.now()) / this.combo.getWindowMs(), 0, 1);
+    const badgeWidth = this.comboBadgeBg.width;
+    const meterWidth = Math.max(8, (badgeWidth - 24) * remaining);
+    const multiplierText = multiplier > 1 ? ` x${multiplier.toFixed(multiplier >= 2 ? 0 : 2)}` : "";
+
+    this.comboBadgeText.setText(`Combo ${count}${multiplierText}`);
+    this.comboBadgeMeter.setSize(meterWidth, 4);
+    this.comboBadgeMeter.setFillStyle(multiplier > 1 ? 0xf4df6a : 0xb7eba5, 0.92);
+  }
+
   private refreshQuestLog(): void {
-    const readyCount = QUESTS.filter((quest) => quest.isComplete(this.state) && !this.state.claimedQuestIds.includes(quest.id)).length;
+    const readyCount = QUESTS.filter((quest) => isQuestClaimable(this.state, quest)).length;
     const claimedCount = this.state.claimedQuestIds.length;
 
     setTextButtonText(this.questButton, readyCount > 0 ? `Quests (${readyCount})` : "Quests");
@@ -3144,14 +3265,15 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
 
-      const complete = quest.isComplete(this.state);
+      const available = isQuestAvailable(this.state, quest);
+      const complete = available && quest.isComplete(this.state);
       const claimed = this.state.claimedQuestIds.includes(quest.id);
 
-      view.bg.setFillStyle(claimed ? 0x20351f : complete ? 0x1c4728 : 0x12341c, claimed ? 0.74 : 0.95);
-      view.bg.setStrokeStyle(3, claimed ? 0x51615a : complete ? 0xf4df6a : 0xb7eba5, complete ? 0.9 : 0.62);
-      view.container.setAlpha(claimed ? 0.72 : 1);
-      view.progress.setText(claimed ? "Claimed" : quest.getProgress(this.state));
-      view.progress.setColor(complete ? "#f4df6a" : "#b7eba5");
+      view.bg.setFillStyle(claimed ? 0x20351f : complete ? 0x1c4728 : available ? 0x12341c : 0x14231a, claimed ? 0.74 : 0.95);
+      view.bg.setStrokeStyle(3, claimed ? 0x51615a : complete ? 0xf4df6a : available ? 0xb7eba5 : 0x496455, complete ? 0.9 : 0.62);
+      view.container.setAlpha(claimed ? 0.72 : available ? 1 : 0.78);
+      view.progress.setText(claimed ? "Claimed" : formatQuestProgress(quest, this.state));
+      view.progress.setColor(complete ? "#f4df6a" : available ? "#b7eba5" : "#8ea594");
       view.reward.setText(`Reward:\n${formatQuestReward(quest.reward)}`);
       setTextButtonText(view.claimButton, claimed ? "Claimed" : complete ? "Claim" : "Locked");
       setTextButtonEnabled(view.claimButton, complete && !claimed);
@@ -3166,7 +3288,13 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (!quest.isComplete(this.state)) {
+    if (!isQuestAvailable(this.state, quest)) {
+      this.questStatusText.setText(formatQuestProgress(quest, this.state));
+      this.audio.play("blocked");
+      return;
+    }
+
+    if (!isQuestClaimable(this.state, quest)) {
       this.questStatusText.setText("That quest is not ready yet.");
       this.audio.play("blocked");
       return;
@@ -3555,7 +3683,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getReadyQuestKeys(): Set<string> {
-    return new Set(QUESTS.filter((quest) => quest.isComplete(this.state) && !this.state.claimedQuestIds.includes(quest.id)).map((quest) => quest.id));
+    return new Set(QUESTS.filter((quest) => isQuestClaimable(this.state, quest)).map((quest) => quest.id));
   }
 
   private checkReadyQuests(): void {
