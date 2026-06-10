@@ -33,6 +33,9 @@ const COMBO_AOE_MIN_COUNT = 10;
 const COMBO_AOE_HIGH_COUNT = 20;
 const COMBO_AOE_CHANCE = 0.25;
 const COMBO_AOE_HIGH_CHANCE = 0.5;
+const PERFECT_TOUCH_WINDOW_MS = 800;
+const PERFECT_TOUCH_BONUS_MULTIPLIER = 0.5;
+const GOLDEN_HOUR_PERFECT_GOLD_CHANCE = 0.35;
 const COMBO_AOE_NEIGHBORS = [
   { x: -1, y: -1 },
   { x: 0, y: -1 },
@@ -85,6 +88,7 @@ const GOLD_STORE_ICON_KEYS: Record<string, string> = {
   chicken: "world-chicken",
   sheep: "world-sheep",
   meadow_rabbit: "world-meadow-rabbit",
+  earthworm: "world-earthworm",
 };
 
 const WORLD_OBJECTS = [
@@ -94,6 +98,7 @@ const WORLD_OBJECTS = [
   { id: "sheep", textureKey: "world-sheep", label: "sheep", kind: "inventory" },
   { id: "field_mouse", textureKey: "world-field-mouse", label: "mouse", kind: "inventory" },
   { id: "meadow_rabbit", textureKey: "world-meadow-rabbit", label: "rabbit", kind: "inventory" },
+  { id: "earthworm", textureKey: "world-earthworm", label: "worm", kind: "inventory" },
 ] satisfies Array<{ id: string; textureKey: string; label: string; kind: "seed" | "inventory" }>;
 
 interface TileView {
@@ -166,6 +171,8 @@ interface SkillBranchLabelView {
 export class GameScene extends Phaser.Scene {
   private state!: GameState;
   private tileViews = new Map<TileKey, TileView>();
+  private recentlyRegrownAt = new Map<TileKey, number>();
+  private perfectTouchCues = new Map<TileKey, Phaser.GameObjects.GameObject[]>();
   private worldObjectViews = new Map<string, WorldObjectView>();
   private emeraldBackground!: Phaser.GameObjects.Image;
   private ambientSpores?: Phaser.GameObjects.Particles.ParticleEmitter;
@@ -315,6 +322,7 @@ export class GameScene extends Phaser.Scene {
     this.load.image("world-field-mouse", "/assets/world/field-mouse.png");
     this.load.image("world-meadow-rabbit", "/assets/world/meadow-rabbit.png");
     this.load.image("world-sheep", "/assets/world/sheep.png");
+    this.load.image("world-earthworm", "/assets/world/earthworm.png");
     this.load.image("emerald-bg", "/assets/ui/emerald-bg.png");
     this.load.image("panel-emerald", "/assets/ui/panel-emerald.png");
     this.load.image("button-emerald-normal", "/assets/ui/button-emerald-normal.png");
@@ -458,6 +466,7 @@ export class GameScene extends Phaser.Scene {
     const regrown = updateRegrowth(this.state, stats, now);
 
     for (const tile of regrown) {
+      this.markRecentlyRegrown(tile, now);
       this.refreshTile(tile);
       this.playRegrowFeedback(tile);
       this.popAtTile(tile, tile.trait === "lush" ? "lush" : tile.trait === "dewy" ? "dew" : "grass", "#e7ffd1");
@@ -469,6 +478,7 @@ export class GameScene extends Phaser.Scene {
 
     this.checkMilestones(stats);
     this.combo.update(now);
+    this.pruneRecentlyRegrown(now);
     let journalChanged = this.updateJournalDiscoveries();
     this.updateSprinkler(delta, stats);
     this.updateAnimalCompanions(delta, stats);
@@ -1884,6 +1894,8 @@ export class GameScene extends Phaser.Scene {
     this.sprinkler.reset();
     this.animalCompanions.reset();
     this.combo.reset();
+    this.recentlyRegrownAt.clear();
+    this.destroyAllPerfectTouchCues();
     this.resetBoardView();
     this.tileViews.forEach((view) => {
       view.base.destroy();
@@ -2220,6 +2232,23 @@ export class GameScene extends Phaser.Scene {
       return [seed];
     }
 
+    if (id === "earthworm") {
+      const dirt = this.add.image(18, -5, "dust-fleck").setScale(1.1).setAlpha(0.46);
+
+      this.tweens.add({
+        targets: dirt,
+        x: 10,
+        y: -2,
+        alpha: 0.12,
+        duration: 960,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+
+      return [dirt];
+    }
+
     return [];
   }
 
@@ -2461,10 +2490,28 @@ export class GameScene extends Phaser.Scene {
       this.state.grassTouches += combo.bonusTouches;
       this.state.lifetimeGrassTouches += combo.bonusTouches;
     }
+    const perfectTouchBonus = this.consumePerfectTouchBonus(tile, touch.gained, now);
+    if (perfectTouchBonus > 0) {
+      this.state.grassTouches += perfectTouchBonus;
+      this.state.lifetimeGrassTouches += perfectTouchBonus;
+    }
+    const perfectGoldBonus = perfectTouchBonus > 0 ? this.rollPerfectTouchGoldBonus(touch.gained) : 0;
+    if (perfectGoldBonus > 0) {
+      this.state.gold += perfectGoldBonus;
+      this.state.lifetimeGold += perfectGoldBonus;
+    }
 
     this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     this.refreshTile(tile);
     this.popAtTile(tile, this.getTouchPopText(touch, touchedTier.label), touch.isCrit ? "#ffef78" : touchedTier.id === "normal" ? "#f9ffe5" : "#dfffc8");
+    if (perfectTouchBonus > 0) {
+      this.playPerfectTouchFeedback(tile, perfectTouchBonus);
+      if (perfectGoldBonus > 0) {
+        this.popAtTile(tile, `golden +${perfectGoldBonus}`, "#ffef78");
+        this.emitGoldBurst(tile, perfectGoldBonus);
+        this.audio.play("gold");
+      }
+    }
     this.playComboFeedback(tile, combo);
     if (touch.instantRegrown) {
       this.popAtTile(tile, "instant regrow", "#dfffc8");
@@ -2475,6 +2522,120 @@ export class GameScene extends Phaser.Scene {
     this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, combo.count);
     this.tryComboAoeTouch(tile, stats, combo.count, now);
     saveGame(this.state);
+  }
+
+  private markRecentlyRegrown(tile: FieldTile, now: number): void {
+    const key = tileKey(tile.x, tile.y);
+    this.recentlyRegrownAt.set(key, now);
+    this.showPerfectTouchCue(tile, key);
+  }
+
+  private pruneRecentlyRegrown(now: number): void {
+    const perfectTouchWindowMs = this.getPerfectTouchWindowMs();
+    for (const [key, regrownAt] of this.recentlyRegrownAt) {
+      if (now - regrownAt > perfectTouchWindowMs) {
+        this.recentlyRegrownAt.delete(key);
+        this.destroyPerfectTouchCue(key);
+      }
+    }
+  }
+
+  private consumePerfectTouchBonus(tile: FieldTile, baseTouches: number, now: number): number {
+    const key = tileKey(tile.x, tile.y);
+    const regrownAt = this.recentlyRegrownAt.get(key);
+    this.recentlyRegrownAt.delete(key);
+    this.destroyPerfectTouchCue(key);
+
+    if (regrownAt === undefined || now - regrownAt > this.getPerfectTouchWindowMs()) {
+      return 0;
+    }
+
+    return Math.max(1, Math.floor(baseTouches * PERFECT_TOUCH_BONUS_MULTIPLIER));
+  }
+
+  private rollPerfectTouchGoldBonus(baseTouches: number): number {
+    if (!this.isWeatherActive("golden_hour") || Math.random() >= GOLDEN_HOUR_PERFECT_GOLD_CHANCE) {
+      return 0;
+    }
+
+    return Math.max(1, Math.floor(baseTouches * 0.25));
+  }
+
+  private getPerfectTouchWindowMs(): number {
+    if (this.isWeatherActive("soft_rain")) {
+      return 1150;
+    }
+
+    if (this.isWeatherActive("dewy_morning")) {
+      return 980;
+    }
+
+    if (this.isWeatherActive("restless_roots")) {
+      return 620;
+    }
+
+    return PERFECT_TOUCH_WINDOW_MS;
+  }
+
+  private showPerfectTouchCue(tile: FieldTile, key: TileKey): void {
+    const view = this.tileViews.get(key);
+    if (!view) {
+      return;
+    }
+
+    this.destroyPerfectTouchCue(key);
+    const x = view.label.x;
+    const y = view.label.y;
+    const ring = this.add
+      .ellipse(x, y, TILE_SIZE * 0.94 * this.boardScale, TILE_SIZE * 0.62 * this.boardScale, 0xffef78, 0.2)
+      .setStrokeStyle(Math.max(2, 3 * this.boardScale), 0xffef78, 0.96)
+      .setDepth(35);
+    const sparkle = this.add
+      .star(x, y - 16 * this.boardScale, 5, TILE_SIZE * 0.065 * this.boardScale, TILE_SIZE * 0.28 * this.boardScale, 0xdfffc8, 0.84)
+      .setStrokeStyle(2, 0xffffff, 0.9)
+      .setDepth(38);
+
+    this.perfectTouchCues.set(key, [ring, sparkle]);
+    const duration = this.getPerfectTouchWindowMs();
+
+    this.tweens.add({
+      targets: ring,
+      scaleX: 1.28,
+      scaleY: 1.18,
+      alpha: 0,
+      duration,
+      ease: "Sine.easeOut",
+      onComplete: () => this.destroyPerfectTouchCue(key),
+    });
+    this.tweens.add({
+      targets: sparkle,
+      angle: 45,
+      scaleX: 1.25,
+      scaleY: 1.25,
+      y: sparkle.y - 7 * this.boardScale,
+      alpha: 0,
+      duration,
+      ease: "Sine.easeOut",
+    });
+  }
+
+  private destroyPerfectTouchCue(key: TileKey): void {
+    const cues = this.perfectTouchCues.get(key);
+    if (!cues) {
+      return;
+    }
+
+    for (const cue of cues) {
+      this.tweens.killTweensOf(cue);
+      cue.destroy();
+    }
+    this.perfectTouchCues.delete(key);
+  }
+
+  private destroyAllPerfectTouchCues(): void {
+    for (const key of this.perfectTouchCues.keys()) {
+      this.destroyPerfectTouchCue(key);
+    }
   }
 
   private tryComboAoeTouch(originTile: FieldTile, stats: ReturnType<typeof getRuntimeStats>, comboCount: number, now: number): void {
@@ -2499,6 +2660,9 @@ export class GameScene extends Phaser.Scene {
       if (touch.gained === 0) {
         continue;
       }
+      const key = tileKey(tile.x, tile.y);
+      this.recentlyRegrownAt.delete(key);
+      this.destroyPerfectTouchCue(key);
 
       touchedTiles += 1;
       gainedTouches += touch.gained;
@@ -2525,15 +2689,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getComboAoeChance(comboCount: number): number {
+    let chance = 0;
     if (comboCount > COMBO_AOE_HIGH_COUNT) {
-      return COMBO_AOE_HIGH_CHANCE;
+      chance = COMBO_AOE_HIGH_CHANCE;
+    } else if (comboCount >= COMBO_AOE_MIN_COUNT) {
+      chance = COMBO_AOE_CHANCE;
     }
 
-    if (comboCount >= COMBO_AOE_MIN_COUNT) {
-      return COMBO_AOE_CHANCE;
+    if (chance > 0 && this.isWeatherActive("lucky_breeze")) {
+      chance += 0.15;
     }
 
-    return 0;
+    return Math.min(0.9, chance);
+  }
+
+  private isWeatherActive(weatherId: WeatherId): boolean {
+    return Boolean(this.state.seedShopPurchases.weather_jar && this.state.activeWeatherId === weatherId);
   }
 
   private getDropFeedback(): DropFeedback {
@@ -2741,14 +2912,14 @@ export class GameScene extends Phaser.Scene {
   private applyWeatherTint(weatherId: WeatherId): void {
     const tint = {
       calm: { color: 0xf7ffe8, alpha: 0.035 },
-      dewy_morning: { color: 0xbff4ff, alpha: 0.12 },
-      warm_sunlight: { color: 0xffef78, alpha: 0.11 },
-      lucky_breeze: { color: 0xdfffc8, alpha: 0.08 },
-      seed_wind: { color: 0xfff1a8, alpha: 0.1 },
-      soft_rain: { color: 0xa8e8ff, alpha: 0.12 },
-      pollinator_swarm: { color: 0xffe08a, alpha: 0.08 },
-      golden_hour: { color: 0xffd565, alpha: 0.13 },
-      restless_roots: { color: 0xb7eba5, alpha: 0.1 },
+      dewy_morning: { color: 0xbff4ff, alpha: 0.15 },
+      warm_sunlight: { color: 0xffef78, alpha: 0.15 },
+      lucky_breeze: { color: 0xdfffc8, alpha: 0.12 },
+      seed_wind: { color: 0xfff1a8, alpha: 0.14 },
+      soft_rain: { color: 0x6fc8ff, alpha: 0.18 },
+      pollinator_swarm: { color: 0xffe08a, alpha: 0.13 },
+      golden_hour: { color: 0xffb347, alpha: 0.18 },
+      restless_roots: { color: 0xb7eba5, alpha: 0.14 },
     } satisfies Record<WeatherId, { color: number; alpha: number }>;
     const style = tint[weatherId];
 
@@ -2769,42 +2940,42 @@ export class GameScene extends Phaser.Scene {
         config: {
           x: { min: 12, max: Math.max(12, this.scale.width - 12) },
           y: -12,
-          lifespan: { min: 1800, max: 3200 },
-          speedX: { min: -6, max: 18 },
-          speedY: { min: 18, max: 42 },
-          scale: { start: 1.1, end: 0.35 },
-          alpha: { start: 0.72, end: 0 },
-          frequency: 120,
-          quantity: 1,
+          lifespan: { min: 1900, max: 3600 },
+          speedX: { min: -10, max: 24 },
+          speedY: { min: 24, max: 54 },
+          scale: { start: 1.25, end: 0.32 },
+          alpha: { start: 0.82, end: 0 },
+          frequency: 75,
+          quantity: 2,
         },
       },
       warm_sunlight: {
-        texture: "sun-fleck",
+        texture: "weather-sun-mote",
         config: {
           x: { min: 12, max: Math.max(12, this.scale.width - 12) },
           y: { min: 132, max: Math.max(132, this.scale.height - 24) },
-          lifespan: { min: 1200, max: 2400 },
-          speedX: { min: -8, max: 8 },
-          speedY: { min: -10, max: 4 },
-          scale: { start: 1.4, end: 0 },
-          alpha: { start: 0.62, end: 0 },
-          frequency: 170,
+          lifespan: { min: 1800, max: 3400 },
+          speedX: { min: -10, max: 10 },
+          speedY: { min: -16, max: 2 },
+          scale: { start: 1.45, end: 0 },
+          alpha: { start: 0.72, end: 0 },
+          frequency: 95,
           quantity: 1,
         },
       },
       lucky_breeze: {
-        texture: "breeze-fleck",
+        texture: "weather-breeze-leaf",
         config: {
           x: -18,
           y: { min: 138, max: Math.max(138, this.scale.height - 20) },
-          lifespan: { min: 1200, max: 2100 },
-          speedX: { min: 95, max: 175 },
-          speedY: { min: -18, max: 18 },
-          rotate: { min: -45, max: 45 },
-          scale: { start: 1.05, end: 0.2 },
-          alpha: { start: 0.68, end: 0 },
-          frequency: 95,
-          quantity: 1,
+          lifespan: { min: 1400, max: 2400 },
+          speedX: { min: 145, max: 245 },
+          speedY: { min: -38, max: 28 },
+          rotate: { min: -80, max: 80 },
+          scale: { start: 1.25, end: 0.25 },
+          alpha: { start: 0.76, end: 0 },
+          frequency: 58,
+          quantity: 2,
         },
       },
       seed_wind: {
@@ -2812,75 +2983,76 @@ export class GameScene extends Phaser.Scene {
         config: {
           x: -16,
           y: { min: 138, max: Math.max(138, this.scale.height - 20) },
-          lifespan: { min: 1400, max: 2600 },
-          speedX: { min: 80, max: 150 },
-          speedY: { min: -34, max: 10 },
-          gravityY: 22,
+          lifespan: { min: 1500, max: 2700 },
+          speedX: { min: 125, max: 215 },
+          speedY: { min: -48, max: 14 },
+          gravityY: 34,
           rotate: { min: -180, max: 180 },
-          scale: { start: 1.2, end: 0.18 },
-          alpha: { start: 0.78, end: 0 },
-          frequency: 85,
-          quantity: 1,
+          scale: { start: 1.35, end: 0.18 },
+          alpha: { start: 0.86, end: 0 },
+          frequency: 48,
+          quantity: 2,
         },
       },
       soft_rain: {
-        texture: "dew-fleck",
+        texture: "weather-rain-streak",
         config: {
           x: { min: 12, max: Math.max(12, this.scale.width - 12) },
-          y: -12,
-          lifespan: { min: 1500, max: 2800 },
-          speedX: { min: -18, max: 8 },
-          speedY: { min: 90, max: 145 },
-          gravityY: 38,
-          scale: { start: 0.9, end: 0.16 },
-          alpha: { start: 0.62, end: 0 },
-          frequency: 55,
-          quantity: 1,
+          y: -24,
+          lifespan: { min: 900, max: 1550 },
+          speedX: { min: -92, max: -34 },
+          speedY: { min: 220, max: 330 },
+          gravityY: 80,
+          rotate: { min: -10, max: 4 },
+          scale: { start: 1.35, end: 0.95 },
+          alpha: { start: 0.78, end: 0 },
+          frequency: 18,
+          quantity: 3,
         },
       },
       pollinator_swarm: {
-        texture: "seed-fleck",
+        texture: "weather-pollen-mote",
         config: {
           x: { min: 12, max: Math.max(12, this.scale.width - 12) },
           y: { min: 136, max: Math.max(136, this.scale.height - 28) },
-          lifespan: { min: 900, max: 1700 },
-          speedX: { min: -42, max: 42 },
-          speedY: { min: -32, max: 28 },
-          rotate: { min: -90, max: 90 },
-          scale: { start: 0.95, end: 0.2 },
-          alpha: { start: 0.66, end: 0 },
-          frequency: 80,
-          quantity: 1,
+          lifespan: { min: 1000, max: 1900 },
+          speedX: { min: -64, max: 64 },
+          speedY: { min: -46, max: 34 },
+          rotate: { min: -120, max: 120 },
+          scale: { start: 1.15, end: 0.2 },
+          alpha: { start: 0.78, end: 0 },
+          frequency: 42,
+          quantity: 2,
         },
       },
       golden_hour: {
-        texture: "sun-fleck",
+        texture: "weather-sun-mote",
         config: {
           x: { min: 12, max: Math.max(12, this.scale.width - 12) },
           y: { min: 132, max: Math.max(132, this.scale.height - 24) },
-          lifespan: { min: 1300, max: 2600 },
-          speedX: { min: -10, max: 14 },
-          speedY: { min: -8, max: 6 },
-          scale: { start: 1.7, end: 0 },
-          alpha: { start: 0.76, end: 0 },
-          frequency: 125,
-          quantity: 1,
+          lifespan: { min: 1800, max: 3600 },
+          speedX: { min: -8, max: 16 },
+          speedY: { min: -14, max: 4 },
+          scale: { start: 1.9, end: 0 },
+          alpha: { start: 0.86, end: 0 },
+          frequency: 66,
+          quantity: 2,
         },
       },
       restless_roots: {
-        texture: "grass-fleck",
+        texture: "weather-root-mote",
         config: {
           x: { min: 12, max: Math.max(12, this.scale.width - 12) },
-          y: { min: 150, max: Math.max(150, this.scale.height - 20) },
-          lifespan: { min: 900, max: 1600 },
-          speedX: { min: -18, max: 18 },
-          speedY: { min: -78, max: -26 },
-          gravityY: 60,
-          rotate: { min: -140, max: 140 },
-          scale: { start: 1.1, end: 0.18 },
-          alpha: { start: 0.72, end: 0 },
-          frequency: 105,
-          quantity: 1,
+          y: Math.max(180, this.scale.height + 12),
+          lifespan: { min: 850, max: 1500 },
+          speedX: { min: -32, max: 32 },
+          speedY: { min: -150, max: -68 },
+          gravityY: 70,
+          rotate: { min: -160, max: 160 },
+          scale: { start: 1.25, end: 0.18 },
+          alpha: { start: 0.82, end: 0 },
+          frequency: 54,
+          quantity: 2,
         },
       },
     } satisfies Record<Exclude<WeatherId, "calm">, { texture: string; config: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig }>;
@@ -2982,6 +3154,37 @@ export class GameScene extends Phaser.Scene {
     this.addTouchFlash(x, y);
   }
 
+  private playPerfectTouchFeedback(tile: FieldTile, bonusTouches: number): void {
+    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    if (!view) {
+      return;
+    }
+
+    const x = view.label.x;
+    const y = view.label.y;
+    this.popAtTile(tile, `PERFECT +${bonusTouches}`, "#ffef78");
+    this.emitBurst("crit-fleck", x, y - 10, 34, 1.28, 0.18);
+    this.emitBurst("dew-fleck", x, y - 3, 22, 0.95, 0.25);
+    this.audio.play("perfect");
+
+    const sparkle = this.add
+      .star(x, y - 18 * this.boardScale, 6, TILE_SIZE * 0.08 * this.boardScale, TILE_SIZE * 0.34 * this.boardScale, 0xffef78, 0.82)
+      .setStrokeStyle(2, 0xffffff, 0.9)
+      .setDepth(41);
+
+    this.tweens.add({
+      targets: sparkle,
+      angle: 40,
+      scaleX: 1.45,
+      scaleY: 1.45,
+      y: sparkle.y - 9 * this.boardScale,
+      alpha: 0,
+      duration: 420,
+      ease: "Sine.easeOut",
+      onComplete: () => sparkle.destroy(),
+    });
+  }
+
   private playRegrowFeedback(tile: FieldTile): void {
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (!view) {
@@ -3059,7 +3262,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze"): void {
+  private playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze" | "burrow"): void {
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (!view) {
       return;
@@ -3087,6 +3290,13 @@ export class GameScene extends Phaser.Scene {
       this.spawnWorldActionArc("effect-gold-coin", "chicken", x, y - 7 * this.boardScale, 2, 0xffef78);
       this.emitBurst("dust-fleck", x, y + 11 * this.boardScale, 12, 0.58, 0.22);
       this.addCompanionPing(x, y - 12 * this.boardScale, 0xffef78, 0xffffff);
+      return;
+    }
+
+    if (action === "burrow") {
+      this.spawnWorldActionArc("dust-fleck", "earthworm", x, y + 6 * this.boardScale, 5, 0xd7a36f);
+      this.emitBurst("dust-fleck", x, y + 13 * this.boardScale, 20, 0.82, 0.3);
+      this.addCompanionPing(x, y - 10 * this.boardScale, 0xdfffc8, 0xf7ffe8);
       return;
     }
 
@@ -3249,6 +3459,7 @@ export class GameScene extends Phaser.Scene {
     this.createParticleTexture("crit-fleck", [0xffffff, 0xffef78, 0xff9f43]);
     this.createParticleTexture("sun-fleck", [0xffffff, 0xffef78, 0xffb347]);
     this.createParticleTexture("breeze-fleck", [0xf7ffe8, 0xb7eba5, 0x5cae62]);
+    this.createWeatherTextures();
   }
 
   private createDirtTexture(key: string, baseColor: number, shadowColor: number, stubble = false): void {
@@ -3362,6 +3573,63 @@ export class GameScene extends Phaser.Scene {
     graphics.fillStyle(colors[2], 1);
     graphics.fillRect(2, 1, 2, 3);
     graphics.generateTexture(key, 5, 5);
+    graphics.destroy();
+  }
+
+  private createWeatherTextures(): void {
+    this.createRainStreakTexture();
+    this.createWeatherMoteTexture("weather-sun-mote", [0xffffff, 0xffef78, 0xffb347]);
+    this.createWeatherMoteTexture("weather-pollen-mote", [0xffffff, 0xffe08a, 0xc69232]);
+    this.createWeatherMoteTexture("weather-root-mote", [0xdfffc8, 0x75d894, 0x3f7b33]);
+    this.createBreezeLeafTexture();
+  }
+
+  private createRainStreakTexture(): void {
+    const key = "weather-rain-streak";
+    if (this.textures.exists(key)) {
+      return;
+    }
+
+    const graphics = this.add.graphics();
+    graphics.lineStyle(2, 0xd7fff2, 0.95);
+    graphics.lineBetween(4, 0, 0, 18);
+    graphics.lineStyle(1, 0xa8e8ff, 0.7);
+    graphics.lineBetween(7, 1, 3, 18);
+    graphics.generateTexture(key, 8, 20);
+    graphics.destroy();
+  }
+
+  private createWeatherMoteTexture(key: string, colors: number[]): void {
+    if (this.textures.exists(key)) {
+      return;
+    }
+
+    const graphics = this.add.graphics();
+    graphics.fillStyle(colors[0], 0.95);
+    graphics.fillRect(3, 0, 2, 8);
+    graphics.fillRect(0, 3, 8, 2);
+    graphics.fillStyle(colors[1], 0.9);
+    graphics.fillRect(2, 2, 4, 4);
+    graphics.fillStyle(colors[2], 0.75);
+    graphics.fillRect(3, 3, 2, 2);
+    graphics.generateTexture(key, 8, 8);
+    graphics.destroy();
+  }
+
+  private createBreezeLeafTexture(): void {
+    const key = "weather-breeze-leaf";
+    if (this.textures.exists(key)) {
+      return;
+    }
+
+    const graphics = this.add.graphics();
+    graphics.fillStyle(0xdfffc8, 0.95);
+    graphics.fillEllipse(8, 5, 14, 7);
+    graphics.fillStyle(0x75d894, 0.95);
+    graphics.fillEllipse(7, 5, 9, 5);
+    graphics.lineStyle(1, 0x2f8436, 0.8);
+    graphics.lineBetween(2, 5, 14, 5);
+    graphics.generateTexture(key, 16, 10);
     graphics.destroy();
   }
 

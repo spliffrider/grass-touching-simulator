@@ -1,5 +1,5 @@
 import { getGrassTier } from "../data/grass-tiers";
-import { getFieldTiles, getGrownTiles, tileKey, touchTile } from "./FieldSystem";
+import { getFieldTiles, getGrownTiles, getRegrowingTiles, tileKey, touchTile } from "./FieldSystem";
 import { getInventoryQuantity } from "./InventorySystem";
 import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait } from "../types/game-state";
 
@@ -7,7 +7,7 @@ export interface AnimalCompanionFeedback {
   refreshTile(tile: FieldTile): void;
   popAtTile(tile: FieldTile, text: string, color: string): void;
   emitGoldBurst(tile: FieldTile, amount?: number): void;
-  playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze"): void;
+  playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze" | "burrow"): void;
   playTouchFeedback(tile: FieldTile, touchedTrait: TileTrait, isCrit: boolean): void;
   playSound(sound: "regrow" | "seed" | "gold"): void;
   playGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean): void;
@@ -17,11 +17,13 @@ export class AnimalCompanionSystem {
   private beeHiveElapsed = 0;
   private chickenElapsed = 0;
   private sheepElapsed = 0;
+  private earthwormElapsed = 0;
 
   reset(): void {
     this.beeHiveElapsed = 0;
     this.chickenElapsed = 0;
     this.sheepElapsed = 0;
+    this.earthwormElapsed = 0;
   }
 
   update(delta: number, state: GameState, stats: RuntimeStats, feedback: AnimalCompanionFeedback): boolean {
@@ -29,6 +31,7 @@ export class AnimalCompanionSystem {
     const beeHives = getInventoryQuantity(state, "bee_hive");
     const chickens = getInventoryQuantity(state, "chicken");
     const sheep = getInventoryQuantity(state, "sheep");
+    const earthworms = getInventoryQuantity(state, "earthworm");
 
     if (beeHives > 0) {
       this.beeHiveElapsed += delta;
@@ -54,6 +57,15 @@ export class AnimalCompanionSystem {
       if (this.sheepElapsed >= sheepInterval) {
         this.sheepElapsed = 0;
         changed = this.runSheepGraze(state, stats, sheep, feedback) || changed;
+      }
+    }
+
+    if (earthworms > 0) {
+      this.earthwormElapsed += delta;
+      const earthwormInterval = Math.max(4600, 9800 - earthworms * 1500);
+      if (this.earthwormElapsed >= earthwormInterval) {
+        this.earthwormElapsed = 0;
+        changed = this.runEarthwormBurrow(state, earthworms, feedback) || changed;
       }
     }
 
@@ -149,6 +161,26 @@ export class AnimalCompanionSystem {
     feedback.emitGoldBurst(tile, goldGained);
     feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     feedback.playSound("gold");
+    return true;
+  }
+
+  private runEarthwormBurrow(state: GameState, earthworms: number, feedback: AnimalCompanionFeedback): boolean {
+    const regrowingTiles = Phaser.Utils.Array.Shuffle(getRegrowingTiles(state)).slice(0, Math.min(1 + earthworms, 3));
+    if (regrowingTiles.length === 0) {
+      return false;
+    }
+
+    const now = Date.now();
+    const regrowFactor = state.activeWeatherId === "warm_sunlight" ? 0.34 : state.activeWeatherId === "soft_rain" ? 0.38 : 0.46;
+    for (const tile of regrowingTiles) {
+      const remainingMs = Math.max(0, tile.regrowEndsAt - now);
+      tile.regrowEndsAt = now + Math.max(300, Math.floor(remainingMs * regrowFactor));
+      feedback.refreshTile(tile);
+      feedback.playCompanionAction(tile, "burrow");
+      feedback.popAtTile(tile, state.activeWeatherId === "warm_sunlight" ? "sun-warmed worm" : "worm work", "#dfffc8");
+    }
+
+    feedback.playSound("regrow");
     return true;
   }
 }

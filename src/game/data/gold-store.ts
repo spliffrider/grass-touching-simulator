@@ -72,4 +72,13 @@ export const GOLD_STORE_ITEMS: GoldStoreItem[] = [
     maxQuantity: 1,
     isUnlocked: (state) => state.inventory.field_mouse?.quantity > 0,
   },
+  {
+    id: "earthworm",
+    name: "Earthworm",
+    description: "Animal. Burrows through resting patches, helping grass regrow sooner.",
+    cost: 10,
+    kind: "animal",
+    maxQuantity: 2,
+    isUnlocked: (state) => state.inventory.field_mouse?.quantity > 0 || state.inventory.bee_hive?.quantity > 0,
+  },
 ];

@@ -31,4 +31,5 @@ export const JOURNAL_COMPANION_NOTES: Record<string, string> = {
   chicken: "Unclear motives. Excellent field presence.",
   sheep: "Soft automation with snack-based reasoning.",
   meadow_rabbit: "Fast enough to look busy, cute enough to avoid questions.",
+  earthworm: "A tiny underground consultant for better regrowth.",
 };
