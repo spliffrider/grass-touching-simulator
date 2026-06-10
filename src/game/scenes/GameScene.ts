@@ -36,6 +36,9 @@ const COMBO_AOE_HIGH_CHANCE = 0.5;
 const PERFECT_TOUCH_WINDOW_MS = 800;
 const PERFECT_TOUCH_BONUS_MULTIPLIER = 0.5;
 const GOLDEN_HOUR_PERFECT_GOLD_CHANCE = 0.35;
+const WILDFLOWER_POLLINATE_CHANCE = 0.35;
+const MUSHROOM_SPORE_CHANCE = 0.3;
+const CRYSTAL_GOLD_CHANCE = 0.28;
 const COMBO_AOE_NEIGHBORS = [
   { x: -1, y: -1 },
   { x: 0, y: -1 },
@@ -2518,10 +2521,112 @@ export class GameScene extends Phaser.Scene {
     }
     this.drops.tryDropSeed(this.state, tile, touchedTrait, stats, this.getDropFeedback());
     this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier.id, touch, stats, this.getDropFeedback());
+    this.applyGrassTierIdentityBonus(tile, touchedTier.id, touch, stats, now);
     this.shakeForGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, combo.count);
     this.tryComboAoeTouch(tile, stats, combo.count, now);
     saveGame(this.state);
+  }
+
+  private applyGrassTierIdentityBonus(originTile: FieldTile, tier: GrassTierId, touch: TouchResult, stats: ReturnType<typeof getRuntimeStats>, now: number): void {
+    if (tier === "wildflower") {
+      this.tryWildflowerPollinate(originTile);
+      return;
+    }
+
+    if (tier === "mushroom") {
+      this.tryMushroomSpores(originTile, stats, now);
+      return;
+    }
+
+    if (tier === "crystal") {
+      this.tryCrystalGold(originTile, touch);
+      return;
+    }
+
+    if (tier === "frost" && !touch.instantRegrown) {
+      originTile.regrowEndsAt += 700;
+      this.popAtTile(originTile, "frost focus", "#d7fff2");
+    }
+  }
+
+  private tryWildflowerPollinate(originTile: FieldTile): void {
+    if (Math.random() >= WILDFLOWER_POLLINATE_CHANCE) {
+      return;
+    }
+
+    const candidates = Phaser.Utils.Array.Shuffle(this.getNeighborTiles(originTile)).slice(0, 2);
+    let changed = 0;
+    for (const tile of candidates) {
+      if (tile.grassState !== "grown") {
+        continue;
+      }
+
+      tile.trait = Math.random() < 0.42 ? "lush" : "dewy";
+      this.refreshTile(tile);
+      this.popAtTile(tile, "pollinated", "#ffb7d5");
+      this.emitTierIdentityBurst(tile, "effect-pollen-fleck", 12, 0.58);
+      changed += 1;
+    }
+
+    if (changed > 0) {
+      this.popAtTile(originTile, `flowers +${changed}`, "#ffb7d5");
+      this.audio.play("seed");
+    }
+  }
+
+  private tryMushroomSpores(originTile: FieldTile, stats: ReturnType<typeof getRuntimeStats>, now: number): void {
+    if (Math.random() >= MUSHROOM_SPORE_CHANCE) {
+      return;
+    }
+
+    let changed = 0;
+    for (const tile of Phaser.Utils.Array.Shuffle(this.getNeighborTiles(originTile)).slice(0, 4)) {
+      if (tile.grassState === "regrowing") {
+        const remainingMs = Math.max(0, tile.regrowEndsAt - now);
+        tile.regrowEndsAt = now + Math.max(350, Math.floor(remainingMs * 0.62));
+      } else {
+        tile.trait = Math.random() < stats.dewChance + 0.22 ? "dewy" : "lush";
+      }
+
+      this.refreshTile(tile);
+      this.popAtTile(tile, "spores", "#dfffc8");
+      changed += 1;
+    }
+
+    if (changed > 0) {
+      this.emitTierIdentityBurst(originTile, "effect-magic-spore", 24, 0.82);
+      this.audio.play("regrow");
+    }
+  }
+
+  private tryCrystalGold(originTile: FieldTile, touch: TouchResult): void {
+    if (!touch.isCrit && Math.random() >= CRYSTAL_GOLD_CHANCE) {
+      return;
+    }
+
+    const gold = Math.max(1, Math.floor(touch.gained * (touch.isCrit ? 0.08 : 0.04)));
+    this.state.gold += gold;
+    this.state.lifetimeGold += gold;
+    this.popAtTile(originTile, `crystal +${gold} gold`, "#75e8ff");
+    this.emitGoldBurst(originTile, gold);
+    this.emitTierIdentityBurst(originTile, "crit-fleck", 20, 0.74);
+    this.audio.play("gold");
+  }
+
+  private getNeighborTiles(originTile: FieldTile): FieldTile[] {
+    return COMBO_AOE_NEIGHBORS.map((neighbor) => this.state.field[tileKey(originTile.x + neighbor.x, originTile.y + neighbor.y)]).filter(
+      (tile): tile is FieldTile => tile !== undefined,
+    );
+  }
+
+  private emitTierIdentityBurst(tile: FieldTile, texture: string, count: number, scale: number): void {
+    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    if (!view) {
+      return;
+    }
+
+    this.emitBurst(texture, view.label.x, view.label.y - 8, count, scale, 0.28);
   }
 
   private markRecentlyRegrown(tile: FieldTile, now: number): void {
@@ -2531,8 +2636,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private pruneRecentlyRegrown(now: number): void {
-    const perfectTouchWindowMs = this.getPerfectTouchWindowMs();
     for (const [key, regrownAt] of this.recentlyRegrownAt) {
+      const perfectTouchWindowMs = this.getPerfectTouchWindowMs(this.state.field[key]);
       if (now - regrownAt > perfectTouchWindowMs) {
         this.recentlyRegrownAt.delete(key);
         this.destroyPerfectTouchCue(key);
@@ -2546,11 +2651,11 @@ export class GameScene extends Phaser.Scene {
     this.recentlyRegrownAt.delete(key);
     this.destroyPerfectTouchCue(key);
 
-    if (regrownAt === undefined || now - regrownAt > this.getPerfectTouchWindowMs()) {
+    if (regrownAt === undefined || now - regrownAt > this.getPerfectTouchWindowMs(tile)) {
       return 0;
     }
 
-    return Math.max(1, Math.floor(baseTouches * PERFECT_TOUCH_BONUS_MULTIPLIER));
+    return Math.max(1, Math.floor(baseTouches * this.getPerfectTouchBonusMultiplier(tile)));
   }
 
   private rollPerfectTouchGoldBonus(baseTouches: number): number {
@@ -2561,20 +2666,37 @@ export class GameScene extends Phaser.Scene {
     return Math.max(1, Math.floor(baseTouches * 0.25));
   }
 
-  private getPerfectTouchWindowMs(): number {
+  private getPerfectTouchWindowMs(tile?: FieldTile): number {
+    let windowMs = PERFECT_TOUCH_WINDOW_MS;
     if (this.isWeatherActive("soft_rain")) {
-      return 1150;
+      windowMs = 1150;
+    } else if (this.isWeatherActive("dewy_morning")) {
+      windowMs = 980;
+    } else if (this.isWeatherActive("restless_roots")) {
+      windowMs = 620;
     }
 
-    if (this.isWeatherActive("dewy_morning")) {
-      return 980;
+    if (tile?.tier === "moss") {
+      windowMs += 420;
     }
 
-    if (this.isWeatherActive("restless_roots")) {
-      return 620;
+    if (tile?.tier === "frost") {
+      windowMs += 520;
     }
 
-    return PERFECT_TOUCH_WINDOW_MS;
+    return windowMs;
+  }
+
+  private getPerfectTouchBonusMultiplier(tile: FieldTile): number {
+    if (tile.tier === "frost") {
+      return 0.75;
+    }
+
+    if (tile.tier === "moss") {
+      return 0.6;
+    }
+
+    return PERFECT_TOUCH_BONUS_MULTIPLIER;
   }
 
   private showPerfectTouchCue(tile: FieldTile, key: TileKey): void {
@@ -2596,7 +2718,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(38);
 
     this.perfectTouchCues.set(key, [ring, sparkle]);
-    const duration = this.getPerfectTouchWindowMs();
+    const duration = this.getPerfectTouchWindowMs(tile);
 
     this.tweens.add({
       targets: ring,
@@ -2786,6 +2908,11 @@ export class GameScene extends Phaser.Scene {
       thick: { duration: 90, intensity: 0.0018 },
       clover: { duration: 80, intensity: 0.00145 },
       golden: { duration: 118, intensity: 0.00235 },
+      wildflower: { duration: 88, intensity: 0.00155 },
+      moss: { duration: 102, intensity: 0.00195 },
+      mushroom: { duration: 110, intensity: 0.00205 },
+      crystal: { duration: 120, intensity: 0.00225 },
+      frost: { duration: 122, intensity: 0.00215 },
     } satisfies Record<GrassTierId, { duration: number; intensity: number }>;
     const traitShake = {
       normal: { duration: 0, intensity: 1 },
@@ -3071,16 +3198,16 @@ export class GameScene extends Phaser.Scene {
     const tier = getGrassTier(tile.tier);
     const grassTexture = this.getGrassTextureKey(tile);
     const rareTier = tier.id !== "normal";
-    const highlightColor = tier.id === "golden" ? 0xffef78 : tier.id === "clover" ? 0xb7eba5 : 0x9be86b;
+    const highlightColor = this.getTierHighlightColor(tier.id);
 
     view.grass.setVisible(isGrown);
     view.grass.setTexture(grassTexture);
     view.grass.setScale(this.boardScale * this.getGrassScale(tile));
     view.grass.setAlpha(1);
     view.outline.setVisible(isGrown && rareTier);
-    view.outline.setStrokeStyle(tier.id === "golden" ? 5 : 4, highlightColor, tier.id === "golden" ? 0.95 : 0.72);
+    view.outline.setStrokeStyle(tier.id === "golden" || tier.id === "crystal" || tier.id === "frost" ? 5 : 4, highlightColor, tier.id === "normal" ? 0 : 0.82);
     view.glint.setVisible(isGrown && rareTier);
-    view.glint.setFillStyle(highlightColor, tier.id === "golden" ? 0.95 : 0.82);
+    view.glint.setFillStyle(highlightColor, tier.id === "normal" ? 0 : 0.88);
     view.label.setText(isGrown ? this.getTileLabel(tile, tier.label) : "...");
     view.base.setTexture(isGrown ? "tile-dirt" : "tile-stubble");
 
@@ -3090,8 +3217,35 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getGrassScale(tile: FieldTile): number {
-    const tierScale = tile.tier === "golden" ? 1.09 : tile.tier === "clover" ? 1.06 : tile.tier === "thick" ? 1.03 : 1;
+    const tierScale =
+      tile.tier === "frost"
+        ? 1.12
+        : tile.tier === "crystal"
+          ? 1.1
+          : tile.tier === "golden" || tile.tier === "wildflower" || tile.tier === "mushroom"
+            ? 1.09
+            : tile.tier === "clover" || tile.tier === "moss"
+              ? 1.06
+              : tile.tier === "thick"
+                ? 1.03
+                : 1;
     return (tile.trait === "lush" ? 1.06 : 1) * tierScale;
+  }
+
+  private getTierHighlightColor(tier: GrassTierId): number {
+    const colors = {
+      normal: 0x9be86b,
+      thick: 0x85d35e,
+      clover: 0xb7eba5,
+      golden: 0xffef78,
+      wildflower: 0xffb7d5,
+      moss: 0x75d894,
+      mushroom: 0xffd09a,
+      crystal: 0x75e8ff,
+      frost: 0xd7fff2,
+    } satisfies Record<GrassTierId, number>;
+
+    return colors[tier];
   }
 
   private getGrassTextureKey(tile: FieldTile): string {

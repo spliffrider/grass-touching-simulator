@@ -4,6 +4,7 @@ import { CURRENT_SAVE_VERSION } from "../types/game-state";
 import type { FieldTile, GameState, GrassTierId, InventoryEntry, JournalState, TileKey, TileTrait, UpgradeState, WeatherId } from "../types/game-state";
 
 const SAVE_KEY = "grass-touching-simulator.save.v1";
+const VALID_GRASS_TIERS = ["normal", "thick", "clover", "golden", "wildflower", "moss", "mushroom", "crystal", "frost"] as const;
 
 export function saveGame(state: GameState): void {
   state.saveVersion = CURRENT_SAVE_VERSION;
@@ -126,7 +127,7 @@ function readGrassTierArray(value: unknown, fallback: GrassTierId[]): GrassTierI
     return fallback;
   }
 
-  const tiers = value.filter((tier): tier is GrassTierId => tier === "normal" || tier === "thick" || tier === "clover" || tier === "golden");
+  const tiers = value.filter((tier): tier is GrassTierId => isGrassTierId(tier));
   return unique(tiers.length > 0 ? tiers : fallback);
 }
 
@@ -159,7 +160,11 @@ function readNumber(value: unknown, fallback: number): number {
 }
 
 function readGrassTier(value: unknown): FieldTile["tier"] {
-  return value === "thick" || value === "clover" || value === "golden" ? value : "normal";
+  return isGrassTierId(value) ? value : "normal";
+}
+
+function isGrassTierId(value: unknown): value is GrassTierId {
+  return typeof value === "string" && (VALID_GRASS_TIERS as readonly string[]).includes(value);
 }
 
 function readTileTrait(value: unknown): FieldTile["trait"] {

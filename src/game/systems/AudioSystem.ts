@@ -128,6 +128,11 @@ export class AudioSystem {
       thick: { low: 92, brush: 560, snap: 1400, volume: 1.16, tone: 190, duration: 1.18 },
       clover: { low: 150, brush: 980, snap: 2500, volume: 0.94, tone: 360, duration: 0.92 },
       golden: { low: 185, brush: 1180, snap: 3100, volume: 1.08, tone: 520, duration: 1 },
+      wildflower: { low: 138, brush: 920, snap: 2350, volume: 1.02, tone: 430, duration: 0.96 },
+      moss: { low: 74, brush: 430, snap: 1100, volume: 1.18, tone: 165, duration: 1.25 },
+      mushroom: { low: 86, brush: 520, snap: 1250, volume: 1.14, tone: 220, duration: 1.2 },
+      crystal: { low: 210, brush: 1350, snap: 3600, volume: 1.04, tone: 720, duration: 0.92 },
+      frost: { low: 170, brush: 1550, snap: 3900, volume: 0.98, tone: 820, duration: 0.9 },
     } satisfies Record<GrassTierId, { low: number; brush: number; snap: number; volume: number; tone: number; duration: number }>;
     const traitProfile = {
       normal: { brushOffset: 0, snapOffset: 0, volume: 1, extraPing: 0 },
@@ -152,6 +157,11 @@ export class AudioSystem {
     if (tier === "golden") {
       this.playTone((880 + Math.random() * 130) * comboPitch, 0.12, 0.04 * critBoost, "sine", now + 0.055);
       this.playTone((1320 + Math.random() * 160) * comboPitch, 0.1, 0.025 * critBoost, "sine", now + 0.1);
+    }
+
+    if (tier === "crystal" || tier === "frost") {
+      this.playTone((1560 + Math.random() * 180) * comboPitch, 0.075, 0.034 * critBoost, "sine", now + 0.045);
+      this.playTone((2320 + Math.random() * 220) * comboPitch, 0.055, 0.02 * critBoost, "sine", now + 0.092);
     }
 
     if (isCrit) {

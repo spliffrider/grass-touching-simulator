@@ -4,7 +4,7 @@ export type GrassState = "grown" | "regrowing";
 
 export type TileTrait = "normal" | "dewy" | "lush";
 
-export type GrassTierId = "normal" | "thick" | "clover" | "golden";
+export type GrassTierId = "normal" | "thick" | "clover" | "golden" | "wildflower" | "moss" | "mushroom" | "crystal" | "frost";
 
 export type SeasonId = "spring" | "summer" | "autumn" | "winter";
 

@@ -5,6 +5,11 @@ export const JOURNAL_GRASS_NOTES: Record<GrassTierId, string> = {
   thick: "More texture, more confidence, slightly more lawn per lawn.",
   clover: "A lucky little patch with excellent social skills.",
   golden: "Suspiciously shiny. Worth documenting twice.",
+  wildflower: "A tiny meadow having a very successful day.",
+  moss: "Soft enough to make shoes feel unnecessary.",
+  mushroom: "Damp, curious, and probably thinking about spores.",
+  crystal: "It makes a delicate sound if you believe hard enough.",
+  frost: "Cold, glittering, and somehow still cozy.",
 };
 
 export const JOURNAL_TRAIT_NOTES: Record<TileTrait, string> = {
