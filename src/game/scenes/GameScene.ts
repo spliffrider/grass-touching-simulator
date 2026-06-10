@@ -3545,6 +3545,89 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(850, () => particles.destroy());
   }
 
+  private emitUiBurst(texture: string, x: number, y: number, quantity: number, color = 0xffef78): void {
+    const particles = this.add.particles(x, y, texture, {
+      lifespan: { min: 520, max: 880 },
+      speed: { min: 34, max: 120 },
+      angle: { min: 190, max: 350 },
+      gravityY: 40,
+      rotate: { min: -160, max: 160 },
+      scale: { start: 1.35, end: 0 },
+      alpha: { start: 0.95, end: 0 },
+      tint: [color, 0xffffff],
+      quantity,
+      emitting: false,
+    });
+
+    particles.setDepth(125);
+    particles.explode(quantity, x, y);
+    this.time.delayedCall(960, () => particles.destroy());
+  }
+
+  private playMilestoneCelebration(): void {
+    this.flashScreen(0xffef78, 0.18, 460);
+    this.emitUiBurst("crit-fleck", this.scale.width / 2, Math.max(150, this.boardTopY - 24), 46, 0xffef78);
+    this.emitUiBurst("grass-fleck", this.scale.width / 2, Math.max(170, this.boardTopY), 34, 0xdfffc8);
+    this.pulseText(this.milestoneText, 1.045);
+  }
+
+  private playJournalCelebration(): void {
+    if (this.journalButton.visible) {
+      this.playButtonCelebration(this.journalButton, 0xdfffc8, "dew-fleck");
+      return;
+    }
+
+    this.emitUiBurst("dew-fleck", this.resourceText.x + this.resourceText.width * 0.5, this.resourceText.y + this.resourceText.height, 18, 0xdfffc8);
+  }
+
+  private playButtonCelebration(button: Phaser.GameObjects.Container, color: number, texture: string): void {
+    if (!button.visible) {
+      return;
+    }
+
+    this.pulseContainer(button, 1.08);
+    this.emitUiBurst(texture, button.x, button.y, 22, color);
+  }
+
+  private flashScreen(color: number, alpha: number, duration: number): void {
+    const flash = this.add.rectangle(0, 0, this.scale.width, this.scale.height, color, alpha).setOrigin(0).setDepth(120);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration,
+      ease: "Sine.easeOut",
+      onComplete: () => flash.destroy(),
+    });
+  }
+
+  private pulseContainer(container: Phaser.GameObjects.Container, scale = 1.06): void {
+    this.tweens.killTweensOf(container);
+    container.setScale(1);
+    this.tweens.add({
+      targets: container,
+      scaleX: scale,
+      scaleY: scale,
+      duration: 90,
+      yoyo: true,
+      ease: "Sine.easeOut",
+      onComplete: () => container.setScale(1),
+    });
+  }
+
+  private pulseText(text: Phaser.GameObjects.Text, scale = 1.04): void {
+    this.tweens.killTweensOf(text);
+    text.setScale(1);
+    this.tweens.add({
+      targets: text,
+      scaleX: scale,
+      scaleY: scale,
+      duration: 100,
+      yoyo: true,
+      ease: "Sine.easeOut",
+      onComplete: () => text.setScale(1),
+    });
+  }
+
   private addTouchRing(x: number, y: number): void {
     const ring = this.add
       .ellipse(x, y, TILE_SIZE * 0.82 * this.boardScale, TILE_SIZE * 0.48 * this.boardScale, 0xf7ffe8, 0.18)
@@ -3975,7 +4058,36 @@ export class GameScene extends Phaser.Scene {
     }
 
     values.push(value);
+    this.showJournalDiscoveryToast(value);
     return true;
+  }
+
+  private showJournalDiscoveryToast(value: string): void {
+    if (value === "normal" || value === "calm") {
+      return;
+    }
+
+    const grassTier = GRASS_TIERS.find((tier) => tier.id === value);
+    if (grassTier) {
+      this.showMessage(`Field Journal: ${grassTier.name} recorded.`, 2600);
+      this.playJournalCelebration();
+      this.audio.play("unlock");
+      return;
+    }
+
+    if (value === "dewy" || value === "lush") {
+      this.showMessage(`Field Journal: ${value} grass trait recorded.`, 2400);
+      this.playJournalCelebration();
+      this.audio.play("seed");
+      return;
+    }
+
+    const weather = WEATHER_TYPES.find((candidate) => candidate.id === value);
+    if (weather && weather.id !== "calm") {
+      this.showMessage(`Field Journal: ${weather.name} weather recorded.`, 2600);
+      this.playJournalCelebration();
+      this.audio.play("unlock");
+    }
   }
 
   private formatJournalGrassSection(): string {
@@ -4457,6 +4569,7 @@ export class GameScene extends Phaser.Scene {
 
     const quest = QUESTS.find((candidate) => candidate.id === newlyReadyId);
     this.audio.play("unlock");
+    this.playButtonCelebration(this.questButton, 0xffef78, "crit-fleck");
     this.showMessage(quest ? `Quest complete: ${quest.name}. Claim it in the Quest Log.` : "Quest complete. Claim it in the Quest Log.", 3200);
   }
 
@@ -4543,6 +4656,7 @@ export class GameScene extends Phaser.Scene {
         this.layoutTiles();
         this.playTileDropCascade(addedTiles);
         this.showMessage(milestone.message, 3200);
+        this.playMilestoneCelebration();
         this.audio.play("milestone");
         saveGame(this.state);
       }

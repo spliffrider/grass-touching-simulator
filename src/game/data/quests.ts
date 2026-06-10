@@ -1,4 +1,4 @@
-import type { GameState } from "../types/game-state";
+import type { GameState, GrassTierId } from "../types/game-state";
 
 export interface QuestReward {
   grassTouches?: number;
@@ -25,6 +25,8 @@ const countUpgradeLevels = (state: GameState): number =>
 const getInventoryQuantity = (state: GameState, itemId: string): number => state.inventory[itemId]?.quantity ?? 0;
 const countAnimals = (state: GameState): number =>
   Object.values(state.inventory).reduce((total, entry) => total + (entry.kind === "animal" ? entry.quantity : 0), 0);
+const hasDiscoveredGrassTier = (state: GameState, tier: GrassTierId): boolean => state.journal.discoveredGrassTiers.includes(tier);
+const countDiscoveredGrassTiers = (state: GameState): number => state.journal.discoveredGrassTiers.length;
 
 export const QUESTS: QuestDefinition[] = [
   {
@@ -245,6 +247,76 @@ export const QUESTS: QuestDefinition[] = [
     prerequisiteQuestIds: ["seed_pouch_owner"],
     isComplete: (state) => state.seedShopPurchases.field_journal === true,
     getProgress: (state) => (state.seedShopPurchases.field_journal ? "Field Journal bought" : "Not bought yet"),
+  },
+  {
+    id: "grass_specimens_4",
+    category: "Field Journal",
+    name: "Specimen Sampler",
+    description: "Discover 4 grass tiers in the Field Journal.",
+    reward: { seeds: 8, gold: 3 },
+    prerequisiteQuestIds: ["field_journal_owner"],
+    isComplete: (state) => countDiscoveredGrassTiers(state) >= 4,
+    getProgress: (state) => `${Math.min(4, countDiscoveredGrassTiers(state))}/4 grass tiers`,
+  },
+  {
+    id: "wildflower_specimen",
+    category: "Field Journal",
+    name: "Tiny Meadow Moment",
+    description: "Discover Wildflower Grass.",
+    reward: { seeds: 10, gold: 4 },
+    prerequisiteQuestIds: ["grass_specimens_4", "touch_700"],
+    isComplete: (state) => hasDiscoveredGrassTier(state, "wildflower"),
+    getProgress: (state) => (hasDiscoveredGrassTier(state, "wildflower") ? "Wildflower Grass recorded" : "Not recorded yet"),
+  },
+  {
+    id: "moss_specimen",
+    category: "Field Journal",
+    name: "Soft Evidence",
+    description: "Discover Moss Grass.",
+    reward: { seeds: 12, gold: 5 },
+    prerequisiteQuestIds: ["wildflower_specimen", "touch_1500"],
+    isComplete: (state) => hasDiscoveredGrassTier(state, "moss"),
+    getProgress: (state) => (hasDiscoveredGrassTier(state, "moss") ? "Moss Grass recorded" : "Not recorded yet"),
+  },
+  {
+    id: "mushroom_specimen",
+    category: "Field Journal",
+    name: "Spore Documentation",
+    description: "Discover Mushroom Grass.",
+    reward: { seeds: 15, gold: 6 },
+    prerequisiteQuestIds: ["moss_specimen", "touch_4200"],
+    isComplete: (state) => hasDiscoveredGrassTier(state, "mushroom"),
+    getProgress: (state) => (hasDiscoveredGrassTier(state, "mushroom") ? "Mushroom Grass recorded" : "Not recorded yet"),
+  },
+  {
+    id: "crystal_specimen",
+    category: "Field Journal",
+    name: "Crunchy Sparkle Notes",
+    description: "Discover Crystal Grass.",
+    reward: { seeds: 18, gold: 8 },
+    prerequisiteQuestIds: ["mushroom_specimen"],
+    isComplete: (state) => hasDiscoveredGrassTier(state, "crystal"),
+    getProgress: (state) => (hasDiscoveredGrassTier(state, "crystal") ? "Crystal Grass recorded" : "Not recorded yet"),
+  },
+  {
+    id: "frost_specimen",
+    category: "Field Journal",
+    name: "Cold Lawn Theory",
+    description: "Discover Frost Grass.",
+    reward: { seeds: 22, gold: 10 },
+    prerequisiteQuestIds: ["crystal_specimen"],
+    isComplete: (state) => hasDiscoveredGrassTier(state, "frost"),
+    getProgress: (state) => (hasDiscoveredGrassTier(state, "frost") ? "Frost Grass recorded" : "Not recorded yet"),
+  },
+  {
+    id: "grass_specimens_9",
+    category: "Field Journal",
+    name: "Lawn Completionist",
+    description: "Discover all 9 grass tiers.",
+    reward: { seeds: 30, gold: 14, grassTouches: 250 },
+    prerequisiteQuestIds: ["frost_specimen"],
+    isComplete: (state) => countDiscoveredGrassTiers(state) >= 9,
+    getProgress: (state) => `${Math.min(9, countDiscoveredGrassTiers(state))}/9 grass tiers`,
   },
   {
     id: "wild_spread_owner",
