@@ -29,6 +29,20 @@ const MIN_BOARD_ZOOM = 0.45;
 const MAX_BOARD_ZOOM = 3.2;
 const TREE_WIDTH = 880;
 const TREE_HEIGHT = 560;
+const COMBO_AOE_MIN_COUNT = 10;
+const COMBO_AOE_HIGH_COUNT = 20;
+const COMBO_AOE_CHANCE = 0.25;
+const COMBO_AOE_HIGH_CHANCE = 0.5;
+const COMBO_AOE_NEIGHBORS = [
+  { x: -1, y: -1 },
+  { x: 0, y: -1 },
+  { x: 1, y: -1 },
+  { x: -1, y: 0 },
+  { x: 1, y: 0 },
+  { x: -1, y: 1 },
+  { x: 0, y: 1 },
+  { x: 1, y: 1 },
+] as const;
 const SKILL_NODE_SIZE = 78;
 const SKILL_MAP_X_SCALE = 0.72;
 const SKILL_MAP_Y_SCALE = 0.86;
@@ -2459,7 +2473,67 @@ export class GameScene extends Phaser.Scene {
     this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier.id, touch, stats, this.getDropFeedback());
     this.shakeForGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, combo.count);
+    this.tryComboAoeTouch(tile, stats, combo.count, now);
     saveGame(this.state);
+  }
+
+  private tryComboAoeTouch(originTile: FieldTile, stats: ReturnType<typeof getRuntimeStats>, comboCount: number, now: number): void {
+    const chance = this.getComboAoeChance(comboCount);
+    if (chance <= 0 || Math.random() >= chance) {
+      return;
+    }
+
+    let touchedTiles = 0;
+    let gainedTouches = 0;
+    for (const neighbor of COMBO_AOE_NEIGHBORS) {
+      const tile = this.state.field[tileKey(originTile.x + neighbor.x, originTile.y + neighbor.y)];
+      if (!tile || tile.grassState !== "grown") {
+        continue;
+      }
+
+      const touchedTrait = tile.trait;
+      const touchedTier = getGrassTier(tile.tier);
+      this.addJournalValue(this.state.journal.discoveredGrassTiers, touchedTier.id);
+      this.addJournalValue(this.state.journal.discoveredTileTraits, touchedTrait);
+      const touch = touchTile(tile, this.state, stats, now);
+      if (touch.gained === 0) {
+        continue;
+      }
+
+      touchedTiles += 1;
+      gainedTouches += touch.gained;
+      this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
+      this.refreshTile(tile);
+      this.popAtTile(tile, this.getTouchPopText(touch, touchedTier.label), touch.isCrit ? "#ffef78" : "#d7fff2");
+      if (touch.instantRegrown) {
+        this.popAtTile(tile, "instant regrow", "#dfffc8");
+      }
+      this.drops.tryDropSeed(this.state, tile, touchedTrait, stats, this.getDropFeedback());
+      this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier.id, touch, stats, this.getDropFeedback());
+      this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, comboCount);
+    }
+
+    if (touchedTiles === 0) {
+      return;
+    }
+
+    this.popAtTile(originTile, `AOE ${touchedTiles} tiles +${gainedTouches}`, "#bff4ff");
+    const view = this.tileViews.get(tileKey(originTile.x, originTile.y));
+    if (view) {
+      this.emitBurst("dew-fleck", view.label.x, view.label.y - 6, 36, 1.25, 0.28);
+    }
+  }
+
+  private getComboAoeChance(comboCount: number): number {
+    if (comboCount > COMBO_AOE_HIGH_COUNT) {
+      return COMBO_AOE_HIGH_CHANCE;
+    }
+
+    if (comboCount >= COMBO_AOE_MIN_COUNT) {
+      return COMBO_AOE_CHANCE;
+    }
+
+    return 0;
   }
 
   private getDropFeedback(): DropFeedback {
