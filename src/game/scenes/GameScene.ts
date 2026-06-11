@@ -55,11 +55,17 @@ const COMBO_AOE_NEIGHBORS = [
 const SKILL_NODE_SIZE = 78;
 const SKILL_MAP_X_SCALE = 0.72;
 const SKILL_MAP_Y_SCALE = 0.86;
-const SKILL_NODE_VISUAL_SIZE = 58;
+const SKILL_NODE_VISUAL_SIZE = 64;
 const SKILL_DETAIL_WIDTH = 360;
 const SKILL_DETAIL_HEIGHT = 400;
 const SHOP_ICON_SIZE = 48;
 const PANEL_SLICE = 18;
+const SKILL_NODE_FRAME_KEYS = {
+  locked: "skill-node-locked",
+  available: "skill-node-available",
+  owned: "skill-node-owned",
+  selected: "skill-node-selected",
+} as const;
 
 const SKILL_BRANCH_LABELS = [
   { text: "Touch", x: 230, y: 50, color: "#dfffc8" },
@@ -363,7 +369,10 @@ export class GameScene extends Phaser.Scene {
     this.load.image("button-emerald-normal", "/assets/ui/button-emerald-normal.png");
     this.load.image("button-emerald-hover", "/assets/ui/button-emerald-hover.png");
     this.load.image("button-emerald-active", "/assets/ui/button-emerald-active.png");
-    this.load.image("node-hexagon-frame", "/assets/ui/node-hexagon-frame.png");
+    this.load.image(SKILL_NODE_FRAME_KEYS.locked, "/assets/ui/skill-node-locked.png");
+    this.load.image(SKILL_NODE_FRAME_KEYS.available, "/assets/ui/skill-node-available.png");
+    this.load.image(SKILL_NODE_FRAME_KEYS.owned, "/assets/ui/skill-node-owned.png");
+    this.load.image(SKILL_NODE_FRAME_KEYS.selected, "/assets/ui/skill-node-selected.png");
     this.load.image("selector-gold", "/assets/ui/selector-gold.png");
 
     for (const itemKey of new Set([...Object.values(SEED_SHOP_ICON_KEYS), ...Object.values(GOLD_STORE_ICON_KEYS)])) {
@@ -877,9 +886,12 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setStrokeStyle(1, upgrade.tree.color, 0)
         .setInteractive({ useHandCursor: true });
-      const glow = this.add.ellipse(0, -4, 58, 44, upgrade.tree.color, 0.12).setStrokeStyle(2, upgrade.tree.color, 0.24);
+      const glow = this.add.ellipse(0, -4, 62, 48, upgrade.tree.color, 0.12).setStrokeStyle(2, upgrade.tree.color, 0.24);
       const plate = this.add.circle(0, -4, 24, 0x06190f, 0.82).setStrokeStyle(3, upgrade.tree.color, 0.58);
-      const frame = this.add.image(0, 0, "node-hexagon-frame").setDisplaySize(SKILL_NODE_VISUAL_SIZE, SKILL_NODE_VISUAL_SIZE).setAlpha(0.88);
+      const frame = this.add
+        .image(0, 0, SKILL_NODE_FRAME_KEYS.locked)
+        .setDisplaySize(SKILL_NODE_VISUAL_SIZE, SKILL_NODE_VISUAL_SIZE)
+        .setAlpha(0.88);
       const icon = this.add.image(0, -4, getSkillIconKey(upgrade.id)).setDisplaySize(38, 38);
       const lockedIcon = this.add
         .text(0, -7, "?", {
@@ -4314,6 +4326,14 @@ export class GameScene extends Phaser.Scene {
       const selected = upgrade.id === this.selectedSkillId;
       const stroke = selected ? 0xfff08a : available ? 0xf4df6a : level > 0 ? upgrade.tree.color : 0x506056;
       const nodeAlpha = unlocked || level > 0 ? 1 : 0.48;
+      const frameKey = selected
+        ? SKILL_NODE_FRAME_KEYS.selected
+        : level > 0
+          ? SKILL_NODE_FRAME_KEYS.owned
+          : unlocked
+            ? SKILL_NODE_FRAME_KEYS.available
+            : SKILL_NODE_FRAME_KEYS.locked;
+      const frameSize = selected ? 74 : available ? 68 : level > 0 ? 66 : SKILL_NODE_VISUAL_SIZE;
 
       view.container.setAlpha(nodeAlpha);
       view.bg.setFillStyle(0xffffff, 0.001);
@@ -4322,9 +4342,10 @@ export class GameScene extends Phaser.Scene {
       view.glow.setStrokeStyle(selected ? 3 : 2, stroke, selected ? 0.72 : available ? 0.48 : level > 0 ? 0.32 : 0.12);
       view.plate.setFillStyle(level > 0 ? 0x102f1a : unlocked ? 0x0d2617 : 0x07150e, unlocked || level > 0 ? 0.9 : 0.76);
       view.plate.setStrokeStyle(selected ? 4 : available ? 3 : 2, stroke, selected ? 0.95 : available ? 0.82 : level > 0 ? 0.58 : 0.28);
-      view.frame.setTint(stroke);
-      view.frame.setAlpha(selected ? 1 : available ? 0.96 : level > 0 ? 0.78 : 0.34);
-      view.frame.setDisplaySize(selected ? 70 : SKILL_NODE_VISUAL_SIZE, selected ? 70 : SKILL_NODE_VISUAL_SIZE);
+      view.frame.setTexture(frameKey);
+      view.frame.clearTint();
+      view.frame.setAlpha(selected ? 1 : available ? 1 : level > 0 ? 0.94 : 0.72);
+      view.frame.setDisplaySize(frameSize, frameSize);
       view.icon.setTexture(getSkillIconKey(upgrade.id));
       view.icon.setVisible(unlocked || level > 0);
       view.icon.setAlpha(available || selected ? 1 : level > 0 ? 0.95 : 0.72);
