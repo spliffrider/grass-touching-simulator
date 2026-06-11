@@ -19,7 +19,9 @@ export type WeatherId =
   | "golden_hour"
   | "restless_roots";
 
-export const CURRENT_SAVE_VERSION = 3;
+export type CharacterClassId = "femboy_slim" | "bard_de_wever";
+
+export const CURRENT_SAVE_VERSION = 4;
 
 export interface FieldTile {
   x: number;
@@ -54,6 +56,7 @@ export interface JournalState {
 
 export interface GameState {
   saveVersion: number;
+  characterClassId: CharacterClassId;
   grassTouches: number;
   seeds: number;
   lifetimeSeeds: number;
@@ -86,6 +89,8 @@ export interface RuntimeStats {
   rareTouchBonus: number;
   doubleTouchChance: number;
   instantRegrowChance: number;
+  comboWindowMultiplier: number;
+  comboBonusMultiplier: number;
 }
 
 export interface TouchResult {

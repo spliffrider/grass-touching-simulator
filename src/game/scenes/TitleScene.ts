@@ -1,7 +1,9 @@
 import Phaser from "phaser";
 import { DEFAULT_MUSIC_VOLUME, readStoredMusicVolume, writeStoredMusicVolume } from "../data/audio-settings";
 import { BUILD_LABEL } from "../data/build-info";
+import { CHARACTER_CLASSES, getCharacterClass, type CharacterClassDefinition } from "../data/character-classes";
 import { hasSavedGame, resetSave } from "../systems/SaveSystem";
+import type { CharacterClassId } from "../types/game-state";
 
 const SOURCE_WIDTH = 1366;
 const SOURCE_HEIGHT = 768;
@@ -10,6 +12,8 @@ const CREDITS_PANEL_BASE_WIDTH = 420;
 const CREDITS_PANEL_BASE_HEIGHT = 290;
 const OPTIONS_PANEL_BASE_WIDTH = 460;
 const OPTIONS_PANEL_BASE_HEIGHT = 220;
+const CLASS_PANEL_BASE_WIDTH = 740;
+const CLASS_PANEL_BASE_HEIGHT = 430;
 const OPTIONS_TRACK_BASE_WIDTH = 320;
 const OPTIONS_TRACK_BASE_HEIGHT = 12;
 const OPTIONS_HIT_BASE_WIDTH = 350;
@@ -24,6 +28,19 @@ interface TitleButton {
   selectorWidth: number;
   hit: Phaser.GameObjects.Rectangle;
   label: Phaser.GameObjects.Text;
+}
+
+interface ClassCard {
+  characterClass: CharacterClassDefinition;
+  container: Phaser.GameObjects.Container;
+  hit: Phaser.GameObjects.Rectangle;
+  frame: Phaser.GameObjects.Rectangle;
+  name: Phaser.GameObjects.Text;
+  archetype: Phaser.GameObjects.Text;
+  passive: Phaser.GameObjects.Text;
+  body: Phaser.GameObjects.Text;
+  button: Phaser.GameObjects.Rectangle;
+  buttonText: Phaser.GameObjects.Text;
 }
 
 export class TitleScene extends Phaser.Scene {
@@ -58,11 +75,21 @@ export class TitleScene extends Phaser.Scene {
   private musicToggleText!: Phaser.GameObjects.Text;
   private optionsBackHit!: Phaser.GameObjects.Rectangle;
   private optionsBackText!: Phaser.GameObjects.Text;
+  private classSelectRoot!: Phaser.GameObjects.Container;
+  private classSelectBackdrop!: Phaser.GameObjects.Rectangle;
+  private classSelectPanel!: Phaser.GameObjects.NineSlice;
+  private classSelectTitle!: Phaser.GameObjects.Text;
+  private classSelectSubtitle!: Phaser.GameObjects.Text;
+  private classCards: ClassCard[] = [];
+  private classBackHit!: Phaser.GameObjects.Rectangle;
+  private classBackText!: Phaser.GameObjects.Text;
   private menuTheme?: HTMLAudioElement;
   private menuThemeEnabled = true;
   private menuThemeVolume = DEFAULT_MUSIC_VOLUME;
   private optionsOpen = false;
   private creditsOpen = false;
+  private classSelectOpen = false;
+  private activeClassId: CharacterClassId = CHARACTER_CLASSES[0].id;
   private draggingVolume = false;
   private titleReady = false;
   private volumeSliderX = 0;
@@ -117,10 +144,12 @@ export class TitleScene extends Phaser.Scene {
 
     this.createCreditsPanel();
     this.createOptionsPanel();
+    this.createClassSelectPanel();
 
     this.input.keyboard?.on("keydown-ENTER", () => this.startOrContinue());
     this.input.keyboard?.on("keydown-SPACE", () => this.startOrContinue());
     this.input.keyboard?.on("keydown-ESC", () => {
+      this.closeClassSelect();
       this.closeCredits();
       this.closeOptions();
     });
@@ -420,6 +449,121 @@ export class TitleScene extends Phaser.Scene {
     this.refreshOptionsPanel();
   }
 
+  private createClassSelectPanel(): void {
+    this.classSelectRoot = this.add.container(0, 0).setDepth(32).setVisible(false);
+    this.classSelectBackdrop = this.add
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x06190f, 0.72)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.classSelectPanel = this.add
+      .nineslice(0, 0, "panel-emerald", undefined, CLASS_PANEL_BASE_WIDTH, CLASS_PANEL_BASE_HEIGHT, 18, 18, 18, 18)
+      .setOrigin(0.5)
+      .setAlpha(0.98);
+    this.classSelectTitle = this.add
+      .text(0, 0, "Choose Your Grass Toucher", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "36px",
+        color: "#f7ffe8",
+        stroke: "#092213",
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5);
+    this.classSelectSubtitle = this.add
+      .text(0, 0, "This starts a new save. Pick the passive you want to grow around.", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "17px",
+        color: "#b7eba5",
+        align: "center",
+      })
+      .setOrigin(0.5);
+
+    this.classSelectRoot.add([this.classSelectBackdrop, this.classSelectPanel, this.classSelectTitle, this.classSelectSubtitle]);
+
+    this.classCards = CHARACTER_CLASSES.map((characterClass) => this.createClassCard(characterClass));
+
+    this.classBackHit = this.add
+      .rectangle(0, 0, 118, 42, 0xe9ffd0, 0.98)
+      .setOrigin(0.5)
+      .setStrokeStyle(3, 0x2d6f36)
+      .setInteractive({ useHandCursor: true });
+    this.classBackText = this.add
+      .text(0, 0, "Back", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "18px",
+        color: "#183d20",
+      })
+      .setOrigin(0.5);
+
+    this.classBackHit.on("pointerdown", () => this.closeClassSelect());
+    this.classSelectRoot.add([this.classBackHit, this.classBackText]);
+    this.refreshClassCards();
+  }
+
+  private createClassCard(characterClass: CharacterClassDefinition): ClassCard {
+    const container = this.add.container(0, 0);
+    const hit = this.add
+      .rectangle(0, 0, 316, 300, 0xffffff, 0.001)
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    const frame = this.add
+      .rectangle(0, 0, 316, 300, 0x0b2a18, 0.92)
+      .setOrigin(0.5)
+      .setStrokeStyle(3, 0xb7eba5, 0.72);
+    const name = this.add
+      .text(0, -126, characterClass.name, {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "28px",
+        color: "#f7ffe8",
+        stroke: "#092213",
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5);
+    const archetype = this.add
+      .text(0, -94, characterClass.archetype, {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "16px",
+        color: "#b7eba5",
+      })
+      .setOrigin(0.5);
+    const passive = this.add
+      .text(0, -64, characterClass.passiveName, {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "19px",
+        color: "#ffef78",
+        stroke: "#092213",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5);
+    const body = this.add
+      .text(0, -40, [characterClass.passiveDescription, "", ...characterClass.statLines].join("\n"), {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "14px",
+        color: "#f7ffe8",
+        align: "center",
+        lineSpacing: 2,
+        wordWrap: { width: 266 },
+      })
+      .setOrigin(0.5, 0);
+    const button = this.add
+      .rectangle(0, 130, 188, 38, 0xe9ffd0, 0.98)
+      .setOrigin(0.5)
+      .setStrokeStyle(3, 0x2d6f36);
+    const buttonText = this.add
+      .text(0, 130, "Start", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "18px",
+        color: "#183d20",
+      })
+      .setOrigin(0.5);
+
+    container.add([frame, hit, name, archetype, passive, body, button, buttonText]);
+    hit.on("pointerover", () => this.setActiveClass(characterClass.id));
+    hit.on("pointerdown", () => this.startNewGameWithClass(characterClass.id));
+    this.classSelectRoot.add(container);
+
+    return { characterClass, container, hit, frame, name, archetype, passive, body, button, buttonText };
+  }
+
   private layoutTitle(): void {
     const shortLandscape = this.scale.width > this.scale.height && this.scale.height < 520;
     const scale = shortLandscape
@@ -436,6 +580,7 @@ export class TitleScene extends Phaser.Scene {
     this.buildLabelText?.setPosition(this.scale.width - 14, this.scale.height - 10);
     this.drawMenuPanel(scale, offsetX, offsetY);
     this.layoutOptionsPanel();
+    this.layoutClassSelectPanel();
 
     for (const button of this.buttons) {
       const x = offsetX + button.sourceX * scale;
@@ -549,6 +694,41 @@ export class TitleScene extends Phaser.Scene {
     this.volumeSliderWidth = trackWidth;
   }
 
+  private layoutClassSelectPanel(): void {
+    const narrow = this.scale.width < 720;
+    const panelWidth = Math.min(narrow ? 520 : 790, this.scale.width - 36);
+    const panelHeight = Math.min(narrow ? 700 : 560, this.scale.height - 32);
+    const centerX = this.scale.width / 2;
+    const centerY = this.scale.height / 2;
+    const cardWidth = narrow ? Math.min(330, panelWidth - 58) : Math.min(316, (panelWidth - 110) / 2);
+    const cardHeight = narrow ? 274 : 300;
+    const cardScaleX = cardWidth / 316;
+    const cardScaleY = cardHeight / 300;
+
+    this.resizeInteractiveBackdrop(this.classSelectBackdrop);
+    this.classSelectPanel?.setPosition(centerX, centerY);
+    this.classSelectPanel?.setScale(panelWidth / CLASS_PANEL_BASE_WIDTH, panelHeight / CLASS_PANEL_BASE_HEIGHT);
+    this.classSelectTitle?.setPosition(centerX, centerY - panelHeight / 2 + 42);
+    this.classSelectTitle?.setFontSize(narrow ? 28 : 36);
+    this.classSelectSubtitle?.setPosition(centerX, centerY - panelHeight / 2 + (narrow ? 78 : 86));
+    this.classSelectSubtitle?.setWordWrapWidth(Math.max(240, panelWidth - 76));
+
+    this.classCards.forEach((card, index) => {
+      const cardX = narrow ? centerX : centerX + (index === 0 ? -cardWidth / 2 - 18 : cardWidth / 2 + 18);
+      const cardY = narrow ? centerY - 122 + index * (cardHeight + 18) : centerY + 42;
+      card.container.setPosition(cardX, cardY);
+      card.frame.setSize(316, 300);
+      card.hit.setSize(316, 300);
+      card.container.setScale(cardScaleX, cardScaleY);
+      card.name.setFontSize(narrow ? 25 : 28);
+      card.body.setWordWrapWidth(narrow ? 272 : 266);
+      card.body.setFontSize(narrow ? 13 : 14);
+    });
+
+    this.classBackHit?.setPosition(centerX, centerY + panelHeight / 2 - 38);
+    this.classBackText?.setPosition(centerX, centerY + panelHeight / 2 - 38);
+  }
+
   private resizeInteractiveBackdrop(backdrop: Phaser.GameObjects.Rectangle | undefined): void {
     if (!backdrop) {
       return;
@@ -563,14 +743,17 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private handleButton(id: TitleButton["id"]): void {
+    if (this.classSelectOpen && id !== "start") {
+      return;
+    }
+
     if (this.creditsOpen && id !== "credits") {
       return;
     }
 
     switch (id) {
       case "start":
-        resetSave();
-        this.scene.start("GameScene", { newGame: true });
+        this.openClassSelect();
         break;
       case "continue":
         if (hasSavedGame()) {
@@ -598,6 +781,11 @@ export class TitleScene extends Phaser.Scene {
   private startOrContinue(): void {
     this.playMenuTheme();
 
+    if (this.classSelectOpen) {
+      this.startNewGameWithClass(this.activeClassId);
+      return;
+    }
+
     if (this.creditsOpen) {
       this.closeCredits();
       return;
@@ -608,8 +796,50 @@ export class TitleScene extends Phaser.Scene {
       return;
     }
 
-    resetSave();
-    this.scene.start("GameScene", { newGame: true });
+    this.openClassSelect();
+  }
+
+  private openClassSelect(): void {
+    this.closeCredits();
+    this.closeOptions();
+    this.classSelectOpen = true;
+    this.activeClassId = CHARACTER_CLASSES[0].id;
+    this.classSelectRoot.setVisible(true);
+    this.playMenuTheme();
+    this.refreshClassCards();
+    this.layoutClassSelectPanel();
+    this.showNotice("");
+  }
+
+  private closeClassSelect(): void {
+    this.classSelectOpen = false;
+    this.classSelectRoot?.setVisible(false);
+  }
+
+  private setActiveClass(id: CharacterClassId): void {
+    this.activeClassId = id;
+    this.refreshClassCards();
+  }
+
+  private refreshClassCards(): void {
+    for (const card of this.classCards) {
+      const active = card.characterClass.id === this.activeClassId;
+      card.frame.setFillStyle(active ? 0x123d23 : 0x0b2a18, active ? 0.98 : 0.92);
+      card.frame.setStrokeStyle(active ? 4 : 3, active ? 0xffef78 : 0xb7eba5, active ? 0.98 : 0.72);
+      card.button.setFillStyle(active ? 0xffef78 : 0xe9ffd0, 0.98);
+      card.button.setStrokeStyle(3, active ? 0xf4df6a : 0x2d6f36);
+      card.buttonText.setText(active ? "Start as This" : "Start");
+      card.buttonText.setColor("#183d20");
+      card.name.setColor(active ? "#ffef78" : "#f7ffe8");
+      card.passive.setColor(active ? "#fff2b2" : "#ffef78");
+    }
+  }
+
+  private startNewGameWithClass(id: CharacterClassId): void {
+    const characterClass = getCharacterClass(id);
+    resetSave(id);
+    this.showNotice(`Starting as ${characterClass.name}.`);
+    this.scene.start("GameScene", { newGame: true, characterClassId: id });
   }
 
   private showNotice(message: string): void {
@@ -622,6 +852,7 @@ export class TitleScene extends Phaser.Scene {
 
   private openOptions(): void {
     this.closeCredits();
+    this.closeClassSelect();
     this.optionsOpen = true;
     this.optionsRoot.setVisible(true);
     this.playMenuTheme();
@@ -680,6 +911,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private openCredits(): void {
+    this.closeClassSelect();
     this.creditsOpen = true;
     this.creditsRoot.setVisible(true);
     this.showNotice("");

@@ -1,4 +1,5 @@
 import { UPGRADES } from "../data/upgrades";
+import { getCharacterClass } from "../data/character-classes";
 import { getSeasonForDate } from "../data/seasons";
 import { getWeather } from "../data/weather";
 import type { GameState, RuntimeStats } from "../types/game-state";
@@ -16,7 +17,11 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
     rareTouchBonus: 0,
     doubleTouchChance: 0,
     instantRegrowChance: 0,
+    comboWindowMultiplier: 1,
+    comboBonusMultiplier: 1,
   };
+
+  getCharacterClass(state.characterClassId).apply(stats);
 
   for (const upgrade of UPGRADES) {
     const level = state.upgrades[upgrade.id]?.level ?? 0;
@@ -73,6 +78,8 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
   stats.rareTouchBonus = Math.min(20, stats.rareTouchBonus);
   stats.doubleTouchChance = Math.min(0.5, stats.doubleTouchChance);
   stats.instantRegrowChance = Math.min(0.35, stats.instantRegrowChance);
+  stats.comboWindowMultiplier = Math.min(1.75, Math.max(0.75, stats.comboWindowMultiplier));
+  stats.comboBonusMultiplier = Math.min(2.25, Math.max(0.5, stats.comboBonusMultiplier));
   stats.regrowMultiplier = Math.max(0.25, stats.regrowMultiplier);
 
   return stats;

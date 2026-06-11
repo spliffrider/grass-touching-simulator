@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { DEFAULT_MUSIC_VOLUME, readStoredMusicVolume, writeStoredMusicVolume } from "../data/audio-settings";
+import { getCharacterClass } from "../data/character-classes";
 import { GRASS_TIERS, getGrassTier, getNextGrassTier } from "../data/grass-tiers";
 import { BUILD_LABEL } from "../data/build-info";
 import { GOLD_STORE_ITEMS } from "../data/gold-store";
@@ -20,7 +21,7 @@ import { DropSystem, type DropFeedback } from "../systems/DropSystem";
 import { loadGame, resetSave, saveGame } from "../systems/SaveSystem";
 import { SprinklerSystem } from "../systems/SprinklerSystem";
 import { getRuntimeStats } from "../systems/UpgradeSystem";
-import type { FieldTile, GameState, GrassTierId, TileKey, TileTrait, TouchResult, WeatherId } from "../types/game-state";
+import type { CharacterClassId, FieldTile, GameState, GrassTierId, TileKey, TileTrait, TouchResult, WeatherId } from "../types/game-state";
 import { createTextButton, setTextButtonEnabled, setTextButtonText } from "../ui/buttons";
 
 const TILE_SIZE = 58;
@@ -396,8 +397,8 @@ export class GameScene extends Phaser.Scene {
     this.load.image("effect-magic-spore", "/assets/effects/magic-spore.png");
   }
 
-  create(data?: { newGame?: boolean }): void {
-    this.state = data?.newGame ? resetSave() : loadGame();
+  create(data?: { newGame?: boolean; characterClassId?: CharacterClassId }): void {
+    this.state = data?.newGame ? resetSave(data.characterClassId) : loadGame();
     this.musicVolume = readStoredMusicVolume();
     this.music.setVolume(this.musicVolume);
     this.music.setTrack(this.state.selectedTrackId || "cozy_meadow");
@@ -2174,8 +2175,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resetPrototypeSave(): void {
+    const characterClassId = this.state.characterClassId;
     this.disarmReset();
-    this.state = resetSave();
+    this.state = resetSave(characterClassId);
     this.sprinkler.reset();
     this.animalCompanions.reset();
     this.combo.reset();
@@ -2862,7 +2864,10 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const combo = this.combo.recordManualTouch(now, touch.gained);
+    const combo = this.combo.recordManualTouch(now, touch.gained, {
+      windowMs: this.combo.getBaseWindowMs() * stats.comboWindowMultiplier,
+      bonusMultiplier: stats.comboBonusMultiplier,
+    });
     this.music.setComboLevel(combo.count);
     if (combo.count > this.state.journal.bestComboCount) {
       this.state.journal.bestComboCount = combo.count;
@@ -4268,6 +4273,7 @@ export class GameScene extends Phaser.Scene {
     const nextTier = getNextGrassTier(this.state);
     const weather = this.state.seedShopPurchases.weather_jar ? getWeather(this.state.activeWeatherId) : undefined;
     const season = getSeasonForDate(new Date());
+    const characterClass = getCharacterClass(this.state.characterClassId);
     const compact = this.scale.width < 620;
     const resourceSeparator = compact ? "\n" : " | ";
 
@@ -4303,6 +4309,7 @@ export class GameScene extends Phaser.Scene {
           : nextQuest
             ? `Next quest: ${nextQuest.name} - ${formatQuestProgress(nextQuest, this.state)}`
             : "All current quests claimed.",
+        `Class: ${characterClass.name} - ${characterClass.passiveName}`,
         nextTier ? `Next grass tier: ${nextTier.name} at ${nextTier.unlockAtLifetimeTouches} lifetime touches` : "",
         weather ? `Weather: ${weather.name} - ${weather.description}` : "",
       ]

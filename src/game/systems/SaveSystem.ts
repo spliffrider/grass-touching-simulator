@@ -1,7 +1,8 @@
 import { createInitialState } from "./FieldSystem";
+import { isCharacterClassId } from "../data/character-classes";
 import { getGrassTier } from "../data/grass-tiers";
 import { CURRENT_SAVE_VERSION } from "../types/game-state";
-import type { FieldTile, GameState, GrassTierId, InventoryEntry, JournalState, TileKey, TileTrait, UpgradeState, WeatherId } from "../types/game-state";
+import type { CharacterClassId, FieldTile, GameState, GrassTierId, InventoryEntry, JournalState, TileKey, TileTrait, UpgradeState, WeatherId } from "../types/game-state";
 
 const SAVE_KEY = "grass-touching-simulator.save.v1";
 const VALID_GRASS_TIERS = ["normal", "thick", "clover", "golden", "wildflower", "moss", "mushroom", "crystal", "frost"] as const;
@@ -31,9 +32,9 @@ export function hasSavedGame(): boolean {
   return localStorage.getItem(SAVE_KEY) !== null;
 }
 
-export function resetSave(): GameState {
+export function resetSave(characterClassId?: CharacterClassId): GameState {
   localStorage.removeItem(SAVE_KEY);
-  return createInitialState();
+  return createInitialState(characterClassId);
 }
 
 function migrateGameState(saved: Record<string, unknown>): GameState {
@@ -43,6 +44,7 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
   return {
     ...initial,
     saveVersion: CURRENT_SAVE_VERSION,
+    characterClassId: isCharacterClassId(saved.characterClassId) ? saved.characterClassId : initial.characterClassId,
     grassTouches: readNumber(saved.grassTouches, initial.grassTouches),
     seeds: readNumber(saved.seeds, initial.seeds),
     lifetimeSeeds: readNumber(saved.lifetimeSeeds, initial.lifetimeSeeds),

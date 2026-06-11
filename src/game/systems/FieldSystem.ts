@@ -1,6 +1,7 @@
 import { getGrassTier, pickGrassTier } from "../data/grass-tiers";
+import { DEFAULT_CHARACTER_CLASS_ID } from "../data/character-classes";
 import { CURRENT_SAVE_VERSION } from "../types/game-state";
-import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileKey, TileTrait, TouchResult } from "../types/game-state";
+import type { CharacterClassId, FieldTile, GameState, GrassTierId, RuntimeStats, TileKey, TileTrait, TouchResult } from "../types/game-state";
 
 const NEIGHBORS = [
   { x: 1, y: 0 },
@@ -72,9 +73,10 @@ export function getFieldBounds(state: GameState): FieldBounds | undefined {
   };
 }
 
-export function createInitialState(): GameState {
+export function createInitialState(characterClassId: CharacterClassId = DEFAULT_CHARACTER_CLASS_ID): GameState {
   return {
     saveVersion: CURRENT_SAVE_VERSION,
+    characterClassId,
     grassTouches: 0,
     seeds: 0,
     lifetimeSeeds: 0,

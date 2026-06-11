@@ -7,6 +7,11 @@ export interface ComboResult {
   touchIntervalMs?: number;
 }
 
+export interface ComboRecordOptions {
+  windowMs?: number;
+  bonusMultiplier?: number;
+}
+
 const COMBO_WINDOW_MS = 1800;
 
 const COMBO_TIERS = [
@@ -21,24 +26,29 @@ export class ComboSystem {
   private count = 0;
   private lastTouchAt = 0;
   private expiresAt = 0;
+  private currentWindowMs = COMBO_WINDOW_MS;
 
   reset(): void {
     this.count = 0;
     this.lastTouchAt = 0;
     this.expiresAt = 0;
+    this.currentWindowMs = COMBO_WINDOW_MS;
   }
 
-  recordManualTouch(now: number, baseTouches: number): ComboResult {
+  recordManualTouch(now: number, baseTouches: number, options: ComboRecordOptions = {}): ComboResult {
+    const windowMs = Math.max(600, Math.floor(options.windowMs ?? COMBO_WINDOW_MS));
+    const bonusMultiplier = Math.max(0, options.bonusMultiplier ?? 1);
     const previousCount = this.count;
     const previousTouchAt = this.lastTouchAt;
-    const isContinuing = previousTouchAt > 0 && now - previousTouchAt <= COMBO_WINDOW_MS;
+    const isContinuing = previousTouchAt > 0 && now - previousTouchAt <= windowMs;
 
     this.count = isContinuing ? this.count + 1 : 1;
     this.lastTouchAt = now;
-    this.expiresAt = now + COMBO_WINDOW_MS;
+    this.currentWindowMs = windowMs;
+    this.expiresAt = now + windowMs;
 
     const multiplier = this.getMultiplier();
-    const bonusTouches = multiplier > 1 ? Math.max(1, Math.floor(baseTouches * (multiplier - 1))) : 0;
+    const bonusTouches = multiplier > 1 ? Math.max(1, Math.floor(baseTouches * (multiplier - 1) * bonusMultiplier)) : 0;
     const thresholdReached = COMBO_TIERS.find((tier) => previousCount < tier.count && this.count >= tier.count)?.count;
 
     return {
@@ -73,6 +83,10 @@ export class ComboSystem {
   }
 
   getWindowMs(): number {
+    return this.currentWindowMs;
+  }
+
+  getBaseWindowMs(): number {
     return COMBO_WINDOW_MS;
   }
 }
