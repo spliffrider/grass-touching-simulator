@@ -1,0 +1,282 @@
+{
+  "project": "Grass Touching Simulator",
+  "handoffDate": "2026-06-10",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "branch": "master",
+  "liveSite": "https://grasstouchingsimulator.com",
+  "latestKnownProductionDeployment": "https://grass-touching-simulator-5h1c97ioe-sensitech.vercel.app",
+  "currentGitState": {
+    "workingTree": "Clean after committing the latest quest/celebration pass, except this new handoff JSON if it remains uncommitted.",
+    "localBranch": "master",
+    "remoteTracking": "Local master is ahead of origin/master by 1 commit.",
+    "unpublishedCommit": {
+      "hash": "ec2c75f",
+      "message": "Add grass specimen quests and celebrations"
+    },
+    "latestPushedCommit": {
+      "hash": "4763658",
+      "message": "Add new grass tier mechanics"
+    },
+    "deployment": "Production was last deployed after 4763658. The latest local commit ec2c75f has not been pushed or deployed yet."
+  },
+  "latestCommits": [
+    {
+      "hash": "ec2c75f",
+      "message": "Add grass specimen quests and celebrations",
+      "status": "local-only at handoff time"
+    },
+    {
+      "hash": "4763658",
+      "message": "Add new grass tier mechanics",
+      "status": "pushed and deployed"
+    },
+    {
+      "hash": "4695b52",
+      "message": "feat(assets): generate 15 new grass tier tile art assets and preview sheet",
+      "status": "pushed and deployed"
+    },
+    {
+      "hash": "585a4dd",
+      "message": "Add perfect touch polish and weather synergies",
+      "status": "pushed and deployed"
+    },
+    {
+      "hash": "a62194d",
+      "message": "Add combo AOE touch chance",
+      "status": "pushed and deployed"
+    },
+    {
+      "hash": "5d93e43",
+      "message": "Add field journal collection",
+      "status": "pushed and deployed"
+    },
+    {
+      "hash": "c9524ef",
+      "message": "Add quest chains and combo streaks",
+      "status": "pushed and deployed"
+    }
+  ],
+  "verification": {
+    "latestBuild": "npm run build passed after ec2c75f.",
+    "browserSmoke": "Browser smoke tests passed during the session after grass tier mechanics and after quest/celebration changes.",
+    "liveDomain": "https://grasstouchingsimulator.com was verified HTTP 200 after the previous production deploy."
+  },
+  "implementedThisSession": [
+    {
+      "name": "Combo AOE touch",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ],
+      "details": [
+        "Manual combo count 10-20 gives a 25% chance per manual touch to AOE touch the 8 surrounding tiles.",
+        "Manual combo count above 20 gives a 50% chance.",
+        "AOE touches use existing touch/drop/audio feedback but do not increment combo and do not recursively trigger AOE."
+      ]
+    },
+    {
+      "name": "Perfect Touch timing mechanic",
+      "files": [
+        "src/game/scenes/GameScene.ts",
+        "src/game/systems/AudioSystem.ts"
+      ],
+      "details": [
+        "Freshly regrown tiles are marked for a short Perfect Touch window.",
+        "Manual touches during the window grant bonus Grass Touches.",
+        "Fresh tiles show a gold-green ring/sparkle cue.",
+        "Perfect Touch has a dedicated crisp procedural sound."
+      ]
+    },
+    {
+      "name": "Earthworm companion",
+      "files": [
+        "src/game/data/gold-store.ts",
+        "src/game/data/journal.ts",
+        "src/game/scenes/GameScene.ts",
+        "src/game/systems/AnimalCompanionSystem.ts",
+        "public/assets/world/earthworm.png"
+      ],
+      "details": [
+        "Earthworm added as a Gold Store animal.",
+        "Periodically shortens remaining regrowth time on resting patches.",
+        "Has generated world sprite, field ambience, burrow action feedback, and journal note."
+      ]
+    },
+    {
+      "name": "Weather visuals and synergies",
+      "files": [
+        "src/game/scenes/GameScene.ts",
+        "src/game/systems/AnimalCompanionSystem.ts"
+      ],
+      "details": [
+        "Weather particles made more distinct: rain streaks, breeze leaves, seed wind, pollen motes, sun motes, root motes.",
+        "Weather tints strengthened.",
+        "Soft Rain and Dewy Morning extend Perfect Touch windows.",
+        "Restless Roots shortens Perfect Touch window.",
+        "Lucky Breeze boosts combo AOE chance.",
+        "Golden Hour can add gold on Perfect Touch.",
+        "Warm Sunlight and Soft Rain improve Earthworm regrowth help."
+      ]
+    },
+    {
+      "name": "New grass tier asset brief",
+      "files": [
+        "docs/ANTIGRAVITY_GRASS_TIER_ASSET_BRIEF.md"
+      ],
+      "details": [
+        "Created instructions for Gemini/Antigravity to generate new grass tier tile assets.",
+        "Requested 5 tiers with base/dewy/lush variants and exact paths."
+      ]
+    },
+    {
+      "name": "New grass tier assets",
+      "files": [
+        "public/assets/tiles/grass-wildflower.png",
+        "public/assets/tiles/grass-wildflower-dewy.png",
+        "public/assets/tiles/grass-wildflower-lush.png",
+        "public/assets/tiles/grass-moss.png",
+        "public/assets/tiles/grass-moss-dewy.png",
+        "public/assets/tiles/grass-moss-lush.png",
+        "public/assets/tiles/grass-mushroom.png",
+        "public/assets/tiles/grass-mushroom-dewy.png",
+        "public/assets/tiles/grass-mushroom-lush.png",
+        "public/assets/tiles/grass-crystal.png",
+        "public/assets/tiles/grass-crystal-dewy.png",
+        "public/assets/tiles/grass-crystal-lush.png",
+        "public/assets/tiles/grass-frost.png",
+        "public/assets/tiles/grass-frost-dewy.png",
+        "public/assets/tiles/grass-frost-lush.png",
+        "docs/generated-grass-tier-preview.png"
+      ],
+      "details": [
+        "Gemini/Antigravity generated all requested files.",
+        "Validated all new tile PNGs are 58x58 Format32bppArgb.",
+        "Preview sheet looked usable and distinct."
+      ]
+    },
+    {
+      "name": "New grass tier mechanics",
+      "files": [
+        "src/game/types/game-state.ts",
+        "src/game/data/grass-tiers.ts",
+        "src/game/data/journal.ts",
+        "src/game/data/economy.ts",
+        "src/game/scenes/GameScene.ts",
+        "src/game/systems/AudioSystem.ts",
+        "src/game/systems/SaveSystem.ts"
+      ],
+      "details": [
+        "Added wildflower, moss, mushroom, crystal, and frost as GrassTierId values.",
+        "Added placeholder progression values and weights.",
+        "Added save normalization for new tier ids.",
+        "Added journal notes, audio profiles, board highlights, scale, shake, and gold-drop flavor.",
+        "Wildflower can pollinate nearby grown tiles.",
+        "Moss extends and strengthens Perfect Touch slightly.",
+        "Mushroom can release spores to buff/speed nearby tiles.",
+        "Crystal can create bonus gold.",
+        "Frost extends and strengthens Perfect Touch but adds a little regrow delay."
+      ]
+    },
+    {
+      "name": "Grass specimen quests and celebrations",
+      "files": [
+        "src/game/data/quests.ts",
+        "src/game/scenes/GameScene.ts"
+      ],
+      "details": [
+        "Added Field Journal quest chain for discovering 4 grass tiers, each new tier, and all 9 tiers.",
+        "Added discovery toasts for new grass tiers, dewy/lush traits, and non-calm weather.",
+        "Quest completions now pulse/burst around the Quest button.",
+        "Journal discoveries now pulse/burst around the Journal button or HUD.",
+        "Milestones now get a flash, center burst, grass burst, and message pulse."
+      ]
+    }
+  ],
+  "importantContext": [
+    "The user wants to build fast because someone tried to copy the game.",
+    "The user said the game is still in systems/testing mode; balance and true progression come later.",
+    "A Discord playtester said the game was already pretty fun.",
+    "The original title screen should be preserved.",
+    "The user does not want offline progress.",
+    "The user likes adding systems in small playable passes, then committing, pushing, and deploying when ready.",
+    "Gemini/Antigravity is preferred for asset generation when possible to use those tokens.",
+    "Saves are browser/device localStorage only, not cloud saves."
+  ],
+  "filesToInspectFirstNextSession": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/data/quests.ts",
+    "src/game/data/grass-tiers.ts",
+    "src/game/types/game-state.ts",
+    "src/game/systems/SaveSystem.ts",
+    "src/game/systems/AudioSystem.ts",
+    "src/game/systems/AnimalCompanionSystem.ts",
+    "src/game/data/economy.ts",
+    "docs/PROJECT_MANUAL.md",
+    "docs/TODO.md",
+    "docs/TODO GEMINI.MD.txt"
+  ],
+  "nextRecommendedWork": [
+    {
+      "name": "Push and deploy latest local commit",
+      "why": "ec2c75f is local-only at handoff time.",
+      "steps": [
+        "Run git status --short --branch.",
+        "Push master to origin.",
+        "Run npx vercel --prod --yes.",
+        "Verify https://grasstouchingsimulator.com returns HTTP 200."
+      ]
+    },
+    {
+      "name": "Quest/log readability polish",
+      "why": "Quest count is growing quickly and needs filters or category grouping soon.",
+      "ideas": [
+        "Add category tabs or filters in Quest Log.",
+        "Add newly-ready quest burst at the Quest button.",
+        "Consider grouping Field Journal quests separately."
+      ]
+    },
+    {
+      "name": "More distinctive late grass interactions",
+      "why": "New tiers now have first-pass identity, but can be tuned after playtesting.",
+      "ideas": [
+        "Tune wildflower pollination chance.",
+        "Tune mushroom spore radius/effects.",
+        "Make crystal/frost effects more visually distinct if players like them.",
+        "Watch whether frost regrow delay feels annoying."
+      ]
+    },
+    {
+      "name": "Placeable objects / spatial synergies",
+      "why": "Now that the field has more tile identity, making grid placement matter would deepen the game.",
+      "ideas": [
+        "Place sprinklers, hives, or animals on field coordinates.",
+        "Adjacent objects buff tiles or tier behavior.",
+        "Keep this as a separate system; do not overload inventory."
+      ]
+    },
+    {
+      "name": "Prestige / New Lawn later",
+      "why": "Still a strong long-term incremental progression feature, but probably after more midgame identity is in place.",
+      "ideas": [
+        "Golden Clippings or Lawn Legacy Points.",
+        "Reset current run for permanent meta upgrades.",
+        "Needs careful save migration and progression design."
+      ]
+    }
+  ],
+  "implementationNotes": [
+    "Use apply_patch for manual edits.",
+    "Run npm run build before committing.",
+    "After visible frontend changes, use the Browser/in-app check when practical.",
+    "When deploying, use npx vercel --prod --yes and verify https://grasstouchingsimulator.com returns HTTP 200.",
+    "If adding saved fields, update GameState, createInitialState in FieldSystem.ts, SaveSystem migration/default handling, and CURRENT_SAVE_VERSION.",
+    "Keep automation from building manual combo/rhythm unless the user explicitly requests it.",
+    "Avoid offline progress.",
+    "Keep the OG title screen."
+  ],
+  "knownRisksAndNotes": [
+    "Balance is intentionally rough. The user explicitly expects balancing/progression later.",
+    "The quest list is getting long; UI filtering will likely be needed soon.",
+    "The latest handoff JSON itself is currently uncommitted unless the next action commits it.",
+    "Git has repeatedly warned about many unreachable loose objects during auto-packing; this has not blocked commits."
+  ]
+}

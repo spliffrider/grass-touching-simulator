@@ -6,6 +6,14 @@ import { hasSavedGame, resetSave } from "../systems/SaveSystem";
 const SOURCE_WIDTH = 1366;
 const SOURCE_HEIGHT = 768;
 const MENU_THEME_PATH = "/assets/music/epic_menu_theme_mellow.wav";
+const CREDITS_PANEL_BASE_WIDTH = 420;
+const CREDITS_PANEL_BASE_HEIGHT = 290;
+const OPTIONS_PANEL_BASE_WIDTH = 460;
+const OPTIONS_PANEL_BASE_HEIGHT = 220;
+const OPTIONS_TRACK_BASE_WIDTH = 320;
+const OPTIONS_TRACK_BASE_HEIGHT = 12;
+const OPTIONS_HIT_BASE_WIDTH = 350;
+const OPTIONS_HIT_BASE_HEIGHT = 44;
 
 interface TitleButton {
   id: "start" | "continue" | "options" | "quit" | "credits";
@@ -256,7 +264,7 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive();
     this.creditsPanel = this.add
-      .nineslice(0, 0, "panel-emerald", undefined, 420, 290, 18, 18, 18, 18)
+      .nineslice(0, 0, "panel-emerald", undefined, CREDITS_PANEL_BASE_WIDTH, CREDITS_PANEL_BASE_HEIGHT, 18, 18, 18, 18)
       .setOrigin(0.5)
       .setAlpha(0.98);
     this.creditsTitle = this.add
@@ -319,7 +327,7 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive();
     this.optionsPanel = this.add
-      .nineslice(0, 0, "panel-emerald", undefined, 460, 220, 18, 18, 18, 18)
+      .nineslice(0, 0, "panel-emerald", undefined, OPTIONS_PANEL_BASE_WIDTH, OPTIONS_PANEL_BASE_HEIGHT, 18, 18, 18, 18)
       .setOrigin(0.5)
       .setAlpha(0.98);
     this.optionsTitle = this.add
@@ -338,10 +346,10 @@ export class TitleScene extends Phaser.Scene {
         color: "#b7eba5",
       })
       .setOrigin(0.5);
-    this.volumeTrack = this.add.rectangle(0, 0, 320, 12, 0x163b22, 1).setOrigin(0, 0.5);
-    this.volumeFill = this.add.rectangle(0, 0, 220, 12, 0xb7eba5, 1).setOrigin(0, 0.5);
+    this.volumeTrack = this.add.rectangle(0, 0, OPTIONS_TRACK_BASE_WIDTH, OPTIONS_TRACK_BASE_HEIGHT, 0x163b22, 1).setOrigin(0, 0.5);
+    this.volumeFill = this.add.rectangle(0, 0, OPTIONS_TRACK_BASE_WIDTH, OPTIONS_TRACK_BASE_HEIGHT, 0xb7eba5, 1).setOrigin(0, 0.5);
     this.volumeHit = this.add
-      .rectangle(0, 0, 350, 44, 0xffffff, 0.001)
+      .rectangle(0, 0, OPTIONS_HIT_BASE_WIDTH, OPTIONS_HIT_BASE_HEIGHT, 0xffffff, 0.001)
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
     this.volumeKnob = this.add.circle(0, 0, 14, 0xf7ffe8, 1).setStrokeStyle(4, 0xb7eba5).setInteractive({ useHandCursor: true });
@@ -411,7 +419,8 @@ export class TitleScene extends Phaser.Scene {
     for (const button of this.buttons) {
       const x = offsetX + button.sourceX * scale;
       const y = offsetY + button.sourceY * scale;
-      button.hit.setPosition(x, y).setSize(button.hitWidth * scale, button.hitHeight * scale);
+      button.hit.setPosition(x, y);
+      button.hit.setScale(scale);
       button.label.setPosition(x, y - 1 * scale);
       button.label.setFontSize(Math.max(20, Math.round((button.id === "credits" ? 30 : button.id === "quit" ? 38 : 43) * scale)));
       button.label.setStroke("#2b160f", Math.max(3, Math.round(7 * scale)));
@@ -476,11 +485,13 @@ export class TitleScene extends Phaser.Scene {
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
 
-    this.creditsBackdrop?.setSize(this.scale.width, this.scale.height);
-    this.creditsPanel?.setPosition(centerX, centerY).setSize(panelWidth, panelHeight);
+    this.resizeInteractiveBackdrop(this.creditsBackdrop);
+    this.creditsPanel?.setPosition(centerX, centerY);
+    this.creditsPanel?.setScale(panelWidth / CREDITS_PANEL_BASE_WIDTH, panelHeight / CREDITS_PANEL_BASE_HEIGHT);
     this.creditsTitle?.setPosition(centerX, centerY - panelHeight / 2 + 48);
     this.creditsRole?.setPosition(centerX, centerY - panelHeight / 2 + 100);
-    this.creditsNames?.setPosition(centerX, centerY + 12).setWordWrapWidth(Math.max(220, panelWidth - 50));
+    this.creditsNames?.setPosition(centerX, centerY + 12);
+    this.creditsNames?.setWordWrapWidth(Math.max(220, panelWidth - 50));
     this.creditsBackHit?.setPosition(centerX, centerY + panelHeight / 2 - 44);
     this.creditsBackText?.setPosition(centerX, centerY + panelHeight / 2 - 44);
   }
@@ -495,13 +506,17 @@ export class TitleScene extends Phaser.Scene {
     const trackY = centerY - 5;
     const buttonY = centerY + panelHeight / 2 - 45;
 
-    this.optionsBackdrop?.setSize(this.scale.width, this.scale.height);
-    this.optionsPanel?.setPosition(centerX, centerY).setSize(panelWidth, panelHeight);
+    this.resizeInteractiveBackdrop(this.optionsBackdrop);
+    this.optionsPanel?.setPosition(centerX, centerY);
+    this.optionsPanel?.setScale(panelWidth / OPTIONS_PANEL_BASE_WIDTH, panelHeight / OPTIONS_PANEL_BASE_HEIGHT);
     this.optionsTitle?.setPosition(centerX, centerY - panelHeight / 2 + 42);
     this.volumeLabel?.setPosition(centerX, centerY - 42);
-    this.volumeTrack?.setPosition(trackX, trackY).setSize(trackWidth, 12);
-    this.volumeFill?.setPosition(trackX, trackY).setSize(trackWidth * this.menuThemeVolume, 12);
-    this.volumeHit?.setPosition(centerX, trackY).setSize(trackWidth + 36, 44);
+    this.volumeTrack?.setPosition(trackX, trackY);
+    this.volumeTrack?.setScale(trackWidth / OPTIONS_TRACK_BASE_WIDTH, 1);
+    this.volumeFill?.setPosition(trackX, trackY);
+    this.volumeFill?.setScale((trackWidth * this.menuThemeVolume) / OPTIONS_TRACK_BASE_WIDTH, 1);
+    this.volumeHit?.setPosition(centerX, trackY);
+    this.volumeHit?.setScale((trackWidth + 36) / OPTIONS_HIT_BASE_WIDTH, 1);
     this.volumeKnob?.setPosition(trackX + trackWidth * this.menuThemeVolume, trackY);
     this.musicToggleHit?.setPosition(centerX - 72, buttonY);
     this.musicToggleText?.setPosition(centerX - 72, buttonY);
@@ -509,6 +524,19 @@ export class TitleScene extends Phaser.Scene {
     this.optionsBackText?.setPosition(centerX + 86, buttonY);
     this.volumeSliderX = trackX;
     this.volumeSliderWidth = trackWidth;
+  }
+
+  private resizeInteractiveBackdrop(backdrop: Phaser.GameObjects.Rectangle | undefined): void {
+    if (!backdrop) {
+      return;
+    }
+
+    backdrop.setPosition(0, 0);
+    backdrop.setScale(this.scale.width / Math.max(1, backdrop.width), this.scale.height / Math.max(1, backdrop.height));
+    if (backdrop.input) {
+      backdrop.input.hitArea = new Phaser.Geom.Rectangle(0, 0, this.scale.width, this.scale.height);
+      backdrop.input.hitAreaCallback = Phaser.Geom.Rectangle.Contains;
+    }
   }
 
   private handleButton(id: TitleButton["id"]): void {

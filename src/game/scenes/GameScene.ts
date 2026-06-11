@@ -5,7 +5,7 @@ import { BUILD_LABEL } from "../data/build-info";
 import { GOLD_STORE_ITEMS } from "../data/gold-store";
 import { JOURNAL_COMPANION_NOTES, JOURNAL_GRASS_NOTES, JOURNAL_TRAIT_NOTES, JOURNAL_WEATHER_NOTES } from "../data/journal";
 import { MILESTONES } from "../data/milestones";
-import { QUESTS, formatQuestProgress, formatQuestReward, isQuestAvailable, isQuestClaimable } from "../data/quests";
+import { QUESTS, formatQuestProgress, formatQuestReward, isQuestAvailable, isQuestClaimable, type QuestDefinition } from "../data/quests";
 import { SEED_SHOP_ITEMS, getSeedDropChance } from "../data/seed-shop";
 import { getSeasonForDate } from "../data/seasons";
 import { UPGRADES, canUnlockUpgrade, getUpgradeCost } from "../data/upgrades";
@@ -155,6 +155,23 @@ interface QuestItemView {
   claimButton: Phaser.GameObjects.Container;
 }
 
+type QuestFilterId = "all" | "ready" | "active" | "journal" | "claimed";
+
+interface QuestFilterView {
+  filterId: QuestFilterId;
+  container: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Rectangle;
+  label: Phaser.GameObjects.Text;
+}
+
+const QUEST_FILTERS: Array<{ id: QuestFilterId; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "ready", label: "Ready" },
+  { id: "active", label: "Active" },
+  { id: "journal", label: "Journal" },
+  { id: "claimed", label: "Claimed" },
+];
+
 interface WorldObjectView {
   id: string;
   quantity: number;
@@ -245,6 +262,7 @@ export class GameScene extends Phaser.Scene {
   private questStatusText!: Phaser.GameObjects.Text;
   private questBackButton!: Phaser.GameObjects.Container;
   private questItemViews = new Map<string, QuestItemView>();
+  private questFilterViews = new Map<QuestFilterId, QuestFilterView>();
   private journalRoot!: Phaser.GameObjects.Container;
   private journalBackdrop!: Phaser.GameObjects.Rectangle;
   private journalTitleText!: Phaser.GameObjects.Text;
@@ -279,6 +297,7 @@ export class GameScene extends Phaser.Scene {
   private seedShopOpen = false;
   private storeOpen = false;
   private optionsOpen = false;
+  private selectedQuestFilter: QuestFilterId = "all";
   private musicVolume = DEFAULT_MUSIC_VOLUME;
   private draggingMusicVolume = false;
   private musicVolumeSliderX = 0;
@@ -912,7 +931,8 @@ export class GameScene extends Phaser.Scene {
     const treeY = shortLandscape ? 118 : narrowPortrait || narrowDesktop ? 136 : 158;
 
     this.skillBackdrop.setSize(this.scale.width, this.scale.height);
-    this.skillBackdropPattern?.setPosition(this.scale.width / 2, this.scale.height / 2).setDisplaySize(this.scale.width, this.scale.height);
+    this.skillBackdropPattern?.setPosition(this.scale.width / 2, this.scale.height / 2);
+    this.skillBackdropPattern?.setDisplaySize(this.scale.width, this.scale.height);
     this.skillTitleText.setText(narrowPortrait ? "Skills" : "Grass Skill Tree");
     this.skillTitleText.setFontSize(shortLandscape ? 25 : narrowPortrait ? 30 : 34);
     this.skillResourceText.setFontSize(shortLandscape || narrowPortrait ? 14 : 18);
@@ -963,6 +983,7 @@ export class GameScene extends Phaser.Scene {
   private createQuestLog(): void {
     this.questRoot?.destroy();
     this.questItemViews.clear();
+    this.questFilterViews.clear();
 
     this.questRoot = this.add.container(0, 0).setDepth(104).setVisible(false);
     this.questBackdrop = this.add
@@ -994,6 +1015,29 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
     this.questBackButton = createTextButton(this, "Back", () => this.closeQuestLog(), 118, 44, 105);
     this.questRoot.add([this.questBackdrop, this.questTitleText, this.questResourceText, this.questStatusText, this.questBackButton]);
+
+    for (const filter of QUEST_FILTERS) {
+      const container = this.add.container(0, 0);
+      const bg = this.add
+        .rectangle(0, 0, 86, 30, 0x173d23, 0.94)
+        .setOrigin(0, 0)
+        .setStrokeStyle(2, 0xb7eba5, 0.68)
+        .setInteractive({ useHandCursor: true });
+      const label = this.add
+        .text(43, 15, filter.label, {
+          fontFamily: "Trebuchet MS, Arial",
+          fontSize: "13px",
+          color: "#dfffc8",
+          stroke: "#06190f",
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5);
+
+      bg.on("pointerdown", () => this.selectQuestFilter(filter.id));
+      container.add([bg, label]);
+      this.questFilterViews.set(filter.id, { filterId: filter.id, container, bg, label });
+      this.questRoot.add(container);
+    }
 
     for (const quest of QUESTS) {
       const container = this.add.container(0, 0);
@@ -1042,17 +1086,20 @@ export class GameScene extends Phaser.Scene {
 
     const compact = this.scale.width < 620;
     const panelWidth = Math.min(520, this.scale.width - 32);
-    const itemHeight = compact ? 126 : 106;
+    const itemHeight = compact ? 138 : 106;
     const itemGap = itemHeight + 10;
-    const startY = compact ? 150 : 154;
+    const filterRows = compact ? 2 : 1;
+    const filterY = compact ? 132 : 136;
+    const startY = filterY + filterRows * 36 + (compact ? 14 : 16);
     const availableHeight = Math.max(120, this.scale.height - startY - 22);
-    const totalHeight = QUESTS.length * itemGap;
+    const visibleQuests = this.getFilteredQuests();
+    const totalHeight = visibleQuests.length * itemGap;
     const maxScroll = Math.max(0, totalHeight - availableHeight);
     const x = (this.scale.width - panelWidth) / 2;
     this.questScroll = Math.min(this.questScroll, maxScroll);
     let y = startY - this.questScroll;
 
-    this.questBackdrop.setSize(this.scale.width, this.scale.height);
+    this.resizeInteractiveBackdrop(this.questBackdrop);
     this.questTitleText.setFontSize(compact ? 30 : 34);
     this.questResourceText.setFontSize(compact ? 14 : 18);
     this.questStatusText.setFontSize(compact ? 13 : 16);
@@ -1062,8 +1109,15 @@ export class GameScene extends Phaser.Scene {
     this.questStatusText.setPosition(this.scale.width / 2, compact ? 108 : 112);
     this.questBackButton.setScale(compact ? 0.9 : 1);
     this.questBackButton.setPosition(this.scale.width - 142, 24);
+    this.layoutQuestFilterButtons(x, panelWidth, filterY, compact);
 
     for (const view of this.questItemViews.values()) {
+      const quest = QUESTS.find((candidate) => candidate.id === view.questId);
+      if (!quest || !visibleQuests.includes(quest)) {
+        view.container.setVisible(false);
+        continue;
+      }
+
       const claimX = panelWidth - 136;
       const textWidth = Math.max(170, panelWidth - (compact ? 34 : 178));
 
@@ -1073,15 +1127,118 @@ export class GameScene extends Phaser.Scene {
       view.name.setWordWrapWidth(textWidth);
       view.description.setPosition(14, compact ? 36 : 38);
       view.description.setWordWrapWidth(textWidth);
-      view.progress.setPosition(14, compact ? 86 : 74);
-      view.reward.setPosition(compact ? 14 : claimX - 6, compact ? 64 : 18);
-      view.reward.setWordWrapWidth(compact ? textWidth : 140);
+      view.progress.setPosition(14, compact ? 70 : 74);
+      view.progress.setWordWrapWidth(compact ? Math.max(150, panelWidth - 34) : textWidth);
+      view.reward.setPosition(compact ? 14 : claimX - 6, compact ? 96 : 18);
+      view.reward.setWordWrapWidth(compact ? Math.max(130, panelWidth - 170) : 140);
       view.reward.setAlign(compact ? "left" : "center");
       view.claimButton.setScale(compact ? 0.88 : 1);
-      view.claimButton.setPosition(compact ? panelWidth - 122 : claimX, compact ? 82 : 60);
+      view.claimButton.setPosition(compact ? panelWidth - 122 : claimX, compact ? 88 : 60);
       view.container.setPosition(x, y);
       view.container.setVisible(y > 118 - itemGap && y < this.scale.height + itemGap);
       y += itemGap;
+    }
+  }
+
+  private layoutQuestFilterButtons(x: number, panelWidth: number, y: number, compact: boolean): void {
+    const gap = compact ? 6 : 8;
+    const buttonWidth = compact ? Math.floor((panelWidth - gap * 2) / 3) : Math.floor((panelWidth - gap * 4) / 5);
+    const buttonHeight = 30;
+
+    QUEST_FILTERS.forEach((filter, index) => {
+      const view = this.questFilterViews.get(filter.id);
+      if (!view) {
+        return;
+      }
+
+      const column = compact ? index % 3 : index;
+      const row = compact ? Math.floor(index / 3) : 0;
+      const selected = filter.id === this.selectedQuestFilter;
+      view.container.setPosition(x + column * (buttonWidth + gap), y + row * (buttonHeight + 6));
+      view.bg.setSize(buttonWidth, buttonHeight);
+      view.bg.setFillStyle(selected ? 0x2f6a34 : 0x173d23, selected ? 1 : 0.94);
+      view.bg.setStrokeStyle(2, selected ? 0xf4df6a : 0xb7eba5, selected ? 0.95 : 0.68);
+      view.label.setPosition(buttonWidth / 2, buttonHeight / 2);
+      view.label.setFontSize(compact ? 12 : 13);
+      view.label.setColor(selected ? "#f7ffe8" : "#dfffc8");
+    });
+  }
+
+  private selectQuestFilter(filterId: QuestFilterId): void {
+    if (this.selectedQuestFilter === filterId) {
+      return;
+    }
+
+    this.selectedQuestFilter = filterId;
+    this.questScroll = 0;
+    this.refreshQuestLog();
+    this.layoutQuestLog();
+    this.audio.play("upgrade");
+  }
+
+  private getFilteredQuests(): QuestDefinition[] {
+    return QUESTS.filter((quest) => this.questMatchesFilter(quest, this.selectedQuestFilter));
+  }
+
+  private questMatchesFilter(quest: QuestDefinition, filterId: QuestFilterId): boolean {
+    const claimed = this.state.claimedQuestIds.includes(quest.id);
+    const available = isQuestAvailable(this.state, quest);
+    const ready = isQuestClaimable(this.state, quest);
+
+    switch (filterId) {
+      case "ready":
+        return ready;
+      case "active":
+        return available && !claimed;
+      case "journal":
+        return quest.category === "Field Journal";
+      case "claimed":
+        return claimed;
+      case "all":
+      default:
+        return true;
+    }
+  }
+
+  private getQuestFilterCounts(): Record<QuestFilterId, number> {
+    return {
+      all: QUESTS.length,
+      ready: QUESTS.filter((quest) => this.questMatchesFilter(quest, "ready")).length,
+      active: QUESTS.filter((quest) => this.questMatchesFilter(quest, "active")).length,
+      journal: QUESTS.filter((quest) => this.questMatchesFilter(quest, "journal")).length,
+      claimed: QUESTS.filter((quest) => this.questMatchesFilter(quest, "claimed")).length,
+    };
+  }
+
+  private getQuestFilterStatusText(count: number): string {
+    if (count === 0) {
+      switch (this.selectedQuestFilter) {
+        case "ready":
+          return "No quest rewards are ready yet.";
+        case "active":
+          return "No active quests in this filter yet.";
+        case "journal":
+          return "No Field Journal quests available in this list.";
+        case "claimed":
+          return "No claimed quests yet.";
+        case "all":
+        default:
+          return "No quests found.";
+      }
+    }
+
+    switch (this.selectedQuestFilter) {
+      case "ready":
+        return "Quest rewards ready to claim.";
+      case "active":
+        return "Available quests still in progress.";
+      case "journal":
+        return "Field Journal specimen quests.";
+      case "claimed":
+        return "Completed and claimed quests.";
+      case "all":
+      default:
+        return "Complete small goals and claim the rewards.";
     }
   }
 
@@ -1151,7 +1308,7 @@ export class GameScene extends Phaser.Scene {
     const maxScroll = Math.max(0, this.journalBodyText.height - availableHeight);
     this.journalScroll = Math.min(this.journalScroll, maxScroll);
 
-    this.journalBackdrop.setSize(this.scale.width, this.scale.height);
+    this.resizeInteractiveBackdrop(this.journalBackdrop);
     this.journalTitleText.setFontSize(compact ? 30 : 34);
     this.journalResourceText.setFontSize(compact ? 14 : 18);
     this.journalStatusText.setFontSize(compact ? 13 : 16);
@@ -1252,7 +1409,7 @@ export class GameScene extends Phaser.Scene {
     this.seedShopScroll = Math.min(this.seedShopScroll, maxScroll);
     let y = startY - this.seedShopScroll;
 
-    this.seedBackdrop.setSize(this.scale.width, this.scale.height);
+    this.resizeInteractiveBackdrop(this.seedBackdrop);
     this.seedTitleText.setFontSize(compact ? 30 : 34);
     this.seedResourceText.setFontSize(compact ? 14 : 18);
     this.seedStatusText.setFontSize(compact ? 13 : 16);
@@ -1375,7 +1532,7 @@ export class GameScene extends Phaser.Scene {
     this.storeScroll = Math.min(this.storeScroll, maxScroll);
     let y = startY - this.storeScroll;
 
-    this.storeBackdrop.setSize(this.scale.width, this.scale.height);
+    this.resizeInteractiveBackdrop(this.storeBackdrop);
     this.storeTitleText.setFontSize(compact ? 30 : 34);
     this.storeResourceText.setFontSize(compact ? 14 : 18);
     this.storeStatusText.setFontSize(compact ? 13 : 16);
@@ -1468,17 +1625,34 @@ export class GameScene extends Phaser.Scene {
     const trackX = centerX - trackWidth / 2;
     const trackY = centerY + 2;
 
-    this.optionsBackdrop?.setSize(this.scale.width, this.scale.height);
-    this.optionsPanel?.setPosition(centerX, centerY).setSize(panelWidth, panelHeight);
+    this.resizeInteractiveBackdrop(this.optionsBackdrop);
+    this.optionsPanel?.setPosition(centerX, centerY);
+    this.optionsPanel?.setSize(panelWidth, panelHeight);
     this.optionsTitleText?.setPosition(centerX, centerY - panelHeight / 2 + 44);
     this.optionsVolumeLabel?.setPosition(centerX, centerY - 34);
-    this.optionsVolumeTrack?.setPosition(trackX, trackY).setSize(trackWidth, 12);
-    this.optionsVolumeFill?.setPosition(trackX, trackY).setSize(trackWidth * this.musicVolume, 12);
-    this.optionsVolumeHit?.setPosition(centerX, trackY).setSize(trackWidth + 36, 44);
+    this.optionsVolumeTrack?.setPosition(trackX, trackY);
+    this.optionsVolumeTrack?.setSize(trackWidth, 12);
+    this.optionsVolumeFill?.setPosition(trackX, trackY);
+    this.optionsVolumeFill?.setSize(trackWidth * this.musicVolume, 12);
+    this.optionsVolumeHit?.setPosition(centerX, trackY);
+    this.optionsVolumeHit?.setSize(trackWidth + 36, 44);
     this.optionsVolumeKnob?.setPosition(trackX + trackWidth * this.musicVolume, trackY);
     this.optionsBackButton?.setPosition(centerX - 59, centerY + panelHeight / 2 - 58);
     this.musicVolumeSliderX = trackX;
     this.musicVolumeSliderWidth = trackWidth;
+  }
+
+  private resizeInteractiveBackdrop(backdrop: Phaser.GameObjects.Rectangle | undefined): void {
+    if (!backdrop) {
+      return;
+    }
+
+    backdrop.setPosition(0, 0);
+    backdrop.setScale(this.scale.width / Math.max(1, backdrop.width), this.scale.height / Math.max(1, backdrop.height));
+    if (backdrop.input) {
+      backdrop.input.hitArea = new Phaser.Geom.Rectangle(0, 0, this.scale.width, this.scale.height);
+      backdrop.input.hitAreaCallback = Phaser.Geom.Rectangle.Contains;
+    }
   }
 
   private refreshOptionsPanel(): void {
@@ -3976,9 +4150,21 @@ export class GameScene extends Phaser.Scene {
   private refreshQuestLog(): void {
     const readyCount = QUESTS.filter((quest) => isQuestClaimable(this.state, quest)).length;
     const claimedCount = this.state.claimedQuestIds.length;
+    const filteredQuests = this.getFilteredQuests();
+    const filterCounts = this.getQuestFilterCounts();
 
     setTextButtonText(this.questButton, readyCount > 0 ? `Quests (${readyCount})` : "Quests");
-    this.questResourceText?.setText(`Claimed: ${claimedCount}/${QUESTS.length} | Ready: ${readyCount}`);
+    this.questResourceText?.setText(`Showing: ${filteredQuests.length}/${QUESTS.length} | Claimed: ${claimedCount}/${QUESTS.length} | Ready: ${readyCount}`);
+    this.questStatusText?.setText(this.getQuestFilterStatusText(filteredQuests.length));
+
+    for (const filter of QUEST_FILTERS) {
+      const view = this.questFilterViews.get(filter.id);
+      if (!view) {
+        continue;
+      }
+
+      view.label.setText(`${filter.label} ${filterCounts[filter.id]}`);
+    }
 
     for (const quest of QUESTS) {
       const view = this.questItemViews.get(quest.id);
@@ -3998,6 +4184,10 @@ export class GameScene extends Phaser.Scene {
       view.reward.setText(`Reward:\n${formatQuestReward(quest.reward)}`);
       setTextButtonText(view.claimButton, claimed ? "Claimed" : complete ? "Claim" : "Locked");
       setTextButtonEnabled(view.claimButton, complete && !claimed);
+    }
+
+    if (this.questLogOpen) {
+      this.layoutQuestLog();
     }
   }
 
@@ -4178,12 +4368,13 @@ export class GameScene extends Phaser.Scene {
     this.state.lifetimeSeeds += quest.reward.seeds ?? 0;
     this.state.gold += quest.reward.gold ?? 0;
     this.state.lifetimeGold += quest.reward.gold ?? 0;
-    this.questStatusText.setText(`${quest.name} claimed: ${formatQuestReward(quest.reward)}.`);
+    const claimMessage = `${quest.name} claimed: ${formatQuestReward(quest.reward)}.`;
     this.audio.play("milestone");
     saveGame(this.state);
     this.readyQuestKeys = this.getReadyQuestKeys();
     this.playQuestClaimFeedback(questId);
     this.refreshUi();
+    this.questStatusText.setText(claimMessage);
   }
 
   private playQuestClaimFeedback(questId: string): void {
