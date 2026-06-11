@@ -281,7 +281,7 @@ export class ChiptuneMusicSystem {
     this.muted = this.volume <= 0;
 
     if (this.master && this.context) {
-      this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume * 0.15, this.context.currentTime, 0.02);
+      this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume * 0.55, this.context.currentTime, 0.02);
     }
   }
 
