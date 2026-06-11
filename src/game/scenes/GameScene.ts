@@ -28,6 +28,8 @@ const TILE_GAP = 8;
 const BOARD_Y_OFFSET = 24;
 const MIN_BOARD_ZOOM = 0.45;
 const MAX_BOARD_ZOOM = 3.2;
+const BOARD_PAN_THRESHOLD_PX = 18;
+const TOUCH_SHAKE_COOLDOWN_MS = 140;
 const TREE_WIDTH = 880;
 const TREE_HEIGHT = 560;
 const COMBO_AOE_MIN_COUNT = 10;
@@ -323,11 +325,13 @@ export class GameScene extends Phaser.Scene {
   private boardAvailableHeight = 0;
   private boardScaledWidth = 0;
   private boardScaledHeight = 0;
+  private isBoardPanArmed = false;
   private isPanningBoard = false;
   private boardPanStartX = 0;
   private boardPanStartY = 0;
   private pointerPanStartX = 0;
   private pointerPanStartY = 0;
+  private lastTouchShakeAt = 0;
 
   constructor() {
     super("GameScene");
@@ -461,15 +465,36 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      this.isPanningBoard = true;
+      this.isBoardPanArmed = true;
+      this.isPanningBoard = false;
       this.boardPanStartX = this.boardPanX;
       this.boardPanStartY = this.boardPanY;
       this.pointerPanStartX = pointer.x;
       this.pointerPanStartY = pointer.y;
-      this.tileInfoPanel.setVisible(false);
     });
 
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      if (!this.isBoardPanArmed && !this.isPanningBoard) {
+        return;
+      }
+
+      if (this.isBoardPanArmed && !this.isPanningBoard) {
+        const dx = pointer.x - this.pointerPanStartX;
+        const dy = pointer.y - this.pointerPanStartY;
+        if (dx * dx + dy * dy < BOARD_PAN_THRESHOLD_PX * BOARD_PAN_THRESHOLD_PX) {
+          return;
+        }
+
+        this.isBoardPanArmed = false;
+        this.isPanningBoard = true;
+        this.boardPanStartX = this.boardPanX;
+        this.boardPanStartY = this.boardPanY;
+        this.pointerPanStartX = pointer.x;
+        this.pointerPanStartY = pointer.y;
+        this.tileInfoPanel.setVisible(false);
+        return;
+      }
+
       if (!this.isPanningBoard) {
         return;
       }
@@ -480,11 +505,13 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on("pointerup", () => {
+      this.isBoardPanArmed = false;
       this.isPanningBoard = false;
       this.draggingMusicVolume = false;
     });
 
     this.input.on("pointerupoutside", () => {
+      this.isBoardPanArmed = false;
       this.isPanningBoard = false;
       this.draggingMusicVolume = false;
     });
@@ -2154,6 +2181,7 @@ export class GameScene extends Phaser.Scene {
     this.boardZoom = 1;
     this.boardPanX = 0;
     this.boardPanY = 0;
+    this.isBoardPanArmed = false;
     this.isPanningBoard = false;
   }
 
@@ -3225,16 +3253,29 @@ export class GameScene extends Phaser.Scene {
   }
 
   private shakeForGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean): void {
+    const now = Date.now();
+    const isRareTier = !["normal", "thick", "clover"].includes(tier);
+
+    if (!isCrit && !isRareTier && trait !== "lush") {
+      return;
+    }
+
+    if (now - this.lastTouchShakeAt < TOUCH_SHAKE_COOLDOWN_MS) {
+      return;
+    }
+
+    this.lastTouchShakeAt = now;
+
     const tierShake = {
-      normal: { duration: 70, intensity: 0.0013 },
-      thick: { duration: 90, intensity: 0.0018 },
-      clover: { duration: 80, intensity: 0.00145 },
-      golden: { duration: 118, intensity: 0.00235 },
-      wildflower: { duration: 88, intensity: 0.00155 },
-      moss: { duration: 102, intensity: 0.00195 },
-      mushroom: { duration: 110, intensity: 0.00205 },
-      crystal: { duration: 120, intensity: 0.00225 },
-      frost: { duration: 122, intensity: 0.00215 },
+      normal: { duration: 42, intensity: 0.0008 },
+      thick: { duration: 54, intensity: 0.001 },
+      clover: { duration: 48, intensity: 0.0009 },
+      golden: { duration: 82, intensity: 0.00135 },
+      wildflower: { duration: 58, intensity: 0.00095 },
+      moss: { duration: 72, intensity: 0.0011 },
+      mushroom: { duration: 78, intensity: 0.00118 },
+      crystal: { duration: 84, intensity: 0.00128 },
+      frost: { duration: 84, intensity: 0.0012 },
     } satisfies Record<GrassTierId, { duration: number; intensity: number }>;
     const traitShake = {
       normal: { duration: 0, intensity: 1 },
@@ -3244,9 +3285,9 @@ export class GameScene extends Phaser.Scene {
     const base = tierShake[tier];
     const traitBoost = traitShake[trait];
     const critDuration = isCrit ? 1.55 : 1;
-    const critIntensity = isCrit ? 2.65 : 1;
+    const critIntensity = isCrit ? 2.1 : 1;
     const duration = Math.round((base.duration + traitBoost.duration) * critDuration);
-    const intensity = Math.min(0.008, base.intensity * traitBoost.intensity * critIntensity);
+    const intensity = Math.min(0.0035, base.intensity * traitBoost.intensity * critIntensity);
 
     this.cameras.main.shake(duration, intensity);
   }
