@@ -40,6 +40,8 @@ export class TitleScene extends Phaser.Scene {
   private creditsTitle!: Phaser.GameObjects.Text;
   private creditsRole!: Phaser.GameObjects.Text;
   private creditsNames!: Phaser.GameObjects.Text;
+  private creditsGrassRole!: Phaser.GameObjects.Text;
+  private creditsGrassName!: Phaser.GameObjects.Text;
   private creditsBackHit!: Phaser.GameObjects.Rectangle;
   private creditsBackText!: Phaser.GameObjects.Text;
   private buildLabelText!: Phaser.GameObjects.Text;
@@ -295,6 +297,23 @@ export class TitleScene extends Phaser.Scene {
         wordWrap: { width: 390 },
       })
       .setOrigin(0.5);
+    this.creditsGrassRole = this.add
+      .text(0, 0, "Grass Toucher", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "20px",
+        color: "#b7eba5",
+      })
+      .setOrigin(0.5);
+    this.creditsGrassName = this.add
+      .text(0, 0, "Sad choupbese", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "22px",
+        color: "#f7ffe8",
+        stroke: "#12341c",
+        strokeThickness: 4,
+        align: "center",
+      })
+      .setOrigin(0.5);
     this.creditsBackHit = this.add
       .rectangle(0, 0, 138, 44, 0xe9ffd0, 0.98)
       .setOrigin(0.5)
@@ -315,6 +334,8 @@ export class TitleScene extends Phaser.Scene {
       this.creditsTitle,
       this.creditsRole,
       this.creditsNames,
+      this.creditsGrassRole,
+      this.creditsGrassName,
       this.creditsBackHit,
       this.creditsBackText,
     ]);
@@ -481,17 +502,19 @@ export class TitleScene extends Phaser.Scene {
 
   private layoutCreditsPanel(): void {
     const panelWidth = Math.min(520, this.scale.width - 40);
-    const panelHeight = Math.min(360, this.scale.height - 36);
+    const panelHeight = Math.min(430, this.scale.height - 36);
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
 
     this.resizeInteractiveBackdrop(this.creditsBackdrop);
     this.creditsPanel?.setPosition(centerX, centerY);
     this.creditsPanel?.setScale(panelWidth / CREDITS_PANEL_BASE_WIDTH, panelHeight / CREDITS_PANEL_BASE_HEIGHT);
-    this.creditsTitle?.setPosition(centerX, centerY - panelHeight / 2 + 48);
-    this.creditsRole?.setPosition(centerX, centerY - panelHeight / 2 + 100);
-    this.creditsNames?.setPosition(centerX, centerY + 12);
+    this.creditsTitle?.setPosition(centerX, centerY - panelHeight / 2 + 42);
+    this.creditsRole?.setPosition(centerX, centerY - panelHeight / 2 + 88);
+    this.creditsNames?.setPosition(centerX, centerY - 24);
     this.creditsNames?.setWordWrapWidth(Math.max(220, panelWidth - 50));
+    this.creditsGrassRole?.setPosition(centerX, centerY + panelHeight / 2 - 110);
+    this.creditsGrassName?.setPosition(centerX, centerY + panelHeight / 2 - 82);
     this.creditsBackHit?.setPosition(centerX, centerY + panelHeight / 2 - 44);
     this.creditsBackText?.setPosition(centerX, centerY + panelHeight / 2 - 44);
   }

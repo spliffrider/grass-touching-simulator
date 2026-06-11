@@ -14,6 +14,7 @@ import { expandField, getFieldBounds, getFieldTiles, getRegrowingTiles, tileKey,
 import { addInventoryItem, consumeInventoryItem, getInventoryQuantity } from "../systems/InventorySystem";
 import { AnimalCompanionSystem } from "../systems/AnimalCompanionSystem";
 import { AudioSystem } from "../systems/AudioSystem";
+import { ChiptuneMusicSystem } from "../systems/ChiptuneMusicSystem";
 import { ComboSystem, type ComboResult } from "../systems/ComboSystem";
 import { DropSystem, type DropFeedback } from "../systems/DropSystem";
 import { loadGame, resetSave, saveGame } from "../systems/SaveSystem";
@@ -291,6 +292,7 @@ export class GameScene extends Phaser.Scene {
   private combo = new ComboSystem();
   private drops = new DropSystem();
   private audio = new AudioSystem();
+  private music = new ChiptuneMusicSystem();
   private skillTreeOpen = false;
   private questLogOpen = false;
   private journalOpen = false;
@@ -377,6 +379,7 @@ export class GameScene extends Phaser.Scene {
   create(data?: { newGame?: boolean }): void {
     this.state = data?.newGame ? resetSave() : loadGame();
     this.musicVolume = readStoredMusicVolume();
+    this.music.setVolume(this.musicVolume);
     this.updateJournalDiscoveries();
     saveGame(this.state);
 
@@ -446,6 +449,8 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, gameObjects: Phaser.GameObjects.GameObject[]) => {
+      this.music.start(this.musicVolume);
+
       if (this.hasBlockingOverlayOpen() || gameObjects.length > 0) {
         return;
       }
@@ -479,6 +484,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleMusicVolumeDrag(pointer));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.music.stop());
   }
 
   update(_time: number, delta: number): void {
@@ -1879,6 +1885,7 @@ export class GameScene extends Phaser.Scene {
     this.closeGoldStore();
     this.optionsOpen = true;
     this.optionsRoot.setVisible(true);
+    this.music.start(this.musicVolume);
     this.audio.play("upgrade");
     this.refreshOptionsPanel();
     this.refreshUi();
@@ -1894,6 +1901,7 @@ export class GameScene extends Phaser.Scene {
   private startMusicVolumeDrag(pointer: Phaser.Input.Pointer): void {
     this.draggingMusicVolume = true;
     this.setMusicVolumeFromPointer(pointer);
+    this.music.start(this.musicVolume);
   }
 
   private handleMusicVolumeDrag(pointer: Phaser.Input.Pointer): void {
@@ -1907,6 +1915,10 @@ export class GameScene extends Phaser.Scene {
   private setMusicVolumeFromPointer(pointer: Phaser.Input.Pointer): void {
     const nextVolume = Phaser.Math.Clamp((pointer.x - this.musicVolumeSliderX) / this.musicVolumeSliderWidth, 0, 1);
     this.musicVolume = writeStoredMusicVolume(nextVolume);
+    this.music.setVolume(this.musicVolume);
+    if (this.musicVolume > 0) {
+      this.music.start(this.musicVolume);
+    }
     this.refreshOptionsPanel();
   }
 
@@ -2439,8 +2451,8 @@ export class GameScene extends Phaser.Scene {
 
     const activeObjects = this.getActiveWorldObjects();
     const dockScale = this.scale.width < 620 ? 0.68 : 0.76;
-    const horizontal = this.scale.height < 560 || this.scale.width < 620;
-    const spacing = horizontal ? 70 * dockScale : 78 * dockScale;
+    const horizontal = this.scale.height < 560 || this.scale.width < 620 || activeObjects.length >= 5;
+    const spacing = horizontal ? 78 * dockScale : 98 * dockScale;
     const dockX = Phaser.Math.Clamp(48, 34, Math.max(34, this.scale.width - 44));
     const dockTop = Math.max(this.boardTopY + 44, this.milestoneText.y + this.milestoneText.height + 34);
     const maxDockY = this.scale.height - 50 * dockScale;
