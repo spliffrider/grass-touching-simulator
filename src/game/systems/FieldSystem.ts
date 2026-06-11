@@ -98,6 +98,7 @@ export function createInitialState(): GameState {
     },
     activeWeatherId: "calm",
     weatherEndsAt: 0,
+    selectedTrackId: "cozy_meadow",
     lastSavedAt: Date.now(),
   };
 }

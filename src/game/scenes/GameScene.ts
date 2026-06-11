@@ -177,6 +177,7 @@ interface WorldObjectView {
   id: string;
   quantity: number;
   container: Phaser.GameObjects.Container;
+  hit: Phaser.GameObjects.Rectangle;
   shadow: Phaser.GameObjects.Ellipse;
   sprite: Phaser.GameObjects.Image;
   label: Phaser.GameObjects.Text;
@@ -241,6 +242,7 @@ export class GameScene extends Phaser.Scene {
   private tileInfoTitle!: Phaser.GameObjects.Text;
   private tileInfoBody!: Phaser.GameObjects.Text;
   private hoveredTileKey?: TileKey;
+  private hoveredWorldObjectId?: string;
   private resetButton!: Phaser.GameObjects.Container;
   private seedRoot!: Phaser.GameObjects.Container;
   private seedBackdrop!: Phaser.GameObjects.Rectangle;
@@ -280,6 +282,9 @@ export class GameScene extends Phaser.Scene {
   private optionsVolumeFill!: Phaser.GameObjects.Rectangle;
   private optionsVolumeHit!: Phaser.GameObjects.Rectangle;
   private optionsVolumeKnob!: Phaser.GameObjects.Arc;
+  private optionsTrackLabel!: Phaser.GameObjects.Text;
+  private optionsTrackLeftBtn!: Phaser.GameObjects.Container;
+  private optionsTrackRightBtn!: Phaser.GameObjects.Container;
   private optionsBackButton!: Phaser.GameObjects.Container;
   private questScroll = 0;
   private journalScroll = 0;
@@ -380,6 +385,7 @@ export class GameScene extends Phaser.Scene {
     this.state = data?.newGame ? resetSave() : loadGame();
     this.musicVolume = readStoredMusicVolume();
     this.music.setVolume(this.musicVolume);
+    this.music.setTrack(this.state.selectedTrackId || "cozy_meadow");
     this.updateJournalDiscoveries();
     saveGame(this.state);
 
@@ -747,7 +753,7 @@ export class GameScene extends Phaser.Scene {
   private createTileInfoPanel(): void {
     this.tileInfoPanel = this.add.container(0, 0).setDepth(60).setVisible(false);
     this.tileInfoBg = this.add
-      .rectangle(0, 0, 230, 112, 0xf4ffdc, 0.97)
+      .rectangle(0, 0, 260, 128, 0xf4ffdc, 0.97)
       .setOrigin(0, 0)
       .setStrokeStyle(3, 0x2d6f36);
     this.tileInfoTitle = this.add.text(12, 10, "", {
@@ -760,7 +766,7 @@ export class GameScene extends Phaser.Scene {
       fontSize: "14px",
       color: "#416247",
       lineSpacing: 2,
-      wordWrap: { width: 206 },
+      wordWrap: { width: 236 },
     });
 
     this.tileInfoPanel.add([this.tileInfoBg, this.tileInfoTitle, this.tileInfoBody]);
@@ -1580,7 +1586,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive();
     this.optionsPanel = this.add
-      .rectangle(0, 0, 460, 210, 0xf4ffdc, 0.98)
+      .rectangle(0, 0, 460, 280, 0xf4ffdc, 0.98)
       .setOrigin(0.5)
       .setStrokeStyle(5, 0x2d6f36);
     this.optionsTitleText = this.add
@@ -1604,6 +1610,18 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
     this.optionsVolumeKnob = this.add.circle(0, 0, 14, 0xf7ffe8, 1).setStrokeStyle(4, 0x17491f).setInteractive({ useHandCursor: true });
+    
+    // Track selector
+    this.optionsTrackLabel = this.add
+      .text(0, 0, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "18px",
+        color: "#183d20",
+      })
+      .setOrigin(0.5);
+    this.optionsTrackLeftBtn = createTextButton(this, "<", () => this.cycleTrack(-1), 44, 38, 111);
+    this.optionsTrackRightBtn = createTextButton(this, ">", () => this.cycleTrack(1), 44, 38, 111);
+
     this.optionsBackButton = createTextButton(this, "Back", () => this.closeOptions(), 118, 44, 111);
 
     this.optionsVolumeHit.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startMusicVolumeDrag(pointer));
@@ -1617,6 +1635,9 @@ export class GameScene extends Phaser.Scene {
       this.optionsVolumeFill,
       this.optionsVolumeHit,
       this.optionsVolumeKnob,
+      this.optionsTrackLabel,
+      this.optionsTrackLeftBtn,
+      this.optionsTrackRightBtn,
       this.optionsBackButton,
     ]);
     this.refreshOptionsPanel();
@@ -1624,18 +1645,19 @@ export class GameScene extends Phaser.Scene {
 
   private layoutOptionsPanel(): void {
     const panelWidth = Math.min(500, this.scale.width - 36);
-    const panelHeight = Math.min(220, this.scale.height - 48);
+    const panelHeight = Math.min(280, this.scale.height - 48);
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
     const trackWidth = Math.max(190, panelWidth - 120);
     const trackX = centerX - trackWidth / 2;
-    const trackY = centerY + 2;
+    const trackY = centerY - 12;
+    const trackLabelY = centerY + 32;
 
     this.resizeInteractiveBackdrop(this.optionsBackdrop);
     this.optionsPanel?.setPosition(centerX, centerY);
     this.optionsPanel?.setSize(panelWidth, panelHeight);
-    this.optionsTitleText?.setPosition(centerX, centerY - panelHeight / 2 + 44);
-    this.optionsVolumeLabel?.setPosition(centerX, centerY - 34);
+    this.optionsTitleText?.setPosition(centerX, centerY - panelHeight / 2 + 38);
+    this.optionsVolumeLabel?.setPosition(centerX, centerY - 45);
     this.optionsVolumeTrack?.setPosition(trackX, trackY);
     this.optionsVolumeTrack?.setSize(trackWidth, 12);
     this.optionsVolumeFill?.setPosition(trackX, trackY);
@@ -1643,6 +1665,12 @@ export class GameScene extends Phaser.Scene {
     this.optionsVolumeHit?.setPosition(centerX, trackY);
     this.optionsVolumeHit?.setSize(trackWidth + 36, 44);
     this.optionsVolumeKnob?.setPosition(trackX + trackWidth * this.musicVolume, trackY);
+    
+    // Position track selector
+    this.optionsTrackLabel?.setPosition(centerX, trackLabelY);
+    this.optionsTrackLeftBtn?.setPosition(centerX - 155, trackLabelY - 19);
+    this.optionsTrackRightBtn?.setPosition(centerX + 111, trackLabelY - 19);
+
     this.optionsBackButton?.setPosition(centerX - 59, centerY + panelHeight / 2 - 58);
     this.musicVolumeSliderX = trackX;
     this.musicVolumeSliderWidth = trackWidth;
@@ -1663,7 +1691,22 @@ export class GameScene extends Phaser.Scene {
 
   private refreshOptionsPanel(): void {
     this.optionsVolumeLabel?.setText(`Music volume: ${Math.round(this.musicVolume * 100)}%`);
+    this.optionsTrackLabel?.setText(`Track: ${this.music.getCurrentTrackName()}`);
     this.layoutOptionsPanel();
+  }
+
+  private cycleTrack(direction: number): void {
+    const trackIds = ["cozy_meadow", "grasslands_groove", "dreamy_dewdrops", "constellation_climb"];
+    const currentIndex = trackIds.indexOf(this.music.getCurrentTrackId());
+    let nextIndex = (currentIndex + direction) % trackIds.length;
+    if (nextIndex < 0) {
+      nextIndex += trackIds.length;
+    }
+    const nextTrackId = trackIds[nextIndex];
+    this.music.setTrack(nextTrackId);
+    this.state.selectedTrackId = nextTrackId;
+    saveGame(this.state);
+    this.refreshOptionsPanel();
   }
 
   private hasTouchScreen(): boolean {
@@ -2264,6 +2307,9 @@ export class GameScene extends Phaser.Scene {
 
     for (const [id, view] of this.worldObjectViews) {
       if (!activeIds.has(id)) {
+        if (this.hoveredWorldObjectId === id) {
+          this.clearTileInfo();
+        }
         view.container.destroy();
         this.worldObjectViews.delete(id);
       }
@@ -2274,10 +2320,16 @@ export class GameScene extends Phaser.Scene {
       if (existing) {
         existing.quantity = object.quantity;
         existing.label.setText(object.quantity > 1 ? `${object.label} x${object.quantity}` : object.label);
+        if (this.hoveredWorldObjectId === object.id) {
+          this.refreshWorldObjectInfo(object.id);
+        }
         continue;
       }
 
       const container = this.add.container(0, 0).setDepth(36);
+      const hit = this.add
+        .rectangle(0, -20, 78, 90, 0xffffff, 0.001)
+        .setInteractive({ useHandCursor: true });
       const shadow = this.add.ellipse(0, 4, 42, 14, 0x214c26, 0.22);
       const sprite = this.add.image(0, 0, object.textureKey).setOrigin(0.5, 1);
       const label = this.add
@@ -2291,8 +2343,15 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5, 0);
       const ambience = this.createWorldObjectAmbience(object.id);
 
-      container.add([shadow, ...ambience, sprite, label]);
-      this.worldObjectViews.set(object.id, { id: object.id, quantity: object.quantity, container, shadow, sprite, label, ambience });
+      hit.on("pointerover", () => this.showWorldObjectInfo(object.id));
+      hit.on("pointerout", () => this.hideWorldObjectInfo(object.id));
+      hit.on("pointerdown", () => {
+        this.showWorldObjectInfo(object.id);
+        this.pulseWorldObject(object.id, 0xdfffc8);
+      });
+
+      container.add([hit, shadow, ...ambience, sprite, label]);
+      this.worldObjectViews.set(object.id, { id: object.id, quantity: object.quantity, container, hit, shadow, sprite, label, ambience });
 
       this.tweens.add({
         targets: sprite,
@@ -2476,6 +2535,15 @@ export class GameScene extends Phaser.Scene {
       view.sprite.setDisplaySize(56, 56);
       view.label.setFontSize(dockScale < 0.7 ? 11 : 12);
     });
+
+    if (this.hoveredWorldObjectId) {
+      const view = this.worldObjectViews.get(this.hoveredWorldObjectId);
+      if (view?.container.visible) {
+        this.positionWorldObjectInfo(this.hoveredWorldObjectId);
+      } else {
+        this.clearTileInfo();
+      }
+    }
   }
 
   private getWorldObjectOrigin(id: string): { x: number; y: number } | undefined {
@@ -2604,6 +2672,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.hoveredTileKey = tileKey(tile.x, tile.y);
+    this.hoveredWorldObjectId = undefined;
     this.refreshTileInfo(tile);
     this.positionTileInfo(tile);
     this.tileInfoPanel.setVisible(true);
@@ -2618,7 +2687,23 @@ export class GameScene extends Phaser.Scene {
 
   private clearTileInfo(): void {
     this.hoveredTileKey = undefined;
+    this.hoveredWorldObjectId = undefined;
     this.tileInfoPanel.setVisible(false);
+  }
+
+  private showWorldObjectInfo(id: string): void {
+    this.hoveredTileKey = undefined;
+    this.hoveredWorldObjectId = id;
+    this.refreshWorldObjectInfo(id);
+    this.positionWorldObjectInfo(id);
+    this.tileInfoPanel.setVisible(true);
+  }
+
+  private hideWorldObjectInfo(id: string): void {
+    if (this.hoveredWorldObjectId === id && !this.hasTouchScreen()) {
+      this.hoveredWorldObjectId = undefined;
+      this.tileInfoPanel.setVisible(false);
+    }
   }
 
   private refreshTileInfo(tile: FieldTile): void {
@@ -2633,16 +2718,67 @@ export class GameScene extends Phaser.Scene {
     this.tileInfoBody.setText(isGrown ? [tierLine, traitLine, critLine].filter(Boolean).join("\n") : "This patch is growing back.");
   }
 
+  private refreshWorldObjectInfo(id: string): void {
+    const quantity = id === "sprinkler" ? (this.state.seedShopPurchases.sprinkler ? 1 : 0) : getInventoryQuantity(this.state, id);
+    const storeItem = GOLD_STORE_ITEMS.find((item) => item.id === id);
+    const seedItem = SEED_SHOP_ITEMS.find((item) => item.id === id);
+    const title = storeItem?.name ?? seedItem?.name ?? this.getWorldObjectLabel(id);
+    const summary = this.getWorldObjectSummary(id);
+    const countLine = quantity > 1 ? `Owned: ${quantity}` : quantity === 1 ? "Owned: 1" : "";
+
+    this.tileInfoTitle.setText(title);
+    this.tileInfoBody.setText([summary, countLine].filter(Boolean).join("\n"));
+  }
+
+  private getWorldObjectSummary(id: string): string {
+    switch (id) {
+      case "sprinkler":
+        return "Waters resting patches so the field keeps moving.";
+      case "bee_hive":
+        return "Bees periodically pollinate clusters into better grass.";
+      case "chicken":
+        return "Scratches up gold or improves a random patch.";
+      case "sheep":
+        return "Grazes grown grass and turns touches into gold.";
+      case "field_mouse":
+        return "Sniffs out tiny glints and improves gold luck.";
+      case "meadow_rabbit":
+        return "Keeps the field lively, nudging seed and dew luck.";
+      case "earthworm":
+        return "Burrows through resting patches to speed regrowth.";
+      default:
+        return GOLD_STORE_ITEMS.find((item) => item.id === id)?.description ?? "A helpful field friend.";
+    }
+  }
+
+  private getWorldObjectLabel(id: string): string {
+    return WORLD_OBJECTS.find((object) => object.id === id)?.label ?? id;
+  }
+
   private positionTileInfo(tile: FieldTile): void {
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (!view) {
       return;
     }
 
-    const panelWidth = 230;
-    const panelHeight = 112;
+    const panelWidth = 260;
+    const panelHeight = 128;
     const x = Phaser.Math.Clamp(view.base.x + 28 * this.boardScale, 12, this.scale.width - panelWidth - 12);
     const y = Phaser.Math.Clamp(view.base.y - panelHeight - 20 * this.boardScale, 12, this.scale.height - panelHeight - 12);
+
+    this.tileInfoPanel.setPosition(x, y);
+  }
+
+  private positionWorldObjectInfo(id: string): void {
+    const view = this.worldObjectViews.get(id);
+    if (!view) {
+      return;
+    }
+
+    const panelWidth = 260;
+    const panelHeight = 128;
+    const x = Phaser.Math.Clamp(view.container.x + 36 * view.container.scaleX, 12, this.scale.width - panelWidth - 12);
+    const y = Phaser.Math.Clamp(view.container.y - panelHeight - 62 * view.container.scaleY, 12, this.scale.height - panelHeight - 12);
 
     this.tileInfoPanel.setPosition(x, y);
   }

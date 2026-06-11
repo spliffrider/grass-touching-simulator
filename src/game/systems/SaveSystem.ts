@@ -63,6 +63,7 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
     journal: readJournal(saved.journal, initial.journal),
     activeWeatherId: readWeatherId(saved.activeWeatherId, initial.activeWeatherId),
     weatherEndsAt: readNumber(saved.weatherEndsAt, initial.weatherEndsAt ?? 0),
+    selectedTrackId: typeof saved.selectedTrackId === "string" ? saved.selectedTrackId : initial.selectedTrackId,
     lastSavedAt: readNumber(saved.lastSavedAt, initial.lastSavedAt),
   };
 }

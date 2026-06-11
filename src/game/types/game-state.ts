@@ -70,6 +70,7 @@ export interface GameState {
   journal: JournalState;
   activeWeatherId?: WeatherId;
   weatherEndsAt?: number;
+  selectedTrackId?: string;
   lastSavedAt: number;
 }
 
