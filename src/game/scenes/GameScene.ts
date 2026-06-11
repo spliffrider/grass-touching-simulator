@@ -539,6 +539,7 @@ export class GameScene extends Phaser.Scene {
 
     this.checkMilestones(stats);
     this.combo.update(now);
+    this.music.setComboLevel(this.combo.getCount());
     this.pruneRecentlyRegrown(now);
     let journalChanged = this.updateJournalDiscoveries();
     this.updateSprinkler(delta, stats);
@@ -2153,6 +2154,7 @@ export class GameScene extends Phaser.Scene {
     this.sprinkler.reset();
     this.animalCompanions.reset();
     this.combo.reset();
+    this.music.setComboLevel(0);
     this.recentlyRegrownAt.clear();
     this.destroyAllPerfectTouchCues();
     this.resetBoardView();
@@ -2836,6 +2838,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const combo = this.combo.recordManualTouch(now, touch.gained);
+    this.music.setComboLevel(combo.count);
     if (combo.count > this.state.journal.bestComboCount) {
       this.state.journal.bestComboCount = combo.count;
     }

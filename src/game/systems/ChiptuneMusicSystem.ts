@@ -63,6 +63,18 @@ export interface ChiptuneTrack {
   fmIndexBass?: number;
 }
 
+interface ArrangementLayers {
+  bass: boolean;
+  chords: boolean;
+  drums: boolean;
+  hats: boolean;
+  counter: boolean;
+  arp: boolean;
+  melody: boolean;
+  flourishes: boolean;
+  intensity: number;
+}
+
 const NOTE_FREQUENCIES: Record<NoteName, number> = {
   A2: 110,
   B2: 123.47,
@@ -275,6 +287,7 @@ export class ChiptuneMusicSystem {
   private step = 0;
   private nextStepAt = 0;
   private currentTrackId = "cozy_meadow";
+  private comboLevel = 0;
 
   setVolume(volume: number): void {
     this.volume = Math.max(0, Math.min(1, volume));
@@ -306,6 +319,10 @@ export class ChiptuneMusicSystem {
 
   getCurrentTrackName(): string {
     return TRACKS[this.currentTrackId]?.name ?? "Unknown";
+  }
+
+  setComboLevel(comboLevel: number): void {
+    this.comboLevel = Math.max(0, Math.floor(comboLevel));
   }
 
   start(volume = this.volume): void {
@@ -406,6 +423,7 @@ export class ChiptuneMusicSystem {
 
   private scheduleStep(songStep: number, startAt: number, stepSeconds: number): void {
     const track = TRACKS[this.currentTrackId] ?? TRACKS.cozy_meadow;
+    const layers = this.getArrangementLayers();
     const phraseIndex = Math.floor(songStep / 16) % track.melodyPhrases.length;
     const localStep = songStep % 16;
     const chord = track.chords[Math.floor(songStep / 8) % track.chords.length];
@@ -414,21 +432,21 @@ export class ChiptuneMusicSystem {
     const isLift = phraseIndex >= 4 && phraseIndex <= 6;
     const isTurnaround = phraseIndex === 3 || phraseIndex === 7;
 
-    if (localStep === 0) {
+    if (layers.chords && localStep === 0) {
       this.playPad(chord, startAt, stepSeconds, isLift);
     }
 
-    if (songStep % 8 === 0) {
+    if (layers.chords && songStep % 8 === 0) {
       this.playChord(chord, startAt, stepSeconds, isLift);
     }
 
-    if (songStep % 2 === 0) {
+    if (layers.bass && songStep % 2 === 0) {
       const walk = localStep % 8 === 6 ? chord.chord[1] : chord.bass;
       this.playTone({
         frequency: NOTE_FREQUENCIES[walk] / 2,
         startAt,
         duration: stepSeconds * 1.24,
-        volume: songStep % 8 === 0 ? 0.062 : 0.046,
+        volume: (songStep % 8 === 0 ? 0.062 : 0.046) * layers.intensity,
         waveform: track.waveformBass,
         useFM: track.useFMBass,
         fmRatio: track.fmRatioBass,
@@ -436,13 +454,13 @@ export class ChiptuneMusicSystem {
         attack: 0.01,
         release: 0.035,
       });
-    } else {
+    } else if (layers.arp && songStep % 2 === 1) {
       const stab = localStep % 8 === 7 ? chord.chord[1] : chord.bass;
       this.playTone({
         frequency: NOTE_FREQUENCIES[stab],
         startAt: startAt + stepSeconds * 0.05,
         duration: stepSeconds * 0.38,
-        volume: isLift ? 0.024 : 0.018,
+        volume: (isLift ? 0.024 : 0.018) * layers.intensity,
         waveform: track.waveformBass,
         useFM: track.useFMBass,
         fmRatio: track.fmRatioBass,
@@ -452,24 +470,24 @@ export class ChiptuneMusicSystem {
       });
     }
 
-    if (isLift && (localStep === 3 || localStep === 11)) {
+    if (layers.arp && isLift && (localStep === 3 || localStep === 11)) {
       this.playTone({
         frequency: NOTE_FREQUENCIES[chord.chord[2]] / 2,
         startAt: startAt + stepSeconds * 0.34,
         duration: stepSeconds * 0.54,
-        volume: 0.027,
+        volume: 0.027 * layers.intensity,
         waveform: "square",
         attack: 0.006,
         release: 0.03,
       });
     }
 
-    if (melody) {
+    if (layers.melody && melody) {
       this.playTone({
         frequency: NOTE_FREQUENCIES[melody],
         startAt,
         duration: stepSeconds * (localStep % 4 === 3 ? 1.35 : 0.86),
-        volume: isTurnaround && localStep > 10 ? 0.038 : isLift ? 0.055 : 0.048,
+        volume: (isTurnaround && localStep > 10 ? 0.038 : isLift ? 0.055 : 0.048) * layers.intensity,
         waveform: track.waveformLead,
         useFM: track.useFMLead,
         fmRatio: track.fmRatioLead,
@@ -479,12 +497,12 @@ export class ChiptuneMusicSystem {
         release: 0.045,
       });
 
-      if (isLift && localStep % 4 === 2) {
+      if (layers.flourishes && isLift && localStep % 4 === 2) {
         this.playTone({
           frequency: NOTE_FREQUENCIES[melody] * 2,
           startAt: startAt + stepSeconds * 0.03,
           duration: stepSeconds * 0.42,
-          volume: 0.014,
+          volume: 0.014 * layers.intensity,
           waveform: "triangle",
           output: this.leadBus,
           attack: 0.008,
@@ -493,36 +511,51 @@ export class ChiptuneMusicSystem {
       }
     }
 
-    if (counter && songStep % 4 !== 0) {
+    if (layers.counter && counter && songStep % 4 !== 0) {
       this.playTone({
         frequency: NOTE_FREQUENCIES[counter],
         startAt: startAt + stepSeconds * 0.12,
         duration: stepSeconds * 0.58,
-        volume: isLift ? 0.027 : 0.022,
+        volume: (isLift ? 0.027 : 0.022) * layers.intensity,
         waveform: "triangle",
         attack: 0.014,
         release: 0.05,
       });
     }
 
-    if (songStep % 2 === 1) {
+    if (layers.arp && songStep % 2 === 1) {
       const arpNote = chord.chord[(songStep + phraseIndex) % chord.chord.length];
       this.playTone({
         frequency: NOTE_FREQUENCIES[arpNote] * (phraseIndex === 2 ? 2 : 1),
         startAt: startAt + stepSeconds * 0.08,
         duration: stepSeconds * 0.36,
-        volume: isLift ? 0.023 : 0.018,
+        volume: (isLift ? 0.023 : 0.018) * layers.intensity,
         waveform: "square",
         attack: 0.006,
         release: 0.035,
       });
     }
 
-    if (localStep === 14 && this.currentTrackId !== "dreamy_dewdrops") {
+    if (layers.flourishes && localStep === 14 && this.currentTrackId !== "dreamy_dewdrops") {
       this.playFlourish(phraseIndex, startAt + stepSeconds * 0.1, stepSeconds, isLift);
     }
 
-    this.schedulePercussion(songStep, startAt, stepSeconds, isLift, isTurnaround);
+    this.schedulePercussion(songStep, startAt, stepSeconds, isLift, isTurnaround, layers);
+  }
+
+  private getArrangementLayers(): ArrangementLayers {
+    const combo = this.comboLevel;
+    return {
+      bass: true,
+      chords: combo >= 5,
+      drums: combo >= 5,
+      hats: combo >= 10,
+      counter: combo >= 10,
+      arp: combo >= 10,
+      melody: combo >= 20,
+      flourishes: combo >= 40,
+      intensity: 0.82 + Math.min(combo, 40) / 40 * 0.28,
+    };
   }
 
   private playChord(chord: ChordShape, startAt: number, stepSeconds: number, isLift: boolean): void {
@@ -595,21 +628,32 @@ export class ChiptuneMusicSystem {
     }
   }
 
-  private schedulePercussion(songStep: number, startAt: number, stepSeconds: number, isLift: boolean, isTurnaround: boolean): void {
+  private schedulePercussion(
+    songStep: number,
+    startAt: number,
+    stepSeconds: number,
+    isLift: boolean,
+    isTurnaround: boolean,
+    layers: ArrangementLayers,
+  ): void {
     const barStep = songStep % 8;
+
+    if (!layers.drums) {
+      return;
+    }
 
     if (this.currentTrackId === "dreamy_dewdrops") {
       if (barStep === 0) {
-        this.playKick(startAt, 0.5); // Soft ambient kick only on beat 1
+        this.playKick(startAt, 0.5 * layers.intensity); // Soft ambient kick only on beat 1
       }
-      if (songStep % 4 === 2) {
-        this.playNoise(startAt + stepSeconds * 0.05, 0.03, 0.006, 4500, "highpass"); // Soft shaker hi-hat
+      if (layers.hats && songStep % 4 === 2) {
+        this.playNoise(startAt + stepSeconds * 0.05, 0.03, 0.006 * layers.intensity, 4500, "highpass"); // Soft shaker hi-hat
       }
       return;
     }
 
     if (songStep % 2 === 0) {
-      this.playKick(startAt, barStep === 0 ? 1 : 0.84);
+      this.playKick(startAt, (barStep === 0 ? 1 : 0.84) * layers.intensity);
     }
 
     if (barStep === 2 || barStep === 6) {
@@ -620,9 +664,9 @@ export class ChiptuneMusicSystem {
       this.playNoise(startAt + stepSeconds * 0.04, 0.07, isLift ? 0.02 : 0.014, 1250, "bandpass");
     }
 
-    if (songStep % 2 === 1) {
+    if (layers.hats && songStep % 2 === 1) {
       this.playOpenHat(startAt + stepSeconds * 0.04, isLift);
-    } else if (barStep !== 0) {
+    } else if (layers.hats && barStep !== 0) {
       this.playNoise(startAt + stepSeconds * 0.06, 0.018, 0.005, 5200, "highpass");
     }
 
