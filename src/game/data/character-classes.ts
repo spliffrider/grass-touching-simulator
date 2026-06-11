@@ -4,6 +4,8 @@ export interface CharacterClassDefinition {
   id: CharacterClassId;
   name: string;
   archetype: string;
+  iconKey?: string;
+  iconPath?: string;
   passiveName: string;
   passiveDescription: string;
   flavor: string;
@@ -32,6 +34,8 @@ export const CHARACTER_CLASSES: CharacterClassDefinition[] = [
     id: "bard_de_wever",
     name: "Bard De Wever",
     archetype: "Bard / Combo Support",
+    iconKey: "class-bard-de-wever",
+    iconPath: "/assets/ui/classes/bard-de-wever.png",
     passiveName: "Four-on-the-Floor Encore",
     passiveDescription: "Keeps the rhythm going longer and turns combo streaks into better payoffs.",
     flavor: "Plays the field like an audience, then somehow convinces the grass to applaud.",

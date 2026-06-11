@@ -35,6 +35,8 @@ interface ClassCard {
   container: Phaser.GameObjects.Container;
   hit: Phaser.GameObjects.Rectangle;
   frame: Phaser.GameObjects.Rectangle;
+  iconBg: Phaser.GameObjects.Arc;
+  icon: Phaser.GameObjects.Image;
   name: Phaser.GameObjects.Text;
   archetype: Phaser.GameObjects.Text;
   passive: Phaser.GameObjects.Text;
@@ -104,6 +106,12 @@ export class TitleScene extends Phaser.Scene {
     this.load.image("panel-emerald", "/assets/ui/panel-emerald.png");
     this.load.image("title-selector-leaf", "/assets/title-selector-leaf.png");
     this.load.image("title-selector-flower", "/assets/title-selector-flower.png");
+
+    for (const characterClass of CHARACTER_CLASSES) {
+      if (characterClass.iconKey && characterClass.iconPath) {
+        this.load.image(characterClass.iconKey, characterClass.iconPath);
+      }
+    }
   }
 
   create(): void {
@@ -509,26 +517,37 @@ export class TitleScene extends Phaser.Scene {
       .rectangle(0, 0, 316, 300, 0x0b2a18, 0.92)
       .setOrigin(0.5)
       .setStrokeStyle(3, 0xb7eba5, 0.72);
+    const hasIcon = Boolean(characterClass.iconKey);
+    const iconX = hasIcon ? -104 : 0;
+    const textX = hasIcon ? 32 : 0;
+    const iconBg = this.add
+      .circle(iconX, -100, 42, 0x06190f, 0.88)
+      .setStrokeStyle(3, 0xffef78, hasIcon ? 0.9 : 0)
+      .setVisible(hasIcon);
+    const icon = this.add
+      .image(iconX, -100, characterClass.iconKey ?? "title-selector-leaf")
+      .setDisplaySize(78, 78)
+      .setVisible(hasIcon);
     const name = this.add
-      .text(0, -126, characterClass.name, {
+      .text(textX, -126, characterClass.name, {
         fontFamily: "Trebuchet MS, Arial",
-        fontSize: "28px",
+        fontSize: hasIcon ? "25px" : "28px",
         color: "#f7ffe8",
         stroke: "#092213",
         strokeThickness: 5,
       })
       .setOrigin(0.5);
     const archetype = this.add
-      .text(0, -94, characterClass.archetype, {
+      .text(textX, -96, characterClass.archetype, {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "16px",
         color: "#b7eba5",
       })
       .setOrigin(0.5);
     const passive = this.add
-      .text(0, -64, characterClass.passiveName, {
+      .text(textX, -66, characterClass.passiveName, {
         fontFamily: "Trebuchet MS, Arial",
-        fontSize: "19px",
+        fontSize: hasIcon ? "17px" : "19px",
         color: "#ffef78",
         stroke: "#092213",
         strokeThickness: 3,
@@ -556,12 +575,12 @@ export class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    container.add([frame, hit, name, archetype, passive, body, button, buttonText]);
+    container.add([frame, iconBg, icon, hit, name, archetype, passive, body, button, buttonText]);
     hit.on("pointerover", () => this.setActiveClass(characterClass.id));
     hit.on("pointerdown", () => this.startNewGameWithClass(characterClass.id));
     this.classSelectRoot.add(container);
 
-    return { characterClass, container, hit, frame, name, archetype, passive, body, button, buttonText };
+    return { characterClass, container, hit, frame, iconBg, icon, name, archetype, passive, body, button, buttonText };
   }
 
   private layoutTitle(): void {
