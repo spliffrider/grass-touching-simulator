@@ -20,6 +20,8 @@ export const CHARACTER_CLASSES: CharacterClassDefinition[] = [
     id: "femboy_slim",
     name: "Femboy Slim",
     archetype: "Fighter / Allrounder",
+    iconKey: "class-femboy-slim",
+    iconPath: "/assets/ui/classes/femboy-slim.png",
     passiveName: "Balanced Slay",
     passiveDescription: "A confident stance that makes every touch a little stronger and a little flashier.",
     flavor: "Reliable, stylish, and suspiciously good at turning one patch into a whole afternoon.",
