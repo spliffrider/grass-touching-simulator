@@ -432,6 +432,7 @@ export class GameScene extends Phaser.Scene {
   private commonTileLayerDirty = false;
   private boardHitZone?: Phaser.GameObjects.Zone;
   private pendingBoardTileKey?: TileKey;
+  private hoverMarker?: Phaser.GameObjects.Rectangle;
   private burstEmitters = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
   private uiBurstEmitters = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
 
@@ -612,6 +613,7 @@ export class GameScene extends Phaser.Scene {
         this.pointerPanStartX = pointer.x;
         this.pointerPanStartY = pointer.y;
         this.tileInfoPanel.setVisible(false);
+        this.hideHoverMarker();
         return;
       }
 
@@ -1140,6 +1142,12 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDepth(-1)
       .setInteractive();
+    this.hoverMarker = this.add
+      .rectangle(0, 0, TILE_SIZE + 8, TILE_SIZE + 8, 0xffffff, 0)
+      .setOrigin(0.5)
+      .setStrokeStyle(4, 0xf4ff8a, 0.82)
+      .setDepth(32)
+      .setVisible(false);
   }
 
   private createPerfPanel(): void {
@@ -3030,12 +3038,7 @@ export class GameScene extends Phaser.Scene {
     this.layoutPlacedWorldObjects();
     this.layoutWorldObjects();
 
-    if (this.hoveredTileKey) {
-      const hoveredTile = this.state.field[this.hoveredTileKey];
-      if (hoveredTile) {
-        this.positionTileInfo(hoveredTile);
-      }
-    }
+    this.refreshHoverMarker();
   }
 
   private layoutBoardLayers(): void {
@@ -3057,7 +3060,6 @@ export class GameScene extends Phaser.Scene {
 
   private needsTileView(tile: FieldTile, key: TileKey): boolean {
     return (
-      key === this.hoveredTileKey ||
       this.recentlyRegrownAt.has(key) ||
       this.perfectTouchCues.has(key) ||
       (this.boardScale >= TILE_LABEL_MIN_SCALE && tile.grassState === "grown" && (tile.tier !== "normal" || tile.trait === "lush"))
@@ -3643,12 +3645,13 @@ export class GameScene extends Phaser.Scene {
 
   private handleBoardHover(pointer: Phaser.Input.Pointer): void {
     if (this.hasTouchScreen() || this.hasBlockingOverlayOpen() || this.isPanningBoard) {
+      this.hideHoverMarker();
       return;
     }
 
     const key = this.getBoardTileKeyAtPointer(pointer);
     if (!key) {
-      if (this.hoveredTileKey && !this.tileViews.has(this.hoveredTileKey)) {
+      if (this.hoveredTileKey) {
         this.clearTileInfo();
       }
       return;
@@ -3664,8 +3667,39 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.showTileInfo(tile);
-    this.layoutTiles();
+    this.refreshHoverMarker();
     this.positionTileInfo(tile);
+  }
+
+  private refreshHoverMarker(): void {
+    if (!this.hoverMarker) {
+      return;
+    }
+
+    const tile = this.hoveredTileKey ? this.state.field[this.hoveredTileKey] : undefined;
+    if (!tile || this.hasBlockingOverlayOpen()) {
+      this.hideHoverMarker();
+      return;
+    }
+
+    const position = this.getTileScreenPosition(tile);
+    if (!position || !this.isScreenPositionNearViewport(position, 8)) {
+      this.hideHoverMarker();
+      return;
+    }
+
+    const size = Math.max(8, (TILE_SIZE + 8) * this.boardScale);
+    this.hoverMarker
+      .setPosition(position.x, position.y)
+      .setSize(size, size)
+      .setStrokeStyle(Math.max(2, 4 * this.boardScale), 0xf4ff8a, 0.82)
+      .setVisible(true);
+
+    this.positionTileInfo(tile);
+  }
+
+  private hideHoverMarker(): void {
+    this.hoverMarker?.setVisible(false);
   }
 
   private getBoardTileKeyAtPointer(pointer: Phaser.Input.Pointer): TileKey | undefined {
@@ -3714,6 +3748,7 @@ export class GameScene extends Phaser.Scene {
     if (this.hoveredTileKey === tileKey(tile.x, tile.y)) {
       this.hoveredTileKey = undefined;
       this.tileInfoPanel.setVisible(false);
+      this.hideHoverMarker();
     }
   }
 
@@ -3721,11 +3756,13 @@ export class GameScene extends Phaser.Scene {
     this.hoveredTileKey = undefined;
     this.hoveredWorldObjectId = undefined;
     this.tileInfoPanel.setVisible(false);
+    this.hideHoverMarker();
   }
 
   private showWorldObjectInfo(id: string): void {
     this.hoveredTileKey = undefined;
     this.hoveredWorldObjectId = id;
+    this.hideHoverMarker();
     this.refreshWorldObjectInfo(id);
     this.positionWorldObjectInfo(id);
     this.tileInfoPanel.setVisible(true);
@@ -4189,6 +4226,7 @@ export class GameScene extends Phaser.Scene {
       if (now - regrownAt > perfectTouchWindowMs) {
         this.recentlyRegrownAt.delete(key);
         this.destroyPerfectTouchCue(key);
+        this.commonTileLayerDirty = true;
       }
     }
   }
@@ -4886,7 +4924,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshTile(tile: FieldTile): void {
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    const key = tileKey(tile.x, tile.y);
+    const view = this.tileViews.get(key);
     if (!view) {
       this.commonTileLayerDirty = true;
       return;
@@ -4909,8 +4948,12 @@ export class GameScene extends Phaser.Scene {
     this.setTextIfChanged(view.label, isGrown ? this.getTileLabel(tile, tier.label) : "...");
     view.base.setTexture(isGrown ? "tile-dirt" : "tile-stubble");
 
-    if (this.hoveredTileKey === tileKey(tile.x, tile.y)) {
+    if (this.hoveredTileKey === key) {
       this.refreshTileInfo(tile);
+    }
+
+    if (!this.needsTileView(tile, key)) {
+      this.commonTileLayerDirty = true;
     }
   }
 
