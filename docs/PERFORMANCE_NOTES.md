@@ -47,13 +47,15 @@ The fix tracks the last known common layer size:
 
 ## Other Fixes From The Same Round
 
-Small fields now keep live pooled tile views instead of stamping everything into the common render texture. For fields at or below `LIVE_TILE_VIEW_FIELD_LIMIT` in `src/game/scenes/GameScene.ts`, live views are cheaper and feel more responsive than repeatedly redrawing the render texture.
+Small and medium fields now keep live pooled tile views instead of stamping everything into the common render texture. For fields at or below `LIVE_TILE_VIEW_FIELD_LIMIT` in `src/game/scenes/GameScene.ts`, live views are cheaper and feel more responsive than repeatedly redrawing the render texture.
 
 The current threshold is:
 
 ```text
-LIVE_TILE_VIEW_FIELD_LIMIT = 120
+LIVE_TILE_VIEW_FIELD_LIMIT = 180
 ```
+
+The 120-patch threshold was too low. It caused a visible smoothness cliff around 140-150 patches because normal play switched into the render-texture batching path while the board was still small enough for live tile views to run better.
 
 The tile view pool also stopped running hidden infinite glint tweens on every pooled tile view. Infinite tweens on pooled or invisible objects are dangerous because they can keep adding per-frame work even when the object is not visually important.
 

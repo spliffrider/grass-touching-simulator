@@ -77,7 +77,7 @@ const FALLBACK_SAVE_DELAY_MS = 160;
 const TILE_CULL_MARGIN_PX = 96;
 const TILE_LABEL_MIN_SCALE = 0.68;
 const TILE_VIEW_POOL_LIMIT = 36;
-const LIVE_TILE_VIEW_FIELD_LIMIT = 120;
+const LIVE_TILE_VIEW_FIELD_LIMIT = 180;
 const POP_TEXT_POOL_LIMIT = 36;
 const TOUCH_FLOURISH_INTERVAL_MS = 72;
 const TOUCH_FLOURISH_BUSY_INTERVAL_MS = 128;
@@ -1349,6 +1349,7 @@ export class GameScene extends Phaser.Scene {
       activeTweens: this.getActiveTweenCount(),
       layoutPasses,
       redraws,
+      tileMode: this.usesFullLiveTileViews() ? "live" : "batch",
       quality: Number(this.effectQuality.toFixed(2)),
       weatherQuality: Number(this.weatherParticleQuality.toFixed(2)),
       queuedSave: this.saveQueued,
@@ -1360,6 +1361,7 @@ export class GameScene extends Phaser.Scene {
         this.stressMode ? "STRESS" : "PERF",
         `fps ${stats.fps}`,
         `tiles ${stats.visibleTiles}/${stats.totalTiles}`,
+        `mode ${stats.tileMode}`,
         `views ${stats.tileViews}`,
         `objects ${stats.displayObjects}`,
         `emitters ${stats.emitters}`,
@@ -3230,7 +3232,8 @@ export class GameScene extends Phaser.Scene {
 
         this.positionTileView(tile, view, x, y);
         const showLabel =
-          tileKey(tile.x, tile.y) === this.hoveredTileKey || (this.boardScale >= TILE_LABEL_MIN_SCALE && (tile.tier !== "normal" || tile.trait === "lush"));
+          tileKey(tile.x, tile.y) === this.hoveredTileKey ||
+          (this.usesFullLiveTileViews() && this.boardScale >= TILE_LABEL_MIN_SCALE && (tile.tier !== "normal" || tile.trait === "lush"));
         view.label.setVisible(showLabel);
       }
     }
@@ -3276,11 +3279,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private needsTileView(tile: FieldTile, key: TileKey): boolean {
-    return (
-      this.fieldTileCount <= LIVE_TILE_VIEW_FIELD_LIMIT ||
-      this.perfectTouchCues.has(key) ||
-      (this.boardScale >= TILE_LABEL_MIN_SCALE && tile.grassState === "grown" && (tile.tier !== "normal" || tile.trait === "lush"))
-    );
+    return this.usesFullLiveTileViews() || this.perfectTouchCues.has(key) || key === this.hoveredTileKey;
+  }
+
+  private usesFullLiveTileViews(): boolean {
+    return this.fieldTileCount <= LIVE_TILE_VIEW_FIELD_LIMIT;
   }
 
   private drawCommonTile(tile: FieldTile, x: number, y: number): void {
@@ -3471,66 +3474,20 @@ export class GameScene extends Phaser.Scene {
       const drop = this.add.image(16, -38, "effect-water-drop").setScale(0.72).setAlpha(0.72);
       const shine = this.add.star(-17, -42, 4, 2, 8, 0xd7fff2, 0.72).setStrokeStyle(1, 0xffffff, 0.8);
 
-      this.tweens.add({
-        targets: drop,
-        y: -28,
-        alpha: 0.18,
-        duration: 920,
-        delay: Phaser.Math.Between(0, 500),
-        yoyo: true,
-        repeat: -1,
-        ease: "Sine.easeInOut",
-      });
-      this.tweens.add({
-        targets: shine,
-        angle: 35,
-        scaleX: 1.35,
-        scaleY: 1.35,
-        alpha: 0.16,
-        duration: 1180,
-        yoyo: true,
-        repeat: -1,
-        ease: "Sine.easeInOut",
-      });
-
       return [drop, shine];
     }
 
     if (id === "bee_hive") {
-      return Array.from({ length: 4 }, (_value, index) => {
-        const bee = this.add
+      return Array.from({ length: 3 }, () =>
+        this.add
           .image(Phaser.Math.Between(-23, 23), Phaser.Math.Between(-43, -20), "effect-bee-pixel")
           .setScale(0.55)
-          .setAlpha(0.82);
-
-        this.tweens.add({
-          targets: bee,
-          x: bee.x + Phaser.Math.Between(-12, 12),
-          y: bee.y + Phaser.Math.Between(-8, 8),
-          angle: index % 2 === 0 ? 18 : -18,
-          duration: 640 + index * 130,
-          delay: index * 80,
-          yoyo: true,
-          repeat: -1,
-          ease: "Sine.easeInOut",
-        });
-
-        return bee;
-      });
+          .setAlpha(0.72),
+      );
     }
 
     if (id === "chicken") {
       const dust = this.add.image(-18, -5, "dust-fleck").setScale(1.35).setAlpha(0.5);
-
-      this.tweens.add({
-        targets: dust,
-        x: -10,
-        alpha: 0.08,
-        duration: 1040,
-        yoyo: true,
-        repeat: -1,
-        ease: "Sine.easeInOut",
-      });
 
       return [dust];
     }
@@ -3538,51 +3495,17 @@ export class GameScene extends Phaser.Scene {
     if (id === "sheep") {
       const fleck = this.add.image(20, -18, "grass-fleck").setScale(1.25).setAlpha(0.58);
 
-      this.tweens.add({
-        targets: fleck,
-        y: -25,
-        angle: 16,
-        alpha: 0.12,
-        duration: 1280,
-        yoyo: true,
-        repeat: -1,
-        ease: "Sine.easeInOut",
-      });
-
       return [fleck];
     }
 
     if (id === "field_mouse" || id === "meadow_rabbit") {
       const seed = this.add.image(18, -16, "effect-seed-kernel").setScale(0.68).setAlpha(0.58);
 
-      this.tweens.add({
-        targets: seed,
-        y: -22,
-        angle: 22,
-        alpha: 0.16,
-        duration: 1220,
-        delay: id === "meadow_rabbit" ? 240 : 0,
-        yoyo: true,
-        repeat: -1,
-        ease: "Sine.easeInOut",
-      });
-
       return [seed];
     }
 
     if (id === "earthworm") {
       const dirt = this.add.image(18, -5, "dust-fleck").setScale(1.1).setAlpha(0.46);
-
-      this.tweens.add({
-        targets: dirt,
-        x: 10,
-        y: -2,
-        alpha: 0.12,
-        duration: 960,
-        yoyo: true,
-        repeat: -1,
-        ease: "Sine.easeInOut",
-      });
 
       return [dirt];
     }
