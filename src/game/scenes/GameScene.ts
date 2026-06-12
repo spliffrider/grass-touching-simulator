@@ -48,6 +48,14 @@ const READY_STATE_REFRESH_INTERVAL_MS = 520;
 const PERF_PANEL_REFRESH_INTERVAL_MS = 500;
 const REGROW_FEEDBACK_INTERVAL_MS = 240;
 const MAX_REGROW_FEEDBACK_PER_BATCH = 6;
+const PERFORMANCE_SAMPLE_INTERVAL_MS = 600;
+const PERF_LOW_FPS = 48;
+const PERF_CRITICAL_FPS = 32;
+const PERF_RECOVERY_FPS = 57;
+const MIN_EFFECT_QUALITY = 0.22;
+const EFFECT_QUALITY_STEP = 0.16;
+const DISPLAY_OBJECT_PRESSURE_LIMIT = 850;
+const DISPLAY_OBJECT_CRITICAL_LIMIT = 1150;
 const AMBIENT_FEEDBACK_WINDOW_MS = 1000;
 const AMBIENT_BURST_PARTICLE_BUDGET = 120;
 const AMBIENT_TRANSIENT_OBJECT_BUDGET = 18;
@@ -394,6 +402,11 @@ export class GameScene extends Phaser.Scene {
   private uiRefreshElapsed = 0;
   private readyStateRefreshElapsed = READY_STATE_REFRESH_INTERVAL_MS;
   private perfPanelElapsed = 0;
+  private performanceSampleElapsed = 0;
+  private effectQuality = 1;
+  private lowFpsSamples = 0;
+  private highFpsSamples = 0;
+  private weatherParticleQuality = 1;
   private queuedSaveElapsed = QUEUED_SAVE_INTERVAL_MS;
   private saveQueued = false;
   private ambientFeedbackDepth = 0;
@@ -404,6 +417,7 @@ export class GameScene extends Phaser.Scene {
   private ambientRewardArcSpritesUsed = 0;
   private ambientWorldActionArcSpritesUsed = 0;
   private stressMode = false;
+  private perfOverlayEnabled = false;
   private perfText?: Phaser.GameObjects.Text;
   private lastStressStats: StressStats = { visibleTiles: 0, totalTiles: 0 };
   private fieldTileCount = 0;
@@ -473,6 +487,7 @@ export class GameScene extends Phaser.Scene {
 
   create(data?: { newGame?: boolean; characterClassId?: CharacterClassId; stressMode?: boolean }): void {
     this.stressMode = data?.stressMode === true || this.isStressModeRequested();
+    this.perfOverlayEnabled = this.stressMode || this.isPerfOverlayRequested();
     this.state = this.stressMode ? this.createStressState(data?.characterClassId) : data?.newGame ? resetSave(data.characterClassId) : loadGame();
     this.rebuildFieldMetrics();
     this.musicVolume = readStoredMusicVolume();
@@ -647,7 +662,7 @@ export class GameScene extends Phaser.Scene {
       if (this.recordTileDiscovery(tile)) {
         this.queueSave();
       }
-      if (showRegrowFeedback && regrowFeedbackCount < MAX_REGROW_FEEDBACK_PER_BATCH && this.getTileScreenPosition(tile)) {
+      if (showRegrowFeedback && regrowFeedbackCount < this.getScaledBudget(MAX_REGROW_FEEDBACK_PER_BATCH) && this.getTileVisualPosition(tile)) {
         this.playRegrowFeedback(tile);
         this.popAtTile(tile, tile.trait === "lush" ? "lush" : tile.trait === "dewy" ? "dew" : "grass", "#e7ffd1");
         regrowFeedbackCount += 1;
@@ -688,7 +703,13 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.perfPanelElapsed += delta;
-    if (this.stressMode && this.perfPanelElapsed >= PERF_PANEL_REFRESH_INTERVAL_MS) {
+    this.performanceSampleElapsed += delta;
+    if (this.performanceSampleElapsed >= PERFORMANCE_SAMPLE_INTERVAL_MS) {
+      this.performanceSampleElapsed = 0;
+      this.updateEffectQuality();
+    }
+
+    if (this.perfOverlayEnabled && this.perfPanelElapsed >= PERF_PANEL_REFRESH_INTERVAL_MS) {
       this.perfPanelElapsed = 0;
       this.refreshPerfPanel();
     }
@@ -754,6 +775,75 @@ export class GameScene extends Phaser.Scene {
     return this.ambientFeedbackDepth > 0;
   }
 
+  private updateEffectQuality(): void {
+    const fps = this.game.loop.actualFps;
+    const displayObjects = this.children.list.length;
+    const underObjectPressure = displayObjects >= DISPLAY_OBJECT_PRESSURE_LIMIT;
+    const criticallyObjectBound = displayObjects >= DISPLAY_OBJECT_CRITICAL_LIMIT;
+
+    if (fps <= PERF_CRITICAL_FPS || criticallyObjectBound) {
+      this.lowFpsSamples += 2;
+      this.highFpsSamples = 0;
+    } else if (fps < PERF_LOW_FPS || underObjectPressure) {
+      this.lowFpsSamples += 1;
+      this.highFpsSamples = 0;
+    } else if (fps >= PERF_RECOVERY_FPS) {
+      this.highFpsSamples += 1;
+      this.lowFpsSamples = 0;
+    } else {
+      this.lowFpsSamples = 0;
+      this.highFpsSamples = 0;
+    }
+
+    if (this.lowFpsSamples >= 2) {
+      this.lowFpsSamples = 0;
+      this.highFpsSamples = 0;
+      this.setEffectQuality(Math.max(MIN_EFFECT_QUALITY, this.effectQuality - EFFECT_QUALITY_STEP));
+      return;
+    }
+
+    if (this.highFpsSamples >= 6 && this.effectQuality < 1) {
+      this.highFpsSamples = 0;
+      this.setEffectQuality(Math.min(1, this.effectQuality + EFFECT_QUALITY_STEP * 0.5));
+    }
+  }
+
+  private setEffectQuality(quality: number): void {
+    const nextQuality = Phaser.Math.Clamp(quality, MIN_EFFECT_QUALITY, 1);
+    if (Math.abs(nextQuality - this.effectQuality) < 0.01) {
+      return;
+    }
+
+    this.effectQuality = nextQuality;
+    const nextWeatherQuality = this.getWeatherParticleQuality();
+    if (Math.abs(nextWeatherQuality - this.weatherParticleQuality) >= 0.05) {
+      this.weatherParticleQuality = nextWeatherQuality;
+      if (this.state?.seedShopPurchases.weather_jar && this.state.activeWeatherId) {
+        this.createWeatherParticleEffect(this.state.activeWeatherId);
+      }
+    }
+  }
+
+  private getWeatherParticleQuality(): number {
+    if (this.effectQuality <= 0.34) {
+      return 0.16;
+    }
+
+    if (this.effectQuality <= 0.58) {
+      return 0.35;
+    }
+
+    if (this.effectQuality <= 0.82) {
+      return 0.62;
+    }
+
+    return 1;
+  }
+
+  private getScaledBudget(baseBudget: number): number {
+    return Math.max(1, Math.floor(baseBudget * this.effectQuality));
+  }
+
   private resetAmbientFeedbackBudget(now = Date.now()): void {
     if (now - this.ambientFeedbackWindowAt < AMBIENT_FEEDBACK_WINDOW_MS) {
       return;
@@ -773,7 +863,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.resetAmbientFeedbackBudget();
-    if (this.ambientTransientObjectsUsed + cost > AMBIENT_TRANSIENT_OBJECT_BUDGET) {
+    if (this.ambientTransientObjectsUsed + cost > this.getScaledBudget(AMBIENT_TRANSIENT_OBJECT_BUDGET)) {
       return false;
     }
 
@@ -787,7 +877,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.resetAmbientFeedbackBudget();
-    if (this.ambientPopTextsUsed >= AMBIENT_POP_TEXT_BUDGET) {
+    if (this.ambientPopTextsUsed >= this.getScaledBudget(AMBIENT_POP_TEXT_BUDGET)) {
       return false;
     }
 
@@ -796,37 +886,40 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getBudgetedBurstQuantity(quantity: number): number {
+    const scaledQuantity = Math.max(1, Math.ceil(quantity * this.effectQuality));
     if (!this.isAmbientFeedbackActive()) {
-      return quantity;
+      return scaledQuantity;
     }
 
     this.resetAmbientFeedbackBudget();
-    const remaining = AMBIENT_BURST_PARTICLE_BUDGET - this.ambientBurstParticlesUsed;
-    const budgetedQuantity = Math.min(quantity, Math.max(0, remaining));
+    const remaining = this.getScaledBudget(AMBIENT_BURST_PARTICLE_BUDGET) - this.ambientBurstParticlesUsed;
+    const budgetedQuantity = Math.min(scaledQuantity, Math.max(0, remaining));
     this.ambientBurstParticlesUsed += budgetedQuantity;
     return budgetedQuantity;
   }
 
   private getBudgetedRewardArcSpriteCount(count: number): number {
+    const scaledCount = Math.max(1, Math.ceil(count * this.effectQuality));
     if (!this.isAmbientFeedbackActive()) {
-      return count;
+      return scaledCount;
     }
 
     this.resetAmbientFeedbackBudget();
-    const remaining = AMBIENT_REWARD_ARC_SPRITE_BUDGET - this.ambientRewardArcSpritesUsed;
-    const budgetedCount = Math.min(count, Math.max(0, remaining));
+    const remaining = this.getScaledBudget(AMBIENT_REWARD_ARC_SPRITE_BUDGET) - this.ambientRewardArcSpritesUsed;
+    const budgetedCount = Math.min(scaledCount, Math.max(0, remaining));
     this.ambientRewardArcSpritesUsed += budgetedCount;
     return budgetedCount;
   }
 
   private getBudgetedWorldActionArcSpriteCount(count: number): number {
+    const scaledCount = Math.max(1, Math.ceil(count * this.effectQuality));
     if (!this.isAmbientFeedbackActive()) {
-      return count;
+      return scaledCount;
     }
 
     this.resetAmbientFeedbackBudget();
-    const remaining = AMBIENT_WORLD_ACTION_ARC_SPRITE_BUDGET - this.ambientWorldActionArcSpritesUsed;
-    const budgetedCount = Math.min(count, Math.max(0, remaining));
+    const remaining = this.getScaledBudget(AMBIENT_WORLD_ACTION_ARC_SPRITE_BUDGET) - this.ambientWorldActionArcSpritesUsed;
+    const budgetedCount = Math.min(scaledCount, Math.max(0, remaining));
     this.ambientWorldActionArcSpritesUsed += budgetedCount;
     return budgetedCount;
   }
@@ -878,6 +971,10 @@ export class GameScene extends Phaser.Scene {
 
   private isStressModeRequested(): boolean {
     return new URLSearchParams(window.location.search).has("stress");
+  }
+
+  private isPerfOverlayRequested(): boolean {
+    return new URLSearchParams(window.location.search).has("perf");
   }
 
   private getStressTileCount(): number {
@@ -1022,7 +1119,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createPerfPanel(): void {
-    if (!this.stressMode) {
+    if (!this.perfOverlayEnabled) {
       return;
     }
 
@@ -1052,16 +1149,21 @@ export class GameScene extends Phaser.Scene {
       tileViews: this.tileViews.size,
       displayObjects: this.children.list.length,
       emitters: this.burstEmitters.size + this.uiBurstEmitters.size,
+      quality: Number(this.effectQuality.toFixed(2)),
+      weatherQuality: Number(this.weatherParticleQuality.toFixed(2)),
+      queuedSave: this.saveQueued,
     };
     (window as unknown as { __grassStressStats?: typeof stats }).__grassStressStats = stats;
     this.perfText.setText(
       [
-        "STRESS",
+        this.stressMode ? "STRESS" : "PERF",
         `fps ${stats.fps}`,
         `tiles ${stats.visibleTiles}/${stats.totalTiles}`,
         `views ${stats.tileViews}`,
         `objects ${stats.displayObjects}`,
         `emitters ${stats.emitters}`,
+        `fx ${stats.quality}`,
+        stats.queuedSave ? "save queued" : "",
       ].join("  "),
     );
     this.perfText.setPosition(26, Math.max(122, (this.milestoneText?.y ?? 108) + (this.milestoneText?.height ?? 0) + 8));
@@ -2971,7 +3073,12 @@ export class GameScene extends Phaser.Scene {
 
   private getTileVisualPosition(tile: FieldTile): { x: number; y: number } | undefined {
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
-    return view ? { x: view.label.x, y: view.label.y } : this.getTileScreenPosition(tile);
+    if (view) {
+      return { x: view.label.x, y: view.label.y };
+    }
+
+    const position = this.getTileScreenPosition(tile);
+    return position && this.isScreenPositionNearViewport(position) ? position : undefined;
   }
 
   private getTileScreenPosition(tile: FieldTile): { x: number; y: number } | undefined {
@@ -2990,6 +3097,10 @@ export class GameScene extends Phaser.Scene {
       x: startX + (tile.x - bounds.minX) * scaledStep,
       y: startY + (tile.y - bounds.minY) * scaledStep,
     };
+  }
+
+  private isScreenPositionNearViewport(position: { x: number; y: number }, margin = TILE_CULL_MARGIN_PX): boolean {
+    return position.x >= -margin && position.x <= this.scale.width + margin && position.y >= -margin && position.y <= this.scale.height + margin;
   }
 
   private syncWorldObjects(): void {
@@ -3351,7 +3462,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playPlacementFeedback(tile: FieldTile, objectId: string): void {
-    const position = this.getTileScreenPosition(tile);
+    const position = this.getTileVisualPosition(tile);
     if (!position) {
       return;
     }
@@ -3930,7 +4041,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const position = this.getTileScreenPosition(tile);
+    const position = this.getTileVisualPosition(tile);
     if (position) {
       this.emitBurst("grass-fleck", position.x, position.y - 8 * this.boardScale, 8, 0.72, 0.08);
     }
@@ -4279,8 +4390,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private emitSeedBurst(tile: FieldTile): void {
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
-    const position = view ? { x: view.base.x, y: view.base.y } : this.getTileScreenPosition(tile);
+    const position = this.getTileVisualPosition(tile);
     if (!position) {
       return;
     }
@@ -4290,8 +4400,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private emitGoldBurst(tile: FieldTile, amount = 1): void {
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
-    const position = view ? { x: view.base.x, y: view.base.y } : this.getTileScreenPosition(tile);
+    const position = this.getTileVisualPosition(tile);
     if (!position) {
       return;
     }
@@ -4602,6 +4711,7 @@ export class GameScene extends Phaser.Scene {
           alpha: { start: 0.82, end: 0 },
           frequency: 75,
           quantity: 2,
+          maxParticles: 70,
         },
       },
       warm_sunlight: {
@@ -4616,6 +4726,7 @@ export class GameScene extends Phaser.Scene {
           alpha: { start: 0.72, end: 0 },
           frequency: 95,
           quantity: 1,
+          maxParticles: 42,
         },
       },
       lucky_breeze: {
@@ -4631,6 +4742,7 @@ export class GameScene extends Phaser.Scene {
           alpha: { start: 0.76, end: 0 },
           frequency: 58,
           quantity: 2,
+          maxParticles: 54,
         },
       },
       seed_wind: {
@@ -4647,6 +4759,7 @@ export class GameScene extends Phaser.Scene {
           alpha: { start: 0.86, end: 0 },
           frequency: 48,
           quantity: 2,
+          maxParticles: 54,
         },
       },
       soft_rain: {
@@ -4661,8 +4774,9 @@ export class GameScene extends Phaser.Scene {
           rotate: { min: -10, max: 4 },
           scale: { start: 1.35, end: 0.95 },
           alpha: { start: 0.78, end: 0 },
-          frequency: 18,
-          quantity: 3,
+          frequency: 26,
+          quantity: 2,
+          maxParticles: 84,
         },
       },
       pollinator_swarm: {
@@ -4678,6 +4792,7 @@ export class GameScene extends Phaser.Scene {
           alpha: { start: 0.78, end: 0 },
           frequency: 42,
           quantity: 2,
+          maxParticles: 58,
         },
       },
       golden_hour: {
@@ -4692,6 +4807,7 @@ export class GameScene extends Phaser.Scene {
           alpha: { start: 0.86, end: 0 },
           frequency: 66,
           quantity: 2,
+          maxParticles: 58,
         },
       },
       restless_roots: {
@@ -4708,12 +4824,34 @@ export class GameScene extends Phaser.Scene {
           alpha: { start: 0.82, end: 0 },
           frequency: 54,
           quantity: 2,
+          maxParticles: 52,
         },
       },
     } satisfies Record<Exclude<WeatherId, "calm">, { texture: string; config: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig }>;
     const effect = configs[weatherId];
 
-    this.weatherParticles = this.add.particles(0, 0, effect.texture, effect.config).setDepth(19);
+    this.weatherParticles = this.add.particles(0, 0, effect.texture, this.getScaledWeatherParticleConfig(effect.config)).setDepth(19);
+  }
+
+  private getScaledWeatherParticleConfig(
+    config: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig,
+  ): Phaser.Types.GameObjects.Particles.ParticleEmitterConfig {
+    const quality = this.weatherParticleQuality;
+    const scaledConfig = { ...config };
+
+    if (typeof scaledConfig.frequency === "number") {
+      scaledConfig.frequency = Math.ceil(scaledConfig.frequency / Math.max(0.16, quality));
+    }
+
+    if (typeof scaledConfig.quantity === "number") {
+      scaledConfig.quantity = Math.max(1, Math.floor(scaledConfig.quantity * quality));
+    }
+
+    if (typeof scaledConfig.maxParticles === "number") {
+      scaledConfig.maxParticles = Math.max(12, Math.floor(scaledConfig.maxParticles * Math.max(0.3, quality)));
+    }
+
+    return scaledConfig;
   }
 
   private refreshTile(tile: FieldTile): void {
@@ -5078,6 +5216,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private emitBurst(texture: string, x: number, y: number, quantity: number, speedScale: number, gravityScale: number): void {
+    if (!this.isScreenPositionNearViewport({ x, y }, TILE_CULL_MARGIN_PX * 1.5)) {
+      return;
+    }
+
     const budgetedQuantity = this.getBudgetedBurstQuantity(quantity);
     if (budgetedQuantity <= 0) {
       return;
@@ -6424,8 +6566,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
-    const position = view ? { x: view.base.x, y: view.base.y } : this.getTileScreenPosition(tile);
+    const position = this.getTileVisualPosition(tile);
     if (!position) {
       return;
     }

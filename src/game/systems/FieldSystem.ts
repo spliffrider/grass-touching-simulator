@@ -11,6 +11,7 @@ const NEIGHBORS = [
 ];
 
 const regrowingTileKeysByState = new WeakMap<GameState, Set<TileKey>>();
+const fieldTileCacheByState = new WeakMap<GameState, FieldTile[]>();
 export const MAX_FIELD_TILES = 2500;
 
 interface ExpansionCandidate {
@@ -36,11 +37,83 @@ export function tileKey(x: number, y: number): TileKey {
 }
 
 export function getFieldTiles(state: GameState): FieldTile[] {
-  return Object.values(state.field);
+  const cachedTiles = fieldTileCacheByState.get(state);
+  if (cachedTiles) {
+    return cachedTiles;
+  }
+
+  const tiles = Object.values(state.field);
+  fieldTileCacheByState.set(state, tiles);
+  return tiles;
 }
 
 export function getGrownTiles(state: GameState): FieldTile[] {
   return getFieldTiles(state).filter((tile) => tile.grassState === "grown");
+}
+
+export function getRandomFieldTile(state: GameState): FieldTile | undefined {
+  return Phaser.Utils.Array.GetRandom(getFieldTiles(state));
+}
+
+export function getRandomGrownTile(state: GameState): FieldTile | undefined {
+  const tiles = getFieldTiles(state);
+  if (tiles.length === 0) {
+    return undefined;
+  }
+
+  const randomAttempts = Math.min(32, tiles.length);
+  for (let attempt = 0; attempt < randomAttempts; attempt += 1) {
+    const tile = Phaser.Utils.Array.GetRandom(tiles);
+    if (tile?.grassState === "grown") {
+      return tile;
+    }
+  }
+
+  for (const tile of tiles) {
+    if (tile.grassState === "grown") {
+      return tile;
+    }
+  }
+
+  return undefined;
+}
+
+export function sampleGrownTiles(state: GameState, maxSamples: number): FieldTile[] {
+  const tiles = getFieldTiles(state);
+  const sampleLimit = Math.min(maxSamples, tiles.length);
+  const samples: FieldTile[] = [];
+  const sampledIndexes = new Set<number>();
+  const randomAttempts = Math.min(tiles.length, sampleLimit * 4);
+
+  for (let attempt = 0; attempt < randomAttempts && samples.length < sampleLimit; attempt += 1) {
+    const index = Phaser.Math.Between(0, tiles.length - 1);
+    if (sampledIndexes.has(index)) {
+      continue;
+    }
+
+    sampledIndexes.add(index);
+    const tile = tiles[index];
+    if (tile.grassState === "grown") {
+      samples.push(tile);
+    }
+  }
+
+  if (samples.length >= sampleLimit) {
+    return samples;
+  }
+
+  for (const tile of tiles) {
+    if (tile.grassState !== "grown" || samples.includes(tile)) {
+      continue;
+    }
+
+    samples.push(tile);
+    if (samples.length >= sampleLimit) {
+      break;
+    }
+  }
+
+  return samples;
 }
 
 export function getRegrowingTiles(state: GameState): FieldTile[] {
@@ -220,7 +293,7 @@ function getRegrowingTileKeySet(state: GameState): Set<TileKey> {
 
 export function expandField(state: GameState, tileCount: number, stats: RuntimeStats): FieldTile[] {
   const added: FieldTile[] = [];
-  const currentTileCount = Object.keys(state.field).length;
+  const currentTileCount = getFieldTiles(state).length;
   const remainingCapacity = Math.max(0, MAX_FIELD_TILES - currentTileCount);
   const tilesToAdd = Math.min(tileCount, remainingCapacity);
   if (tilesToAdd <= 0) {
@@ -261,6 +334,10 @@ export function expandField(state: GameState, tileCount: number, stats: RuntimeS
     if (Math.random() < 0.22) {
       growthDirection = bendDirection(growthDirection);
     }
+  }
+
+  if (added.length > 0) {
+    fieldTileCacheByState.delete(state);
   }
 
   return added;

@@ -1,5 +1,5 @@
 import { getGrassTier } from "../data/grass-tiers";
-import { getGrownTiles, touchTile } from "./FieldSystem";
+import { getRandomGrownTile, touchTile } from "./FieldSystem";
 import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait, TouchResult } from "../types/game-state";
 
 export interface SprinklerFeedback {
@@ -38,8 +38,7 @@ export class SprinklerSystem {
     }
 
     this.elapsed = 0;
-    const grownTiles = getGrownTiles(state);
-    const tile = Phaser.Utils.Array.GetRandom(grownTiles);
+    const tile = getRandomGrownTile(state);
     if (!tile) {
       return false;
     }

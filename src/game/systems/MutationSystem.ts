@@ -1,4 +1,4 @@
-import { getFieldTiles, tileKey } from "./FieldSystem";
+import { sampleGrownTiles, tileKey } from "./FieldSystem";
 import type { FieldTile, GameState, GrassTierId } from "../types/game-state";
 
 const MUTATION_INTERVAL_MS = 8200;
@@ -44,8 +44,7 @@ export class MutationSystem {
   }
 
   private tryCreateMutation(state: GameState): MutationEvent | undefined {
-    const grownTiles = Phaser.Utils.Array.Shuffle(getFieldTiles(state).filter((tile) => tile.grassState === "grown"));
-    const samples = grownTiles.slice(0, MAX_PAIR_SAMPLES);
+    const samples = sampleGrownTiles(state, MAX_PAIR_SAMPLES);
 
     for (const tile of samples) {
       const partners = Phaser.Utils.Array.Shuffle(

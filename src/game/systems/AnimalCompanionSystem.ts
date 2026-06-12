@@ -1,5 +1,5 @@
 import { getGrassTier } from "../data/grass-tiers";
-import { getFieldTiles, getGrownTiles, getRegrowingTiles, tileKey, touchTile } from "./FieldSystem";
+import { getRandomFieldTile, getRandomGrownTile, getRegrowingTiles, tileKey, touchTile } from "./FieldSystem";
 import { getInventoryQuantity } from "./InventorySystem";
 import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait } from "../types/game-state";
 
@@ -73,8 +73,7 @@ export class AnimalCompanionSystem {
   }
 
   private pollinateFromBeeHive(state: GameState, beeHives: number, feedback: AnimalCompanionFeedback): boolean {
-    const tiles = getFieldTiles(state);
-    const anchor = Phaser.Utils.Array.GetRandom(tiles);
+    const anchor = getRandomFieldTile(state);
     if (!anchor) {
       return false;
     }
@@ -109,8 +108,7 @@ export class AnimalCompanionSystem {
   }
 
   private runChickenForage(state: GameState, chickens: number, feedback: AnimalCompanionFeedback): boolean {
-    const tiles = getFieldTiles(state);
-    const tile = Phaser.Utils.Array.GetRandom(tiles);
+    const tile = getRandomFieldTile(state);
     if (!tile) {
       return false;
     }
@@ -137,8 +135,7 @@ export class AnimalCompanionSystem {
   }
 
   private runSheepGraze(state: GameState, stats: RuntimeStats, sheep: number, feedback: AnimalCompanionFeedback): boolean {
-    const grownTiles = getGrownTiles(state);
-    const tile = Phaser.Utils.Array.GetRandom(grownTiles);
+    const tile = getRandomGrownTile(state);
     if (!tile) {
       return false;
     }
