@@ -1,4 +1,4 @@
-import { createInitialState } from "./FieldSystem";
+import { MAX_FIELD_TILES, createInitialState } from "./FieldSystem";
 import { isCharacterClassId } from "../data/character-classes";
 import { getGrassTier } from "../data/grass-tiers";
 import { CURRENT_SAVE_VERSION } from "../types/game-state";
@@ -90,8 +90,13 @@ function normalizeField(value: unknown, fallback: Record<TileKey, FieldTile>): R
   }
 
   const field: Record<TileKey, FieldTile> = {};
+  let tileCount = 0;
 
   for (const [key, tileValue] of Object.entries(value)) {
+    if (tileCount >= MAX_FIELD_TILES) {
+      break;
+    }
+
     if (!isRecord(tileValue)) {
       continue;
     }
@@ -109,6 +114,7 @@ function normalizeField(value: unknown, fallback: Record<TileKey, FieldTile>): R
       fertility: readNumber(tileValue.fertility, 0.5),
       moisture: readNumber(tileValue.moisture, 0.5),
     };
+    tileCount += 1;
   }
 
   return Object.keys(field).length > 0 ? field : fallback;

@@ -11,6 +11,7 @@ const NEIGHBORS = [
 ];
 
 const regrowingTileKeysByState = new WeakMap<GameState, Set<TileKey>>();
+export const MAX_FIELD_TILES = 2500;
 
 interface ExpansionCandidate {
   x: number;
@@ -219,11 +220,18 @@ function getRegrowingTileKeySet(state: GameState): Set<TileKey> {
 
 export function expandField(state: GameState, tileCount: number, stats: RuntimeStats): FieldTile[] {
   const added: FieldTile[] = [];
+  const currentTileCount = Object.keys(state.field).length;
+  const remainingCapacity = Math.max(0, MAX_FIELD_TILES - currentTileCount);
+  const tilesToAdd = Math.min(tileCount, remainingCapacity);
+  if (tilesToAdd <= 0) {
+    return added;
+  }
+
   let growthDirection = pickGrowthDirection(state);
   let lastTile: FieldTile | undefined;
   let lastDirection = growthDirection;
 
-  for (let i = 0; i < tileCount; i += 1) {
+  for (let i = 0; i < tilesToAdd; i += 1) {
     const candidates = getExpansionCandidates(state);
     if (candidates.length === 0) {
       break;

@@ -16,7 +16,6 @@ import {
   createTile,
   expandField,
   getFieldBounds,
-  getFieldTiles,
   getRegrowingTiles,
   tileKey,
   touchTile,
@@ -45,6 +44,7 @@ const MAX_BOARD_ZOOM = 3.2;
 const BOARD_PAN_THRESHOLD_PX = 18;
 const TOUCH_SHAKE_COOLDOWN_MS = 140;
 const FULL_UI_REFRESH_INTERVAL_MS = 180;
+const READY_STATE_REFRESH_INTERVAL_MS = 360;
 const PERF_PANEL_REFRESH_INTERVAL_MS = 500;
 const REGROW_FEEDBACK_INTERVAL_MS = 240;
 const MAX_REGROW_FEEDBACK_PER_BATCH = 6;
@@ -392,6 +392,7 @@ export class GameScene extends Phaser.Scene {
   private lastTouchShakeAt = 0;
   private nextRegrowFeedbackAt = 0;
   private uiRefreshElapsed = 0;
+  private readyStateRefreshElapsed = READY_STATE_REFRESH_INTERVAL_MS;
   private perfPanelElapsed = 0;
   private queuedSaveElapsed = QUEUED_SAVE_INTERVAL_MS;
   private saveQueued = false;
@@ -643,6 +644,9 @@ export class GameScene extends Phaser.Scene {
     for (const tile of regrown) {
       this.markRecentlyRegrown(tile, now);
       this.refreshTile(tile);
+      if (this.recordTileDiscovery(tile)) {
+        this.queueSave();
+      }
       if (showRegrowFeedback && regrowFeedbackCount < MAX_REGROW_FEEDBACK_PER_BATCH && this.getTileScreenPosition(tile)) {
         this.playRegrowFeedback(tile);
         this.popAtTile(tile, tile.trait === "lush" ? "lush" : tile.trait === "dewy" ? "dew" : "grass", "#e7ffd1");
@@ -659,15 +663,19 @@ export class GameScene extends Phaser.Scene {
     this.music.setComboLevel(this.combo.getCount());
     this.refreshComboBadge();
     this.pruneRecentlyRegrown(now);
-    let journalChanged = this.updateJournalDiscoveries();
     this.updateSprinkler(delta, stats);
     this.updateAnimalCompanions(delta, stats);
     this.updateMutations(delta);
-    this.checkReadyUnlocks();
-    this.checkReadyQuests();
-    journalChanged = this.updateJournalDiscoveries() || journalChanged;
+    const journalChanged = this.updateJournalDiscoveries();
     if (journalChanged) {
       this.queueSave();
+    }
+
+    this.readyStateRefreshElapsed += delta;
+    if (this.readyStateRefreshElapsed >= READY_STATE_REFRESH_INTERVAL_MS) {
+      this.readyStateRefreshElapsed = 0;
+      this.checkReadyUnlocks();
+      this.checkReadyQuests();
     }
 
     this.uiRefreshElapsed += delta;
@@ -700,6 +708,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleShutdown(): void {
+    this.flushQueuedSave();
     this.music.stop();
     for (const emitter of this.burstEmitters.values()) {
       emitter.destroy();
@@ -3760,7 +3769,7 @@ export class GameScene extends Phaser.Scene {
     this.shakeForGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, combo.count);
     this.tryComboAoeTouch(tile, stats, combo.count, now);
-    this.saveState();
+    this.queueSave();
   }
 
   private placeSelectedWorldObject(tile: FieldTile): void {
@@ -4232,6 +4241,10 @@ export class GameScene extends Phaser.Scene {
   private getDropFeedback(): DropFeedback {
     return {
       createTileView: (tile) => {
+        if (this.recordTileDiscovery(tile)) {
+          this.queueSave();
+        }
+
         if (this.isAmbientFeedbackActive()) {
           this.refreshTile(tile);
           return;
@@ -4341,6 +4354,10 @@ export class GameScene extends Phaser.Scene {
   private playMutationEvent(event: MutationEvent): void {
     for (const tile of event.changedTiles) {
       this.refreshTile(tile);
+    }
+
+    if (this.recordTileDiscoveries([event.originTile, event.partnerTile, ...event.changedTiles])) {
+      this.queueSave();
     }
 
     this.refreshTile(event.originTile);
@@ -4480,12 +4497,13 @@ export class GameScene extends Phaser.Scene {
 
   private updateWeather(now: number, announce: boolean): void {
     if (!this.state.seedShopPurchases.weather_jar) {
-      this.refreshWeatherVisuals();
+      if (this.activeWeatherVisualId !== "none") {
+        this.refreshWeatherVisuals();
+      }
       return;
     }
 
     if (this.state.activeWeatherId && this.state.weatherEndsAt && now < this.state.weatherEndsAt) {
-      this.refreshWeatherVisuals();
       return;
     }
 
@@ -5507,7 +5525,7 @@ export class GameScene extends Phaser.Scene {
   private refreshUi(): void {
     const nextMilestone = MILESTONES.find((milestone) => !this.state.reachedMilestones.includes(milestone.id));
     const nextQuest = QUESTS.find((quest) => !this.state.claimedQuestIds.includes(quest.id) && isQuestAvailable(this.state, quest));
-    const readyQuestCount = this.getReadyQuestKeys().size;
+    const readyQuestCount = this.readyQuestKeys.size;
     const nextTier = getNextGrassTier(this.state);
     const weather = this.state.seedShopPurchases.weather_jar ? getWeather(this.state.activeWeatherId) : undefined;
     const season = getSeasonForDate(new Date());
@@ -5727,11 +5745,6 @@ export class GameScene extends Phaser.Scene {
   private updateJournalDiscoveries(): boolean {
     let changed = false;
 
-    for (const tile of getFieldTiles(this.state)) {
-      changed = this.addJournalValue(this.state.journal.discoveredGrassTiers, tile.tier) || changed;
-      changed = this.addJournalValue(this.state.journal.discoveredTileTraits, tile.trait) || changed;
-    }
-
     if (this.state.activeWeatherId) {
       changed = this.addJournalValue(this.state.journal.seenWeatherIds, this.state.activeWeatherId) || changed;
     }
@@ -5739,6 +5752,21 @@ export class GameScene extends Phaser.Scene {
     if (this.combo.getCount() > this.state.journal.bestComboCount) {
       this.state.journal.bestComboCount = this.combo.getCount();
       changed = true;
+    }
+
+    return changed;
+  }
+
+  private recordTileDiscovery(tile: FieldTile): boolean {
+    const tierChanged = this.addJournalValue(this.state.journal.discoveredGrassTiers, tile.tier);
+    const traitChanged = this.addJournalValue(this.state.journal.discoveredTileTraits, tile.trait);
+    return tierChanged || traitChanged;
+  }
+
+  private recordTileDiscoveries(tiles: FieldTile[]): boolean {
+    let changed = false;
+    for (const tile of tiles) {
+      changed = this.recordTileDiscovery(tile) || changed;
     }
 
     return changed;
@@ -6358,6 +6386,9 @@ export class GameScene extends Phaser.Scene {
       ) {
         this.state.reachedMilestones.push(milestone.id);
         const addedTiles = expandField(this.state, milestone.tilesToAdd, stats);
+        if (this.recordTileDiscoveries(addedTiles)) {
+          this.queueSave();
+        }
 
         for (const tile of addedTiles) {
           this.createTileView(tile);
