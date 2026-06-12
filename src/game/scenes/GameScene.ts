@@ -33,7 +33,7 @@ import { MutationSystem, type MutationEvent } from "../systems/MutationSystem";
 import { loadGame, resetSave, saveGame } from "../systems/SaveSystem";
 import { SprinklerSystem } from "../systems/SprinklerSystem";
 import { getRuntimeStats } from "../systems/UpgradeSystem";
-import type { CharacterClassId, FieldTile, GameState, GrassTierId, TileKey, TileTrait, TouchResult, WeatherId } from "../types/game-state";
+import type { CharacterClassId, FieldTile, GameState, GrassTierId, RuntimeStats, TileKey, TileTrait, TouchResult, WeatherId } from "../types/game-state";
 import { createTextButton, setTextButtonEnabled, setTextButtonText } from "../ui/buttons";
 
 const TILE_SIZE = 58;
@@ -45,6 +45,8 @@ const BOARD_PAN_THRESHOLD_PX = 18;
 const TOUCH_SHAKE_COOLDOWN_MS = 140;
 const FULL_UI_REFRESH_INTERVAL_MS = 260;
 const READY_STATE_REFRESH_INTERVAL_MS = 520;
+const RUNTIME_STATS_CACHE_MS = 250;
+const JOURNAL_DISCOVERY_REFRESH_INTERVAL_MS = 1200;
 const PERF_PANEL_REFRESH_INTERVAL_MS = 500;
 const REGROW_FEEDBACK_INTERVAL_MS = 240;
 const MAX_REGROW_FEEDBACK_PER_BATCH = 6;
@@ -401,7 +403,10 @@ export class GameScene extends Phaser.Scene {
   private nextRegrowFeedbackAt = 0;
   private uiRefreshElapsed = 0;
   private readyStateRefreshElapsed = READY_STATE_REFRESH_INTERVAL_MS;
+  private journalDiscoveryRefreshElapsed = JOURNAL_DISCOVERY_REFRESH_INTERVAL_MS;
   private perfPanelElapsed = 0;
+  private runtimeStatsCache?: RuntimeStats;
+  private runtimeStatsCacheAt = 0;
   private performanceSampleElapsed = 0;
   private effectQuality = 1;
   private lowFpsSamples = 0;
@@ -648,7 +653,7 @@ export class GameScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     const now = Date.now();
     this.updateWeather(now, true);
-    const stats = getRuntimeStats(this.state);
+    const stats = this.getCachedRuntimeStats(now);
     const regrown = updateRegrowth(this.state, stats, now);
     const showRegrowFeedback = regrown.length > 0 && now >= this.nextRegrowFeedbackAt;
     let regrowFeedbackCount = 0;
@@ -681,9 +686,13 @@ export class GameScene extends Phaser.Scene {
     this.updateSprinkler(delta, stats);
     this.updateAnimalCompanions(delta, stats);
     this.updateMutations(delta);
-    const journalChanged = this.updateJournalDiscoveries();
-    if (journalChanged) {
-      this.queueSave();
+    this.journalDiscoveryRefreshElapsed += delta;
+    if (this.journalDiscoveryRefreshElapsed >= JOURNAL_DISCOVERY_REFRESH_INTERVAL_MS) {
+      this.journalDiscoveryRefreshElapsed = 0;
+      const journalChanged = this.updateJournalDiscoveries();
+      if (journalChanged) {
+        this.queueSave();
+      }
     }
 
     this.readyStateRefreshElapsed += delta;
@@ -760,6 +769,21 @@ export class GameScene extends Phaser.Scene {
     this.saveQueued = false;
     this.queuedSaveElapsed = 0;
     this.saveState();
+  }
+
+  private invalidateRuntimeStats(): void {
+    this.runtimeStatsCache = undefined;
+    this.runtimeStatsCacheAt = 0;
+  }
+
+  private getCachedRuntimeStats(now = Date.now()): RuntimeStats {
+    if (this.runtimeStatsCache && now - this.runtimeStatsCacheAt < RUNTIME_STATS_CACHE_MS) {
+      return this.runtimeStatsCache;
+    }
+
+    this.runtimeStatsCache = getRuntimeStats(this.state);
+    this.runtimeStatsCacheAt = now;
+    return this.runtimeStatsCache;
   }
 
   private runWithAmbientFeedback<T>(callback: () => T): T {
@@ -2606,6 +2630,7 @@ export class GameScene extends Phaser.Scene {
 
     this.state.gold -= item.cost;
     addInventoryItem(this.state, item.id, item.kind);
+    this.invalidateRuntimeStats();
     this.setStoreStatus(`${item.name} added to inventory.`);
     this.audio.play(item.kind === "animal" ? "milestone" : "upgrade");
     this.saveState();
@@ -2626,6 +2651,7 @@ export class GameScene extends Phaser.Scene {
         }
         this.state.seeds += 5;
         this.state.lifetimeSeeds += 5;
+        this.invalidateRuntimeStats();
         this.setStoreStatus("Seed Satchel opened into 5 seeds.");
         this.audio.play("seed");
         this.saveState();
@@ -2648,6 +2674,8 @@ export class GameScene extends Phaser.Scene {
       this.audio.play("blocked");
       return;
     }
+
+    this.invalidateRuntimeStats();
 
     for (const tile of restingTiles) {
       tile.grassState = "grown";
@@ -2690,6 +2718,7 @@ export class GameScene extends Phaser.Scene {
 
     this.state.seeds -= item.cost;
     this.state.seedShopPurchases[item.id] = true;
+    this.invalidateRuntimeStats();
     if (item.id === "weather_jar") {
       this.state.weatherEndsAt = 0;
       this.updateWeather(Date.now(), false);
@@ -3825,10 +3854,10 @@ export class GameScene extends Phaser.Scene {
       this.clearTileInfo();
     }
 
-    const stats = getRuntimeStats(this.state);
+    const now = Date.now();
+    const stats = this.getCachedRuntimeStats(now);
     const touchedTrait = tile.trait;
     const touchedTier = getGrassTier(tile.tier);
-    const now = Date.now();
     this.addJournalValue(this.state.journal.discoveredGrassTiers, touchedTier.id);
     this.addJournalValue(this.state.journal.discoveredTileTraits, touchedTrait);
     const touch = touchTile(tile, this.state, stats, now);
@@ -4047,7 +4076,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private applyGrassTierIdentityBonus(originTile: FieldTile, tier: GrassTierId, touch: TouchResult, stats: ReturnType<typeof getRuntimeStats>, now: number): void {
+  private applyGrassTierIdentityBonus(originTile: FieldTile, tier: GrassTierId, touch: TouchResult, stats: RuntimeStats, now: number): void {
     if (tier === "wildflower") {
       this.tryWildflowerPollinate(originTile);
       return;
@@ -4094,7 +4123,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private tryMushroomSpores(originTile: FieldTile, stats: ReturnType<typeof getRuntimeStats>, now: number): void {
+  private tryMushroomSpores(originTile: FieldTile, stats: RuntimeStats, now: number): void {
     if (Math.random() >= MUSHROOM_SPORE_CHANCE) {
       return;
     }
@@ -4287,7 +4316,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private tryComboAoeTouch(originTile: FieldTile, stats: ReturnType<typeof getRuntimeStats>, comboCount: number, now: number): void {
+  private tryComboAoeTouch(originTile: FieldTile, stats: RuntimeStats, comboCount: number, now: number): void {
     const chance = this.getComboAoeChance(comboCount);
     if (chance <= 0 || Math.random() >= chance) {
       return;
@@ -4409,7 +4438,7 @@ export class GameScene extends Phaser.Scene {
     this.spawnRewardArc("effect-gold-coin", position.x, position.y - 10, "gold", amount);
   }
 
-  private updateSprinkler(delta: number, stats: ReturnType<typeof getRuntimeStats>): void {
+  private updateSprinkler(delta: number, stats: RuntimeStats): void {
     if (this.hasBlockingOverlayOpen()) {
       return;
     }
@@ -4433,7 +4462,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private updateAnimalCompanions(delta: number, stats: ReturnType<typeof getRuntimeStats>): void {
+  private updateAnimalCompanions(delta: number, stats: RuntimeStats): void {
     if (this.hasBlockingOverlayOpen()) {
       return;
     }
@@ -4630,6 +4659,8 @@ export class GameScene extends Phaser.Scene {
     const weather = pickWeather(this.state.activeWeatherId);
     this.state.activeWeatherId = weather.id;
     this.state.weatherEndsAt = now + (this.state.seedShopPurchases.rain_barrel ? 150000 : 120000);
+    this.invalidateRuntimeStats();
+    this.addJournalValue(this.state.journal.seenWeatherIds, weather.id);
 
     if (announce) {
       this.showMessage(`${weather.name}: ${weather.description}`, 2600);
@@ -6130,7 +6161,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshSeedShop(): void {
-    const stats = getRuntimeStats(this.state);
+    const stats = this.getCachedRuntimeStats();
     this.seedResourceText.setText(
       `Seeds: ${Math.floor(this.state.seeds)} | Lifetime Seeds: ${Math.floor(this.state.lifetimeSeeds)} | Drop Chance: ${Math.round(
         getSeedDropChance(this.state, stats.seedDropBonus) * 100,
@@ -6527,6 +6558,7 @@ export class GameScene extends Phaser.Scene {
 
     this.state.grassTouches -= cost;
     this.state.upgrades[upgrade.id] = { level: level + 1 };
+    this.invalidateRuntimeStats();
     this.setSkillStatus(`${upgrade.name} upgraded to ${level + 1}/${upgrade.maxLevel}.`);
     this.audio.play("upgrade");
     this.saveState();
@@ -6535,7 +6567,7 @@ export class GameScene extends Phaser.Scene {
     return true;
   }
 
-  private checkMilestones(stats: ReturnType<typeof getRuntimeStats>): void {
+  private checkMilestones(stats: RuntimeStats): void {
     for (const milestone of MILESTONES) {
       if (
         this.state.lifetimeGrassTouches >= milestone.requiredLifetimeTouches &&
