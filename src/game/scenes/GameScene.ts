@@ -58,6 +58,12 @@ const MIN_EFFECT_QUALITY = 0.22;
 const EFFECT_QUALITY_STEP = 0.16;
 const DISPLAY_OBJECT_PRESSURE_LIMIT = 850;
 const DISPLAY_OBJECT_CRITICAL_LIMIT = 1150;
+const FRAME_SPIKE_MS = 34;
+const PERF_SPIKE_RESET_MS = 2500;
+const MAX_BURST_EMITTERS = 14;
+const MAX_UI_BURST_EMITTERS = 6;
+const COMPACT_TILE_EFFECT_SCALE = 0.56;
+const COMBO_BADGE_BUMP_INTERVAL_MS = 120;
 const AMBIENT_FEEDBACK_WINDOW_MS = 1000;
 const AMBIENT_BURST_PARTICLE_BUDGET = 120;
 const AMBIENT_TRANSIENT_OBJECT_BUDGET = 18;
@@ -408,6 +414,14 @@ export class GameScene extends Phaser.Scene {
   private runtimeStatsCache?: RuntimeStats;
   private runtimeStatsCacheAt = 0;
   private performanceSampleElapsed = 0;
+  private perfSpikeWindowElapsed = 0;
+  private maxFrameDeltaMs = 0;
+  private frameSpikeCount = 0;
+  private layoutPassCount = 0;
+  private commonLayerRedrawCount = 0;
+  private lastPerfLayoutPassCount = 0;
+  private lastPerfCommonLayerRedrawCount = 0;
+  private lastComboBadgeBumpAt = 0;
   private effectQuality = 1;
   private lowFpsSamples = 0;
   private highFpsSamples = 0;
@@ -654,6 +668,17 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     const now = Date.now();
+    this.maxFrameDeltaMs = Math.max(this.maxFrameDeltaMs, delta);
+    if (delta >= FRAME_SPIKE_MS) {
+      this.frameSpikeCount += 1;
+    }
+    this.perfSpikeWindowElapsed += delta;
+    if (this.perfSpikeWindowElapsed >= PERF_SPIKE_RESET_MS) {
+      this.perfSpikeWindowElapsed = 0;
+      this.maxFrameDeltaMs = delta;
+      this.frameSpikeCount = delta >= FRAME_SPIKE_MS ? 1 : 0;
+    }
+
     this.updateWeather(now, true);
     const stats = this.getCachedRuntimeStats(now);
     const regrown = updateRegrowth(this.state, stats, now);
@@ -852,18 +877,18 @@ export class GameScene extends Phaser.Scene {
 
   private getWeatherParticleQuality(): number {
     if (this.effectQuality <= 0.34) {
-      return 0.16;
+      return 0.12;
     }
 
     if (this.effectQuality <= 0.58) {
-      return 0.35;
+      return 0.24;
     }
 
     if (this.effectQuality <= 0.82) {
-      return 0.62;
+      return 0.42;
     }
 
-    return 1;
+    return 0.68;
   }
 
   private getScaledBudget(baseBudget: number): number {
@@ -1174,13 +1199,22 @@ export class GameScene extends Phaser.Scene {
     }
 
     const fps = Math.round(this.game.loop.actualFps);
+    const layoutPasses = this.layoutPassCount - this.lastPerfLayoutPassCount;
+    const redraws = this.commonLayerRedrawCount - this.lastPerfCommonLayerRedrawCount;
+    this.lastPerfLayoutPassCount = this.layoutPassCount;
+    this.lastPerfCommonLayerRedrawCount = this.commonLayerRedrawCount;
     const stats = {
       fps,
+      maxFrameDeltaMs: Math.round(this.maxFrameDeltaMs),
+      frameSpikes: this.frameSpikeCount,
       totalTiles: this.lastStressStats.totalTiles,
       visibleTiles: this.lastStressStats.visibleTiles,
       tileViews: this.tileViews.size,
       displayObjects: this.children.list.length,
       emitters: this.burstEmitters.size + this.uiBurstEmitters.size,
+      activeTweens: this.getActiveTweenCount(),
+      layoutPasses,
+      redraws,
       quality: Number(this.effectQuality.toFixed(2)),
       weatherQuality: Number(this.weatherParticleQuality.toFixed(2)),
       queuedSave: this.saveQueued,
@@ -1194,11 +1228,20 @@ export class GameScene extends Phaser.Scene {
         `views ${stats.tileViews}`,
         `objects ${stats.displayObjects}`,
         `emitters ${stats.emitters}`,
+        `tw ${stats.activeTweens}`,
+        `dt ${stats.maxFrameDeltaMs}`,
+        `spikes ${stats.frameSpikes}`,
+        `layout ${stats.layoutPasses}/${stats.redraws}`,
         `fx ${stats.quality}`,
         stats.queuedSave ? "save queued" : "",
       ].join("  "),
     );
     this.perfText.setPosition(26, Math.max(122, (this.milestoneText?.y ?? 108) + (this.milestoneText?.height ?? 0) + 8));
+  }
+
+  private getActiveTweenCount(): number {
+    const tweenManager = this.tweens as unknown as { getTweens?: () => unknown[]; getAllTweens?: () => unknown[] };
+    return tweenManager.getTweens?.().length ?? tweenManager.getAllTweens?.().length ?? 0;
   }
 
   private createWeatherVisuals(): void {
@@ -1270,8 +1313,9 @@ export class GameScene extends Phaser.Scene {
         rotate: { min: -30, max: 30 },
         scale: { start: 0.85, end: 0.12 },
         alpha: { start: 0.22, end: 0 },
-        frequency: 360,
+        frequency: 720,
         quantity: 1,
+        maxParticles: 18,
       })
       .setDepth(16);
   }
@@ -2963,6 +3007,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    this.layoutPassCount += 1;
     const boardWidth = bounds.width * (TILE_SIZE + TILE_GAP);
     const boardHeight = bounds.height * (TILE_SIZE + TILE_GAP);
     this.boardTopY = Math.max(142, this.milestoneText.y + this.milestoneText.height + 24);
@@ -3043,6 +3088,7 @@ export class GameScene extends Phaser.Scene {
 
   private layoutBoardLayers(): void {
     if (this.commonTileLayer) {
+      this.commonLayerRedrawCount += 1;
       this.commonTileLayer.setPosition(0, 0);
       this.commonTileLayer.resize(this.scale.width, this.scale.height);
       this.commonTileLayer.clear();
@@ -4616,7 +4662,7 @@ export class GameScene extends Phaser.Scene {
 
     if (combo.bonusTouches > 0) {
       this.popAtTile(tile, `combo +${combo.bonusTouches}`, "#f4df6a");
-    } else {
+    } else if (combo.thresholdReached || combo.count <= 3 || combo.count % 5 === 0) {
       this.popAtTile(tile, `${combo.count} combo`, "#b7eba5");
     }
 
@@ -4656,8 +4702,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.state.characterClassId === "bard_de_wever" && combo.thresholdReached) {
-      this.emitBurst("class-music-note", x, y - 18, 12 + Math.min(18, combo.thresholdReached), 0.82, 0.02);
-      this.floatMusicNote(x, y);
+      this.emitBurst("class-music-note", x, y - 18, 8 + Math.min(10, combo.thresholdReached), 0.82, 0.02);
+      if (this.effectQuality >= 0.58 && this.boardScale >= COMPACT_TILE_EFFECT_SCALE) {
+        this.floatMusicNote(x, y);
+      }
       if (combo.thresholdReached >= 10) {
         this.popAtTile(tile, "encore!", "#ffef78");
       }
@@ -4668,6 +4716,12 @@ export class GameScene extends Phaser.Scene {
     if (!this.comboBadge.visible) {
       return;
     }
+
+    const now = Date.now();
+    if (now - this.lastComboBadgeBumpAt < COMBO_BADGE_BUMP_INTERVAL_MS) {
+      return;
+    }
+    this.lastComboBadgeBumpAt = now;
 
     this.tweens.killTweensOf(this.comboBadge);
     this.comboBadge.setScale(1);
@@ -4778,9 +4832,9 @@ export class GameScene extends Phaser.Scene {
           speedY: { min: 24, max: 54 },
           scale: { start: 1.25, end: 0.32 },
           alpha: { start: 0.82, end: 0 },
-          frequency: 75,
+          frequency: 115,
           quantity: 2,
-          maxParticles: 70,
+          maxParticles: 46,
         },
       },
       warm_sunlight: {
@@ -4793,9 +4847,9 @@ export class GameScene extends Phaser.Scene {
           speedY: { min: -16, max: 2 },
           scale: { start: 1.45, end: 0 },
           alpha: { start: 0.72, end: 0 },
-          frequency: 95,
+          frequency: 145,
           quantity: 1,
-          maxParticles: 42,
+          maxParticles: 30,
         },
       },
       lucky_breeze: {
@@ -4809,9 +4863,9 @@ export class GameScene extends Phaser.Scene {
           rotate: { min: -80, max: 80 },
           scale: { start: 1.25, end: 0.25 },
           alpha: { start: 0.76, end: 0 },
-          frequency: 58,
+          frequency: 105,
           quantity: 2,
-          maxParticles: 54,
+          maxParticles: 34,
         },
       },
       seed_wind: {
@@ -4826,9 +4880,9 @@ export class GameScene extends Phaser.Scene {
           rotate: { min: -180, max: 180 },
           scale: { start: 1.35, end: 0.18 },
           alpha: { start: 0.86, end: 0 },
-          frequency: 48,
+          frequency: 95,
           quantity: 2,
-          maxParticles: 54,
+          maxParticles: 34,
         },
       },
       soft_rain: {
@@ -4843,9 +4897,9 @@ export class GameScene extends Phaser.Scene {
           rotate: { min: -10, max: 4 },
           scale: { start: 1.35, end: 0.95 },
           alpha: { start: 0.78, end: 0 },
-          frequency: 26,
-          quantity: 2,
-          maxParticles: 84,
+          frequency: 46,
+          quantity: 1,
+          maxParticles: 48,
         },
       },
       pollinator_swarm: {
@@ -4859,9 +4913,9 @@ export class GameScene extends Phaser.Scene {
           rotate: { min: -120, max: 120 },
           scale: { start: 1.15, end: 0.2 },
           alpha: { start: 0.78, end: 0 },
-          frequency: 42,
+          frequency: 76,
           quantity: 2,
-          maxParticles: 58,
+          maxParticles: 36,
         },
       },
       golden_hour: {
@@ -4874,9 +4928,9 @@ export class GameScene extends Phaser.Scene {
           speedY: { min: -14, max: 4 },
           scale: { start: 1.9, end: 0 },
           alpha: { start: 0.86, end: 0 },
-          frequency: 66,
+          frequency: 105,
           quantity: 2,
-          maxParticles: 58,
+          maxParticles: 36,
         },
       },
       restless_roots: {
@@ -4891,9 +4945,9 @@ export class GameScene extends Phaser.Scene {
           rotate: { min: -160, max: 160 },
           scale: { start: 1.25, end: 0.18 },
           alpha: { start: 0.82, end: 0 },
-          frequency: 54,
+          frequency: 90,
           quantity: 2,
-          maxParticles: 52,
+          maxParticles: 34,
         },
       },
     } satisfies Record<Exclude<WeatherId, "calm">, { texture: string; config: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig }>;
@@ -4917,7 +4971,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (typeof scaledConfig.maxParticles === "number") {
-      scaledConfig.maxParticles = Math.max(12, Math.floor(scaledConfig.maxParticles * Math.max(0.3, quality)));
+      scaledConfig.maxParticles = Math.max(8, Math.floor(scaledConfig.maxParticles * Math.max(0.25, quality)));
     }
 
     return scaledConfig;
@@ -5011,8 +5065,9 @@ export class GameScene extends Phaser.Scene {
     const y = position.y;
     const baseScale = this.boardScale;
     const fleckTexture = touchedTrait === "dewy" ? "dew-fleck" : "grass-fleck";
+    const compactEffects = this.boardScale < COMPACT_TILE_EFFECT_SCALE && !isCrit;
 
-    if (view) {
+    if (view && !compactEffects) {
       this.resetBaseTilePose(view);
       const grassGhost = this.add
         .image(x, y, view.grass.texture.key)
@@ -5043,14 +5098,18 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    this.emitBurst(fleckTexture, x, y - 4, isCrit ? 46 : 28, isCrit ? 1.42 : 1.05, isCrit ? 0.3 : 0.42);
-    this.emitBurst("dust-fleck", x, y + 12, 12, 0.8, 0.28);
+    this.emitBurst(fleckTexture, x, y - 4, isCrit ? 38 : compactEffects ? 8 : 20, isCrit ? 1.42 : 1.05, isCrit ? 0.3 : 0.42);
+    if (!compactEffects) {
+      this.emitBurst("dust-fleck", x, y + 12, 8, 0.8, 0.28);
+    }
     if (isCrit) {
-      this.emitBurst("crit-fleck", x, y - 10, 30, 1.35, 0.18);
+      this.emitBurst("crit-fleck", x, y - 10, 24, 1.35, 0.18);
       this.addCritFlash(x, y);
     }
-    this.addTouchRing(x, y);
-    this.addTouchFlash(x, y);
+    if (!compactEffects) {
+      this.addTouchRing(x, y);
+      this.addTouchFlash(x, y);
+    }
   }
 
   private playPerfectTouchFeedback(tile: FieldTile, bonusTouches: number): void {
@@ -5289,7 +5348,7 @@ export class GameScene extends Phaser.Scene {
     view.base.setScale(this.boardScale);
   }
 
-  private emitBurst(texture: string, x: number, y: number, quantity: number, speedScale: number, gravityScale: number): void {
+  private emitBurst(texture: string, x: number, y: number, quantity: number, _speedScale: number, _gravityScale: number): void {
     if (!this.isScreenPositionNearViewport({ x, y }, TILE_CULL_MARGIN_PX * 1.5)) {
       return;
     }
@@ -5299,35 +5358,30 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const particles = this.getBurstEmitter(texture, speedScale, gravityScale);
+    const particles = this.getBurstEmitter(texture);
     particles.explode(budgetedQuantity, x, y);
   }
 
   private emitUiBurst(texture: string, x: number, y: number, quantity: number, color = 0xffef78): void {
+    const budgetedQuantity = Math.max(1, Math.ceil(quantity * Math.max(0.45, this.effectQuality)));
     const particles = this.getUiBurstEmitter(texture, color);
-    particles.explode(quantity, x, y);
+    particles.explode(budgetedQuantity, x, y);
   }
 
-  private getBurstEmitter(texture: string, speedScale: number, gravityScale: number): Phaser.GameObjects.Particles.ParticleEmitter {
-    const key = `${texture}:${speedScale.toFixed(2)}:${gravityScale.toFixed(2)}`;
+  private getBurstEmitter(texture: string): Phaser.GameObjects.Particles.ParticleEmitter {
+    const key = texture;
     const existing = this.burstEmitters.get(key);
     if (existing) {
+      this.burstEmitters.delete(key);
+      this.burstEmitters.set(key, existing);
       return existing;
     }
 
     const emitter = this.add
-      .particles(0, 0, texture, {
-        lifespan: { min: 420, max: 760 },
-        speed: { min: 38 * speedScale, max: 112 * speedScale },
-        angle: { min: 205, max: 335 },
-        gravityY: 240 * gravityScale,
-        rotate: { min: -120, max: 120 },
-        scale: { start: 1.55, end: 0 },
-        alpha: { start: 1, end: 0 },
-        emitting: false,
-      })
+      .particles(0, 0, texture, this.getBurstEmitterConfig(texture))
       .setDepth(35);
     this.burstEmitters.set(key, emitter);
+    this.pruneEmitterCache(this.burstEmitters, MAX_BURST_EMITTERS);
     return emitter;
   }
 
@@ -5335,6 +5389,8 @@ export class GameScene extends Phaser.Scene {
     const key = `${texture}:${color.toString(16)}`;
     const existing = this.uiBurstEmitters.get(key);
     if (existing) {
+      this.uiBurstEmitters.delete(key);
+      this.uiBurstEmitters.set(key, existing);
       return existing;
     }
 
@@ -5352,7 +5408,53 @@ export class GameScene extends Phaser.Scene {
       })
       .setDepth(125);
     this.uiBurstEmitters.set(key, emitter);
+    this.pruneEmitterCache(this.uiBurstEmitters, MAX_UI_BURST_EMITTERS);
     return emitter;
+  }
+
+  private getBurstEmitterConfig(texture: string): Phaser.Types.GameObjects.Particles.ParticleEmitterConfig {
+    const config: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
+      lifespan: { min: 360, max: 680 },
+      speed: { min: 34, max: 92 },
+      angle: { min: 205, max: 335 },
+      gravityY: 58,
+      rotate: { min: -120, max: 120 },
+      scale: { start: 1.38, end: 0 },
+      alpha: { start: 0.95, end: 0 },
+      emitting: false,
+    };
+
+    if (texture.includes("water")) {
+      config.speed = { min: 48, max: 118 };
+      config.gravityY = 120;
+    } else if (texture.includes("dust")) {
+      config.speed = { min: 28, max: 72 };
+      config.gravityY = 88;
+      config.alpha = { start: 0.72, end: 0 };
+    } else if (texture.includes("music")) {
+      config.speed = { min: 24, max: 62 };
+      config.angle = { min: 230, max: 310 };
+      config.gravityY = -8;
+      config.scale = { start: 1.12, end: 0 };
+    } else if (texture.includes("gold") || texture.includes("crit")) {
+      config.speed = { min: 42, max: 104 };
+      config.gravityY = 34;
+      config.alpha = { start: 1, end: 0 };
+    }
+
+    return config;
+  }
+
+  private pruneEmitterCache(cache: Map<string, Phaser.GameObjects.Particles.ParticleEmitter>, maxSize: number): void {
+    while (cache.size > maxSize) {
+      const oldestKey = cache.keys().next().value as string | undefined;
+      if (!oldestKey) {
+        return;
+      }
+
+      cache.get(oldestKey)?.destroy();
+      cache.delete(oldestKey);
+    }
   }
 
   private playMilestoneCelebration(): void {
