@@ -48,6 +48,13 @@ const FULL_UI_REFRESH_INTERVAL_MS = 180;
 const PERF_PANEL_REFRESH_INTERVAL_MS = 500;
 const REGROW_FEEDBACK_INTERVAL_MS = 240;
 const MAX_REGROW_FEEDBACK_PER_BATCH = 6;
+const AMBIENT_FEEDBACK_WINDOW_MS = 1000;
+const AMBIENT_BURST_PARTICLE_BUDGET = 120;
+const AMBIENT_TRANSIENT_OBJECT_BUDGET = 18;
+const AMBIENT_POP_TEXT_BUDGET = 10;
+const AMBIENT_REWARD_ARC_SPRITE_BUDGET = 8;
+const AMBIENT_WORLD_ACTION_ARC_SPRITE_BUDGET = 10;
+const QUEUED_SAVE_INTERVAL_MS = 1200;
 const TILE_CULL_MARGIN_PX = 96;
 const TILE_LABEL_MIN_SCALE = 0.68;
 const TILE_VIEW_POOL_LIMIT = 36;
@@ -386,6 +393,15 @@ export class GameScene extends Phaser.Scene {
   private nextRegrowFeedbackAt = 0;
   private uiRefreshElapsed = 0;
   private perfPanelElapsed = 0;
+  private queuedSaveElapsed = QUEUED_SAVE_INTERVAL_MS;
+  private saveQueued = false;
+  private ambientFeedbackDepth = 0;
+  private ambientFeedbackWindowAt = 0;
+  private ambientBurstParticlesUsed = 0;
+  private ambientTransientObjectsUsed = 0;
+  private ambientPopTextsUsed = 0;
+  private ambientRewardArcSpritesUsed = 0;
+  private ambientWorldActionArcSpritesUsed = 0;
   private stressMode = false;
   private perfText?: Phaser.GameObjects.Text;
   private lastStressStats: StressStats = { visibleTiles: 0, totalTiles: 0 };
@@ -651,7 +667,7 @@ export class GameScene extends Phaser.Scene {
     this.checkReadyQuests();
     journalChanged = this.updateJournalDiscoveries() || journalChanged;
     if (journalChanged) {
-      this.saveState();
+      this.queueSave();
     }
 
     this.uiRefreshElapsed += delta;
@@ -670,8 +686,15 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.lastAutoSaveAt += delta;
+    this.queuedSaveElapsed += delta;
+    if (this.saveQueued && this.queuedSaveElapsed >= QUEUED_SAVE_INTERVAL_MS) {
+      this.flushQueuedSave();
+    }
+
     if (this.lastAutoSaveAt >= 5000) {
       this.lastAutoSaveAt = 0;
+      this.saveQueued = false;
+      this.queuedSaveElapsed = 0;
       this.saveState();
     }
   }
@@ -693,6 +716,112 @@ export class GameScene extends Phaser.Scene {
     if (!this.stressMode) {
       saveGame(this.state);
     }
+  }
+
+  private queueSave(): void {
+    if (!this.stressMode) {
+      this.saveQueued = true;
+    }
+  }
+
+  private flushQueuedSave(): void {
+    if (!this.saveQueued) {
+      return;
+    }
+
+    this.saveQueued = false;
+    this.queuedSaveElapsed = 0;
+    this.saveState();
+  }
+
+  private runWithAmbientFeedback<T>(callback: () => T): T {
+    this.ambientFeedbackDepth += 1;
+    try {
+      return callback();
+    } finally {
+      this.ambientFeedbackDepth -= 1;
+    }
+  }
+
+  private isAmbientFeedbackActive(): boolean {
+    return this.ambientFeedbackDepth > 0;
+  }
+
+  private resetAmbientFeedbackBudget(now = Date.now()): void {
+    if (now - this.ambientFeedbackWindowAt < AMBIENT_FEEDBACK_WINDOW_MS) {
+      return;
+    }
+
+    this.ambientFeedbackWindowAt = now;
+    this.ambientBurstParticlesUsed = 0;
+    this.ambientTransientObjectsUsed = 0;
+    this.ambientPopTextsUsed = 0;
+    this.ambientRewardArcSpritesUsed = 0;
+    this.ambientWorldActionArcSpritesUsed = 0;
+  }
+
+  private reserveAmbientTransientObject(cost = 1): boolean {
+    if (!this.isAmbientFeedbackActive()) {
+      return true;
+    }
+
+    this.resetAmbientFeedbackBudget();
+    if (this.ambientTransientObjectsUsed + cost > AMBIENT_TRANSIENT_OBJECT_BUDGET) {
+      return false;
+    }
+
+    this.ambientTransientObjectsUsed += cost;
+    return true;
+  }
+
+  private reserveAmbientPopText(): boolean {
+    if (!this.isAmbientFeedbackActive()) {
+      return true;
+    }
+
+    this.resetAmbientFeedbackBudget();
+    if (this.ambientPopTextsUsed >= AMBIENT_POP_TEXT_BUDGET) {
+      return false;
+    }
+
+    this.ambientPopTextsUsed += 1;
+    return true;
+  }
+
+  private getBudgetedBurstQuantity(quantity: number): number {
+    if (!this.isAmbientFeedbackActive()) {
+      return quantity;
+    }
+
+    this.resetAmbientFeedbackBudget();
+    const remaining = AMBIENT_BURST_PARTICLE_BUDGET - this.ambientBurstParticlesUsed;
+    const budgetedQuantity = Math.min(quantity, Math.max(0, remaining));
+    this.ambientBurstParticlesUsed += budgetedQuantity;
+    return budgetedQuantity;
+  }
+
+  private getBudgetedRewardArcSpriteCount(count: number): number {
+    if (!this.isAmbientFeedbackActive()) {
+      return count;
+    }
+
+    this.resetAmbientFeedbackBudget();
+    const remaining = AMBIENT_REWARD_ARC_SPRITE_BUDGET - this.ambientRewardArcSpritesUsed;
+    const budgetedCount = Math.min(count, Math.max(0, remaining));
+    this.ambientRewardArcSpritesUsed += budgetedCount;
+    return budgetedCount;
+  }
+
+  private getBudgetedWorldActionArcSpriteCount(count: number): number {
+    if (!this.isAmbientFeedbackActive()) {
+      return count;
+    }
+
+    this.resetAmbientFeedbackBudget();
+    const remaining = AMBIENT_WORLD_ACTION_ARC_SPRITE_BUDGET - this.ambientWorldActionArcSpritesUsed;
+    const budgetedCount = Math.min(count, Math.max(0, remaining));
+    this.ambientWorldActionArcSpritesUsed += budgetedCount;
+    return budgetedCount;
   }
 
   private rebuildFieldMetrics(): void {
@@ -3238,6 +3367,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private pulseWorldObject(id: string, color: number): void {
+    if (!this.reserveAmbientTransientObject(2)) {
+      return;
+    }
+
     const view = this.worldObjectViews.get(id);
     if (!view || !view.container.visible) {
       return;
@@ -3290,6 +3423,11 @@ export class GameScene extends Phaser.Scene {
     count: number,
     color: number,
   ): void {
+    const spriteCount = this.getBudgetedWorldActionArcSpriteCount(count);
+    if (spriteCount <= 0) {
+      return;
+    }
+
     const origin = this.getWorldObjectOrigin(sourceId);
     if (!origin) {
       return;
@@ -3297,7 +3435,7 @@ export class GameScene extends Phaser.Scene {
 
     this.pulseWorldObject(sourceId, color);
 
-    for (let index = 0; index < count; index += 1) {
+    for (let index = 0; index < spriteCount; index += 1) {
       this.time.delayedCall(index * 55, () => {
         this.spawnActionArcSprite(texture, origin.x, origin.y, targetX, targetY, index);
       });
@@ -4093,8 +4231,22 @@ export class GameScene extends Phaser.Scene {
 
   private getDropFeedback(): DropFeedback {
     return {
-      createTileView: (tile) => this.createTileView(tile),
-      layoutTiles: () => this.layoutTiles(),
+      createTileView: (tile) => {
+        if (this.isAmbientFeedbackActive()) {
+          this.refreshTile(tile);
+          return;
+        }
+
+        this.createTileView(tile);
+      },
+      layoutTiles: () => {
+        if (this.isAmbientFeedbackActive()) {
+          this.commonTileLayerDirty = true;
+          return;
+        }
+
+        this.layoutTiles();
+      },
       popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
       emitSeedBurst: (tile) => this.emitSeedBurst(tile),
       emitGoldBurst: (tile, amount) => this.emitGoldBurst(tile, amount),
@@ -4129,20 +4281,22 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const changed = this.sprinkler.update(delta, this.state, stats, {
-      refreshTile: (tile) => this.refreshTile(tile),
-      popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
-      playSprinklerBurst: (tile) => this.playSprinklerBurst(tile),
-      playTouchFeedback: (tile, touchedTrait, isCrit) => this.playTouchFeedback(tile, touchedTrait, isCrit),
-      tryDropSeed: (tile, touchedTrait, runtimeStats, chanceScale) =>
-        this.drops.tryDropSeed(this.state, tile, touchedTrait, runtimeStats, this.getDropFeedback(), chanceScale),
-      tryDropGold: (tile, touchedTrait, touchedTier, touch, runtimeStats, chanceScale) =>
-        this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier, touch, runtimeStats, this.getDropFeedback(), chanceScale),
-      playGrassTouch: (tier, trait, isCrit) => this.audio.playGrassTouch(tier, trait, isCrit),
+    const changed = this.runWithAmbientFeedback(() => {
+      return this.sprinkler.update(delta, this.state, stats, {
+        refreshTile: (tile) => this.refreshTile(tile),
+        popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
+        playSprinklerBurst: (tile) => this.playSprinklerBurst(tile),
+        playTouchFeedback: (tile, touchedTrait, isCrit) => this.playTouchFeedback(tile, touchedTrait, isCrit),
+        tryDropSeed: (tile, touchedTrait, runtimeStats, chanceScale) =>
+          this.drops.tryDropSeed(this.state, tile, touchedTrait, runtimeStats, this.getDropFeedback(), chanceScale),
+        tryDropGold: (tile, touchedTrait, touchedTier, touch, runtimeStats, chanceScale) =>
+          this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier, touch, runtimeStats, this.getDropFeedback(), chanceScale),
+        playGrassTouch: (tier, trait, isCrit) => this.audio.playGrassTouch(tier, trait, isCrit),
+      });
     });
 
     if (changed) {
-      this.saveState();
+      this.queueSave();
     }
   }
 
@@ -4151,18 +4305,20 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const changed = this.animalCompanions.update(delta, this.state, stats, {
-      refreshTile: (tile) => this.refreshTile(tile),
-      popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
-      emitGoldBurst: (tile, amount) => this.emitGoldBurst(tile, amount),
-      playCompanionAction: (tile, action) => this.playCompanionAction(tile, action),
-      playTouchFeedback: (tile, touchedTrait, isCrit) => this.playTouchFeedback(tile, touchedTrait, isCrit),
-      playSound: (sound) => this.audio.play(sound),
-      playGrassTouch: (tier, trait, isCrit) => this.audio.playGrassTouch(tier, trait, isCrit),
+    const changed = this.runWithAmbientFeedback(() => {
+      return this.animalCompanions.update(delta, this.state, stats, {
+        refreshTile: (tile) => this.refreshTile(tile),
+        popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
+        emitGoldBurst: (tile, amount) => this.emitGoldBurst(tile, amount),
+        playCompanionAction: (tile, action) => this.playCompanionAction(tile, action),
+        playTouchFeedback: (tile, touchedTrait, isCrit) => this.playTouchFeedback(tile, touchedTrait, isCrit),
+        playSound: (sound) => this.audio.play(sound),
+        playGrassTouch: (tier, trait, isCrit) => this.audio.playGrassTouch(tier, trait, isCrit),
+      });
     });
 
     if (changed) {
-      this.saveState();
+      this.queueSave();
     }
   }
 
@@ -4177,9 +4333,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.state.mutationEvents += 1;
-    this.playMutationEvent(event);
+    this.runWithAmbientFeedback(() => this.playMutationEvent(event));
     this.updateJournalDiscoveries();
-    this.saveState();
+    this.queueSave();
   }
 
   private playMutationEvent(event: MutationEvent): void {
@@ -4733,38 +4889,42 @@ export class GameScene extends Phaser.Scene {
     const x = position.x;
     const y = position.y;
     this.spawnWorldActionArc("effect-water-drop", "sprinkler", x, y - 12 * this.boardScale, 4, 0xa8e8ff);
-    const ring = this.add
-      .ellipse(x, y, TILE_SIZE * 0.42 * this.boardScale, TILE_SIZE * 0.24 * this.boardScale, 0xa8e8ff, 0.22)
-      .setStrokeStyle(3, 0xd7fff2, 0.9)
-      .setDepth(38);
-    const sparkle = this.add
-      .star(x, y - 17 * this.boardScale, 6, TILE_SIZE * 0.08 * this.boardScale, TILE_SIZE * 0.33 * this.boardScale, 0xd7fff2, 0.78)
-      .setStrokeStyle(2, 0xffffff, 0.85)
-      .setDepth(39);
+    const showTransient = this.reserveAmbientTransientObject(2);
 
     this.emitBurst("effect-water-drop", x, y - 14 * this.boardScale, 30, 1.28, 0.5);
 
-    this.tweens.add({
-      targets: ring,
-      scaleX: 1.85,
-      scaleY: 1.45,
-      alpha: 0,
-      duration: 420,
-      ease: "Sine.easeOut",
-      onComplete: () => ring.destroy(),
-    });
+    if (showTransient) {
+      const ring = this.add
+        .ellipse(x, y, TILE_SIZE * 0.42 * this.boardScale, TILE_SIZE * 0.24 * this.boardScale, 0xa8e8ff, 0.22)
+        .setStrokeStyle(3, 0xd7fff2, 0.9)
+        .setDepth(38);
+      const sparkle = this.add
+        .star(x, y - 17 * this.boardScale, 6, TILE_SIZE * 0.08 * this.boardScale, TILE_SIZE * 0.33 * this.boardScale, 0xd7fff2, 0.78)
+        .setStrokeStyle(2, 0xffffff, 0.85)
+        .setDepth(39);
 
-    this.tweens.add({
-      targets: sparkle,
-      angle: 35,
-      scaleX: 1.32,
-      scaleY: 1.32,
-      y: sparkle.y - 7 * this.boardScale,
-      alpha: 0,
-      duration: 360,
-      ease: "Sine.easeOut",
-      onComplete: () => sparkle.destroy(),
-    });
+      this.tweens.add({
+        targets: ring,
+        scaleX: 1.85,
+        scaleY: 1.45,
+        alpha: 0,
+        duration: 420,
+        ease: "Sine.easeOut",
+        onComplete: () => ring.destroy(),
+      });
+
+      this.tweens.add({
+        targets: sparkle,
+        angle: 35,
+        scaleX: 1.32,
+        scaleY: 1.32,
+        y: sparkle.y - 7 * this.boardScale,
+        alpha: 0,
+        duration: 360,
+        ease: "Sine.easeOut",
+        onComplete: () => sparkle.destroy(),
+      });
+    }
   }
 
   private playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze" | "burrow"): void {
@@ -4811,6 +4971,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private addCompanionPing(x: number, y: number, color: number, strokeColor: number): void {
+    if (!this.reserveAmbientTransientObject()) {
+      return;
+    }
+
     const ping = this.add
       .star(x, y, 5, TILE_SIZE * 0.07 * this.boardScale, TILE_SIZE * 0.28 * this.boardScale, color, 0.78)
       .setStrokeStyle(2, strokeColor, 0.9)
@@ -4830,6 +4994,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private addScratchMarks(x: number, y: number): void {
+    if (!this.reserveAmbientTransientObject()) {
+      return;
+    }
+
     const marks = this.add.graphics().setDepth(38);
     const size = TILE_SIZE * this.boardScale;
     marks.lineStyle(Math.max(2, 3 * this.boardScale), 0xfff1a8, 0.9);
@@ -4880,8 +5048,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private emitBurst(texture: string, x: number, y: number, quantity: number, speedScale: number, gravityScale: number): void {
+    const budgetedQuantity = this.getBudgetedBurstQuantity(quantity);
+    if (budgetedQuantity <= 0) {
+      return;
+    }
+
     const particles = this.getBurstEmitter(texture, speedScale, gravityScale);
-    particles.explode(quantity, x, y);
+    particles.explode(budgetedQuantity, x, y);
   }
 
   private emitUiBurst(texture: string, x: number, y: number, quantity: number, color = 0xffef78): void {
@@ -5001,6 +5174,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private addTouchRing(x: number, y: number): void {
+    if (!this.reserveAmbientTransientObject()) {
+      return;
+    }
+
     const ring = this.add
       .ellipse(x, y, TILE_SIZE * 0.82 * this.boardScale, TILE_SIZE * 0.48 * this.boardScale, 0xf7ffe8, 0.18)
       .setStrokeStyle(4, 0xf7ffe8, 0.95)
@@ -5018,6 +5195,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private addTouchFlash(x: number, y: number): void {
+    if (!this.reserveAmbientTransientObject()) {
+      return;
+    }
+
     const flash = this.add
       .rectangle(x, y, TILE_SIZE * 0.78 * this.boardScale, TILE_SIZE * 0.78 * this.boardScale, 0xf7ffe8, 0.36)
       .setDepth(36)
@@ -5035,6 +5216,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private addCritFlash(x: number, y: number): void {
+    if (!this.reserveAmbientTransientObject()) {
+      return;
+    }
+
     const burst = this.add
       .star(x, y, 7, TILE_SIZE * 0.18 * this.boardScale, TILE_SIZE * 0.72 * this.boardScale, 0xfff08a, 0.8)
       .setStrokeStyle(3, 0xffffff, 0.95)
@@ -6189,6 +6374,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private popAtTile(tile: FieldTile, text: string, color: string): void {
+    if (!this.reserveAmbientPopText()) {
+      return;
+    }
+
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     const position = view ? { x: view.base.x, y: view.base.y } : this.getTileScreenPosition(tile);
     if (!position) {
@@ -6288,7 +6477,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnRewardArc(texture: string, startX: number, startY: number, kind: "seed" | "gold", amount = 1): void {
-    const spriteCount = Phaser.Math.Clamp(Math.ceil(amount), 1, 4);
+    const spriteCount = this.getBudgetedRewardArcSpriteCount(Phaser.Math.Clamp(Math.ceil(amount), 1, 4));
+    if (spriteCount <= 0) {
+      return;
+    }
 
     for (let index = 0; index < spriteCount; index += 1) {
       this.time.delayedCall(index * 42, () => this.spawnRewardArcSprite(texture, startX, startY, kind, index));
