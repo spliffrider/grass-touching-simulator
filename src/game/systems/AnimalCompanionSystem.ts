@@ -35,7 +35,7 @@ export class AnimalCompanionSystem {
 
     if (beeHives > 0) {
       this.beeHiveElapsed += delta;
-      const beeInterval = Math.max(4200, 9500 - beeHives * 1500);
+      const beeInterval = Math.max(9000, 18000 - beeHives * 1800);
       if (this.beeHiveElapsed >= beeInterval) {
         this.beeHiveElapsed = 0;
         changed = this.pollinateFromBeeHive(state, beeHives, feedback) || changed;
@@ -44,7 +44,7 @@ export class AnimalCompanionSystem {
 
     if (chickens > 0) {
       this.chickenElapsed += delta;
-      const chickenInterval = Math.max(5200, 10500 - chickens * 1700);
+      const chickenInterval = Math.max(10000, 21000 - chickens * 2200);
       if (this.chickenElapsed >= chickenInterval) {
         this.chickenElapsed = 0;
         changed = this.runChickenForage(state, chickens, feedback) || changed;
@@ -53,7 +53,7 @@ export class AnimalCompanionSystem {
 
     if (sheep > 0) {
       this.sheepElapsed += delta;
-      const sheepInterval = Math.max(6200, 13200 - sheep * 2100);
+      const sheepInterval = Math.max(13000, 26000 - sheep * 3000);
       if (this.sheepElapsed >= sheepInterval) {
         this.sheepElapsed = 0;
         changed = this.runSheepGraze(state, stats, sheep, feedback) || changed;
@@ -62,7 +62,7 @@ export class AnimalCompanionSystem {
 
     if (earthworms > 0) {
       this.earthwormElapsed += delta;
-      const earthwormInterval = Math.max(4600, 9800 - earthworms * 1500);
+      const earthwormInterval = Math.max(10000, 20000 - earthworms * 2200);
       if (this.earthwormElapsed >= earthwormInterval) {
         this.earthwormElapsed = 0;
         changed = this.runEarthwormBurrow(state, earthworms, feedback) || changed;
@@ -85,14 +85,14 @@ export class AnimalCompanionSystem {
       state.field[tileKey(anchor.x, anchor.y + 1)],
       state.field[tileKey(anchor.x, anchor.y - 1)],
     ].filter((tile): tile is FieldTile => tile !== undefined);
-    const improvedTiles = Phaser.Utils.Array.Shuffle(cluster).slice(0, Math.min(cluster.length, 2 + beeHives));
+    const improvedTiles = Phaser.Utils.Array.Shuffle(cluster).slice(0, Math.min(cluster.length, 1 + Math.min(beeHives, 2)));
 
     for (const tile of improvedTiles) {
       if (tile.grassState === "regrowing") {
         const remainingMs = Math.max(0, tile.regrowEndsAt - Date.now());
-        tile.regrowEndsAt = Date.now() + Math.floor(remainingMs * 0.58);
+        tile.regrowEndsAt = Date.now() + Math.floor(remainingMs * 0.75);
       } else {
-        tile.trait = Math.random() < 0.36 ? "lush" : "dewy";
+        tile.trait = Math.random() < 0.22 ? "lush" : "dewy";
       }
 
       feedback.refreshTile(tile);
@@ -113,10 +113,10 @@ export class AnimalCompanionSystem {
       return false;
     }
 
-    if (Math.random() < 0.42 + chickens * 0.1) {
-      tile.trait = tile.trait === "lush" ? "lush" : Math.random() < 0.42 ? "lush" : "dewy";
+    if (Math.random() < 0.62 + chickens * 0.05) {
+      tile.trait = tile.trait === "lush" ? "lush" : Math.random() < 0.25 ? "lush" : "dewy";
       if (tile.grassState === "regrowing") {
-        tile.regrowEndsAt = Math.min(tile.regrowEndsAt, Date.now() + 900);
+        tile.regrowEndsAt = Math.min(tile.regrowEndsAt, Date.now() + 1600);
       }
       feedback.refreshTile(tile);
       feedback.playCompanionAction(tile, "scratch");
@@ -147,15 +147,17 @@ export class AnimalCompanionSystem {
       return false;
     }
 
-    const goldGained = Math.max(1, Math.min(3, sheep));
+    const goldGained = Math.random() < 0.28 + sheep * 0.08 ? 1 : 0;
     state.gold += goldGained;
     state.lifetimeGold += goldGained;
     feedback.playCompanionAction(tile, "graze");
     feedback.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     feedback.refreshTile(tile);
     feedback.popAtTile(tile, `sheep +${touch.gained}`, "#dfffc8");
-    feedback.popAtTile(tile, `+${goldGained} gold`, "#ffef78");
-    feedback.emitGoldBurst(tile, goldGained);
+    if (goldGained > 0) {
+      feedback.popAtTile(tile, `+${goldGained} gold`, "#ffef78");
+      feedback.emitGoldBurst(tile, goldGained);
+    }
     feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     feedback.playSound("gold");
     return true;
@@ -168,7 +170,7 @@ export class AnimalCompanionSystem {
     }
 
     const now = Date.now();
-    const regrowFactor = state.activeWeatherId === "warm_sunlight" ? 0.34 : state.activeWeatherId === "soft_rain" ? 0.38 : 0.46;
+    const regrowFactor = state.activeWeatherId === "warm_sunlight" ? 0.58 : state.activeWeatherId === "soft_rain" ? 0.62 : 0.68;
     for (const tile of regrowingTiles) {
       const remainingMs = Math.max(0, tile.regrowEndsAt - now);
       tile.regrowEndsAt = now + Math.max(300, Math.floor(remainingMs * regrowFactor));

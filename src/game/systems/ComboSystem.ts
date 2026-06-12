@@ -12,14 +12,14 @@ export interface ComboRecordOptions {
   bonusMultiplier?: number;
 }
 
-const COMBO_WINDOW_MS = 1800;
+const COMBO_WINDOW_MS = 1450;
 
 const COMBO_TIERS = [
-  { count: 40, multiplier: 2 },
-  { count: 25, multiplier: 1.75 },
-  { count: 15, multiplier: 1.5 },
-  { count: 10, multiplier: 1.35 },
-  { count: 5, multiplier: 1.2 },
+  { count: 50, multiplier: 1.7 },
+  { count: 32, multiplier: 1.5 },
+  { count: 20, multiplier: 1.35 },
+  { count: 12, multiplier: 1.22 },
+  { count: 6, multiplier: 1.12 },
 ] as const;
 
 export class ComboSystem {

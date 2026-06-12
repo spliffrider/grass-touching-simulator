@@ -22,7 +22,7 @@ export class DropSystem {
     chanceScale = 1,
   ): boolean {
     let chance = getSeedDropChance(state, stats.seedDropBonus);
-    chance += touchedTrait === "lush" ? 0.08 : touchedTrait === "dewy" ? 0.04 : 0;
+    chance += touchedTrait === "lush" ? 0.04 : touchedTrait === "dewy" ? 0.02 : 0;
     chance *= chanceScale;
 
     if (Math.random() >= chance) {
@@ -35,7 +35,7 @@ export class DropSystem {
     feedback.emitSeedBurst(tile);
     feedback.playSound("seed");
 
-    const wildSpreadChance = state.seedShopPurchases.seed_catalog ? 0.55 : 0.35;
+    const wildSpreadChance = state.seedShopPurchases.seed_catalog ? 0.28 : 0.16;
     const wildSpreadTileCount = state.seedShopPurchases.seed_catalog ? 2 : 1;
     if (state.seedShopPurchases.wild_spread && Math.random() < wildSpreadChance) {
       const addedTiles = expandField(state, wildSpreadTileCount, stats);

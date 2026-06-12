@@ -217,12 +217,12 @@ export function touchTile(tile: FieldTile, state: GameState, stats: RuntimeStats
     return { gained: 0, isCrit: false, critMultiplier: 1, doubled: false, instantRegrown: false };
   }
 
-  const traitBonus = tile.trait === "lush" ? 2 : tile.trait === "dewy" ? 1 : 0;
+  const traitBonus = tile.trait === "lush" ? 1 : 0;
   const tier = getGrassTier(tile.tier);
   const rareBonus = tier.id === "normal" ? 0 : stats.rareTouchBonus;
   const doubled = Math.random() < stats.doubleTouchChance;
   const baseGained = Math.max(1, Math.floor((tier.touchValue + stats.touchMultiplier + traitBonus + rareBonus) * (doubled ? 2 : 1)));
-  const critChance = stats.critChance + (tile.trait === "lush" ? 0.05 : tile.trait === "dewy" ? 0.025 : 0);
+  const critChance = stats.critChance + (tile.trait === "lush" ? 0.025 : tile.trait === "dewy" ? 0.012 : 0);
   const isCrit = Math.random() < critChance;
   const critMultiplier = isCrit ? stats.critMultiplier : 1;
   const gained = Math.max(1, Math.floor(baseGained * critMultiplier));

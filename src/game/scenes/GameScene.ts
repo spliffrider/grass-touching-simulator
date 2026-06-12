@@ -88,19 +88,19 @@ const HOVER_REFRESH_INTERVAL_MS = 70;
 const HOVER_MOVE_THRESHOLD_SQ = 64;
 const TREE_WIDTH = 880;
 const TREE_HEIGHT = 560;
-const COMBO_AOE_MIN_COUNT = 10;
-const COMBO_AOE_HIGH_COUNT = 20;
-const COMBO_AOE_CHANCE = 0.25;
-const COMBO_AOE_HIGH_CHANCE = 0.5;
-const PERFECT_TOUCH_WINDOW_MS = 800;
-const PERFECT_TOUCH_BONUS_MULTIPLIER = 0.5;
-const GOLDEN_HOUR_PERFECT_GOLD_CHANCE = 0.35;
-const PERFECT_POSE_WINDOW_BONUS_MS = 80;
-const PERFECT_POSE_MULTIPLIER_BONUS = 0.08;
-const ENCORE_CIRCLE_AOE_CHANCE_BONUS = 0.04;
-const WILDFLOWER_POLLINATE_CHANCE = 0.35;
-const MUSHROOM_SPORE_CHANCE = 0.3;
-const CRYSTAL_GOLD_CHANCE = 0.28;
+const COMBO_AOE_MIN_COUNT = 18;
+const COMBO_AOE_HIGH_COUNT = 36;
+const COMBO_AOE_CHANCE = 0.12;
+const COMBO_AOE_HIGH_CHANCE = 0.25;
+const PERFECT_TOUCH_WINDOW_MS = 650;
+const PERFECT_TOUCH_BONUS_MULTIPLIER = 0.25;
+const GOLDEN_HOUR_PERFECT_GOLD_CHANCE = 0.18;
+const PERFECT_POSE_WINDOW_BONUS_MS = 50;
+const PERFECT_POSE_MULTIPLIER_BONUS = 0.04;
+const ENCORE_CIRCLE_AOE_CHANCE_BONUS = 0.02;
+const WILDFLOWER_POLLINATE_CHANCE = 0.22;
+const MUSHROOM_SPORE_CHANCE = 0.18;
+const CRYSTAL_GOLD_CHANCE = 0.16;
 const COMBO_AOE_NEIGHBORS = [
   { x: -1, y: -1 },
   { x: 0, y: -1 },
@@ -4258,27 +4258,29 @@ export class GameScene extends Phaser.Scene {
     for (const objectId of objectIds) {
       switch (objectId) {
         case "sprinkler":
-          regrowFactor = Math.min(regrowFactor, 0.72);
+          regrowFactor = Math.min(regrowFactor, 0.86);
           break;
         case "bee_hive":
-          seedChanceScale += 0.35;
+          seedChanceScale += 0.15;
           break;
         case "field_mouse":
-          goldChanceScale += 0.25;
-          break;
-        case "chicken":
-          goldChanceScale += 0.15;
-          seedChanceScale += 0.1;
-          break;
-        case "sheep":
-          bonusTouches += 1;
           goldChanceScale += 0.12;
           break;
+        case "chicken":
+          goldChanceScale += 0.08;
+          seedChanceScale += 0.05;
+          break;
+        case "sheep":
+          if (Math.random() < 0.35) {
+            bonusTouches += 1;
+          }
+          goldChanceScale += 0.06;
+          break;
         case "meadow_rabbit":
-          seedChanceScale += 0.2;
+          seedChanceScale += 0.1;
           break;
         case "earthworm":
-          regrowFactor = Math.min(regrowFactor, 0.8);
+          regrowFactor = Math.min(regrowFactor, 0.88);
           break;
       }
     }
@@ -4311,7 +4313,7 @@ export class GameScene extends Phaser.Scene {
       this.popAtTile(tile, `pasture +${synergy.bonusTouches}`, "#dfffc8");
     }
 
-    if (synergy.seedChanceScale > 1 && Math.random() < 0.22) {
+    if (synergy.seedChanceScale > 1 && Math.random() < 0.12) {
       this.pollinateNeighborFromPlacement(tile);
     }
 
@@ -4331,7 +4333,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    tile.trait = tile.trait === "lush" ? "lush" : Math.random() < 0.35 ? "lush" : "dewy";
+    tile.trait = tile.trait === "lush" ? "lush" : Math.random() < 0.2 ? "lush" : "dewy";
     this.refreshTile(tile);
     this.popAtTile(tile, "nearby care", "#fff1a8");
   }
@@ -4651,8 +4653,8 @@ export class GameScene extends Phaser.Scene {
       if (touch.instantRegrown) {
         this.popAtTile(tile, "instant regrow", "#dfffc8");
       }
-      this.drops.tryDropSeed(this.state, tile, touchedTrait, stats, this.getDropFeedback());
-      this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier.id, touch, stats, this.getDropFeedback());
+      this.drops.tryDropSeed(this.state, tile, touchedTrait, stats, this.getDropFeedback(), 0.35);
+      this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier.id, touch, stats, this.getDropFeedback(), 0.35);
       this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, comboCount);
     }
 
@@ -4676,14 +4678,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (chance > 0 && this.isWeatherActive("lucky_breeze")) {
-      chance += 0.15;
+      chance += 0.08;
     }
 
     if (chance > 0 && this.state.characterClassId === "bard_de_wever") {
       chance += this.getUpgradeLevel("encore_circle") * ENCORE_CIRCLE_AOE_CHANCE_BONUS;
     }
 
-    return Math.min(0.9, chance);
+    return Math.min(0.45, chance);
   }
 
   private isWeatherActive(weatherId: WeatherId): boolean {

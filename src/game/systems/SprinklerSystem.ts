@@ -32,7 +32,7 @@ export class SprinklerSystem {
     }
 
     this.elapsed += delta;
-    const sprinklerInterval = state.seedShopPurchases.sprinkler_timer ? 3200 : 4800;
+    const sprinklerInterval = state.seedShopPurchases.sprinkler_timer ? 7000 : 11000;
     if (this.elapsed < sprinklerInterval) {
       return false;
     }
@@ -64,10 +64,10 @@ export class SprinklerSystem {
     }
 
     if (state.seedShopPurchases.self_seeding_nozzle) {
-      feedback.tryDropSeed(tile, touchedTrait, stats, 0.45);
+      feedback.tryDropSeed(tile, touchedTrait, stats, 0.25);
     }
 
-    feedback.tryDropGold(tile, touchedTrait, touchedTier.id, touch, stats, 0.35);
+    feedback.tryDropGold(tile, touchedTrait, touchedTier.id, touch, stats, 0.2);
     feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     return true;
   }

@@ -31,27 +31,27 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
   }
 
   if (state.seedShopPurchases.field_journal) {
-    stats.rareTierMultiplier += 0.18;
+    stats.rareTierMultiplier += 0.1;
   }
 
   if (state.seedShopPurchases.compost_bin) {
-    stats.seedDropBonus += 0.03;
-    stats.rareTouchBonus += 1;
+    stats.seedDropBonus += 0.018;
+    stats.rareTouchBonus += 0.5;
   }
 
   if (state.seedShopPurchases.bug_hotel) {
-    stats.seedDropBonus += 0.02;
-    stats.critChance += 0.025;
+    stats.seedDropBonus += 0.012;
+    stats.critChance += 0.012;
   }
 
   if (state.seedShopPurchases.rain_barrel) {
-    stats.dewChance += 0.03;
-    stats.regrowMultiplier *= 0.94;
+    stats.dewChance += 0.02;
+    stats.regrowMultiplier *= 0.97;
   }
 
   if (state.seedShopPurchases.clover_press) {
-    stats.rareTierMultiplier += 0.35;
-    stats.critChance += 0.02;
+    stats.rareTierMultiplier += 0.18;
+    stats.critChance += 0.01;
   }
 
   if (state.seedShopPurchases.weather_jar) {
@@ -59,28 +59,28 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
   }
 
   if (state.inventory.field_mouse?.quantity > 0) {
-    stats.goldDropBonus += 0.006;
+    stats.goldDropBonus += 0.003;
   }
 
   if (state.inventory.meadow_rabbit?.quantity > 0) {
-    stats.seedDropBonus += 0.012;
-    stats.dewChance += 0.012;
+    stats.seedDropBonus += 0.006;
+    stats.dewChance += 0.006;
   }
 
   getSeasonForDate(new Date()).apply(stats);
 
-  stats.dewChance = Math.min(0.65, stats.dewChance);
-  stats.critChance = Math.min(0.45, stats.critChance);
-  stats.critMultiplier = Math.min(8, stats.critMultiplier);
-  stats.seedDropBonus = Math.min(0.35, stats.seedDropBonus);
-  stats.goldDropBonus = Math.min(0.14, stats.goldDropBonus);
-  stats.rareTierMultiplier = Math.min(4, Math.max(1, stats.rareTierMultiplier));
-  stats.rareTouchBonus = Math.min(20, stats.rareTouchBonus);
-  stats.doubleTouchChance = Math.min(0.5, stats.doubleTouchChance);
-  stats.instantRegrowChance = Math.min(0.35, stats.instantRegrowChance);
-  stats.comboWindowMultiplier = Math.min(1.75, Math.max(0.75, stats.comboWindowMultiplier));
-  stats.comboBonusMultiplier = Math.min(2.25, Math.max(0.5, stats.comboBonusMultiplier));
-  stats.regrowMultiplier = Math.max(0.25, stats.regrowMultiplier);
+  stats.dewChance = Math.min(0.42, stats.dewChance);
+  stats.critChance = Math.min(0.28, stats.critChance);
+  stats.critMultiplier = Math.min(5.5, stats.critMultiplier);
+  stats.seedDropBonus = Math.min(0.2, stats.seedDropBonus);
+  stats.goldDropBonus = Math.min(0.08, stats.goldDropBonus);
+  stats.rareTierMultiplier = Math.min(2.8, Math.max(1, stats.rareTierMultiplier));
+  stats.rareTouchBonus = Math.min(10, stats.rareTouchBonus);
+  stats.doubleTouchChance = Math.min(0.32, stats.doubleTouchChance);
+  stats.instantRegrowChance = Math.min(0.2, stats.instantRegrowChance);
+  stats.comboWindowMultiplier = Math.min(1.45, Math.max(0.75, stats.comboWindowMultiplier));
+  stats.comboBonusMultiplier = Math.min(1.7, Math.max(0.5, stats.comboBonusMultiplier));
+  stats.regrowMultiplier = Math.max(0.42, stats.regrowMultiplier);
 
   return stats;
 }
