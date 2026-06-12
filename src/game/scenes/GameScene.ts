@@ -56,6 +56,9 @@ const COMBO_AOE_HIGH_CHANCE = 0.5;
 const PERFECT_TOUCH_WINDOW_MS = 800;
 const PERFECT_TOUCH_BONUS_MULTIPLIER = 0.5;
 const GOLDEN_HOUR_PERFECT_GOLD_CHANCE = 0.35;
+const PERFECT_POSE_WINDOW_BONUS_MS = 80;
+const PERFECT_POSE_MULTIPLIER_BONUS = 0.08;
+const ENCORE_CIRCLE_AOE_CHANCE_BONUS = 0.04;
 const WILDFLOWER_POLLINATE_CHANCE = 0.35;
 const MUSHROOM_SPORE_CHANCE = 0.3;
 const CRYSTAL_GOLD_CHANCE = 0.28;
@@ -184,7 +187,7 @@ interface QuestItemView {
   claimButton: Phaser.GameObjects.Container;
 }
 
-type QuestFilterId = "all" | "ready" | "active" | "journal" | "claimed";
+type QuestFilterId = "all" | "ready" | "active" | "class" | "journal" | "claimed";
 
 interface QuestFilterView {
   filterId: QuestFilterId;
@@ -197,6 +200,7 @@ const QUEST_FILTERS: Array<{ id: QuestFilterId; label: string }> = [
   { id: "all", label: "All" },
   { id: "ready", label: "Ready" },
   { id: "active", label: "Active" },
+  { id: "class", label: "Class" },
   { id: "journal", label: "Journal" },
   { id: "claimed", label: "Claimed" },
 ];
@@ -421,7 +425,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const upgrade of UPGRADES) {
-      const fileName = upgrade.id.replace(/_/g, "-");
+      const fileName = (upgrade.iconAsset ?? upgrade.id).replace(/_/g, "-");
       this.load.image(getSkillIconKey(upgrade.id), `/assets/ui/skills/${fileName}.png`);
     }
 
@@ -1443,7 +1447,7 @@ export class GameScene extends Phaser.Scene {
 
   private layoutQuestFilterButtons(x: number, panelWidth: number, y: number, compact: boolean): void {
     const gap = compact ? 6 : 8;
-    const buttonWidth = compact ? Math.floor((panelWidth - gap * 2) / 3) : Math.floor((panelWidth - gap * 4) / 5);
+    const buttonWidth = compact ? Math.floor((panelWidth - gap * 2) / 3) : Math.floor((panelWidth - gap * 5) / 6);
     const buttonHeight = 30;
 
     QUEST_FILTERS.forEach((filter, index) => {
@@ -1482,6 +1486,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private questMatchesFilter(quest: QuestDefinition, filterId: QuestFilterId): boolean {
+    if (quest.classId !== undefined && quest.classId !== this.state.characterClassId) {
+      return false;
+    }
+
     const claimed = this.state.claimedQuestIds.includes(quest.id);
     const available = isQuestAvailable(this.state, quest);
     const ready = isQuestClaimable(this.state, quest);
@@ -1491,6 +1499,8 @@ export class GameScene extends Phaser.Scene {
         return ready;
       case "active":
         return available && !claimed;
+      case "class":
+        return quest.category === "Class";
       case "journal":
         return quest.category === "Field Journal";
       case "claimed":
@@ -1503,9 +1513,10 @@ export class GameScene extends Phaser.Scene {
 
   private getQuestFilterCounts(): Record<QuestFilterId, number> {
     return {
-      all: QUESTS.length,
+      all: QUESTS.filter((quest) => this.questMatchesFilter(quest, "all")).length,
       ready: QUESTS.filter((quest) => this.questMatchesFilter(quest, "ready")).length,
       active: QUESTS.filter((quest) => this.questMatchesFilter(quest, "active")).length,
+      class: QUESTS.filter((quest) => this.questMatchesFilter(quest, "class")).length,
       journal: QUESTS.filter((quest) => this.questMatchesFilter(quest, "journal")).length,
       claimed: QUESTS.filter((quest) => this.questMatchesFilter(quest, "claimed")).length,
     };
@@ -1518,6 +1529,8 @@ export class GameScene extends Phaser.Scene {
           return "No quest rewards are ready yet.";
         case "active":
           return "No active quests in this filter yet.";
+        case "class":
+          return "No class quests available in this list.";
         case "journal":
           return "No Field Journal quests available in this list.";
         case "claimed":
@@ -1533,6 +1546,8 @@ export class GameScene extends Phaser.Scene {
         return "Quest rewards ready to claim.";
       case "active":
         return "Available quests still in progress.";
+      case "class":
+        return "Class mastery quests.";
       case "journal":
         return "Field Journal specimen quests.";
       case "claimed":
@@ -2000,6 +2015,10 @@ export class GameScene extends Phaser.Scene {
 
   private hasTouchScreen(): boolean {
     return navigator.maxTouchPoints > 0;
+  }
+
+  private getUpgradeLevel(upgradeId: string): number {
+    return this.state.upgrades[upgradeId]?.level ?? 0;
   }
 
   private hasBlockingOverlayOpen(): boolean {
@@ -3548,19 +3567,27 @@ export class GameScene extends Phaser.Scene {
       windowMs += 520;
     }
 
+    if (this.state.characterClassId === "femboy_slim") {
+      windowMs += this.getUpgradeLevel("perfect_pose") * PERFECT_POSE_WINDOW_BONUS_MS;
+    }
+
     return windowMs;
   }
 
   private getPerfectTouchBonusMultiplier(tile: FieldTile): number {
+    let multiplier = PERFECT_TOUCH_BONUS_MULTIPLIER;
+
     if (tile.tier === "frost") {
-      return 0.75;
+      multiplier = 0.75;
+    } else if (tile.tier === "moss") {
+      multiplier = 0.6;
     }
 
-    if (tile.tier === "moss") {
-      return 0.6;
+    if (this.state.characterClassId === "femboy_slim") {
+      multiplier += this.getUpgradeLevel("perfect_pose") * PERFECT_POSE_MULTIPLIER_BONUS;
     }
 
-    return PERFECT_TOUCH_BONUS_MULTIPLIER;
+    return multiplier;
   }
 
   private showPerfectTouchCue(tile: FieldTile, key: TileKey): void {
@@ -3684,6 +3711,10 @@ export class GameScene extends Phaser.Scene {
 
     if (chance > 0 && this.isWeatherActive("lucky_breeze")) {
       chance += 0.15;
+    }
+
+    if (chance > 0 && this.state.characterClassId === "bard_de_wever") {
+      chance += this.getUpgradeLevel("encore_circle") * ENCORE_CIRCLE_AOE_CHANCE_BONUS;
     }
 
     return Math.min(0.9, chance);
@@ -5018,9 +5049,12 @@ export class GameScene extends Phaser.Scene {
     const claimedCount = this.state.claimedQuestIds.length;
     const filteredQuests = this.getFilteredQuests();
     const filterCounts = this.getQuestFilterCounts();
+    const relevantQuestCount = this.getRelevantQuestCount();
 
     setTextButtonText(this.questButton, readyCount > 0 ? `Quests (${readyCount})` : "Quests");
-    this.questResourceText?.setText(`Showing: ${filteredQuests.length}/${QUESTS.length} | Claimed: ${claimedCount}/${QUESTS.length} | Ready: ${readyCount}`);
+    this.questResourceText?.setText(
+      `Showing: ${filteredQuests.length}/${relevantQuestCount} | Claimed: ${claimedCount}/${relevantQuestCount} | Ready: ${readyCount}`,
+    );
     this.questStatusText?.setText(this.getQuestFilterStatusText(filteredQuests.length));
 
     for (const filter of QUEST_FILTERS) {
@@ -5207,9 +5241,13 @@ export class GameScene extends Phaser.Scene {
     return [
       "Progress Notes",
       `- Milestones reached: ${this.state.reachedMilestones.length}/${MILESTONES.length}`,
-      `- Quests claimed: ${this.state.claimedQuestIds.length}/${QUESTS.length}`,
+      `- Quests claimed: ${this.state.claimedQuestIds.length}/${this.getRelevantQuestCount()}`,
       `- Best manual combo: ${this.state.journal.bestComboCount}`,
     ].join("\n");
+  }
+
+  private getRelevantQuestCount(): number {
+    return QUESTS.filter((quest) => quest.classId === undefined || quest.classId === this.state.characterClassId).length;
   }
 
   private formatTraitName(trait: TileTrait): string {
@@ -5258,17 +5296,21 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const quest = QUESTS.find((candidate) => candidate.id === questId);
+    const classClaim = quest?.category === "Class";
+    const burstColor = classClaim ? (this.state.characterClassId === "femboy_slim" ? 0xff7ea8 : 0xbff4ff) : 0xf4df6a;
+    const popText = classClaim ? "mastered" : "claimed";
     const x = view.container.x + view.bg.width / 2;
     const y = view.container.y + view.bg.height / 2;
     const burst = this.add
-      .star(x, y, 7, 12, 42, 0xf4df6a, 0.62)
+      .star(x, y, classClaim ? 8 : 7, 12, classClaim ? 48 : 42, burstColor, 0.62)
       .setStrokeStyle(2, 0xf7ffe8, 0.72)
       .setDepth(118);
     const pop = this.add
-      .text(x, y - 8, "claimed", {
+      .text(x, y - 8, popText, {
         fontFamily: "Trebuchet MS, Arial",
-        fontSize: "18px",
-        color: "#f7ffe8",
+        fontSize: classClaim ? "20px" : "18px",
+        color: classClaim ? "#ffef78" : "#f7ffe8",
         stroke: "#06190f",
         strokeThickness: 5,
       })
@@ -5409,6 +5451,10 @@ export class GameScene extends Phaser.Scene {
       this.skillDetailCost.setText(`Requires: ${missingPrerequisites.join(", ")}`);
       setTextButtonText(this.skillBuyButton, "Locked");
       setTextButtonEnabled(this.skillBuyButton, false);
+    } else if (upgrade.classId !== undefined && upgrade.classId !== this.state.characterClassId) {
+      this.skillDetailCost.setText(`Only ${getCharacterClass(upgrade.classId).name} can unlock this.`);
+      setTextButtonText(this.skillBuyButton, "Locked");
+      setTextButtonEnabled(this.skillBuyButton, false);
     } else if (!upgrade.isUnlocked(this.state)) {
       this.skillDetailCost.setText("Keep touching grass to reveal this.");
       setTextButtonText(this.skillBuyButton, "Locked");
@@ -5442,6 +5488,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getUpgradeBranch(upgradeId: string): string {
+    if (["slay_footwork", "perfect_pose", "steady_tempo", "encore_circle"].includes(upgradeId)) {
+      return "Class";
+    }
+
     if (["softer_grass", "palm_press", "two_handed_technique", "mindful_contact", "barefoot_confidence"].includes(upgradeId)) {
       return "Touch";
     }

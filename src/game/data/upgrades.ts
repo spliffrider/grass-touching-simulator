@@ -1,4 +1,4 @@
-import type { GameState, RuntimeStats } from "../types/game-state";
+import type { CharacterClassId, GameState, RuntimeStats } from "../types/game-state";
 
 export interface UpgradeDefinition {
   id: string;
@@ -7,7 +7,9 @@ export interface UpgradeDefinition {
   baseCost: number;
   costGrowth: number;
   maxLevel: number;
+  classId?: CharacterClassId;
   prerequisiteIds?: string[];
+  iconAsset?: string;
   tree: {
     x: number;
     y: number;
@@ -16,6 +18,10 @@ export interface UpgradeDefinition {
   };
   apply(stats: RuntimeStats, level: number): void;
   isUnlocked(state: GameState): boolean;
+}
+
+function isClassUpgradeUnlocked(state: GameState, classId: CharacterClassId, requiredLifetimeTouches: number): boolean {
+  return state.characterClassId === classId && state.lifetimeGrassTouches >= requiredLifetimeTouches;
 }
 
 export const UPGRADES: UpgradeDefinition[] = [
@@ -363,6 +369,68 @@ export const UPGRADES: UpgradeDefinition[] = [
       stats.rareTierMultiplier += level * 0.3;
     },
     isUnlocked: (state) => state.lifetimeGrassTouches >= 900,
+  },
+  {
+    id: "slay_footwork",
+    name: "Slay Footwork",
+    description: "Femboy Slim only. Crits and double touches happen more often.",
+    baseCost: 420,
+    costGrowth: 2.15,
+    maxLevel: 4,
+    classId: "femboy_slim",
+    prerequisiteIds: ["satisfying_crunch", "two_handed_technique"],
+    iconAsset: "two_handed_technique",
+    tree: { x: 520, y: 525, icon: "2x", color: 0xff7ea8 },
+    apply: (stats, level) => {
+      stats.critChance += level * 0.012;
+      stats.doubleTouchChance += level * 0.02;
+    },
+    isUnlocked: (state) => isClassUpgradeUnlocked(state, "femboy_slim", 360),
+  },
+  {
+    id: "perfect_pose",
+    name: "Perfect Pose",
+    description: "Femboy Slim only. Perfect touches linger longer and hit harder.",
+    baseCost: 760,
+    costGrowth: 2.25,
+    maxLevel: 3,
+    classId: "femboy_slim",
+    prerequisiteIds: ["slay_footwork"],
+    iconAsset: "dramatic_touch",
+    tree: { x: 670, y: 525, icon: "pose", color: 0xffef78 },
+    apply: () => {},
+    isUnlocked: (state) => isClassUpgradeUnlocked(state, "femboy_slim", 650),
+  },
+  {
+    id: "steady_tempo",
+    name: "Steady Tempo",
+    description: "Bard De Wever only. Combos stay alive longer and pay out better.",
+    baseCost: 420,
+    costGrowth: 2.15,
+    maxLevel: 4,
+    classId: "bard_de_wever",
+    prerequisiteIds: ["mindful_contact", "soft_meadow"],
+    iconAsset: "mindful_contact",
+    tree: { x: 520, y: 205, icon: "tempo", color: 0xbff4ff },
+    apply: (stats, level) => {
+      stats.comboWindowMultiplier *= 1 + level * 0.05;
+      stats.comboBonusMultiplier *= 1 + level * 0.04;
+    },
+    isUnlocked: (state) => isClassUpgradeUnlocked(state, "bard_de_wever", 360),
+  },
+  {
+    id: "encore_circle",
+    name: "Encore Circle",
+    description: "Bard De Wever only. High combos are more likely to splash into nearby grass.",
+    baseCost: 760,
+    costGrowth: 2.25,
+    maxLevel: 3,
+    classId: "bard_de_wever",
+    prerequisiteIds: ["steady_tempo"],
+    iconAsset: "premium_pasture",
+    tree: { x: 670, y: 125, icon: "encore", color: 0xd7fff2 },
+    apply: () => {},
+    isUnlocked: (state) => isClassUpgradeUnlocked(state, "bard_de_wever", 650),
   },
 ];
 

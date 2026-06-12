@@ -1,4 +1,4 @@
-import type { GameState, GrassTierId } from "../types/game-state";
+import type { CharacterClassId, GameState, GrassTierId } from "../types/game-state";
 
 export interface QuestReward {
   grassTouches?: number;
@@ -12,6 +12,7 @@ export interface QuestDefinition {
   name: string;
   description: string;
   reward: QuestReward;
+  classId?: CharacterClassId;
   prerequisiteQuestIds?: string[];
   isComplete(state: GameState): boolean;
   getProgress(state: GameState): string;
@@ -27,6 +28,7 @@ const countAnimals = (state: GameState): number =>
   Object.values(state.inventory).reduce((total, entry) => total + (entry.kind === "animal" ? entry.quantity : 0), 0);
 const hasDiscoveredGrassTier = (state: GameState, tier: GrassTierId): boolean => state.journal.discoveredGrassTiers.includes(tier);
 const countDiscoveredGrassTiers = (state: GameState): number => state.journal.discoveredGrassTiers.length;
+const getClassName = (classId: CharacterClassId): string => (classId === "femboy_slim" ? "Femboy Slim" : "Bard De Wever");
 
 export const QUESTS: QuestDefinition[] = [
   {
@@ -429,6 +431,50 @@ export const QUESTS: QuestDefinition[] = [
     getProgress: (state) => `${Math.min(20, countUpgradeLevels(state))}/20 skill levels`,
   },
   {
+    id: "femboy_slay_footwork_1",
+    category: "Class",
+    name: "Runway On The Lawn",
+    description: "As Femboy Slim, buy 1 level of Slay Footwork.",
+    reward: { grassTouches: 160, seeds: 10, gold: 5 },
+    classId: "femboy_slim",
+    prerequisiteQuestIds: ["upgrade_20", "crit_path_started"],
+    isComplete: (state) => getUpgradeLevel(state, "slay_footwork") >= 1,
+    getProgress: (state) => `${Math.min(1, getUpgradeLevel(state, "slay_footwork"))}/1 Slay Footwork`,
+  },
+  {
+    id: "femboy_perfect_pose_3",
+    category: "Class",
+    name: "Hold The Pose",
+    description: "As Femboy Slim, max out Perfect Pose.",
+    reward: { grassTouches: 320, seeds: 18, gold: 8 },
+    classId: "femboy_slim",
+    prerequisiteQuestIds: ["femboy_slay_footwork_1", "touch_1500"],
+    isComplete: (state) => getUpgradeLevel(state, "perfect_pose") >= 3,
+    getProgress: (state) => `${Math.min(3, getUpgradeLevel(state, "perfect_pose"))}/3 Perfect Pose`,
+  },
+  {
+    id: "bard_steady_tempo_1",
+    category: "Class",
+    name: "Find The Groove",
+    description: "As Bard De Wever, buy 1 level of Steady Tempo.",
+    reward: { grassTouches: 160, seeds: 10, gold: 5 },
+    classId: "bard_de_wever",
+    prerequisiteQuestIds: ["upgrade_20", "regrowth_3"],
+    isComplete: (state) => getUpgradeLevel(state, "steady_tempo") >= 1,
+    getProgress: (state) => `${Math.min(1, getUpgradeLevel(state, "steady_tempo"))}/1 Steady Tempo`,
+  },
+  {
+    id: "bard_encore_circle_3",
+    category: "Class",
+    name: "Encore In The Round",
+    description: "As Bard De Wever, max out Encore Circle.",
+    reward: { grassTouches: 320, seeds: 18, gold: 8 },
+    classId: "bard_de_wever",
+    prerequisiteQuestIds: ["bard_steady_tempo_1", "touch_1500"],
+    isComplete: (state) => getUpgradeLevel(state, "encore_circle") >= 3,
+    getProgress: (state) => `${Math.min(3, getUpgradeLevel(state, "encore_circle"))}/3 Encore Circle`,
+  },
+  {
     id: "first_animal",
     category: "Companions",
     name: "Small Company",
@@ -491,7 +537,10 @@ export function formatQuestReward(reward: QuestReward): string {
 }
 
 export function isQuestAvailable(state: GameState, quest: QuestDefinition): boolean {
-  return (quest.prerequisiteQuestIds ?? []).every((questId) => state.claimedQuestIds.includes(questId));
+  return (
+    (quest.classId === undefined || quest.classId === state.characterClassId) &&
+    (quest.prerequisiteQuestIds ?? []).every((questId) => state.claimedQuestIds.includes(questId))
+  );
 }
 
 export function isQuestClaimable(state: GameState, quest: QuestDefinition): boolean {
@@ -499,6 +548,10 @@ export function isQuestClaimable(state: GameState, quest: QuestDefinition): bool
 }
 
 export function formatQuestProgress(quest: QuestDefinition, state: GameState): string {
+  if (quest.classId !== undefined && quest.classId !== state.characterClassId) {
+    return `Only ${getClassName(quest.classId)} can do this.`;
+  }
+
   if (isQuestAvailable(state, quest)) {
     return quest.getProgress(state);
   }

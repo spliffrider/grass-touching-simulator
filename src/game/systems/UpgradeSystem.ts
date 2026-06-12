@@ -25,7 +25,7 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
 
   for (const upgrade of UPGRADES) {
     const level = state.upgrades[upgrade.id]?.level ?? 0;
-    if (level > 0) {
+    if (level > 0 && (upgrade.classId === undefined || upgrade.classId === state.characterClassId)) {
       upgrade.apply(stats, level);
     }
   }
