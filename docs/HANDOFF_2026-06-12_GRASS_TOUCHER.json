@@ -1,0 +1,127 @@
+{
+  "handoffVersion": 1,
+  "createdAt": "2026-06-12T20:46:14.2785385+02:00",
+  "project": {
+    "name": "Grass Touching Simulator",
+    "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+    "branch": "master",
+    "repository": "https://github.com/spliffrider/grass-touching-simulator.git"
+  },
+  "checkpoint": {
+    "name": "Alpha 2.0 - Grass Toucher baseline",
+    "summary": "Added Grass Toucher as the default baseline class, verified locally, deployed production to Vercel, and kept the handoff as a separate docs-only commit.",
+    "gameCommit": {
+      "hash": "ad4628861042226c437a7d230f978aa56f4c4a6c",
+      "shortHash": "ad46288",
+      "message": "Add Grass Toucher baseline class"
+    },
+    "handoffCommit": {
+      "message": "Add Grass Toucher handoff",
+      "note": "Committed after this file was written. See git log for the exact commit hash."
+    }
+  },
+  "deployment": {
+    "provider": "Vercel",
+    "target": "production",
+    "deploymentId": "dpl_LHuGBnAMdxmaMbCGb9D92VHTziup",
+    "deploymentUrl": "https://grass-touching-simulator-1nwxyup38-sensitech.vercel.app",
+    "inspectorUrl": "https://vercel.com/sensitech/grass-touching-simulator/LHuGBnAMdxmaMbCGb9D92VHTziup",
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "readyState": "READY",
+    "aliased": true,
+    "deployedFromCommit": "ad4628861042226c437a7d230f978aa56f4c4a6c",
+    "docsOnlyCommitPolicy": "Do not manually redeploy only for this handoff file. A GitHub/Vercel integration may auto-deploy the docs-only push."
+  },
+  "filesChanged": [
+    {
+      "path": "src/game/data/character-classes.ts",
+      "changes": [
+        "Added grass_toucher to CharacterClassId.",
+        "Made Grass Toucher the DEFAULT_CHARACTER_CLASS_ID.",
+        "Added the Grass Toucher class definition with the Honest Touch passive."
+      ]
+    },
+    {
+      "path": "src/game/data/quests.ts",
+      "changes": [
+        "Updated the class-name helper so Grass Toucher displays correctly."
+      ]
+    },
+    {
+      "path": "src/game/scenes/GameScene.ts",
+      "changes": [
+        "Updated stress-mode class fallback to use DEFAULT_CHARACTER_CLASS_ID instead of hardcoding Femboy Slim."
+      ]
+    },
+    {
+      "path": "src/game/scenes/TitleScene.ts",
+      "changes": [
+        "Updated the title-screen class picker layout so three class cards fit cleanly.",
+        "Verified Grass Toucher can be selected from the title screen."
+      ]
+    },
+    {
+      "path": "src/game/types/game-state.ts",
+      "changes": [
+        "Added grass_toucher to the saved game characterClassId type."
+      ]
+    },
+    {
+      "path": "docs/HANDOFF_2026-06-12_GRASS_TOUCHER.json",
+      "changes": [
+        "Added this handoff with commit, deployment, verification, caveats, and next-step notes."
+      ]
+    }
+  ],
+  "implemented": [
+    "Grass Toucher is now the baseline/default player class.",
+    "Grass Toucher uses the passive name Honest Touch.",
+    "Femboy Slim and Bard De Wever remain available as specialized class picks.",
+    "The title class picker now supports three visible class cards.",
+    "Class name display and stress-mode defaults now respect the new default class."
+  ],
+  "verification": {
+    "localBuild": {
+      "command": "npm run build",
+      "result": "passed",
+      "notes": "TypeScript and Vite production build completed successfully before commit."
+    },
+    "browserSmoke": {
+      "tool": "Codex in-app browser",
+      "url": "http://127.0.0.1:5173/",
+      "viewport": "1280x720",
+      "result": "passed",
+      "checks": [
+        "Title screen showed three class cards: Grass Toucher, Femboy Slim, Bard De Wever.",
+        "Starting as Grass Toucher entered the game.",
+        "HUD showed Class: Grass Toucher - Honest Touch.",
+        "Browser console errors were empty during the smoke test."
+      ]
+    },
+    "deployment": {
+      "command": "npx vercel --prod --yes",
+      "result": "passed",
+      "deploymentId": "dpl_LHuGBnAMdxmaMbCGb9D92VHTziup",
+      "deploymentUrl": "https://grass-touching-simulator-1nwxyup38-sensitech.vercel.app"
+    },
+    "liveDomain": {
+      "command": "Invoke-WebRequest -Uri https://grasstouchingsimulator.com -UseBasicParsing -TimeoutSec 20",
+      "result": "passed",
+      "statusCode": 200
+    }
+  },
+  "knownCaveats": [
+    "The handoff file cannot contain its own final git hash without changing that hash again; the final response for this work records the handoff commit hash.",
+    "Browser smoke was desktop-focused at 1280x720. Mobile class-picker spacing should be spot-checked before a broader public test.",
+    "Grass Toucher currently reuses the existing title selector leaf icon rather than custom class art.",
+    "Grass Toucher is deliberately simple right now; class-specific quests, skill hooks, or upgraded flavor can come later.",
+    "Performance must stay a first-class constraint. Continue checking larger fields with the ?perf overlay after gameplay additions."
+  ],
+  "recommendedNextSteps": [
+    "Playtest Grass Toucher progression against Femboy Slim and Bard De Wever now that progression was slowed for future automation.",
+    "Decide whether Grass Toucher needs a tiny early-game identity perk beyond Honest Touch once automation systems arrive.",
+    "Keep the Alpha 2.0 smoothness bar: after every new visual or automated system, test a larger field with ?perf before moving on.",
+    "Consider a custom Grass Toucher class icon or title-card sprite later, but only after gameplay pacing feels good.",
+    "If the field still gets sluggish at larger patch counts, profile real play again before adding new effects."
+  ]
+}
