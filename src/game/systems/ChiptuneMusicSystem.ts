@@ -102,6 +102,8 @@ const NOTE_FREQUENCIES: Record<NoteName, number> = {
   C6: 1046.5,
 };
 
+const NOISE_BUFFER_SECONDS = 0.5;
+
 // Track 1: Cozy Meadow
 const COZY_MELODY: Array<Array<NoteName | null>> = [
   ["C4", "E4", "G4", "C5", "B4", "G4", "E4", null, "A4", "C5", "B4", "G4", "E4", "D4", "C4", null],
@@ -288,6 +290,8 @@ export class ChiptuneMusicSystem {
   private nextStepAt = 0;
   private currentTrackId = "cozy_meadow";
   private comboLevel = 0;
+  private noiseBuffer?: AudioBuffer;
+  private noiseBufferSampleRate = 0;
 
   setVolume(volume: number): void {
     this.volume = Math.max(0, Math.min(1, volume));
@@ -789,19 +793,11 @@ export class ChiptuneMusicSystem {
       return;
     }
 
-    const sampleRate = this.context.sampleRate;
-    const buffer = this.context.createBuffer(1, Math.floor(sampleRate * duration), sampleRate);
-    const data = buffer.getChannelData(0);
-
-    for (let i = 0; i < data.length; i += 1) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
-    }
-
     const source = this.context.createBufferSource();
     const filter = this.context.createBiquadFilter();
     const gain = this.context.createGain();
 
-    source.buffer = buffer;
+    source.buffer = this.getNoiseBuffer();
     filter.type = filterType;
     filter.frequency.setValueAtTime(frequency, startAt);
     gain.gain.setValueAtTime(0.0001, startAt);
@@ -812,5 +808,23 @@ export class ChiptuneMusicSystem {
     gain.connect(this.dryBus);
     source.start(startAt);
     source.stop(startAt + duration + 0.01);
+  }
+
+  private getNoiseBuffer(): AudioBuffer {
+    const sampleRate = this.context!.sampleRate;
+    if (this.noiseBuffer && this.noiseBufferSampleRate === sampleRate) {
+      return this.noiseBuffer;
+    }
+
+    const buffer = this.context!.createBuffer(1, Math.floor(sampleRate * NOISE_BUFFER_SECONDS), sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < data.length; i += 1) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    this.noiseBuffer = buffer;
+    this.noiseBufferSampleRate = sampleRate;
+    return buffer;
   }
 }

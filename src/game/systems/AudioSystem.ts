@@ -2,11 +2,18 @@ import type { GrassTierId, TileTrait } from "../types/game-state";
 
 type SoundName = "touch" | "regrow" | "upgrade" | "milestone" | "blocked" | "seed" | "gold" | "crit" | "unlock" | "perfect";
 
+const NOISE_BUFFER_SECONDS = 0.5;
+const TOUCH_SOUND_MIN_INTERVAL_MS = 42;
+const TOUCH_SOUND_BUSY_INTERVAL_MS = 68;
+
 export class AudioSystem {
   private context?: AudioContext;
   private master?: GainNode;
   private unlocked = false;
   private resumePromise?: Promise<void>;
+  private noiseBuffer?: AudioBuffer;
+  private noiseBufferSampleRate = 0;
+  private lastGrassTouchSoundAt = 0;
 
   unlock(): void {
     const AudioContextCtor = window.AudioContext ?? window.webkitAudioContext;
@@ -75,7 +82,15 @@ export class AudioSystem {
         .finally(() => {
           this.resumePromise = undefined;
         });
-      void this.resumePromise.then(() => this.playGrassTouchNow(tier, trait, isCrit, comboCount));
+      void this.resumePromise.then(() => {
+        if (this.shouldPlayGrassTouchSound(isCrit, comboCount)) {
+          this.playGrassTouchNow(tier, trait, isCrit, comboCount);
+        }
+      });
+      return;
+    }
+
+    if (!this.shouldPlayGrassTouchSound(isCrit, comboCount)) {
       return;
     }
 
@@ -167,6 +182,17 @@ export class AudioSystem {
     if (isCrit) {
       this.playCritAccent(now + 0.025);
     }
+  }
+
+  private shouldPlayGrassTouchSound(isCrit: boolean, comboCount: number): boolean {
+    const now = performance.now();
+    const minInterval = isCrit ? TOUCH_SOUND_MIN_INTERVAL_MS : comboCount >= 5 ? TOUCH_SOUND_BUSY_INTERVAL_MS : TOUCH_SOUND_MIN_INTERVAL_MS;
+    if (now - this.lastGrassTouchSoundAt < minInterval) {
+      return false;
+    }
+
+    this.lastGrassTouchSoundAt = now;
+    return true;
   }
 
   private playRegrow(): void {
@@ -285,7 +311,7 @@ export class AudioSystem {
   }
 
   private playNoiseSweep(duration: number, frequency: number, volume: number, startAt: number): void {
-    const noise = this.createNoise(duration);
+    const noise = this.createNoiseSource();
     const filter = this.context!.createBiquadFilter();
     const gain = this.context!.createGain();
 
@@ -304,18 +330,28 @@ export class AudioSystem {
     noise.stop(startAt + duration + 0.01);
   }
 
-  private createNoise(duration: number): AudioBufferSourceNode {
+  private createNoiseSource(): AudioBufferSourceNode {
+    const source = this.context!.createBufferSource();
+    source.buffer = this.getNoiseBuffer();
+    return source;
+  }
+
+  private getNoiseBuffer(): AudioBuffer {
     const sampleRate = this.context!.sampleRate;
-    const buffer = this.context!.createBuffer(1, Math.floor(sampleRate * duration), sampleRate);
+    if (this.noiseBuffer && this.noiseBufferSampleRate === sampleRate) {
+      return this.noiseBuffer;
+    }
+
+    const buffer = this.context!.createBuffer(1, Math.floor(sampleRate * NOISE_BUFFER_SECONDS), sampleRate);
     const data = buffer.getChannelData(0);
 
     for (let i = 0; i < data.length; i += 1) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+      data[i] = Math.random() * 2 - 1;
     }
 
-    const source = this.context!.createBufferSource();
-    source.buffer = buffer;
-    return source;
+    this.noiseBuffer = buffer;
+    this.noiseBufferSampleRate = sampleRate;
+    return buffer;
   }
 
   private now(): number {

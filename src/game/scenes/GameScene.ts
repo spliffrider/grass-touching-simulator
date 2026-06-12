@@ -43,7 +43,7 @@ const MIN_BOARD_ZOOM = 0.45;
 const MAX_BOARD_ZOOM = 3.2;
 const BOARD_PAN_THRESHOLD_PX = 18;
 const TOUCH_SHAKE_COOLDOWN_MS = 140;
-const FULL_UI_REFRESH_INTERVAL_MS = 260;
+const FULL_UI_REFRESH_INTERVAL_MS = 420;
 const READY_STATE_REFRESH_INTERVAL_MS = 520;
 const RUNTIME_STATS_CACHE_MS = 250;
 const JOURNAL_DISCOVERY_REFRESH_INTERVAL_MS = 1200;
@@ -70,10 +70,16 @@ const AMBIENT_TRANSIENT_OBJECT_BUDGET = 18;
 const AMBIENT_POP_TEXT_BUDGET = 10;
 const AMBIENT_REWARD_ARC_SPRITE_BUDGET = 8;
 const AMBIENT_WORLD_ACTION_ARC_SPRITE_BUDGET = 10;
-const QUEUED_SAVE_INTERVAL_MS = 1200;
+const QUEUED_SAVE_INTERVAL_MS = 6500;
+const AUTO_SAVE_INTERVAL_MS = 20000;
+const IDLE_SAVE_TIMEOUT_MS = 2400;
+const FALLBACK_SAVE_DELAY_MS = 160;
 const TILE_CULL_MARGIN_PX = 96;
 const TILE_LABEL_MIN_SCALE = 0.68;
 const TILE_VIEW_POOL_LIMIT = 36;
+const POP_TEXT_POOL_LIMIT = 36;
+const TOUCH_FLOURISH_INTERVAL_MS = 72;
+const TOUCH_FLOURISH_BUSY_INTERVAL_MS = 128;
 const TREE_WIDTH = 880;
 const TREE_HEIGHT = 560;
 const COMBO_AOE_MIN_COUNT = 10;
@@ -428,6 +434,8 @@ export class GameScene extends Phaser.Scene {
   private weatherParticleQuality = 1;
   private queuedSaveElapsed = QUEUED_SAVE_INTERVAL_MS;
   private saveQueued = false;
+  private saveDelayHandle?: number;
+  private idleSaveHandle?: number;
   private ambientFeedbackDepth = 0;
   private ambientFeedbackWindowAt = 0;
   private ambientBurstParticlesUsed = 0;
@@ -435,6 +443,9 @@ export class GameScene extends Phaser.Scene {
   private ambientPopTextsUsed = 0;
   private ambientRewardArcSpritesUsed = 0;
   private ambientWorldActionArcSpritesUsed = 0;
+  private popTextPool: Phaser.GameObjects.Text[] = [];
+  private activePopTexts = new Set<Phaser.GameObjects.Text>();
+  private lastTouchFlourishAt = 0;
   private stressMode = false;
   private perfOverlayEnabled = false;
   private perfText?: Phaser.GameObjects.Text;
@@ -449,6 +460,12 @@ export class GameScene extends Phaser.Scene {
   private hoverMarker?: Phaser.GameObjects.Rectangle;
   private burstEmitters = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
   private uiBurstEmitters = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
+  private readonly handlePageHide = (): void => this.flushQueuedSave();
+  private readonly handleVisibilityChange = (): void => {
+    if (document.visibilityState === "hidden") {
+      this.flushQueuedSave();
+    }
+  };
 
   constructor() {
     super("GameScene");
@@ -663,6 +680,8 @@ export class GameScene extends Phaser.Scene {
 
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleMusicVolumeDrag(pointer));
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleBoardHover(pointer));
+    window.addEventListener("pagehide", this.handlePageHide);
+    document.addEventListener("visibilitychange", this.handleVisibilityChange);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.handleShutdown());
   }
 
@@ -750,19 +769,17 @@ export class GameScene extends Phaser.Scene {
       this.refreshPerfPanel();
     }
 
-    this.lastAutoSaveAt += delta;
     this.queuedSaveElapsed += delta;
-    if (this.saveQueued && this.queuedSaveElapsed >= QUEUED_SAVE_INTERVAL_MS) {
-      this.flushQueuedSave();
-    }
-
-    if (this.lastAutoSaveAt >= 5000) {
+    this.lastAutoSaveAt += delta;
+    if (this.lastAutoSaveAt >= AUTO_SAVE_INTERVAL_MS) {
       this.lastAutoSaveAt = 0;
-      this.flushQueuedSave();
+      this.scheduleIdleSaveFlush();
     }
   }
 
   private handleShutdown(): void {
+    window.removeEventListener("pagehide", this.handlePageHide);
+    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     this.flushQueuedSave();
     this.music.stop();
     for (const emitter of this.burstEmitters.values()) {
@@ -773,6 +790,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.burstEmitters.clear();
     this.uiBurstEmitters.clear();
+    this.destroyPopTextPool();
     this.destroyAllTileViews();
   }
 
@@ -785,10 +803,12 @@ export class GameScene extends Phaser.Scene {
   private queueSave(): void {
     if (!this.stressMode) {
       this.saveQueued = true;
+      this.scheduleQueuedSave();
     }
   }
 
   private flushQueuedSave(): void {
+    this.cancelQueuedSaveTimers();
     if (!this.saveQueued) {
       return;
     }
@@ -796,6 +816,53 @@ export class GameScene extends Phaser.Scene {
     this.saveQueued = false;
     this.queuedSaveElapsed = 0;
     this.saveState();
+  }
+
+  private scheduleQueuedSave(): void {
+    if (this.saveDelayHandle !== undefined || this.idleSaveHandle !== undefined) {
+      return;
+    }
+
+    this.saveDelayHandle = window.setTimeout(() => {
+      this.saveDelayHandle = undefined;
+      this.scheduleIdleSaveFlush();
+    }, QUEUED_SAVE_INTERVAL_MS);
+  }
+
+  private scheduleIdleSaveFlush(): void {
+    if (!this.saveQueued || this.idleSaveHandle !== undefined || this.saveDelayHandle !== undefined) {
+      return;
+    }
+
+    if (typeof window.requestIdleCallback === "function") {
+      this.idleSaveHandle = window.requestIdleCallback(
+        () => {
+          this.idleSaveHandle = undefined;
+          this.flushQueuedSave();
+        },
+        { timeout: IDLE_SAVE_TIMEOUT_MS },
+      );
+      return;
+    }
+
+    this.saveDelayHandle = window.setTimeout(() => {
+      this.saveDelayHandle = undefined;
+      this.flushQueuedSave();
+    }, FALLBACK_SAVE_DELAY_MS);
+  }
+
+  private cancelQueuedSaveTimers(): void {
+    if (this.saveDelayHandle !== undefined) {
+      window.clearTimeout(this.saveDelayHandle);
+      this.saveDelayHandle = undefined;
+    }
+
+    if (this.idleSaveHandle !== undefined && typeof window.cancelIdleCallback === "function") {
+      window.cancelIdleCallback(this.idleSaveHandle);
+      this.idleSaveHandle = undefined;
+    } else {
+      this.idleSaveHandle = undefined;
+    }
   }
 
   private invalidateRuntimeStats(): void {
@@ -893,6 +960,22 @@ export class GameScene extends Phaser.Scene {
 
   private getScaledBudget(baseBudget: number): number {
     return Math.max(1, Math.floor(baseBudget * this.effectQuality));
+  }
+
+  private reserveTouchFlourish(isCrit = false): boolean {
+    const now = Date.now();
+    const objectPressure = this.children.list.length >= DISPLAY_OBJECT_PRESSURE_LIMIT;
+    const interval =
+      objectPressure || this.effectQuality < 0.58 || this.boardScale < COMPACT_TILE_EFFECT_SCALE
+        ? TOUCH_FLOURISH_BUSY_INTERVAL_MS
+        : TOUCH_FLOURISH_INTERVAL_MS;
+    const critScale = isCrit ? 0.52 : 1;
+    if (now - this.lastTouchFlourishAt < interval * critScale) {
+      return false;
+    }
+
+    this.lastTouchFlourishAt = now;
+    return true;
   }
 
   private resetAmbientFeedbackBudget(now = Date.now()): void {
@@ -4029,8 +4112,6 @@ export class GameScene extends Phaser.Scene {
     this.selectedPlacementObjectId = undefined;
     this.syncPlacedWorldObjects();
     this.layoutPlacedWorldObjects();
-    this.syncPlacedWorldObjects();
-    this.layoutPlacedWorldObjects();
     this.syncWorldObjects();
     this.layoutWorldObjects();
     this.refreshTileInfo(tile);
@@ -5066,8 +5147,9 @@ export class GameScene extends Phaser.Scene {
     const baseScale = this.boardScale;
     const fleckTexture = touchedTrait === "dewy" ? "dew-fleck" : "grass-fleck";
     const compactEffects = this.boardScale < COMPACT_TILE_EFFECT_SCALE && !isCrit;
+    const showFlourish = !compactEffects && this.reserveTouchFlourish(isCrit);
 
-    if (view && !compactEffects) {
+    if (view && showFlourish) {
       this.resetBaseTilePose(view);
       const grassGhost = this.add
         .image(x, y, view.grass.texture.key)
@@ -5099,14 +5181,16 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.emitBurst(fleckTexture, x, y - 4, isCrit ? 38 : compactEffects ? 8 : 20, isCrit ? 1.42 : 1.05, isCrit ? 0.3 : 0.42);
-    if (!compactEffects) {
+    if (showFlourish) {
       this.emitBurst("dust-fleck", x, y + 12, 8, 0.8, 0.28);
     }
     if (isCrit) {
       this.emitBurst("crit-fleck", x, y - 10, 24, 1.35, 0.18);
-      this.addCritFlash(x, y);
+      if (showFlourish) {
+        this.addCritFlash(x, y);
+      }
     }
-    if (!compactEffects) {
+    if (showFlourish) {
       this.addTouchRing(x, y);
       this.addTouchFlash(x, y);
     }
@@ -6733,7 +6817,7 @@ export class GameScene extends Phaser.Scene {
         this.showMessage(milestone.message, 3200);
         this.playMilestoneCelebration();
         this.audio.play("milestone");
-        this.saveState();
+        this.queueSave();
       }
     }
   }
@@ -6748,17 +6832,18 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const pop = this.add
-      .text(position.x, position.y - 18, text, {
-        fontFamily: "Trebuchet MS, Arial",
-        fontSize: "20px",
-        color,
-        stroke: "#17491f",
-        strokeThickness: 5,
-      })
-      .setOrigin(0.5)
-      .setDepth(40);
-    pop.setScale(0.75);
+    const pop = this.getPooledPopText();
+    this.activePopTexts.add(pop);
+    this.tweens.killTweensOf(pop);
+    pop
+      .setText(text)
+      .setColor(color)
+      .setPosition(position.x, position.y - 18)
+      .setDepth(40)
+      .setAlpha(1)
+      .setScale(0.75)
+      .setVisible(true)
+      .setActive(true);
 
     this.tweens.add({
       targets: pop,
@@ -6768,8 +6853,51 @@ export class GameScene extends Phaser.Scene {
       scaleY: 1.12,
       duration: 760,
       ease: "Sine.easeOut",
-      onComplete: () => pop.destroy(),
+      onComplete: () => this.releasePopText(pop),
     });
+  }
+
+  private getPooledPopText(): Phaser.GameObjects.Text {
+    const pooled = this.popTextPool.pop();
+    if (pooled) {
+      return pooled;
+    }
+
+    return this.add
+      .text(0, 0, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "20px",
+        color: "#f9ffe5",
+        stroke: "#17491f",
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5)
+      .setVisible(false)
+      .setActive(false);
+  }
+
+  private releasePopText(pop: Phaser.GameObjects.Text): void {
+    this.activePopTexts.delete(pop);
+    this.tweens.killTweensOf(pop);
+    pop.setVisible(false).setActive(false).setAlpha(1).setScale(1).setText("");
+
+    if (this.popTextPool.length >= POP_TEXT_POOL_LIMIT) {
+      pop.destroy();
+      return;
+    }
+
+    this.popTextPool.push(pop);
+  }
+
+  private destroyPopTextPool(): void {
+    const texts = new Set([...this.activePopTexts, ...this.popTextPool]);
+    for (const text of texts) {
+      this.tweens.killTweensOf(text);
+      text.destroy();
+    }
+
+    this.activePopTexts.clear();
+    this.popTextPool = [];
   }
 
   private playTileDropCascade(tiles: FieldTile[]): void {
