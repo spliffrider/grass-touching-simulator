@@ -80,6 +80,11 @@ const TILE_VIEW_POOL_LIMIT = 36;
 const POP_TEXT_POOL_LIMIT = 36;
 const TOUCH_FLOURISH_INTERVAL_MS = 72;
 const TOUCH_FLOURISH_BUSY_INTERVAL_MS = 128;
+const PERFECT_TOUCH_CUE_LIMIT = 6;
+const PERFECT_TOUCH_CUE_MIN_SCALE = 0.52;
+const COMBO_BADGE_REFRESH_INTERVAL_MS = 48;
+const HOVER_REFRESH_INTERVAL_MS = 70;
+const HOVER_MOVE_THRESHOLD_SQ = 64;
 const TREE_WIDTH = 880;
 const TREE_HEIGHT = 560;
 const COMBO_AOE_MIN_COUNT = 10;
@@ -446,6 +451,11 @@ export class GameScene extends Phaser.Scene {
   private popTextPool: Phaser.GameObjects.Text[] = [];
   private activePopTexts = new Set<Phaser.GameObjects.Text>();
   private lastTouchFlourishAt = 0;
+  private comboBadgeRefreshElapsed = COMBO_BADGE_REFRESH_INTERVAL_MS;
+  private lastMusicComboLevel = 0;
+  private nextHoverRefreshAt = 0;
+  private lastHoverPointerX = Number.NaN;
+  private lastHoverPointerY = Number.NaN;
   private stressMode = false;
   private perfOverlayEnabled = false;
   private perfText?: Phaser.GameObjects.Text;
@@ -622,6 +632,15 @@ export class GameScene extends Phaser.Scene {
       this.boardPanStartY = this.boardPanY;
       this.pointerPanStartX = pointer.x;
       this.pointerPanStartY = pointer.y;
+
+      if (this.shouldTouchBoardOnPointerDown(pointer) && this.pendingBoardTileKey) {
+        const tile = this.state.field[this.pendingBoardTileKey];
+        this.pendingBoardTileKey = undefined;
+        this.isBoardPanArmed = false;
+        if (tile) {
+          this.handleTileClicked(tile);
+        }
+      }
     });
 
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
@@ -725,9 +744,17 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.checkMilestones(stats);
-    this.combo.update(now);
-    this.music.setComboLevel(this.combo.getCount());
-    this.refreshComboBadge();
+    const comboExpired = this.combo.update(now);
+    const comboCount = this.combo.getCount();
+    if (comboCount !== this.lastMusicComboLevel) {
+      this.lastMusicComboLevel = comboCount;
+      this.music.setComboLevel(comboCount);
+    }
+    this.comboBadgeRefreshElapsed += delta;
+    if (comboExpired || this.comboBadgeRefreshElapsed >= COMBO_BADGE_REFRESH_INTERVAL_MS) {
+      this.comboBadgeRefreshElapsed = 0;
+      this.refreshComboBadge();
+    }
     this.pruneRecentlyRegrown(now);
     this.updateSprinkler(delta, stats);
     this.updateAnimalCompanions(delta, stats);
@@ -2892,6 +2919,7 @@ export class GameScene extends Phaser.Scene {
     this.animalCompanions.reset();
     this.mutations.reset();
     this.combo.reset();
+    this.lastMusicComboLevel = 0;
     this.music.setComboLevel(0);
     this.recentlyRegrownAt.clear();
     this.destroyAllPerfectTouchCues();
@@ -3189,7 +3217,6 @@ export class GameScene extends Phaser.Scene {
 
   private needsTileView(tile: FieldTile, key: TileKey): boolean {
     return (
-      this.recentlyRegrownAt.has(key) ||
       this.perfectTouchCues.has(key) ||
       (this.boardScale >= TILE_LABEL_MIN_SCALE && tile.grassState === "grown" && (tile.tier !== "normal" || tile.trait === "lush"))
     );
@@ -3778,6 +3805,21 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    if (!pointer.noButtonDown()) {
+      return;
+    }
+
+    const now = Date.now();
+    const dx = pointer.x - this.lastHoverPointerX;
+    const dy = pointer.y - this.lastHoverPointerY;
+    if (now < this.nextHoverRefreshAt && dx * dx + dy * dy < HOVER_MOVE_THRESHOLD_SQ) {
+      return;
+    }
+
+    this.lastHoverPointerX = pointer.x;
+    this.lastHoverPointerY = pointer.y;
+    this.nextHoverRefreshAt = now + HOVER_REFRESH_INTERVAL_MS;
+
     const key = this.getBoardTileKeyAtPointer(pointer);
     if (!key) {
       if (this.hoveredTileKey) {
@@ -3829,6 +3871,13 @@ export class GameScene extends Phaser.Scene {
 
   private hideHoverMarker(): void {
     this.hoverMarker?.setVisible(false);
+  }
+
+  private shouldTouchBoardOnPointerDown(pointer: Phaser.Input.Pointer): boolean {
+    const event = pointer.event as PointerEvent | MouseEvent | undefined;
+    const pointerType = event && "pointerType" in event ? event.pointerType : "";
+    const isMouse = pointerType === "mouse" || (pointerType === "" && !this.hasTouchScreen());
+    return isMouse && pointer.leftButtonDown();
   }
 
   private getBoardTileKeyAtPointer(pointer: Phaser.Input.Pointer): TileKey | undefined {
@@ -4039,6 +4088,7 @@ export class GameScene extends Phaser.Scene {
       windowMs: this.combo.getBaseWindowMs() * stats.comboWindowMultiplier,
       bonusMultiplier: stats.comboBonusMultiplier,
     });
+    this.lastMusicComboLevel = combo.count;
     this.music.setComboLevel(combo.count);
     if (combo.count > this.state.journal.bestComboCount) {
       this.state.journal.bestComboCount = combo.count;
@@ -4351,9 +4401,12 @@ export class GameScene extends Phaser.Scene {
     for (const [key, regrownAt] of this.recentlyRegrownAt) {
       const perfectTouchWindowMs = this.getPerfectTouchWindowMs(this.state.field[key]);
       if (now - regrownAt > perfectTouchWindowMs) {
+        const hadCue = this.perfectTouchCues.has(key);
         this.recentlyRegrownAt.delete(key);
         this.destroyPerfectTouchCue(key);
-        this.commonTileLayerDirty = true;
+        if (hadCue) {
+          this.commonTileLayerDirty = true;
+        }
       }
     }
   }
@@ -4422,7 +4475,7 @@ export class GameScene extends Phaser.Scene {
 
   private showPerfectTouchCue(tile: FieldTile, key: TileKey): void {
     const view = this.tileViews.get(key);
-    if (!view) {
+    if (!view || !this.shouldShowPerfectTouchCue()) {
       return;
     }
 
@@ -4433,12 +4486,17 @@ export class GameScene extends Phaser.Scene {
       .ellipse(x, y, TILE_SIZE * 0.94 * this.boardScale, TILE_SIZE * 0.62 * this.boardScale, 0xffef78, 0.2)
       .setStrokeStyle(Math.max(2, 3 * this.boardScale), 0xffef78, 0.96)
       .setDepth(35);
-    const sparkle = this.add
-      .star(x, y - 16 * this.boardScale, 5, TILE_SIZE * 0.065 * this.boardScale, TILE_SIZE * 0.28 * this.boardScale, 0xdfffc8, 0.84)
-      .setStrokeStyle(2, 0xffffff, 0.9)
-      .setDepth(38);
+    const cues: Phaser.GameObjects.GameObject[] = [ring];
+    if (this.effectQuality >= 0.72 && this.perfectTouchCues.size < Math.ceil(PERFECT_TOUCH_CUE_LIMIT * 0.5)) {
+      cues.push(
+        this.add
+          .star(x, y - 16 * this.boardScale, 5, TILE_SIZE * 0.065 * this.boardScale, TILE_SIZE * 0.28 * this.boardScale, 0xdfffc8, 0.84)
+          .setStrokeStyle(2, 0xffffff, 0.9)
+          .setDepth(38),
+      );
+    }
 
-    this.perfectTouchCues.set(key, [ring, sparkle]);
+    this.perfectTouchCues.set(key, cues);
     const duration = this.getPerfectTouchWindowMs(tile);
 
     this.tweens.add({
@@ -4450,16 +4508,27 @@ export class GameScene extends Phaser.Scene {
       ease: "Sine.easeOut",
       onComplete: () => this.destroyPerfectTouchCue(key),
     });
-    this.tweens.add({
-      targets: sparkle,
-      angle: 45,
-      scaleX: 1.25,
-      scaleY: 1.25,
-      y: sparkle.y - 7 * this.boardScale,
-      alpha: 0,
-      duration,
-      ease: "Sine.easeOut",
-    });
+    const sparkle = cues[1] as Phaser.GameObjects.Star | undefined;
+    if (sparkle) {
+      this.tweens.add({
+        targets: sparkle,
+        angle: 45,
+        scaleX: 1.25,
+        scaleY: 1.25,
+        y: sparkle.y - 7 * this.boardScale,
+        alpha: 0,
+        duration,
+        ease: "Sine.easeOut",
+      });
+    }
+  }
+
+  private shouldShowPerfectTouchCue(): boolean {
+    if (this.boardScale < PERFECT_TOUCH_CUE_MIN_SCALE || this.children.list.length >= DISPLAY_OBJECT_PRESSURE_LIMIT) {
+      return false;
+    }
+
+    return this.perfectTouchCues.size < this.getScaledBudget(PERFECT_TOUCH_CUE_LIMIT);
   }
 
   private destroyPerfectTouchCue(key: TileKey): void {
@@ -4473,6 +4542,7 @@ export class GameScene extends Phaser.Scene {
       cue.destroy();
     }
     this.perfectTouchCues.delete(key);
+    this.commonTileLayerDirty = true;
   }
 
   private destroyAllPerfectTouchCues(): void {
