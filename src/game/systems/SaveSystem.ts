@@ -64,6 +64,7 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
     lifetimeGold: readNumber(saved.lifetimeGold, initial.lifetimeGold),
     lifetimeGrassTouches: readNumber(saved.lifetimeGrassTouches, initial.lifetimeGrassTouches),
     totalClickedPatches: readNumber(saved.totalClickedPatches, initial.totalClickedPatches),
+    mutationEvents: readNumber(saved.mutationEvents, initial.mutationEvents),
     field,
     upgrades: readRecord<UpgradeState>(saved.upgrades),
     seedShopPurchases: readBooleanRecord(saved.seedShopPurchases),

@@ -21,7 +21,7 @@ export type WeatherId =
 
 export type CharacterClassId = "femboy_slim" | "bard_de_wever";
 
-export const CURRENT_SAVE_VERSION = 5;
+export const CURRENT_SAVE_VERSION = 6;
 
 export interface FieldTile {
   x: number;
@@ -68,6 +68,7 @@ export interface GameState {
   lifetimeGold: number;
   lifetimeGrassTouches: number;
   totalClickedPatches: number;
+  mutationEvents: number;
   field: Record<TileKey, FieldTile>;
   upgrades: Record<string, UpgradeState>;
   seedShopPurchases: Record<string, boolean>;

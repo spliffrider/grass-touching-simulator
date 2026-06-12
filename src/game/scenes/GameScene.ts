@@ -30,6 +30,7 @@ import { AudioSystem } from "../systems/AudioSystem";
 import { ChiptuneMusicSystem } from "../systems/ChiptuneMusicSystem";
 import { ComboSystem, type ComboResult } from "../systems/ComboSystem";
 import { DropSystem, type DropFeedback } from "../systems/DropSystem";
+import { MutationSystem, type MutationEvent } from "../systems/MutationSystem";
 import { loadGame, resetSave, saveGame } from "../systems/SaveSystem";
 import { SprinklerSystem } from "../systems/SprinklerSystem";
 import { getRuntimeStats } from "../systems/UpgradeSystem";
@@ -345,6 +346,7 @@ export class GameScene extends Phaser.Scene {
   private animalCompanions = new AnimalCompanionSystem();
   private combo = new ComboSystem();
   private drops = new DropSystem();
+  private mutations = new MutationSystem();
   private audio = new AudioSystem();
   private music = new ChiptuneMusicSystem();
   private skillTreeOpen = false;
@@ -633,6 +635,7 @@ export class GameScene extends Phaser.Scene {
     let journalChanged = this.updateJournalDiscoveries();
     this.updateSprinkler(delta, stats);
     this.updateAnimalCompanions(delta, stats);
+    this.updateMutations(delta);
     this.checkReadyUnlocks();
     this.checkReadyQuests();
     journalChanged = this.updateJournalDiscoveries() || journalChanged;
@@ -2459,6 +2462,7 @@ export class GameScene extends Phaser.Scene {
     this.rebuildFieldMetrics();
     this.sprinkler.reset();
     this.animalCompanions.reset();
+    this.mutations.reset();
     this.combo.reset();
     this.music.setComboLevel(0);
     this.recentlyRegrownAt.clear();
@@ -4142,6 +4146,46 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private updateMutations(delta: number): void {
+    if (this.hasBlockingOverlayOpen()) {
+      return;
+    }
+
+    const event = this.mutations.update(delta, this.state);
+    if (!event) {
+      return;
+    }
+
+    this.state.mutationEvents += 1;
+    this.playMutationEvent(event);
+    this.updateJournalDiscoveries();
+    this.saveState();
+  }
+
+  private playMutationEvent(event: MutationEvent): void {
+    for (const tile of event.changedTiles) {
+      this.createTileView(tile);
+      this.refreshTile(tile);
+    }
+
+    this.createTileView(event.originTile);
+    this.refreshTile(event.originTile);
+    this.popAtTile(event.originTile, event.label, event.color);
+    this.emitTierIdentityBurst(event.originTile, event.burstTexture, event.kind === "prismatic_frost" ? 28 : 18, 0.78);
+
+    if (event.seedReward > 0) {
+      this.popAtTile(event.originTile, `+${event.seedReward} seed`, "#fff1a8");
+      this.emitSeedBurst(event.originTile);
+    }
+
+    if (event.goldReward > 0) {
+      this.popAtTile(event.partnerTile, `+${event.goldReward} gold`, "#ffef78");
+      this.emitGoldBurst(event.partnerTile, event.goldReward);
+    }
+
+    this.audio.play(event.goldReward > 0 ? "gold" : event.seedReward > 0 ? "seed" : "regrow");
+  }
+
   private shakeForGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean): void {
     const now = Date.now();
     const isRareTier = !["normal", "thick", "clover"].includes(tier);
@@ -5585,6 +5629,7 @@ export class GameScene extends Phaser.Scene {
       "Progress Notes",
       `- Milestones reached: ${this.state.reachedMilestones.length}/${MILESTONES.length}`,
       `- Quests claimed: ${this.state.claimedQuestIds.length}/${this.getRelevantQuestCount()}`,
+      `- Hybrid mutations: ${this.state.mutationEvents}`,
       `- Best manual combo: ${this.state.journal.bestComboCount}`,
     ].join("\n");
   }
