@@ -46,9 +46,11 @@ const BOARD_PAN_THRESHOLD_PX = 18;
 const TOUCH_SHAKE_COOLDOWN_MS = 140;
 const FULL_UI_REFRESH_INTERVAL_MS = 180;
 const PERF_PANEL_REFRESH_INTERVAL_MS = 500;
+const REGROW_FEEDBACK_INTERVAL_MS = 240;
+const MAX_REGROW_FEEDBACK_PER_BATCH = 6;
 const TILE_CULL_MARGIN_PX = 96;
 const TILE_LABEL_MIN_SCALE = 0.68;
-const TILE_VIEW_POOL_LIMIT = 220;
+const TILE_VIEW_POOL_LIMIT = 36;
 const TREE_WIDTH = 880;
 const TREE_HEIGHT = 560;
 const COMBO_AOE_MIN_COUNT = 10;
@@ -381,6 +383,7 @@ export class GameScene extends Phaser.Scene {
   private pointerPanStartX = 0;
   private pointerPanStartY = 0;
   private lastTouchShakeAt = 0;
+  private nextRegrowFeedbackAt = 0;
   private uiRefreshElapsed = 0;
   private perfPanelElapsed = 0;
   private stressMode = false;
@@ -390,6 +393,7 @@ export class GameScene extends Phaser.Scene {
   private knownFieldKeys = new Set<TileKey>();
   private cachedFieldBounds?: FieldBounds;
   private commonTileLayer?: Phaser.GameObjects.RenderTexture;
+  private commonTileLayerDirty = false;
   private boardHitZone?: Phaser.GameObjects.Zone;
   private pendingBoardTileKey?: TileKey;
   private burstEmitters = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
@@ -614,13 +618,20 @@ export class GameScene extends Phaser.Scene {
     this.updateWeather(now, true);
     const stats = getRuntimeStats(this.state);
     const regrown = updateRegrowth(this.state, stats, now);
+    const showRegrowFeedback = regrown.length > 0 && now >= this.nextRegrowFeedbackAt;
+    let regrowFeedbackCount = 0;
+    if (showRegrowFeedback) {
+      this.nextRegrowFeedbackAt = now + REGROW_FEEDBACK_INTERVAL_MS;
+    }
 
     for (const tile of regrown) {
-      this.createTileView(tile);
       this.markRecentlyRegrown(tile, now);
       this.refreshTile(tile);
-      this.playRegrowFeedback(tile);
-      this.popAtTile(tile, tile.trait === "lush" ? "lush" : tile.trait === "dewy" ? "dew" : "grass", "#e7ffd1");
+      if (showRegrowFeedback && regrowFeedbackCount < MAX_REGROW_FEEDBACK_PER_BATCH && this.getTileScreenPosition(tile)) {
+        this.playRegrowFeedback(tile);
+        this.popAtTile(tile, tile.trait === "lush" ? "lush" : tile.trait === "dewy" ? "dew" : "grass", "#e7ffd1");
+        regrowFeedbackCount += 1;
+      }
     }
 
     if (regrown.length > 0) {
@@ -646,6 +657,9 @@ export class GameScene extends Phaser.Scene {
     this.uiRefreshElapsed += delta;
     if (this.uiRefreshElapsed >= FULL_UI_REFRESH_INTERVAL_MS) {
       this.uiRefreshElapsed = 0;
+      if (this.commonTileLayerDirty) {
+        this.layoutTiles();
+      }
       this.refreshUi();
     }
 
@@ -2732,6 +2746,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.lastStressStats = { visibleTiles, totalTiles: this.fieldTileCount };
+    this.commonTileLayerDirty = false;
 
     this.layoutPlacedWorldObjects();
     this.layoutWorldObjects();
@@ -2804,6 +2819,11 @@ export class GameScene extends Phaser.Scene {
     view.grass.setScale(this.boardScale * this.getGrassScale(tile));
     view.glint.setScale(this.boardScale);
     view.label.setScale(this.boardScale);
+  }
+
+  private getTileVisualPosition(tile: FieldTile): { x: number; y: number } | undefined {
+    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    return view ? { x: view.label.x, y: view.label.y } : this.getTileScreenPosition(tile);
   }
 
   private getTileScreenPosition(tile: FieldTile): { x: number; y: number } | undefined {
@@ -3851,12 +3871,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private emitTierIdentityBurst(tile: FieldTile, texture: string, count: number, scale: number): void {
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
-    if (!view) {
+    const position = this.getTileVisualPosition(tile);
+    if (!position) {
       return;
     }
 
-    this.emitBurst(texture, view.label.x, view.label.y - 8, count, scale, 0.28);
+    this.emitBurst(texture, position.x, position.y - 8, count, scale, 0.28);
   }
 
   private markRecentlyRegrown(tile: FieldTile, now: number): void {
@@ -4164,11 +4184,9 @@ export class GameScene extends Phaser.Scene {
 
   private playMutationEvent(event: MutationEvent): void {
     for (const tile of event.changedTiles) {
-      this.createTileView(tile);
       this.refreshTile(tile);
     }
 
-    this.createTileView(event.originTile);
     this.refreshTile(event.originTile);
     this.popAtTile(event.originTile, event.label, event.color);
     this.emitTierIdentityBurst(event.originTile, event.burstTexture, event.kind === "prismatic_frost" ? 28 : 18, 0.78);
@@ -4515,6 +4533,7 @@ export class GameScene extends Phaser.Scene {
   private refreshTile(tile: FieldTile): void {
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (!view) {
+      this.commonTileLayerDirty = true;
       return;
     }
 
@@ -4584,44 +4603,47 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playTouchFeedback(tile: FieldTile, touchedTrait = tile.trait, isCrit = false): void {
-    this.createTileView(tile);
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
-    if (!view) {
+    const position = this.getTileVisualPosition(tile);
+    if (!position) {
       return;
     }
 
-    this.resetBaseTilePose(view);
-    const x = view.label.x;
-    const y = view.label.y;
+    const x = position.x;
+    const y = position.y;
     const baseScale = this.boardScale;
     const fleckTexture = touchedTrait === "dewy" ? "dew-fleck" : "grass-fleck";
-    const grassGhost = this.add
-      .image(x, y, view.grass.texture.key)
-      .setScale(view.grass.scaleX, view.grass.scaleY)
-      .setAlpha(0.95)
-      .setDepth(33);
 
-    this.tweens.add({
-      targets: grassGhost,
-      scaleX: grassGhost.scaleX * 1.28,
-      scaleY: grassGhost.scaleY * 0.62,
-      alpha: 0,
-      y: y + 5,
-      duration: 170,
-      ease: "Back.easeIn",
-      onComplete: () => grassGhost.destroy(),
-    });
+    if (view) {
+      this.resetBaseTilePose(view);
+      const grassGhost = this.add
+        .image(x, y, view.grass.texture.key)
+        .setScale(view.grass.scaleX, view.grass.scaleY)
+        .setAlpha(0.95)
+        .setDepth(33);
 
-    this.tweens.killTweensOf(view.base);
-    this.tweens.add({
-      targets: view.base,
-      scaleX: baseScale * 1.05,
-      scaleY: baseScale * 0.95,
-      duration: 75,
-      yoyo: true,
-      ease: "Sine.easeOut",
-      onComplete: () => this.resetBaseTilePose(view),
-    });
+      this.tweens.add({
+        targets: grassGhost,
+        scaleX: grassGhost.scaleX * 1.28,
+        scaleY: grassGhost.scaleY * 0.62,
+        alpha: 0,
+        y: y + 5,
+        duration: 170,
+        ease: "Back.easeIn",
+        onComplete: () => grassGhost.destroy(),
+      });
+
+      this.tweens.killTweensOf(view.base);
+      this.tweens.add({
+        targets: view.base,
+        scaleX: baseScale * 1.05,
+        scaleY: baseScale * 0.95,
+        duration: 75,
+        yoyo: true,
+        ease: "Sine.easeOut",
+        onComplete: () => this.resetBaseTilePose(view),
+      });
+    }
 
     this.emitBurst(fleckTexture, x, y - 4, isCrit ? 46 : 28, isCrit ? 1.42 : 1.05, isCrit ? 0.3 : 0.42);
     this.emitBurst("dust-fleck", x, y + 12, 12, 0.8, 0.28);
@@ -4666,49 +4688,50 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playRegrowFeedback(tile: FieldTile): void {
-    this.createTileView(tile);
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
-    if (!view) {
+    const position = this.getTileVisualPosition(tile);
+    if (!position) {
       return;
     }
 
-    this.resetBaseTilePose(view);
-    const finalScale = this.boardScale * this.getGrassScale(tile);
-    view.grass.setScale(this.boardScale * 0.18, this.boardScale * 0.08);
-    view.grass.setAlpha(0);
-    view.grass.setPosition(view.label.x, view.label.y + 12);
+    if (view) {
+      this.resetBaseTilePose(view);
+      const finalScale = this.boardScale * this.getGrassScale(tile);
+      view.grass.setScale(this.boardScale * 0.18, this.boardScale * 0.08);
+      view.grass.setAlpha(0);
+      view.grass.setPosition(position.x, position.y + 12);
 
-    this.tweens.add({
-      targets: view.grass,
-      scaleX: finalScale * 1.18,
-      scaleY: finalScale * 1.18,
-      alpha: 1,
-      y: view.label.y,
-      duration: 180,
-      ease: "Back.easeOut",
-      onComplete: () => {
-        this.tweens.add({
-          targets: view.grass,
-          scaleX: finalScale,
-          scaleY: finalScale,
-          duration: 120,
-          ease: "Sine.easeOut",
-        });
-      },
-    });
+      this.tweens.add({
+        targets: view.grass,
+        scaleX: finalScale * 1.18,
+        scaleY: finalScale * 1.18,
+        alpha: 1,
+        y: position.y,
+        duration: 180,
+        ease: "Back.easeOut",
+        onComplete: () => {
+          this.tweens.add({
+            targets: view.grass,
+            scaleX: finalScale,
+            scaleY: finalScale,
+            duration: 120,
+            ease: "Sine.easeOut",
+          });
+        },
+      });
+    }
 
-    this.emitBurst(tile.trait === "dewy" ? "dew-fleck" : "grass-fleck", view.label.x, view.label.y, 10, 0.55, 0.22);
+    this.emitBurst(tile.trait === "dewy" ? "dew-fleck" : "grass-fleck", position.x, position.y, 10, 0.55, 0.22);
   }
 
   private playSprinklerBurst(tile: FieldTile): void {
-    this.createTileView(tile);
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
-    if (!view) {
+    const position = this.getTileVisualPosition(tile);
+    if (!position) {
       return;
     }
 
-    const x = view.label.x;
-    const y = view.label.y;
+    const x = position.x;
+    const y = position.y;
     this.spawnWorldActionArc("effect-water-drop", "sprinkler", x, y - 12 * this.boardScale, 4, 0xa8e8ff);
     const ring = this.add
       .ellipse(x, y, TILE_SIZE * 0.42 * this.boardScale, TILE_SIZE * 0.24 * this.boardScale, 0xa8e8ff, 0.22)
@@ -4745,14 +4768,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze" | "burrow"): void {
-    this.createTileView(tile);
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
-    if (!view) {
+    const position = this.getTileVisualPosition(tile);
+    if (!position) {
       return;
     }
 
-    const x = view.label.x;
-    const y = view.label.y;
+    const x = position.x;
+    const y = position.y;
 
     if (action === "pollinate") {
       this.spawnWorldActionArc("effect-pollen-fleck", "bee_hive", x, y - 12 * this.boardScale, 5, 0xffef78);
