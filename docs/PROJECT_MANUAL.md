@@ -35,6 +35,10 @@ Preview a production build:
 npm run preview
 ```
 
+Performance reference:
+
+- `docs/PERFORMANCE_NOTES.md`: board redraw hitch postmortem, perf overlay interpretation, and rendering guardrails.
+
 ## Runtime Architecture
 
 The game has two scenes:
@@ -647,4 +651,3 @@ If the answer touches more than one area, make the feature in small slices:
 3. Scene wiring.
 4. UI/visual feedback.
 5. Save/build/browser verification.
-

@@ -1,0 +1,118 @@
+# Performance Notes
+
+## Board redraw hitch postmortem
+
+Date: 2026-06-12
+
+This note documents the performance issue that made the game feel slow even on a small or medium field. The important lesson: the game was not simply "too much for a web browser." The main slowdown came from an expensive board redraw path being used during ordinary play.
+
+## Symptoms
+
+The game felt sluggish after only a few field expansions, even when the field and object counts were still modest.
+
+One bad perf overlay sample looked like this:
+
+```text
+PERF  fps 79  tiles 62/62  views 0  objects 67  emitters 7  tw 4  dt 74  spikes 6  layout 1/1  fx 1  save queued
+```
+
+The suspicious parts were:
+
+- `dt 74`: a frame took about 74 ms, far above the 16.7 ms budget for 60 FPS.
+- `spikes 6`: repeated frame spikes were happening.
+- `layout 1/1`: the board was doing a layout pass and a common layer redraw.
+- Low object, emitter, and tween counts: this was not primarily caused by too many visible effects.
+
+After the fix, a comparable sample looked like this:
+
+```text
+PERF  fps 118  tiles 92/92  views 92  objects 532  emitters 12  tw 22  dt 9  spikes 0  layout 1/1  fx 1
+hot regrow 2.3  layout 0.2  ui 0.2  ready 0.2
+```
+
+That told us the field could be larger and busier while staying smooth, as long as the redraw path stayed cheap.
+
+## Root Cause
+
+`GameScene.layoutBoardLayers()` was resizing the shared tile `RenderTexture` during board redraws. Resizing a render texture is expensive because it can force GPU/resource work. Doing it during normal redraws caused visible frame spikes.
+
+The render texture only needs to resize when the viewport dimensions change. It should not resize just because grass tiles changed, a tile was touched, or the board layer needs to be cleared and redrawn.
+
+The fix tracks the last known common layer size:
+
+- `commonTileLayerWidth`
+- `commonTileLayerHeight`
+
+`commonTileLayer.resize(...)` now only runs when `this.scale.width` or `this.scale.height` actually changes.
+
+## Other Fixes From The Same Round
+
+Small fields now keep live pooled tile views instead of stamping everything into the common render texture. For fields at or below `LIVE_TILE_VIEW_FIELD_LIMIT` in `src/game/scenes/GameScene.ts`, live views are cheaper and feel more responsive than repeatedly redrawing the render texture.
+
+The current threshold is:
+
+```text
+LIVE_TILE_VIEW_FIELD_LIMIT = 120
+```
+
+The tile view pool also stopped running hidden infinite glint tweens on every pooled tile view. Infinite tweens on pooled or invisible objects are dangerous because they can keep adding per-frame work even when the object is not visually important.
+
+## Guardrails
+
+Do not call `RenderTexture.resize(...)` during ordinary board redraws. Resize only when the viewport changes.
+
+Before blaming browser limits, check the perf overlay:
+
+- If `dt` and `spikes` are high while object/tween/emitter counts are low, suspect a layout, render texture, save, or browser rendering bottleneck.
+- If `layout X/Y` is active and `hot layout` is high, inspect board redraw and tile positioning code first.
+- If `hot ...` scopes are low but `dt` is high, suspect work outside the profiled update scopes, such as GPU work, browser painting, garbage collection, or Phaser internals.
+- If `tw` climbs steadily, look for forgotten infinite tweens or pooled objects that still animate while hidden.
+- If `objects` climbs steadily while visible activity does not, inspect pooling and destruction paths.
+
+For small and medium fields, prefer live pooled tile views when they avoid full render-texture churn. For large fields, batching/stamping can still be useful, but only if redraws are infrequent and the render texture is not being resized.
+
+## Perf Overlay Cheatsheet
+
+Use `?perf` to show the overlay during normal play:
+
+```text
+/?perf
+```
+
+Useful stress URLs:
+
+```text
+/?stress&perf&tiles=120
+/?stress&perf&tiles=500
+```
+
+Important fields:
+
+- `fps`: current loop FPS.
+- `tiles A/B`: visible tiles over total tiles.
+- `views`: live tile views currently in the scene.
+- `objects`: Phaser display object count.
+- `emitters`: active burst emitter count.
+- `tw`: active tween count.
+- `dt`: max frame delta seen in the recent sample.
+- `spikes`: frame spikes above the threshold.
+- `layout X/Y`: layout passes and common layer redraws since the last overlay refresh.
+- `fx`: current effect quality scalar.
+- `hot ...`: slowest profiled update scopes during the sample window.
+
+## Files To Check First
+
+- `src/game/scenes/GameScene.ts`
+  - `layoutBoardLayers`
+  - `needsTileView`
+  - `createPooledTileView`
+  - `refreshPerfPanel`
+  - `profileScope`
+- `src/game/systems/FieldSystem.ts`
+  - field expansion
+  - regrowth
+  - tile touch mutation paths
+
+## Main Lesson
+
+The browser was not the blocker. The killer issue was using an expensive render-texture resize path during normal gameplay. Keep expensive graphics resource operations out of the hot redraw path, and use the perf overlay's `dt`, `spikes`, `layout`, `tw`, `objects`, and `hot ...` fields before guessing.
