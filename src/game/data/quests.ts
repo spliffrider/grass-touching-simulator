@@ -28,7 +28,8 @@ const countAnimals = (state: GameState): number =>
   Object.values(state.inventory).reduce((total, entry) => total + (entry.kind === "animal" ? entry.quantity : 0), 0);
 const hasDiscoveredGrassTier = (state: GameState, tier: GrassTierId): boolean => state.journal.discoveredGrassTiers.includes(tier);
 const countDiscoveredGrassTiers = (state: GameState): number => state.journal.discoveredGrassTiers.length;
-const getClassName = (classId: CharacterClassId): string => (classId === "femboy_slim" ? "Femboy Slim" : "Bard De Wever");
+const getClassName = (classId: CharacterClassId): string =>
+  classId === "grass_toucher" ? "Grass Toucher" : classId === "femboy_slim" ? "Femboy Slim" : "Bard De Wever";
 
 export const QUESTS: QuestDefinition[] = [
   {

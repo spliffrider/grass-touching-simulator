@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { DEFAULT_MUSIC_VOLUME, readStoredMusicVolume, writeStoredMusicVolume } from "../data/audio-settings";
-import { getCharacterClass } from "../data/character-classes";
+import { DEFAULT_CHARACTER_CLASS_ID, getCharacterClass } from "../data/character-classes";
 import { GRASS_TIERS, getGrassTier, getNextGrassTier } from "../data/grass-tiers";
 import { BUILD_LABEL } from "../data/build-info";
 import { GOLD_STORE_ITEMS } from "../data/gold-store";
@@ -1165,7 +1165,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createStressState(characterClassId?: CharacterClassId): GameState {
-    const state = createInitialState(characterClassId ?? "femboy_slim");
+    const state = createInitialState(characterClassId ?? DEFAULT_CHARACTER_CLASS_ID);
     const tileCount = this.getStressTileCount();
     const columns = Math.ceil(Math.sqrt(tileCount * 1.35));
     const rows = Math.ceil(tileCount / columns);

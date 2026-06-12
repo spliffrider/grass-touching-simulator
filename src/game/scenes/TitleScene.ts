@@ -12,8 +12,8 @@ const CREDITS_PANEL_BASE_WIDTH = 420;
 const CREDITS_PANEL_BASE_HEIGHT = 290;
 const OPTIONS_PANEL_BASE_WIDTH = 460;
 const OPTIONS_PANEL_BASE_HEIGHT = 220;
-const CLASS_PANEL_BASE_WIDTH = 740;
-const CLASS_PANEL_BASE_HEIGHT = 430;
+const CLASS_PANEL_BASE_WIDTH = 1060;
+const CLASS_PANEL_BASE_HEIGHT = 560;
 const OPTIONS_TRACK_BASE_WIDTH = 320;
 const OPTIONS_TRACK_BASE_HEIGHT = 12;
 const OPTIONS_HIT_BASE_WIDTH = 350;
@@ -724,14 +724,21 @@ export class TitleScene extends Phaser.Scene {
 
   private layoutClassSelectPanel(): void {
     const narrow = this.scale.width < 720;
-    const panelWidth = Math.min(narrow ? 520 : 790, this.scale.width - 36);
-    const panelHeight = Math.min(narrow ? 700 : 560, this.scale.height - 32);
+    const compact = this.scale.width < 980;
+    const columns = narrow ? 1 : Math.min(this.classCards.length, compact ? 2 : 3);
+    const rows = Math.max(1, Math.ceil(this.classCards.length / columns));
+    const panelWidth = Math.min(narrow ? 520 : columns === 2 ? 800 : 1080, this.scale.width - 36);
+    const panelHeight = Math.min(narrow ? 720 : rows > 1 ? 700 : 570, this.scale.height - 32);
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
-    const cardWidth = narrow ? Math.min(330, panelWidth - 58) : Math.min(316, (panelWidth - 110) / 2);
-    const cardHeight = narrow ? 274 : 300;
+    const columnGap = narrow ? 0 : 24;
+    const rowGap = narrow ? 14 : 20;
+    const cardsAreaHeight = Math.max(130, panelHeight - (narrow ? 204 : 210));
+    const cardWidth = narrow ? Math.min(330, panelWidth - 58) : Math.min(316, (panelWidth - 72 - (columns - 1) * columnGap) / columns);
+    const cardHeight = Math.min(narrow ? 230 : rows > 1 ? 276 : 300, (cardsAreaHeight - (rows - 1) * rowGap) / rows);
     const cardScaleX = cardWidth / 316;
     const cardScaleY = cardHeight / 300;
+    const cardsTop = centerY - panelHeight / 2 + (narrow ? 136 : 150);
 
     this.resizeInteractiveBackdrop(this.classSelectBackdrop);
     this.classSelectPanel?.setPosition(centerX, centerY);
@@ -742,15 +749,21 @@ export class TitleScene extends Phaser.Scene {
     this.classSelectSubtitle?.setWordWrapWidth(Math.max(240, panelWidth - 76));
 
     this.classCards.forEach((card, index) => {
-      const cardX = narrow ? centerX : centerX + (index === 0 ? -cardWidth / 2 - 18 : cardWidth / 2 + 18);
-      const cardY = narrow ? centerY - 122 + index * (cardHeight + 18) : centerY + 42;
+      const row = Math.floor(index / columns);
+      const column = index % columns;
+      const cardsInRow = Math.min(columns, this.classCards.length - row * columns);
+      const columnOffset = column - (cardsInRow - 1) / 2;
+      const cardX = centerX + columnOffset * (cardWidth + columnGap);
+      const cardY = cardsTop + row * (cardHeight + rowGap) + cardHeight / 2;
       card.container.setPosition(cardX, cardY);
       card.frame.setSize(316, 300);
       card.hit.setSize(316, 300);
       card.container.setScale(cardScaleX, cardScaleY);
-      card.name.setFontSize(narrow ? 25 : 28);
-      card.body.setWordWrapWidth(narrow ? 272 : 266);
-      card.body.setFontSize(narrow ? 13 : 14);
+      card.name.setFontSize(narrow ? 24 : compact ? 24 : 25);
+      card.archetype.setFontSize(narrow ? 15 : compact ? 15 : 16);
+      card.passive.setFontSize(narrow ? 16 : 17);
+      card.body.setWordWrapWidth(narrow ? 272 : compact ? 260 : 266);
+      card.body.setFontSize(cardHeight < 210 ? 12 : narrow ? 13 : 14);
     });
 
     this.classBackHit?.setPosition(centerX, centerY + panelHeight / 2 - 38);

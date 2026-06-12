@@ -13,9 +13,23 @@ export interface CharacterClassDefinition {
   apply(stats: RuntimeStats): void;
 }
 
-export const DEFAULT_CHARACTER_CLASS_ID: CharacterClassId = "femboy_slim";
+export const DEFAULT_CHARACTER_CLASS_ID: CharacterClassId = "grass_toucher";
 
 export const CHARACTER_CLASSES: CharacterClassDefinition[] = [
+  {
+    id: "grass_toucher",
+    name: "Grass Toucher",
+    archetype: "Beginner / Baseline",
+    iconKey: "title-selector-leaf",
+    passiveName: "Honest Touch",
+    passiveDescription: "No tricks, no weird angle, just a steady hand and a sensible patch of grass.",
+    flavor: "The control group. Beautiful in its simplicity.",
+    statLines: ["+0.5 touch value", "+0.5% seed drop chance"],
+    apply: (stats) => {
+      stats.touchMultiplier += 0.5;
+      stats.seedDropBonus += 0.005;
+    },
+  },
   {
     id: "femboy_slim",
     name: "Femboy Slim",
@@ -55,5 +69,5 @@ export function getCharacterClass(id: CharacterClassId | undefined): CharacterCl
 }
 
 export function isCharacterClassId(value: unknown): value is CharacterClassId {
-  return value === "femboy_slim" || value === "bard_de_wever";
+  return value === "grass_toucher" || value === "femboy_slim" || value === "bard_de_wever";
 }

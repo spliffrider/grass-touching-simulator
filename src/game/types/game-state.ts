@@ -19,7 +19,7 @@ export type WeatherId =
   | "golden_hour"
   | "restless_roots";
 
-export type CharacterClassId = "femboy_slim" | "bard_de_wever";
+export type CharacterClassId = "grass_toucher" | "femboy_slim" | "bard_de_wever";
 
 export const CURRENT_SAVE_VERSION = 6;
 
