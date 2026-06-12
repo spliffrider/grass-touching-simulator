@@ -58,7 +58,9 @@ export function createTextButton(
 
 export function setTextButtonText(button: Phaser.GameObjects.Container, text: string): void {
   const label = button.getData("label") as Phaser.GameObjects.Text | undefined;
-  label?.setText(text);
+  if (label && label.text !== text) {
+    label.setText(text);
+  }
 }
 
 export function setTextButtonEnabled(button: Phaser.GameObjects.Container, enabled: boolean): void {

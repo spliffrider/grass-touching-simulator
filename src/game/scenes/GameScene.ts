@@ -43,8 +43,8 @@ const MIN_BOARD_ZOOM = 0.45;
 const MAX_BOARD_ZOOM = 3.2;
 const BOARD_PAN_THRESHOLD_PX = 18;
 const TOUCH_SHAKE_COOLDOWN_MS = 140;
-const FULL_UI_REFRESH_INTERVAL_MS = 180;
-const READY_STATE_REFRESH_INTERVAL_MS = 360;
+const FULL_UI_REFRESH_INTERVAL_MS = 260;
+const READY_STATE_REFRESH_INTERVAL_MS = 520;
 const PERF_PANEL_REFRESH_INTERVAL_MS = 500;
 const REGROW_FEEDBACK_INTERVAL_MS = 240;
 const MAX_REGROW_FEEDBACK_PER_BATCH = 6;
@@ -701,9 +701,7 @@ export class GameScene extends Phaser.Scene {
 
     if (this.lastAutoSaveAt >= 5000) {
       this.lastAutoSaveAt = 0;
-      this.saveQueued = false;
-      this.queuedSaveElapsed = 0;
-      this.saveState();
+      this.flushQueuedSave();
     }
   }
 
@@ -831,6 +829,18 @@ export class GameScene extends Phaser.Scene {
     const budgetedCount = Math.min(count, Math.max(0, remaining));
     this.ambientWorldActionArcSpritesUsed += budgetedCount;
     return budgetedCount;
+  }
+
+  private setTextIfChanged(text: Phaser.GameObjects.Text | undefined, value: string): void {
+    if (text && text.text !== value) {
+      text.setText(value);
+    }
+  }
+
+  private setVisibleIfChanged(object: { visible: boolean; setVisible(value: boolean): unknown } | undefined, visible: boolean): void {
+    if (object && object.visible !== visible) {
+      object.setVisible(visible);
+    }
   }
 
   private rebuildFieldMetrics(): void {
@@ -1188,7 +1198,7 @@ export class GameScene extends Phaser.Scene {
     const season = getSeasonForDate(new Date());
     this.seasonTint.setSize(this.scale.width, this.scale.height);
     this.seasonTint.setFillStyle(season.color, season.alpha);
-    this.seasonTint.setVisible(!this.hasBlockingOverlayOpen());
+    this.setVisibleIfChanged(this.seasonTint, !this.hasBlockingOverlayOpen());
   }
 
   private layoutWeatherVisuals(): void {
@@ -3597,8 +3607,9 @@ export class GameScene extends Phaser.Scene {
     const critLine = tile.trait === "lush" ? "Better crit and seed odds" : tile.trait === "dewy" ? "Slightly better crit and seed odds" : "";
     const placementLine = this.getTilePlacementInfo(tile);
 
-    this.tileInfoTitle.setText(isGrown ? tier.name : "Regrowing Patch");
-    this.tileInfoBody.setText(
+    this.setTextIfChanged(this.tileInfoTitle, isGrown ? tier.name : "Regrowing Patch");
+    this.setTextIfChanged(
+      this.tileInfoBody,
       isGrown ? [tierLine, traitLine, critLine, placementLine].filter(Boolean).join("\n") : ["This patch is growing back.", placementLine].filter(Boolean).join("\n"),
     );
   }
@@ -3613,8 +3624,8 @@ export class GameScene extends Phaser.Scene {
     const placement = this.state.placedWorldObjects[id];
     const placementLine = placement ? `Placed at ${placement.tileKey}. Click to move.` : "Click to place on the field.";
 
-    this.tileInfoTitle.setText(title);
-    this.tileInfoBody.setText([summary, countLine, placementLine].filter(Boolean).join("\n"));
+    this.setTextIfChanged(this.tileInfoTitle, title);
+    this.setTextIfChanged(this.tileInfoBody, [summary, countLine, placementLine].filter(Boolean).join("\n"));
   }
 
   private getTilePlacementInfo(tile: FieldTile): string {
@@ -4525,8 +4536,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (!this.state.seedShopPurchases.weather_jar) {
-      this.weatherTint.setVisible(false);
-      this.weatherBadge.setVisible(false);
+      this.setVisibleIfChanged(this.weatherTint, false);
+      this.setVisibleIfChanged(this.weatherBadge, false);
       this.weatherParticles?.destroy();
       this.weatherParticles = undefined;
       this.activeWeatherVisualId = "none";
@@ -4539,11 +4550,12 @@ export class GameScene extends Phaser.Scene {
     const seconds = secondsLeft % 60;
     const timeText = `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
-    this.weatherBadge.setVisible(!this.hasBlockingOverlayOpen());
-    this.weatherBadgeTitle.setText(`Weather Jar: ${weather.name}`);
+    const visible = !this.hasBlockingOverlayOpen();
+    this.setVisibleIfChanged(this.weatherBadge, visible);
+    this.setTextIfChanged(this.weatherBadgeTitle, `Weather Jar: ${weather.name}`);
     this.weatherBadgeTitle.setColor(weather.color);
-    this.weatherBadgeBody.setText(`${weather.description} (${timeText})`);
-    this.weatherTint.setVisible(!this.hasBlockingOverlayOpen());
+    this.setTextIfChanged(this.weatherBadgeBody, `${weather.description} (${timeText})`);
+    this.setVisibleIfChanged(this.weatherTint, visible);
     this.applyWeatherTint(weather.id);
 
     if (this.activeWeatherVisualId !== weather.id) {
@@ -4717,15 +4729,15 @@ export class GameScene extends Phaser.Scene {
     const rareTier = tier.id !== "normal";
     const highlightColor = this.getTierHighlightColor(tier.id);
 
-    view.grass.setVisible(isGrown);
+    this.setVisibleIfChanged(view.grass, isGrown);
     view.grass.setTexture(grassTexture);
     view.grass.setScale(this.boardScale * this.getGrassScale(tile));
     view.grass.setAlpha(1);
-    view.outline.setVisible(isGrown && rareTier);
+    this.setVisibleIfChanged(view.outline, isGrown && rareTier);
     view.outline.setStrokeStyle(tier.id === "golden" || tier.id === "crystal" || tier.id === "frost" ? 5 : 4, highlightColor, tier.id === "normal" ? 0 : 0.82);
-    view.glint.setVisible(isGrown && rareTier);
+    this.setVisibleIfChanged(view.glint, isGrown && rareTier);
     view.glint.setFillStyle(highlightColor, tier.id === "normal" ? 0 : 0.88);
-    view.label.setText(isGrown ? this.getTileLabel(tile, tier.label) : "...");
+    this.setTextIfChanged(view.label, isGrown ? this.getTileLabel(tile, tier.label) : "...");
     view.base.setTexture(isGrown ? "tile-dirt" : "tile-stubble");
 
     if (this.hoveredTileKey === tileKey(tile.x, tile.y)) {
@@ -5533,11 +5545,13 @@ export class GameScene extends Phaser.Scene {
     const compact = this.scale.width < 620;
     const resourceSeparator = compact ? "\n" : " | ";
 
-    this.titleText.setText("Grass Touching Simulator");
-    this.ambientSpores?.setVisible(!this.hasBlockingOverlayOpen());
+    const overlayOpen = this.hasBlockingOverlayOpen();
+    this.setTextIfChanged(this.titleText, "Grass Touching Simulator");
+    this.setVisibleIfChanged(this.ambientSpores, !overlayOpen);
     this.layoutSeasonVisuals();
     this.refreshWeatherVisuals();
-    this.resourceText.setText(
+    this.setTextIfChanged(
+      this.resourceText,
       [
         `Grass Touches: ${Math.floor(this.state.grassTouches)}`,
         `Seeds: ${Math.floor(this.state.seeds)}`,
@@ -5550,7 +5564,7 @@ export class GameScene extends Phaser.Scene {
     setTextButtonText(this.questButton, readyQuestCount > 0 ? `Quests (${readyQuestCount})` : "Quests");
     this.refreshJournalAccess();
     if (this.skillTreeOpen) {
-      this.skillResourceText.setText(`Available Grass Touches: ${Math.floor(this.state.grassTouches)}`);
+      this.setTextIfChanged(this.skillResourceText, `Available Grass Touches: ${Math.floor(this.state.grassTouches)}`);
     }
     if (this.questLogOpen) {
       this.refreshQuestLog();
@@ -5566,7 +5580,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.syncWorldObjects();
     this.layoutWorldObjects();
-    this.milestoneText.setText(
+    this.setTextIfChanged(
+      this.milestoneText,
       [
         nextMilestone
           ? `Next surface spread: ${nextMilestone.name} at ${nextMilestone.requiredLifetimeTouches} lifetime touches`
@@ -5628,7 +5643,7 @@ export class GameScene extends Phaser.Scene {
         view.icon.setTint(level > 0 || unlocked ? 0xffffff : 0x8fa08f);
         view.lockedIcon.setVisible(!unlocked && level === 0);
         view.lockedIcon.setColor(selected ? "#fff08a" : "#dfffc8");
-        view.level.setText(`Lv ${level}/${upgrade.maxLevel}`);
+        this.setTextIfChanged(view.level, `Lv ${level}/${upgrade.maxLevel}`);
         view.level.setColor(available || selected ? "#f4df6a" : level > 0 ? "#dfffc8" : "#7c8b82");
       }
 
@@ -5639,7 +5654,7 @@ export class GameScene extends Phaser.Scene {
   private refreshComboBadge(): void {
     const count = this.combo.getCount();
     const show = count >= 2 && !this.hasBlockingOverlayOpen();
-    this.comboBadge.setVisible(show);
+    this.setVisibleIfChanged(this.comboBadge, show);
 
     if (!show) {
       return;
@@ -5651,7 +5666,7 @@ export class GameScene extends Phaser.Scene {
     const meterWidth = Math.max(8, (badgeWidth - 24) * remaining);
     const multiplierText = multiplier > 1 ? ` x${multiplier.toFixed(multiplier >= 2 ? 0 : 2)}` : "";
 
-    this.comboBadgeText.setText(`Combo ${count}${multiplierText}`);
+    this.setTextIfChanged(this.comboBadgeText, `Combo ${count}${multiplierText}`);
     this.comboBadgeMeter.setSize(meterWidth, 4);
     this.comboBadgeMeter.setFillStyle(multiplier > 1 ? 0xf4df6a : 0xb7eba5, 0.92);
   }
@@ -6588,7 +6603,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showMessage(message: string, duration: number): void {
-    this.milestoneText.setText(message);
+    this.setTextIfChanged(this.milestoneText, message);
     this.time.delayedCall(duration, () => this.refreshUi());
   }
 }

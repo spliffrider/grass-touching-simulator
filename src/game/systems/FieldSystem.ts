@@ -230,23 +230,30 @@ export function expandField(state: GameState, tileCount: number, stats: RuntimeS
   let growthDirection = pickGrowthDirection(state);
   let lastTile: FieldTile | undefined;
   let lastDirection = growthDirection;
+  const center = getFieldCenter(state);
+  const candidates = new Map<TileKey, ExpansionCandidate>();
+  for (const candidate of getExpansionCandidates(state, center)) {
+    candidates.set(tileKey(candidate.x, candidate.y), candidate);
+  }
 
   for (let i = 0; i < tilesToAdd; i += 1) {
-    const candidates = getExpansionCandidates(state);
-    if (candidates.length === 0) {
+    const candidateList = [...candidates.values()];
+    if (candidateList.length === 0) {
       break;
     }
 
     const localCandidates = lastTile
-      ? candidates.filter((candidate) => Math.abs(candidate.x - lastTile!.x) + Math.abs(candidate.y - lastTile!.y) === 1)
+      ? candidateList.filter((candidate) => Math.abs(candidate.x - lastTile!.x) + Math.abs(candidate.y - lastTile!.y) === 1)
       : [];
     const shouldKeepGrowingRunner = localCandidates.length > 0 && Math.random() < 0.72;
-    const pool = shouldKeepGrowingRunner ? localCandidates : candidates;
+    const pool = shouldKeepGrowingRunner ? localCandidates : candidateList;
     const chosen = pickOrganicCandidate(pool, growthDirection, lastDirection, lastTile);
     const trait = Math.random() < stats.dewChance ? "dewy" : "normal";
     const tier = pickGrassTier(state, stats).id;
     const tile = createTile(chosen.x, chosen.y, trait, tier);
     state.field[tileKey(tile.x, tile.y)] = tile;
+    candidates.delete(tileKey(tile.x, tile.y));
+    addExpansionCandidatesFromTile(state, candidates, tile, center);
     added.push(tile);
     lastTile = tile;
     lastDirection = chosen.direction;
@@ -272,9 +279,8 @@ function pickRegrownTrait(stats: RuntimeStats, tile: FieldTile): TileTrait {
   return "normal";
 }
 
-function getExpansionCandidates(state: GameState): ExpansionCandidate[] {
+function getExpansionCandidates(state: GameState, center = getFieldCenter(state)): ExpansionCandidate[] {
   const candidates = new Map<TileKey, ExpansionCandidate>();
-  const center = getFieldCenter(state);
 
   for (const tile of getFieldTiles(state)) {
     for (const neighbor of NEIGHBORS) {
@@ -305,6 +311,37 @@ function getExpansionCandidates(state: GameState): ExpansionCandidate[] {
   }
 
   return [...candidates.values()];
+}
+
+function addExpansionCandidatesFromTile(
+  state: GameState,
+  candidates: Map<TileKey, ExpansionCandidate>,
+  parent: FieldTile,
+  center: { x: number; y: number },
+): void {
+  for (const neighbor of NEIGHBORS) {
+    const x = parent.x + neighbor.x;
+    const y = parent.y + neighbor.y;
+    const key = tileKey(x, y);
+
+    if (state.field[key]) {
+      candidates.delete(key);
+      continue;
+    }
+
+    const candidate = {
+      x,
+      y,
+      adjacentCount: countExistingNeighbors(state, x, y),
+      parent,
+      direction: neighbor,
+      distanceFromCenter: Math.abs(x - center.x) + Math.abs(y - center.y),
+    };
+    const existing = candidates.get(key);
+    if (!existing || scoreParentCandidate(candidate) > scoreParentCandidate(existing)) {
+      candidates.set(key, candidate);
+    }
+  }
 }
 
 function countExistingNeighbors(state: GameState, x: number, y: number): number {
