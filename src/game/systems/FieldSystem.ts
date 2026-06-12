@@ -10,6 +10,8 @@ const NEIGHBORS = [
   { x: 0, y: -1 },
 ];
 
+const regrowingTileKeysByState = new WeakMap<GameState, Set<TileKey>>();
+
 interface ExpansionCandidate {
   x: number;
   y: number;
@@ -41,7 +43,19 @@ export function getGrownTiles(state: GameState): FieldTile[] {
 }
 
 export function getRegrowingTiles(state: GameState): FieldTile[] {
-  return getFieldTiles(state).filter((tile) => tile.grassState === "regrowing");
+  const keys = getRegrowingTileKeySet(state);
+  const tiles: FieldTile[] = [];
+
+  for (const key of keys) {
+    const tile = state.field[key];
+    if (tile?.grassState === "regrowing") {
+      tiles.push(tile);
+    } else {
+      keys.delete(key);
+    }
+  }
+
+  return tiles;
 }
 
 export function getFieldBounds(state: GameState): FieldBounds | undefined {
@@ -141,6 +155,7 @@ export function touchTile(tile: FieldTile, state: GameState, stats: RuntimeStats
   tile.grassState = "regrowing";
   tile.regrowEndsAt = now + Math.floor(tile.baseRegrowMs * stats.regrowMultiplier);
   tile.trait = "normal";
+  getRegrowingTileKeySet(state).add(tileKey(tile.x, tile.y));
 
   if (instantRegrown) {
     tile.grassState = "grown";
@@ -148,6 +163,7 @@ export function touchTile(tile: FieldTile, state: GameState, stats: RuntimeStats
     tile.trait = pickRegrownTrait(stats, tile);
     tile.tier = pickGrassTier(state, stats).id;
     tile.baseTouchValue = getGrassTier(tile.tier).touchValue;
+    getRegrowingTileKeySet(state).delete(tileKey(tile.x, tile.y));
   }
 
   state.grassTouches += gained;
@@ -159,8 +175,15 @@ export function touchTile(tile: FieldTile, state: GameState, stats: RuntimeStats
 
 export function updateRegrowth(state: GameState, stats: RuntimeStats, now: number): FieldTile[] {
   const regrown: FieldTile[] = [];
+  const keys = getRegrowingTileKeySet(state);
 
-  for (const tile of getFieldTiles(state)) {
+  for (const key of keys) {
+    const tile = state.field[key];
+    if (!tile || tile.grassState !== "regrowing") {
+      keys.delete(key);
+      continue;
+    }
+
     if (tile.grassState === "regrowing" && now >= tile.regrowEndsAt) {
       tile.grassState = "grown";
       tile.regrowEndsAt = 0;
@@ -168,10 +191,28 @@ export function updateRegrowth(state: GameState, stats: RuntimeStats, now: numbe
       tile.tier = pickGrassTier(state, stats).id;
       tile.baseTouchValue = getGrassTier(tile.tier).touchValue;
       regrown.push(tile);
+      keys.delete(key);
     }
   }
 
   return regrown;
+}
+
+function getRegrowingTileKeySet(state: GameState): Set<TileKey> {
+  const existing = regrowingTileKeysByState.get(state);
+  if (existing) {
+    return existing;
+  }
+
+  const keys = new Set<TileKey>();
+  for (const tile of getFieldTiles(state)) {
+    if (tile.grassState === "regrowing") {
+      keys.add(tileKey(tile.x, tile.y));
+    }
+  }
+
+  regrowingTileKeysByState.set(state, keys);
+  return keys;
 }
 
 export function expandField(state: GameState, tileCount: number, stats: RuntimeStats): FieldTile[] {

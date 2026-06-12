@@ -11,7 +11,18 @@ import { SEED_SHOP_ITEMS, getSeedDropChance } from "../data/seed-shop";
 import { getSeasonForDate } from "../data/seasons";
 import { UPGRADES, canUnlockUpgrade, getUpgradeCost } from "../data/upgrades";
 import { WEATHER_TYPES, getWeather, pickWeather } from "../data/weather";
-import { expandField, getFieldBounds, getFieldTiles, getRegrowingTiles, tileKey, touchTile, updateRegrowth } from "../systems/FieldSystem";
+import {
+  createInitialState,
+  createTile,
+  expandField,
+  getFieldBounds,
+  getFieldTiles,
+  getRegrowingTiles,
+  tileKey,
+  touchTile,
+  updateRegrowth,
+  type FieldBounds,
+} from "../systems/FieldSystem";
 import { addInventoryItem, consumeInventoryItem, getInventoryQuantity } from "../systems/InventorySystem";
 import { AnimalCompanionSystem } from "../systems/AnimalCompanionSystem";
 import { AudioSystem } from "../systems/AudioSystem";
@@ -31,6 +42,11 @@ const MIN_BOARD_ZOOM = 0.45;
 const MAX_BOARD_ZOOM = 3.2;
 const BOARD_PAN_THRESHOLD_PX = 18;
 const TOUCH_SHAKE_COOLDOWN_MS = 140;
+const FULL_UI_REFRESH_INTERVAL_MS = 180;
+const PERF_PANEL_REFRESH_INTERVAL_MS = 500;
+const TILE_CULL_MARGIN_PX = 96;
+const TILE_LABEL_MIN_SCALE = 0.68;
+const TILE_VIEW_POOL_LIMIT = 220;
 const TREE_WIDTH = 880;
 const TREE_HEIGHT = 560;
 const COMBO_AOE_MIN_COUNT = 10;
@@ -120,6 +136,7 @@ interface TileView {
   label: Phaser.GameObjects.Text;
   outline: Phaser.GameObjects.Rectangle;
   glint: Phaser.GameObjects.Star;
+  key?: TileKey;
 }
 
 interface SkillNodeView {
@@ -201,9 +218,15 @@ interface SkillBranchLabelView {
   treeY: number;
 }
 
+interface StressStats {
+  visibleTiles: number;
+  totalTiles: number;
+}
+
 export class GameScene extends Phaser.Scene {
   private state!: GameState;
   private tileViews = new Map<TileKey, TileView>();
+  private tileViewPool: TileView[] = [];
   private recentlyRegrownAt = new Map<TileKey, number>();
   private perfectTouchCues = new Map<TileKey, Phaser.GameObjects.GameObject[]>();
   private worldObjectViews = new Map<string, WorldObjectView>();
@@ -341,6 +364,19 @@ export class GameScene extends Phaser.Scene {
   private pointerPanStartX = 0;
   private pointerPanStartY = 0;
   private lastTouchShakeAt = 0;
+  private uiRefreshElapsed = 0;
+  private perfPanelElapsed = 0;
+  private stressMode = false;
+  private perfText?: Phaser.GameObjects.Text;
+  private lastStressStats: StressStats = { visibleTiles: 0, totalTiles: 0 };
+  private fieldTileCount = 0;
+  private knownFieldKeys = new Set<TileKey>();
+  private cachedFieldBounds?: FieldBounds;
+  private commonTileLayer?: Phaser.GameObjects.RenderTexture;
+  private boardHitZone?: Phaser.GameObjects.Zone;
+  private pendingBoardTileKey?: TileKey;
+  private burstEmitters = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
+  private uiBurstEmitters = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
 
   constructor() {
     super("GameScene");
@@ -397,19 +433,23 @@ export class GameScene extends Phaser.Scene {
     this.load.image("effect-magic-spore", "/assets/effects/magic-spore.png");
   }
 
-  create(data?: { newGame?: boolean; characterClassId?: CharacterClassId }): void {
-    this.state = data?.newGame ? resetSave(data.characterClassId) : loadGame();
+  create(data?: { newGame?: boolean; characterClassId?: CharacterClassId; stressMode?: boolean }): void {
+    this.stressMode = data?.stressMode === true || this.isStressModeRequested();
+    this.state = this.stressMode ? this.createStressState(data?.characterClassId) : data?.newGame ? resetSave(data.characterClassId) : loadGame();
+    this.rebuildFieldMetrics();
     this.musicVolume = readStoredMusicVolume();
     this.music.setVolume(this.musicVolume);
     this.music.setTrack(this.state.selectedTrackId || "cozy_meadow");
     this.updateJournalDiscoveries();
-    saveGame(this.state);
+    this.saveState();
 
     this.cameras.main.setBackgroundColor("#06190f");
     this.createEmeraldBackdrop();
     this.updateWeather(Date.now(), false);
     this.createTileTextures();
     this.createHeader();
+    this.createBoardLayers();
+    this.createPerfPanel();
     this.createSeasonVisuals();
     this.createWeatherVisuals();
     this.createTileInfoPanel();
@@ -426,7 +466,10 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
     this.readyUnlockKeys = this.getReadyUnlockKeys();
     this.readyQuestKeys = this.getReadyQuestKeys();
-    this.showMessage("Touch the grass. Let it regrow. Become reasonable.", 3600);
+    this.showMessage(
+      this.stressMode ? "Stress mode: big field, busy systems, no save writes." : "Touch the grass. Let it regrow. Become reasonable.",
+      3600,
+    );
 
     this.scale.on("resize", () => {
       this.layoutHeader();
@@ -473,10 +516,16 @@ export class GameScene extends Phaser.Scene {
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, gameObjects: Phaser.GameObjects.GameObject[]) => {
       this.music.start(this.musicVolume);
 
-      if (this.hasBlockingOverlayOpen() || gameObjects.length > 0) {
+      if (this.hasBlockingOverlayOpen()) {
         return;
       }
 
+      const boardOnly = gameObjects.length > 0 && gameObjects.every((gameObject) => gameObject === this.boardHitZone);
+      if (gameObjects.length > 0 && !boardOnly) {
+        return;
+      }
+
+      this.pendingBoardTileKey = this.getBoardTileKeyAtPointer(pointer);
       this.isBoardPanArmed = true;
       this.isPanningBoard = false;
       this.boardPanStartX = this.boardPanX;
@@ -499,6 +548,7 @@ export class GameScene extends Phaser.Scene {
 
         this.isBoardPanArmed = false;
         this.isPanningBoard = true;
+        this.pendingBoardTileKey = undefined;
         this.boardPanStartX = this.boardPanX;
         this.boardPanStartY = this.boardPanY;
         this.pointerPanStartX = pointer.x;
@@ -517,19 +567,29 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on("pointerup", () => {
+      if (this.isBoardPanArmed && !this.isPanningBoard && this.pendingBoardTileKey && !this.hasBlockingOverlayOpen()) {
+        const tile = this.state.field[this.pendingBoardTileKey];
+        if (tile) {
+          this.handleTileClicked(tile);
+        }
+      }
+
+      this.pendingBoardTileKey = undefined;
       this.isBoardPanArmed = false;
       this.isPanningBoard = false;
       this.draggingMusicVolume = false;
     });
 
     this.input.on("pointerupoutside", () => {
+      this.pendingBoardTileKey = undefined;
       this.isBoardPanArmed = false;
       this.isPanningBoard = false;
       this.draggingMusicVolume = false;
     });
 
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleMusicVolumeDrag(pointer));
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.music.stop());
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleBoardHover(pointer));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.handleShutdown());
   }
 
   update(_time: number, delta: number): void {
@@ -539,6 +599,7 @@ export class GameScene extends Phaser.Scene {
     const regrown = updateRegrowth(this.state, stats, now);
 
     for (const tile of regrown) {
+      this.createTileView(tile);
       this.markRecentlyRegrown(tile, now);
       this.refreshTile(tile);
       this.playRegrowFeedback(tile);
@@ -552,6 +613,7 @@ export class GameScene extends Phaser.Scene {
     this.checkMilestones(stats);
     this.combo.update(now);
     this.music.setComboLevel(this.combo.getCount());
+    this.refreshComboBadge();
     this.pruneRecentlyRegrown(now);
     let journalChanged = this.updateJournalDiscoveries();
     this.updateSprinkler(delta, stats);
@@ -560,15 +622,136 @@ export class GameScene extends Phaser.Scene {
     this.checkReadyQuests();
     journalChanged = this.updateJournalDiscoveries() || journalChanged;
     if (journalChanged) {
-      saveGame(this.state);
+      this.saveState();
     }
-    this.refreshUi();
+
+    this.uiRefreshElapsed += delta;
+    if (this.uiRefreshElapsed >= FULL_UI_REFRESH_INTERVAL_MS) {
+      this.uiRefreshElapsed = 0;
+      this.refreshUi();
+    }
+
+    this.perfPanelElapsed += delta;
+    if (this.stressMode && this.perfPanelElapsed >= PERF_PANEL_REFRESH_INTERVAL_MS) {
+      this.perfPanelElapsed = 0;
+      this.refreshPerfPanel();
+    }
 
     this.lastAutoSaveAt += delta;
     if (this.lastAutoSaveAt >= 5000) {
       this.lastAutoSaveAt = 0;
+      this.saveState();
+    }
+  }
+
+  private handleShutdown(): void {
+    this.music.stop();
+    for (const emitter of this.burstEmitters.values()) {
+      emitter.destroy();
+    }
+    for (const emitter of this.uiBurstEmitters.values()) {
+      emitter.destroy();
+    }
+    this.burstEmitters.clear();
+    this.uiBurstEmitters.clear();
+    this.destroyAllTileViews();
+  }
+
+  private saveState(): void {
+    if (!this.stressMode) {
       saveGame(this.state);
     }
+  }
+
+  private rebuildFieldMetrics(): void {
+    this.knownFieldKeys = new Set(Object.keys(this.state.field) as TileKey[]);
+    this.fieldTileCount = this.knownFieldKeys.size;
+    this.cachedFieldBounds = getFieldBounds(this.state);
+  }
+
+  private registerFieldTile(tile: FieldTile): void {
+    const key = tileKey(tile.x, tile.y);
+    if (this.knownFieldKeys.has(key)) {
+      return;
+    }
+
+    this.knownFieldKeys.add(key);
+    this.fieldTileCount = this.knownFieldKeys.size;
+    if (!this.cachedFieldBounds) {
+      this.cachedFieldBounds = getFieldBounds(this.state);
+      return;
+    }
+
+    const minX = Math.min(this.cachedFieldBounds.minX, tile.x);
+    const maxX = Math.max(this.cachedFieldBounds.maxX, tile.x);
+    const minY = Math.min(this.cachedFieldBounds.minY, tile.y);
+    const maxY = Math.max(this.cachedFieldBounds.maxY, tile.y);
+    this.cachedFieldBounds = {
+      minX,
+      maxX,
+      minY,
+      maxY,
+      width: maxX - minX + 1,
+      height: maxY - minY + 1,
+    };
+  }
+
+  private isStressModeRequested(): boolean {
+    return new URLSearchParams(window.location.search).has("stress");
+  }
+
+  private getStressTileCount(): number {
+    const rawTiles = Number(new URLSearchParams(window.location.search).get("tiles") ?? "1200");
+    return Phaser.Math.Clamp(Number.isFinite(rawTiles) ? Math.floor(rawTiles) : 1200, 64, 2500);
+  }
+
+  private createStressState(characterClassId?: CharacterClassId): GameState {
+    const state = createInitialState(characterClassId ?? "femboy_slim");
+    const tileCount = this.getStressTileCount();
+    const columns = Math.ceil(Math.sqrt(tileCount * 1.35));
+    const rows = Math.ceil(tileCount / columns);
+    const startX = -Math.floor(columns / 2);
+    const startY = -Math.floor(rows / 2);
+    const now = Date.now();
+
+    state.field = {};
+    for (let index = 0; index < tileCount; index += 1) {
+      const x = startX + (index % columns);
+      const y = startY + Math.floor(index / columns);
+      const tier = GRASS_TIERS[index % GRASS_TIERS.length].id;
+      const trait = index % 11 === 0 ? "lush" : index % 5 === 0 ? "dewy" : "normal";
+      const tile = createTile(x, y, trait, tier);
+
+      if (index % 3 === 0) {
+        tile.grassState = "regrowing";
+        tile.regrowEndsAt = now + Phaser.Math.Between(300, 2800);
+      }
+
+      state.field[tileKey(x, y)] = tile;
+    }
+
+    state.grassTouches = 250000;
+    state.lifetimeGrassTouches = 250000;
+    state.seeds = 2500;
+    state.lifetimeSeeds = 2500;
+    state.gold = 2500;
+    state.lifetimeGold = 2500;
+    state.seedShopPurchases = Object.fromEntries(SEED_SHOP_ITEMS.map((item) => [item.id, true]));
+    state.inventory = Object.fromEntries(
+      GOLD_STORE_ITEMS.map((item) => [item.id, { quantity: item.maxQuantity ?? 4, kind: item.kind }]),
+    );
+    state.upgrades = Object.fromEntries(UPGRADES.map((upgrade) => [upgrade.id, { level: upgrade.maxLevel }]));
+    state.reachedMilestones = MILESTONES.map((milestone) => milestone.id);
+    state.activeWeatherId = "soft_rain";
+    state.weatherEndsAt = now + 120000;
+    state.journal = {
+      discoveredGrassTiers: GRASS_TIERS.map((tier) => tier.id),
+      discoveredTileTraits: ["normal", "dewy", "lush"],
+      seenWeatherIds: WEATHER_TYPES.map((weather) => weather.id),
+      bestComboCount: 48,
+    };
+
+    return state;
   }
 
   private createHeader(): void {
@@ -637,6 +820,64 @@ export class GameScene extends Phaser.Scene {
     this.storeButton = createTextButton(this, "Store", () => this.openGoldStore(), 118, 44, 20);
     this.journalButton = createTextButton(this, "Journal", () => this.openJournal(), 118, 44, 20);
     this.optionsButton = createTextButton(this, "Options", () => this.openOptions(), 118, 44, 20);
+  }
+
+  private createBoardLayers(): void {
+    this.commonTileLayer = this.add
+      .renderTexture(0, 0, this.scale.width, this.scale.height)
+      .setOrigin(0, 0)
+      .setDepth(-2);
+    this.boardHitZone = this.add
+      .zone(0, 0, this.scale.width, this.scale.height)
+      .setOrigin(0, 0)
+      .setDepth(-1)
+      .setInteractive();
+  }
+
+  private createPerfPanel(): void {
+    if (!this.stressMode) {
+      return;
+    }
+
+    this.perfText = this.add
+      .text(26, 0, "", {
+        fontFamily: "Consolas, monospace",
+        fontSize: "13px",
+        color: "#dfffc8",
+        backgroundColor: "rgba(6, 25, 15, 0.72)",
+        padding: { x: 8, y: 6 },
+      })
+      .setDepth(140)
+      .setScrollFactor(0);
+    this.refreshPerfPanel();
+  }
+
+  private refreshPerfPanel(): void {
+    if (!this.perfText) {
+      return;
+    }
+
+    const fps = Math.round(this.game.loop.actualFps);
+    const stats = {
+      fps,
+      totalTiles: this.lastStressStats.totalTiles,
+      visibleTiles: this.lastStressStats.visibleTiles,
+      tileViews: this.tileViews.size,
+      displayObjects: this.children.list.length,
+      emitters: this.burstEmitters.size + this.uiBurstEmitters.size,
+    };
+    (window as unknown as { __grassStressStats?: typeof stats }).__grassStressStats = stats;
+    this.perfText.setText(
+      [
+        "STRESS",
+        `fps ${stats.fps}`,
+        `tiles ${stats.visibleTiles}/${stats.totalTiles}`,
+        `views ${stats.tileViews}`,
+        `objects ${stats.displayObjects}`,
+        `emitters ${stats.emitters}`,
+      ].join("  "),
+    );
+    this.perfText.setPosition(26, Math.max(122, (this.milestoneText?.y ?? 108) + (this.milestoneText?.height ?? 0) + 8));
   }
 
   private createWeatherVisuals(): void {
@@ -1753,7 +1994,7 @@ export class GameScene extends Phaser.Scene {
     const nextTrackId = trackIds[nextIndex];
     this.music.setTrack(nextTrackId);
     this.state.selectedTrackId = nextTrackId;
-    saveGame(this.state);
+    this.saveState();
     this.refreshOptionsPanel();
   }
 
@@ -2063,7 +2304,7 @@ export class GameScene extends Phaser.Scene {
     addInventoryItem(this.state, item.id, item.kind);
     this.setStoreStatus(`${item.name} added to inventory.`);
     this.audio.play(item.kind === "animal" ? "milestone" : "upgrade");
-    saveGame(this.state);
+    this.saveState();
     this.refreshUi();
     this.playGoldStoreItemSuccess(item.id);
   }
@@ -2083,7 +2324,7 @@ export class GameScene extends Phaser.Scene {
         this.state.lifetimeSeeds += 5;
         this.setStoreStatus("Seed Satchel opened into 5 seeds.");
         this.audio.play("seed");
-        saveGame(this.state);
+        this.saveState();
         this.refreshUi();
         this.playGoldStoreItemSuccess(itemId);
         break;
@@ -2114,7 +2355,7 @@ export class GameScene extends Phaser.Scene {
 
     this.setStoreStatus(`Pocket Sunshine regrew ${restingTiles.length} patch${restingTiles.length === 1 ? "" : "es"}.`);
     this.audio.play("regrow");
-    saveGame(this.state);
+    this.saveState();
     this.refreshUi();
     this.playGoldStoreItemSuccess("pocket_sunshine");
   }
@@ -2151,7 +2392,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.setSeedStatus(`${item.name} unlocked.`);
     this.audio.play("upgrade");
-    saveGame(this.state);
+    this.saveState();
     this.refreshUi();
     this.playSeedShopItemSuccess(item.id);
   }
@@ -2178,6 +2419,7 @@ export class GameScene extends Phaser.Scene {
     const characterClassId = this.state.characterClassId;
     this.disarmReset();
     this.state = resetSave(characterClassId);
+    this.rebuildFieldMetrics();
     this.sprinkler.reset();
     this.animalCompanions.reset();
     this.combo.reset();
@@ -2185,14 +2427,7 @@ export class GameScene extends Phaser.Scene {
     this.recentlyRegrownAt.clear();
     this.destroyAllPerfectTouchCues();
     this.resetBoardView();
-    this.tileViews.forEach((view) => {
-      view.base.destroy();
-      view.grass.destroy();
-      view.outline.destroy();
-      view.glint.destroy();
-      view.label.destroy();
-    });
-    this.tileViews.clear();
+    this.destroyAllTileViews();
     this.worldObjectViews.forEach((view) => view.container.destroy());
     this.worldObjectViews.clear();
     this.selectedSkillId = UPGRADES[0].id;
@@ -2215,9 +2450,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   private renderAllTiles(): void {
-    for (const tile of getFieldTiles(this.state)) {
-      this.createTileView(tile);
-    }
     this.layoutTiles();
   }
 
@@ -2246,6 +2478,28 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createTileView(tile: FieldTile): void {
+    const key = tileKey(tile.x, tile.y);
+    this.registerFieldTile(tile);
+    const existing = this.tileViews.get(key);
+    if (existing) {
+      this.refreshTile(tile);
+      this.positionTileView(tile, existing);
+      return;
+    }
+
+    const view = this.tileViewPool.pop() ?? this.createPooledTileView();
+    view.key = key;
+    view.base.setVisible(true).setInteractive({ useHandCursor: true });
+    view.grass.setVisible(true).setInteractive({ useHandCursor: true });
+    view.outline.setVisible(false);
+    view.glint.setVisible(false);
+    view.label.setVisible(false);
+    this.tileViews.set(key, view);
+    this.refreshTile(tile);
+    this.positionTileView(tile, view);
+  }
+
+  private createPooledTileView(): TileView {
     const base = this.add
       .image(0, 0, "tile-dirt")
       .setOrigin(0.5)
@@ -2277,13 +2531,6 @@ export class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    base.on("pointerdown", () => this.handleTileClicked(tile));
-    grass.on("pointerdown", () => this.handleTileClicked(tile));
-    base.on("pointerover", () => this.showTileInfo(tile));
-    grass.on("pointerover", () => this.showTileInfo(tile));
-    base.on("pointerout", () => this.hideTileInfo(tile));
-    grass.on("pointerout", () => this.hideTileInfo(tile));
-
     this.tweens.add({
       targets: glint,
       scaleX: 1.45,
@@ -2295,18 +2542,79 @@ export class GameScene extends Phaser.Scene {
       ease: "Sine.easeInOut",
     });
 
-    this.tileViews.set(tileKey(tile.x, tile.y), { base, grass, label, outline, glint });
-    this.refreshTile(tile);
+    const view: TileView = { base, grass, label, outline, glint };
+    base.on("pointerdown", () => this.handleTileViewClicked(view));
+    grass.on("pointerdown", () => this.handleTileViewClicked(view));
+    base.on("pointerover", () => this.showTileViewInfo(view));
+    grass.on("pointerover", () => this.showTileViewInfo(view));
+    base.on("pointerout", () => this.hideTileViewInfo(view));
+    grass.on("pointerout", () => this.hideTileViewInfo(view));
+    return view;
   }
 
-  private layoutTiles(): void {
-    const tiles = getFieldTiles(this.state);
-    const bounds = getFieldBounds(this.state);
-    if (tiles.length === 0) {
+  private destroyTileView(key: TileKey, view: TileView): void {
+    this.tweens.killTweensOf([view.base, view.grass, view.label, view.outline, view.glint]);
+    view.key = undefined;
+    view.base.disableInteractive().setVisible(false).setAlpha(1).clearTint();
+    view.grass.disableInteractive().setVisible(false).setAlpha(1).clearTint();
+    view.outline.setVisible(false).setAlpha(1);
+    view.glint.setVisible(false).setAlpha(1);
+    view.label.setVisible(false).setAlpha(1).setText("");
+    this.tileViews.delete(key);
+    if (this.tileViewPool.length >= TILE_VIEW_POOL_LIMIT) {
+      this.destroyTileViewObjects(view);
       return;
     }
 
-    if (!bounds) {
+    this.tileViewPool.push(view);
+  }
+
+  private destroyAllTileViews(): void {
+    for (const [key, view] of this.tileViews) {
+      this.destroyTileView(key, view);
+    }
+
+    for (const view of this.tileViewPool) {
+      this.destroyTileViewObjects(view);
+    }
+
+    this.tileViews.clear();
+    this.tileViewPool = [];
+  }
+
+  private destroyTileViewObjects(view: TileView): void {
+    this.tweens.killTweensOf([view.base, view.grass, view.label, view.outline, view.glint]);
+    view.base.destroy();
+    view.grass.destroy();
+    view.outline.destroy();
+    view.glint.destroy();
+    view.label.destroy();
+  }
+
+  private handleTileViewClicked(view: TileView): void {
+    const tile = view.key ? this.state.field[view.key] : undefined;
+    if (tile) {
+      this.handleTileClicked(tile);
+    }
+  }
+
+  private showTileViewInfo(view: TileView): void {
+    const tile = view.key ? this.state.field[view.key] : undefined;
+    if (tile) {
+      this.showTileInfo(tile);
+    }
+  }
+
+  private hideTileViewInfo(view: TileView): void {
+    const tile = view.key ? this.state.field[view.key] : undefined;
+    if (tile) {
+      this.hideTileInfo(tile);
+    }
+  }
+
+  private layoutTiles(): void {
+    const bounds = this.cachedFieldBounds;
+    if (this.fieldTileCount === 0 || !bounds) {
       return;
     }
 
@@ -2327,26 +2635,59 @@ export class GameScene extends Phaser.Scene {
     const scaledStep = (TILE_SIZE + TILE_GAP) * this.boardScale;
     const startX = centerX - this.boardScaledWidth / 2 + (TILE_SIZE * this.boardScale) / 2;
     const startY = centerY - this.boardScaledHeight / 2 + (TILE_SIZE * this.boardScale) / 2;
+    const visibleKeys = new Set<TileKey>();
+    let visibleTiles = 0;
+    const radius = (TILE_SIZE * this.boardScale) / 2 + TILE_CULL_MARGIN_PX;
+    const minVisibleX = Phaser.Math.Clamp(Math.floor((0 - radius - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
+    const maxVisibleX = Phaser.Math.Clamp(Math.ceil((this.scale.width + radius - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
+    const minVisibleY = Phaser.Math.Clamp(Math.floor((0 - radius - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
+    const maxVisibleY = Phaser.Math.Clamp(Math.ceil((this.scale.height + radius - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
+    this.layoutBoardLayers();
 
-    for (const tile of tiles) {
-      const view = this.tileViews.get(tileKey(tile.x, tile.y));
-      if (!view) {
-        continue;
+    for (let gridY = minVisibleY; gridY <= maxVisibleY; gridY += 1) {
+      for (let gridX = minVisibleX; gridX <= maxVisibleX; gridX += 1) {
+        const key = tileKey(gridX, gridY);
+        const tile = this.state.field[key];
+        if (!tile) {
+          continue;
+        }
+
+        let view = this.tileViews.get(key);
+        const x = startX + (tile.x - bounds.minX) * scaledStep;
+        const y = startY + (tile.y - bounds.minY) * scaledStep;
+
+        visibleTiles += 1;
+        if (!this.needsTileView(tile, key)) {
+          this.drawCommonTile(tile, x, y);
+          if (view) {
+            this.destroyTileView(key, view);
+          }
+          continue;
+        }
+
+        visibleKeys.add(key);
+        if (!view) {
+          this.createTileView(tile);
+          view = this.tileViews.get(key);
+          if (!view) {
+            continue;
+          }
+        }
+
+        this.positionTileView(tile, view, x, y);
+        const showLabel =
+          this.boardScale >= TILE_LABEL_MIN_SCALE || tile.tier !== "normal" || tileKey(tile.x, tile.y) === this.hoveredTileKey;
+        view.label.setVisible(showLabel);
       }
-
-      const x = startX + (tile.x - bounds.minX) * scaledStep;
-      const y = startY + (tile.y - bounds.minY) * scaledStep;
-      view.base.setPosition(x, y);
-      view.outline.setPosition(x, y);
-      view.grass.setPosition(x, y);
-      view.glint.setPosition(x + 19 * this.boardScale, y - 20 * this.boardScale);
-      view.label.setPosition(x, y);
-      view.base.setScale(this.boardScale);
-      view.outline.setScale(this.boardScale);
-      view.grass.setScale(this.boardScale * this.getGrassScale(tile));
-      view.glint.setScale(this.boardScale);
-      view.label.setScale(this.boardScale);
     }
+
+    for (const [key, view] of this.tileViews) {
+      if (!visibleKeys.has(key)) {
+        this.destroyTileView(key, view);
+      }
+    }
+
+    this.lastStressStats = { visibleTiles, totalTiles: this.fieldTileCount };
 
     this.layoutWorldObjects();
 
@@ -2356,6 +2697,86 @@ export class GameScene extends Phaser.Scene {
         this.positionTileInfo(hoveredTile);
       }
     }
+  }
+
+  private layoutBoardLayers(): void {
+    if (this.commonTileLayer) {
+      this.commonTileLayer.setPosition(0, 0);
+      this.commonTileLayer.resize(this.scale.width, this.scale.height);
+      this.commonTileLayer.clear();
+    }
+
+    if (this.boardHitZone) {
+      this.boardHitZone.setPosition(0, 0);
+      this.boardHitZone.setSize(this.scale.width, this.scale.height);
+      if (this.boardHitZone.input) {
+        this.boardHitZone.input.hitArea = new Phaser.Geom.Rectangle(0, 0, this.scale.width, this.scale.height);
+        this.boardHitZone.input.hitAreaCallback = Phaser.Geom.Rectangle.Contains;
+      }
+    }
+  }
+
+  private needsTileView(tile: FieldTile, key: TileKey): boolean {
+    return (
+      key === this.hoveredTileKey ||
+      this.recentlyRegrownAt.has(key) ||
+      this.perfectTouchCues.has(key) ||
+      (this.boardScale >= TILE_LABEL_MIN_SCALE && tile.grassState === "grown" && (tile.tier !== "normal" || tile.trait === "lush"))
+    );
+  }
+
+  private drawCommonTile(tile: FieldTile, x: number, y: number): void {
+    if (!this.commonTileLayer) {
+      return;
+    }
+
+    const baseTexture = tile.grassState === "grown" ? "tile-dirt" : "tile-stubble";
+    const stampConfig = { scale: this.boardScale, originX: 0.5, originY: 0.5 };
+    this.commonTileLayer.stamp(baseTexture, undefined, x, y, stampConfig);
+
+    if (tile.grassState === "grown") {
+      this.commonTileLayer.stamp(this.getGrassTextureKey(tile), undefined, x, y, {
+        scale: this.boardScale * this.getGrassScale(tile),
+        originX: 0.5,
+        originY: 0.5,
+      });
+    }
+  }
+
+  private positionTileView(tile: FieldTile, view: TileView, x?: number, y?: number): void {
+    const position = x === undefined || y === undefined ? this.getTileScreenPosition(tile) : { x, y };
+    if (!position) {
+      return;
+    }
+
+    view.base.setPosition(position.x, position.y);
+    view.outline.setPosition(position.x, position.y);
+    view.grass.setPosition(position.x, position.y);
+    view.glint.setPosition(position.x + 19 * this.boardScale, position.y - 20 * this.boardScale);
+    view.label.setPosition(position.x, position.y);
+    view.base.setScale(this.boardScale);
+    view.outline.setScale(this.boardScale);
+    view.grass.setScale(this.boardScale * this.getGrassScale(tile));
+    view.glint.setScale(this.boardScale);
+    view.label.setScale(this.boardScale);
+  }
+
+  private getTileScreenPosition(tile: FieldTile): { x: number; y: number } | undefined {
+    const bounds = this.cachedFieldBounds;
+    if (!bounds || this.boardScale <= 0) {
+      return undefined;
+    }
+
+    const centerX = this.boardBaseCenterX + this.boardPanX;
+    const centerY = this.boardBaseCenterY + this.boardPanY;
+    const scaledStep = (TILE_SIZE + TILE_GAP) * this.boardScale;
+    const startX = centerX - this.boardScaledWidth / 2 + (TILE_SIZE * this.boardScale) / 2;
+    const startY = centerY - this.boardScaledHeight / 2 + (TILE_SIZE * this.boardScale) / 2;
+
+    return {
+      x: startX + (tile.x - bounds.minX) * scaledStep,
+      y: startY + (tile.y - bounds.minY) * scaledStep,
+    };
   }
 
   private syncWorldObjects(): void {
@@ -2722,6 +3143,62 @@ export class GameScene extends Phaser.Scene {
     this.boardPanY = Phaser.Math.Clamp(this.boardPanY, headerSafety - maxPanY, maxPanY);
   }
 
+  private handleBoardHover(pointer: Phaser.Input.Pointer): void {
+    if (this.hasTouchScreen() || this.hasBlockingOverlayOpen() || this.isPanningBoard) {
+      return;
+    }
+
+    const key = this.getBoardTileKeyAtPointer(pointer);
+    if (!key) {
+      if (this.hoveredTileKey && !this.tileViews.has(this.hoveredTileKey)) {
+        this.clearTileInfo();
+      }
+      return;
+    }
+
+    if (key === this.hoveredTileKey) {
+      return;
+    }
+
+    const tile = this.state.field[key];
+    if (!tile) {
+      return;
+    }
+
+    this.showTileInfo(tile);
+    this.layoutTiles();
+    this.positionTileInfo(tile);
+  }
+
+  private getBoardTileKeyAtPointer(pointer: Phaser.Input.Pointer): TileKey | undefined {
+    const bounds = this.cachedFieldBounds;
+    if (!bounds || this.boardScale <= 0) {
+      return undefined;
+    }
+
+    const centerX = this.boardBaseCenterX + this.boardPanX;
+    const centerY = this.boardBaseCenterY + this.boardPanY;
+    const scaledStep = (TILE_SIZE + TILE_GAP) * this.boardScale;
+    const startX = centerX - this.boardScaledWidth / 2 + (TILE_SIZE * this.boardScale) / 2;
+    const startY = centerY - this.boardScaledHeight / 2 + (TILE_SIZE * this.boardScale) / 2;
+    const gridX = Math.round((pointer.x - startX) / scaledStep + bounds.minX);
+    const gridY = Math.round((pointer.y - startY) / scaledStep + bounds.minY);
+
+    if (gridX < bounds.minX || gridX > bounds.maxX || gridY < bounds.minY || gridY > bounds.maxY) {
+      return undefined;
+    }
+
+    const tileCenterX = startX + (gridX - bounds.minX) * scaledStep;
+    const tileCenterY = startY + (gridY - bounds.minY) * scaledStep;
+    const halfStep = scaledStep / 2;
+    if (Math.abs(pointer.x - tileCenterX) > halfStep || Math.abs(pointer.y - tileCenterY) > halfStep) {
+      return undefined;
+    }
+
+    const key = tileKey(gridX, gridY);
+    return this.state.field[key] ? key : undefined;
+  }
+
   private showTileInfo(tile: FieldTile): void {
     if (this.hasTouchScreen()) {
       this.clearTileInfo();
@@ -2814,14 +3291,15 @@ export class GameScene extends Phaser.Scene {
 
   private positionTileInfo(tile: FieldTile): void {
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
-    if (!view) {
+    const position = view ? { x: view.base.x, y: view.base.y } : this.getTileScreenPosition(tile);
+    if (!position) {
       return;
     }
 
     const panelWidth = 260;
     const panelHeight = 128;
-    const x = Phaser.Math.Clamp(view.base.x + 28 * this.boardScale, 12, this.scale.width - panelWidth - 12);
-    const y = Phaser.Math.Clamp(view.base.y - panelHeight - 20 * this.boardScale, 12, this.scale.height - panelHeight - 12);
+    const x = Phaser.Math.Clamp(position.x + 28 * this.boardScale, 12, this.scale.width - panelWidth - 12);
+    const y = Phaser.Math.Clamp(position.y - panelHeight - 20 * this.boardScale, 12, this.scale.height - panelHeight - 12);
 
     this.tileInfoPanel.setPosition(x, y);
   }
@@ -2844,6 +3322,8 @@ export class GameScene extends Phaser.Scene {
     if (this.hasBlockingOverlayOpen()) {
       return;
     }
+
+    this.createTileView(tile);
 
     if (this.hasTouchScreen()) {
       this.clearTileInfo();
@@ -2899,6 +3379,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.playComboFeedback(tile, combo);
+    this.playClassTouchFeedback(tile, touch, combo);
     if (touch.instantRegrown) {
       this.popAtTile(tile, "instant regrow", "#dfffc8");
     }
@@ -2908,7 +3389,7 @@ export class GameScene extends Phaser.Scene {
     this.shakeForGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, combo.count);
     this.tryComboAoeTouch(tile, stats, combo.count, now);
-    saveGame(this.state);
+    this.saveState();
   }
 
   private applyGrassTierIdentityBonus(originTile: FieldTile, tier: GrassTierId, touch: TouchResult, stats: ReturnType<typeof getRuntimeStats>, now: number): void {
@@ -3225,22 +3706,24 @@ export class GameScene extends Phaser.Scene {
 
   private emitSeedBurst(tile: FieldTile): void {
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
-    if (!view) {
+    const position = view ? { x: view.base.x, y: view.base.y } : this.getTileScreenPosition(tile);
+    if (!position) {
       return;
     }
 
-    this.emitBurst("seed-fleck", view.base.x, view.base.y - 8, 18, 0.82, 0.32);
-    this.spawnRewardArc("effect-seed-kernel", view.base.x, view.base.y - 8, "seed");
+    this.emitBurst("seed-fleck", position.x, position.y - 8, 18, 0.82, 0.32);
+    this.spawnRewardArc("effect-seed-kernel", position.x, position.y - 8, "seed");
   }
 
   private emitGoldBurst(tile: FieldTile, amount = 1): void {
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
-    if (!view) {
+    const position = view ? { x: view.base.x, y: view.base.y } : this.getTileScreenPosition(tile);
+    if (!position) {
       return;
     }
 
-    this.emitBurst("gold-fleck", view.base.x, view.base.y - 10, 14, 0.7, 0.24);
-    this.spawnRewardArc("effect-gold-coin", view.base.x, view.base.y - 10, "gold", amount);
+    this.emitBurst("gold-fleck", position.x, position.y - 10, 14, 0.7, 0.24);
+    this.spawnRewardArc("effect-gold-coin", position.x, position.y - 10, "gold", amount);
   }
 
   private updateSprinkler(delta: number, stats: ReturnType<typeof getRuntimeStats>): void {
@@ -3261,7 +3744,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     if (changed) {
-      saveGame(this.state);
+      this.saveState();
     }
   }
 
@@ -3281,7 +3764,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     if (changed) {
-      saveGame(this.state);
+      this.saveState();
     }
   }
 
@@ -3358,6 +3841,33 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private playClassTouchFeedback(tile: FieldTile, touch: TouchResult, combo: ComboResult): void {
+    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    if (!view) {
+      return;
+    }
+
+    const x = view.label.x;
+    const y = view.label.y;
+
+    if (this.state.characterClassId === "femboy_slim" && (touch.isCrit || touch.doubled)) {
+      this.emitBurst("class-slash-fleck", x, y - 12, touch.isCrit ? 22 : 12, touch.isCrit ? 1.2 : 0.9, 0.08);
+      this.addClassSlashMark(x, y);
+      if (touch.isCrit && touch.doubled) {
+        this.popAtTile(tile, "slay!", "#ffef78");
+      }
+      return;
+    }
+
+    if (this.state.characterClassId === "bard_de_wever" && combo.thresholdReached) {
+      this.emitBurst("class-music-note", x, y - 18, 12 + Math.min(18, combo.thresholdReached), 0.82, 0.02);
+      this.floatMusicNote(x, y);
+      if (combo.thresholdReached >= 10) {
+        this.popAtTile(tile, "encore!", "#ffef78");
+      }
+    }
+  }
+
   private bumpComboBadge(): void {
     if (!this.comboBadge.visible) {
       return;
@@ -3396,7 +3906,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.refreshWeatherVisuals();
-    saveGame(this.state);
+    this.saveState();
   }
 
   private refreshWeatherVisuals(): void {
@@ -3656,6 +4166,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playTouchFeedback(tile: FieldTile, touchedTrait = tile.trait, isCrit = false): void {
+    this.createTileView(tile);
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (!view) {
       return;
@@ -3705,6 +4216,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playPerfectTouchFeedback(tile: FieldTile, bonusTouches: number): void {
+    this.createTileView(tile);
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (!view) {
       return;
@@ -3736,6 +4248,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playRegrowFeedback(tile: FieldTile): void {
+    this.createTileView(tile);
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (!view) {
       return;
@@ -3770,6 +4283,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playSprinklerBurst(tile: FieldTile): void {
+    this.createTileView(tile);
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (!view) {
       return;
@@ -3813,6 +4327,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze" | "burrow"): void {
+    this.createTileView(tile);
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (!view) {
       return;
@@ -3895,6 +4410,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playBlockedTileFeedback(tile: FieldTile): void {
+    this.createTileView(tile);
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (!view) {
       return;
@@ -3924,40 +4440,60 @@ export class GameScene extends Phaser.Scene {
   }
 
   private emitBurst(texture: string, x: number, y: number, quantity: number, speedScale: number, gravityScale: number): void {
-    const particles = this.add.particles(x, y, texture, {
-      lifespan: { min: 420, max: 760 },
-      speed: { min: 38 * speedScale, max: 112 * speedScale },
-      angle: { min: 205, max: 335 },
-      gravityY: 240 * gravityScale,
-      rotate: { min: -120, max: 120 },
-      scale: { start: 1.55, end: 0 },
-      alpha: { start: 1, end: 0 },
-      quantity,
-      emitting: false,
-    });
-
-    particles.setDepth(35);
+    const particles = this.getBurstEmitter(texture, speedScale, gravityScale);
     particles.explode(quantity, x, y);
-    this.time.delayedCall(850, () => particles.destroy());
   }
 
   private emitUiBurst(texture: string, x: number, y: number, quantity: number, color = 0xffef78): void {
-    const particles = this.add.particles(x, y, texture, {
-      lifespan: { min: 520, max: 880 },
-      speed: { min: 34, max: 120 },
-      angle: { min: 190, max: 350 },
-      gravityY: 40,
-      rotate: { min: -160, max: 160 },
-      scale: { start: 1.35, end: 0 },
-      alpha: { start: 0.95, end: 0 },
-      tint: [color, 0xffffff],
-      quantity,
-      emitting: false,
-    });
-
-    particles.setDepth(125);
+    const particles = this.getUiBurstEmitter(texture, color);
     particles.explode(quantity, x, y);
-    this.time.delayedCall(960, () => particles.destroy());
+  }
+
+  private getBurstEmitter(texture: string, speedScale: number, gravityScale: number): Phaser.GameObjects.Particles.ParticleEmitter {
+    const key = `${texture}:${speedScale.toFixed(2)}:${gravityScale.toFixed(2)}`;
+    const existing = this.burstEmitters.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    const emitter = this.add
+      .particles(0, 0, texture, {
+        lifespan: { min: 420, max: 760 },
+        speed: { min: 38 * speedScale, max: 112 * speedScale },
+        angle: { min: 205, max: 335 },
+        gravityY: 240 * gravityScale,
+        rotate: { min: -120, max: 120 },
+        scale: { start: 1.55, end: 0 },
+        alpha: { start: 1, end: 0 },
+        emitting: false,
+      })
+      .setDepth(35);
+    this.burstEmitters.set(key, emitter);
+    return emitter;
+  }
+
+  private getUiBurstEmitter(texture: string, color: number): Phaser.GameObjects.Particles.ParticleEmitter {
+    const key = `${texture}:${color.toString(16)}`;
+    const existing = this.uiBurstEmitters.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    const emitter = this.add
+      .particles(0, 0, texture, {
+        lifespan: { min: 520, max: 880 },
+        speed: { min: 34, max: 120 },
+        angle: { min: 190, max: 350 },
+        gravityY: 40,
+        rotate: { min: -160, max: 160 },
+        scale: { start: 1.35, end: 0 },
+        alpha: { start: 0.95, end: 0 },
+        tint: [color, 0xffffff],
+        emitting: false,
+      })
+      .setDepth(125);
+    this.uiBurstEmitters.set(key, emitter);
+    return emitter;
   }
 
   private playMilestoneCelebration(): void {
@@ -4076,6 +4612,47 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private addClassSlashMark(x: number, y: number): void {
+    const slash = this.add.graphics().setDepth(39);
+    const size = TILE_SIZE * this.boardScale;
+
+    slash.lineStyle(Math.max(2, 5 * this.boardScale), 0xffffff, 0.9);
+    slash.lineBetween(x - size * 0.42, y + size * 0.14, x + size * 0.42, y - size * 0.22);
+    slash.lineStyle(Math.max(1, 2 * this.boardScale), 0xffef78, 0.95);
+    slash.lineBetween(x - size * 0.34, y + size * 0.1, x + size * 0.34, y - size * 0.18);
+
+    this.tweens.add({
+      targets: slash,
+      alpha: 0,
+      x: slash.x + 5 * this.boardScale,
+      y: slash.y - 4 * this.boardScale,
+      duration: 260,
+      ease: "Sine.easeOut",
+      onComplete: () => slash.destroy(),
+    });
+  }
+
+  private floatMusicNote(x: number, y: number): void {
+    const note = this.add
+      .image(x + 16 * this.boardScale, y - 30 * this.boardScale, "class-music-note")
+      .setScale(2.2 * this.boardScale)
+      .setTint(0xffef78)
+      .setDepth(40);
+
+    this.tweens.add({
+      targets: note,
+      x: note.x + 12 * this.boardScale,
+      y: note.y - 30 * this.boardScale,
+      angle: 16,
+      alpha: 0,
+      scaleX: note.scaleX * 1.24,
+      scaleY: note.scaleY * 1.24,
+      duration: 620,
+      ease: "Sine.easeOut",
+      onComplete: () => note.destroy(),
+    });
+  }
+
   private createTileTextures(): void {
     this.createDirtTexture("tile-dirt", 0x8a6139, 0x6b4529);
     this.createDirtTexture("tile-stubble", 0x6f4c2f, 0x4c301f, true);
@@ -4092,6 +4669,8 @@ export class GameScene extends Phaser.Scene {
     this.createParticleTexture("crit-fleck", [0xffffff, 0xffef78, 0xff9f43]);
     this.createParticleTexture("sun-fleck", [0xffffff, 0xffef78, 0xffb347]);
     this.createParticleTexture("breeze-fleck", [0xf7ffe8, 0xb7eba5, 0x5cae62]);
+    this.createSlashFleckTexture();
+    this.createMusicNoteTexture();
     this.createWeatherTextures();
   }
 
@@ -4209,6 +4788,40 @@ export class GameScene extends Phaser.Scene {
     graphics.destroy();
   }
 
+  private createSlashFleckTexture(): void {
+    const key = "class-slash-fleck";
+    if (this.textures.exists(key)) {
+      return;
+    }
+
+    const graphics = this.add.graphics();
+    graphics.lineStyle(2, 0xffffff, 1);
+    graphics.lineBetween(0, 5, 10, 1);
+    graphics.lineStyle(1, 0xffef78, 0.92);
+    graphics.lineBetween(1, 4, 9, 1);
+    graphics.generateTexture(key, 11, 7);
+    graphics.destroy();
+  }
+
+  private createMusicNoteTexture(): void {
+    const key = "class-music-note";
+    if (this.textures.exists(key)) {
+      return;
+    }
+
+    const graphics = this.add.graphics();
+    graphics.fillStyle(0xffef78, 1);
+    graphics.fillRect(5, 1, 2, 8);
+    graphics.fillRect(7, 1, 5, 2);
+    graphics.fillRect(10, 3, 2, 5);
+    graphics.fillCircle(4, 9, 3);
+    graphics.fillCircle(9, 11, 3);
+    graphics.fillStyle(0xffffff, 0.88);
+    graphics.fillRect(6, 1, 1, 6);
+    graphics.generateTexture(key, 14, 14);
+    graphics.destroy();
+  }
+
   private createWeatherTextures(): void {
     this.createRainStreakTexture();
     this.createWeatherMoteTexture("weather-sun-mote", [0xffffff, 0xffef78, 0xffb347]);
@@ -4287,15 +4900,27 @@ export class GameScene extends Phaser.Scene {
         `Seeds: ${Math.floor(this.state.seeds)}`,
         `Gold: ${Math.floor(this.state.gold)}`,
         `Lifetime: ${Math.floor(this.state.lifetimeGrassTouches)}`,
-        `Patches: ${Object.keys(this.state.field).length}`,
+        `Patches: ${this.fieldTileCount}`,
       ].join(resourceSeparator),
     );
     this.refreshComboBadge();
-    this.skillResourceText.setText(`Available Grass Touches: ${Math.floor(this.state.grassTouches)}`);
-    this.refreshQuestLog();
-    this.refreshJournal();
-    this.refreshSeedShop();
-    this.refreshGoldStore();
+    setTextButtonText(this.questButton, readyQuestCount > 0 ? `Quests (${readyQuestCount})` : "Quests");
+    this.refreshJournalAccess();
+    if (this.skillTreeOpen) {
+      this.skillResourceText.setText(`Available Grass Touches: ${Math.floor(this.state.grassTouches)}`);
+    }
+    if (this.questLogOpen) {
+      this.refreshQuestLog();
+    }
+    if (this.journalOpen) {
+      this.refreshJournal();
+    }
+    if (this.seedShopOpen) {
+      this.refreshSeedShop();
+    }
+    if (this.storeOpen) {
+      this.refreshGoldStore();
+    }
     this.syncWorldObjects();
     this.layoutWorldObjects();
     this.milestoneText.setText(
@@ -4318,52 +4943,54 @@ export class GameScene extends Phaser.Scene {
     );
     this.milestoneText.setPosition(26, this.layoutComboBadge());
 
-    for (const upgrade of UPGRADES) {
-      const view = this.skillNodeViews.get(upgrade.id);
-      const level = this.state.upgrades[upgrade.id]?.level ?? 0;
-      const unlocked = canUnlockUpgrade(this.state, upgrade);
-      const maxed = level >= upgrade.maxLevel;
-      const cost = getUpgradeCost(upgrade, level);
-      const available = unlocked && !maxed && this.state.grassTouches >= cost;
+    if (this.skillTreeOpen) {
+      for (const upgrade of UPGRADES) {
+        const view = this.skillNodeViews.get(upgrade.id);
+        const level = this.state.upgrades[upgrade.id]?.level ?? 0;
+        const unlocked = canUnlockUpgrade(this.state, upgrade);
+        const maxed = level >= upgrade.maxLevel;
+        const cost = getUpgradeCost(upgrade, level);
+        const available = unlocked && !maxed && this.state.grassTouches >= cost;
 
-      if (!view) {
-        continue;
+        if (!view) {
+          continue;
+        }
+
+        const selected = upgrade.id === this.selectedSkillId;
+        const stroke = selected ? 0xfff08a : available ? 0xf4df6a : level > 0 ? upgrade.tree.color : 0x506056;
+        const nodeAlpha = unlocked || level > 0 ? 1 : 0.48;
+        const frameKey = selected
+          ? SKILL_NODE_FRAME_KEYS.selected
+          : level > 0
+            ? SKILL_NODE_FRAME_KEYS.owned
+            : unlocked
+              ? SKILL_NODE_FRAME_KEYS.available
+              : SKILL_NODE_FRAME_KEYS.locked;
+        const frameSize = selected ? 74 : available ? 68 : level > 0 ? 66 : SKILL_NODE_VISUAL_SIZE;
+
+        view.container.setAlpha(nodeAlpha);
+        view.bg.setFillStyle(0xffffff, 0.001);
+        view.bg.setStrokeStyle(1, stroke, 0);
+        view.glow.setFillStyle(stroke, selected ? 0.28 : available ? 0.22 : level > 0 ? 0.14 : 0.05);
+        view.glow.setStrokeStyle(selected ? 3 : 2, stroke, selected ? 0.72 : available ? 0.48 : level > 0 ? 0.32 : 0.12);
+        view.plate.setFillStyle(level > 0 ? 0x102f1a : unlocked ? 0x0d2617 : 0x07150e, unlocked || level > 0 ? 0.9 : 0.76);
+        view.plate.setStrokeStyle(selected ? 4 : available ? 3 : 2, stroke, selected ? 0.95 : available ? 0.82 : level > 0 ? 0.58 : 0.28);
+        view.frame.setTexture(frameKey);
+        view.frame.clearTint();
+        view.frame.setAlpha(selected ? 1 : available ? 1 : level > 0 ? 0.94 : 0.72);
+        view.frame.setDisplaySize(frameSize, frameSize);
+        view.icon.setTexture(getSkillIconKey(upgrade.id));
+        view.icon.setVisible(unlocked || level > 0);
+        view.icon.setAlpha(available || selected ? 1 : level > 0 ? 0.95 : 0.72);
+        view.icon.setTint(level > 0 || unlocked ? 0xffffff : 0x8fa08f);
+        view.lockedIcon.setVisible(!unlocked && level === 0);
+        view.lockedIcon.setColor(selected ? "#fff08a" : "#dfffc8");
+        view.level.setText(`Lv ${level}/${upgrade.maxLevel}`);
+        view.level.setColor(available || selected ? "#f4df6a" : level > 0 ? "#dfffc8" : "#7c8b82");
       }
 
-      const selected = upgrade.id === this.selectedSkillId;
-      const stroke = selected ? 0xfff08a : available ? 0xf4df6a : level > 0 ? upgrade.tree.color : 0x506056;
-      const nodeAlpha = unlocked || level > 0 ? 1 : 0.48;
-      const frameKey = selected
-        ? SKILL_NODE_FRAME_KEYS.selected
-        : level > 0
-          ? SKILL_NODE_FRAME_KEYS.owned
-          : unlocked
-            ? SKILL_NODE_FRAME_KEYS.available
-            : SKILL_NODE_FRAME_KEYS.locked;
-      const frameSize = selected ? 74 : available ? 68 : level > 0 ? 66 : SKILL_NODE_VISUAL_SIZE;
-
-      view.container.setAlpha(nodeAlpha);
-      view.bg.setFillStyle(0xffffff, 0.001);
-      view.bg.setStrokeStyle(1, stroke, 0);
-      view.glow.setFillStyle(stroke, selected ? 0.28 : available ? 0.22 : level > 0 ? 0.14 : 0.05);
-      view.glow.setStrokeStyle(selected ? 3 : 2, stroke, selected ? 0.72 : available ? 0.48 : level > 0 ? 0.32 : 0.12);
-      view.plate.setFillStyle(level > 0 ? 0x102f1a : unlocked ? 0x0d2617 : 0x07150e, unlocked || level > 0 ? 0.9 : 0.76);
-      view.plate.setStrokeStyle(selected ? 4 : available ? 3 : 2, stroke, selected ? 0.95 : available ? 0.82 : level > 0 ? 0.58 : 0.28);
-      view.frame.setTexture(frameKey);
-      view.frame.clearTint();
-      view.frame.setAlpha(selected ? 1 : available ? 1 : level > 0 ? 0.94 : 0.72);
-      view.frame.setDisplaySize(frameSize, frameSize);
-      view.icon.setTexture(getSkillIconKey(upgrade.id));
-      view.icon.setVisible(unlocked || level > 0);
-      view.icon.setAlpha(available || selected ? 1 : level > 0 ? 0.95 : 0.72);
-      view.icon.setTint(level > 0 || unlocked ? 0xffffff : 0x8fa08f);
-      view.lockedIcon.setVisible(!unlocked && level === 0);
-      view.lockedIcon.setColor(selected ? "#fff08a" : "#dfffc8");
-      view.level.setText(`Lv ${level}/${upgrade.maxLevel}`);
-      view.level.setColor(available || selected ? "#f4df6a" : level > 0 ? "#dfffc8" : "#7c8b82");
+      this.refreshSkillDetail();
     }
-
-    this.refreshSkillDetail();
   }
 
   private refreshComboBadge(): void {
@@ -4430,7 +5057,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private refreshJournal(): void {
+  private refreshJournalAccess(): void {
     if (!this.journalRoot) {
       return;
     }
@@ -4439,6 +5066,14 @@ export class GameScene extends Phaser.Scene {
     this.journalButton.setVisible(journalUnlocked);
     this.journalButton.setPosition(this.scale.width - 142, 232);
     this.optionsButton.setPosition(this.scale.width - 142, journalUnlocked ? 284 : 232);
+  }
+
+  private refreshJournal(): void {
+    if (!this.journalRoot) {
+      return;
+    }
+
+    this.refreshJournalAccess();
 
     const ownedCompanions = GOLD_STORE_ITEMS.filter((item) => item.kind === "animal" && getInventoryQuantity(this.state, item.id) > 0);
     this.journalResourceText.setText(
@@ -4609,7 +5244,7 @@ export class GameScene extends Phaser.Scene {
     this.state.lifetimeGold += quest.reward.gold ?? 0;
     const claimMessage = `${quest.name} claimed: ${formatQuestReward(quest.reward)}.`;
     this.audio.play("milestone");
-    saveGame(this.state);
+    this.saveState();
     this.readyQuestKeys = this.getReadyQuestKeys();
     this.playQuestClaimFeedback(questId);
     this.refreshUi();
@@ -5064,7 +5699,7 @@ export class GameScene extends Phaser.Scene {
     this.state.upgrades[upgrade.id] = { level: level + 1 };
     this.setSkillStatus(`${upgrade.name} upgraded to ${level + 1}/${upgrade.maxLevel}.`);
     this.audio.play("upgrade");
-    saveGame(this.state);
+    this.saveState();
     this.layoutSkillTree();
     this.refreshUi();
     return true;
@@ -5088,19 +5723,20 @@ export class GameScene extends Phaser.Scene {
         this.showMessage(milestone.message, 3200);
         this.playMilestoneCelebration();
         this.audio.play("milestone");
-        saveGame(this.state);
+        this.saveState();
       }
     }
   }
 
   private popAtTile(tile: FieldTile, text: string, color: string): void {
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
-    if (!view) {
+    const position = view ? { x: view.base.x, y: view.base.y } : this.getTileScreenPosition(tile);
+    if (!position) {
       return;
     }
 
     const pop = this.add
-      .text(view.base.x, view.base.y - 18, text, {
+      .text(position.x, position.y - 18, text, {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "20px",
         color,
@@ -5285,3 +5921,4 @@ function blendColor(color: number, tint: number, amount: number): number {
 
   return (red << 16) + (green << 8) + blue;
 }
+

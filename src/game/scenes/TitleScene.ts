@@ -116,6 +116,11 @@ export class TitleScene extends Phaser.Scene {
 
   create(): void {
     this.titleReady = true;
+    if (this.isStressModeRequested()) {
+      this.scene.start("GameScene", { stressMode: true });
+      return;
+    }
+
     this.menuThemeVolume = readStoredMusicVolume();
     this.background = this.add.image(0, 0, "title-screen").setOrigin(0.5);
     this.createMenuButton("start", 683, 469, 390, 56, 220);
@@ -198,6 +203,10 @@ export class TitleScene extends Phaser.Scene {
     document.body.appendChild(this.menuTheme);
 
     this.playMenuTheme();
+  }
+
+  private isStressModeRequested(): boolean {
+    return new URLSearchParams(window.location.search).has("stress");
   }
 
   private playMenuTheme(): void {
