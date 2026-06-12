@@ -1,6 +1,7 @@
 {
   "handoffVersion": 1,
   "createdAt": "2026-06-12T20:46:14.2785385+02:00",
+  "updatedAt": "2026-06-12T20:52:00+02:00",
   "project": {
     "name": "Grass Touching Simulator",
     "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
@@ -9,28 +10,30 @@
   },
   "checkpoint": {
     "name": "Alpha 2.0 - Grass Toucher baseline",
-    "summary": "Added Grass Toucher as the default baseline class, verified locally, deployed production to Vercel, and kept the handoff as a separate docs-only commit.",
+    "summary": "Added Grass Toucher as the default baseline class, verified locally, deployed production to Vercel, kept the handoff as a separate docs-only commit, then performed a final production redeploy from that checkpoint.",
     "gameCommit": {
       "hash": "ad4628861042226c437a7d230f978aa56f4c4a6c",
       "shortHash": "ad46288",
       "message": "Add Grass Toucher baseline class"
     },
     "handoffCommit": {
+      "hash": "81a51e0863d9682722cb56b00e154bc29f55cef0",
+      "shortHash": "81a51e0",
       "message": "Add Grass Toucher handoff",
-      "note": "Committed after this file was written. See git log for the exact commit hash."
+      "note": "This metadata file was later updated to record the final manual Vercel deploy."
     }
   },
   "deployment": {
     "provider": "Vercel",
     "target": "production",
-    "deploymentId": "dpl_LHuGBnAMdxmaMbCGb9D92VHTziup",
-    "deploymentUrl": "https://grass-touching-simulator-1nwxyup38-sensitech.vercel.app",
-    "inspectorUrl": "https://vercel.com/sensitech/grass-touching-simulator/LHuGBnAMdxmaMbCGb9D92VHTziup",
+    "deploymentId": "dpl_AzgtDbEziEG6WFn8HGTwDZbJrT4B",
+    "deploymentUrl": "https://grass-touching-simulator-lakxkglz7-sensitech.vercel.app",
+    "inspectorUrl": "https://vercel.com/sensitech/grass-touching-simulator/AzgtDbEziEG6WFn8HGTwDZbJrT4B",
     "liveDomain": "https://grasstouchingsimulator.com",
     "readyState": "READY",
     "aliased": true,
-    "deployedFromCommit": "ad4628861042226c437a7d230f978aa56f4c4a6c",
-    "docsOnlyCommitPolicy": "Do not manually redeploy only for this handoff file. A GitHub/Vercel integration may auto-deploy the docs-only push."
+    "deployedFromCommit": "81a51e0863d9682722cb56b00e154bc29f55cef0",
+    "docsOnlyCommitPolicy": "The deployment above is the final manual production deploy from the checkpoint commit. Later docs-only metadata commits do not need manual redeploys unless explicitly desired."
   },
   "filesChanged": [
     {
@@ -101,8 +104,9 @@
     "deployment": {
       "command": "npx vercel --prod --yes",
       "result": "passed",
-      "deploymentId": "dpl_LHuGBnAMdxmaMbCGb9D92VHTziup",
-      "deploymentUrl": "https://grass-touching-simulator-1nwxyup38-sensitech.vercel.app"
+      "deploymentId": "dpl_AzgtDbEziEG6WFn8HGTwDZbJrT4B",
+      "deploymentUrl": "https://grass-touching-simulator-lakxkglz7-sensitech.vercel.app",
+      "notes": "A second production deploy was run after the first handoff commit so the custom domain pointed at commit 81a51e0."
     },
     "liveDomain": {
       "command": "Invoke-WebRequest -Uri https://grasstouchingsimulator.com -UseBasicParsing -TimeoutSec 20",
@@ -111,7 +115,7 @@
     }
   },
   "knownCaveats": [
-    "The handoff file cannot contain its own final git hash without changing that hash again; the final response for this work records the handoff commit hash.",
+    "The handoff file records the final manual production deploy. Any later docs-only metadata commit may have a newer git hash than the deployment commit.",
     "Browser smoke was desktop-focused at 1280x720. Mobile class-picker spacing should be spot-checked before a broader public test.",
     "Grass Toucher currently reuses the existing title selector leaf icon rather than custom class art.",
     "Grass Toucher is deliberately simple right now; class-specific quests, skill hooks, or upgraded flavor can come later.",
