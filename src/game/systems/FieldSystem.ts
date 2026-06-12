@@ -104,6 +104,7 @@ export function createInitialState(characterClassId: CharacterClassId = DEFAULT_
     upgrades: {},
     seedShopPurchases: {},
     inventory: {},
+    placedWorldObjects: {},
     reachedMilestones: [],
     claimedQuestIds: [],
     journal: {

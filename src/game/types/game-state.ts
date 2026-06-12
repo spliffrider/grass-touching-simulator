@@ -21,7 +21,7 @@ export type WeatherId =
 
 export type CharacterClassId = "femboy_slim" | "bard_de_wever";
 
-export const CURRENT_SAVE_VERSION = 4;
+export const CURRENT_SAVE_VERSION = 5;
 
 export interface FieldTile {
   x: number;
@@ -47,6 +47,10 @@ export interface InventoryEntry {
   kind: InventoryItemKind;
 }
 
+export interface PlacedWorldObject {
+  tileKey: TileKey;
+}
+
 export interface JournalState {
   discoveredGrassTiers: GrassTierId[];
   discoveredTileTraits: TileTrait[];
@@ -68,6 +72,7 @@ export interface GameState {
   upgrades: Record<string, UpgradeState>;
   seedShopPurchases: Record<string, boolean>;
   inventory: Record<string, InventoryEntry>;
+  placedWorldObjects: Record<string, PlacedWorldObject>;
   reachedMilestones: string[];
   claimedQuestIds: string[];
   journal: JournalState;

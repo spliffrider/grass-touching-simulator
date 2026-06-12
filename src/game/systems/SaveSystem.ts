@@ -2,7 +2,19 @@ import { createInitialState } from "./FieldSystem";
 import { isCharacterClassId } from "../data/character-classes";
 import { getGrassTier } from "../data/grass-tiers";
 import { CURRENT_SAVE_VERSION } from "../types/game-state";
-import type { CharacterClassId, FieldTile, GameState, GrassTierId, InventoryEntry, JournalState, TileKey, TileTrait, UpgradeState, WeatherId } from "../types/game-state";
+import type {
+  CharacterClassId,
+  FieldTile,
+  GameState,
+  GrassTierId,
+  InventoryEntry,
+  JournalState,
+  PlacedWorldObject,
+  TileKey,
+  TileTrait,
+  UpgradeState,
+  WeatherId,
+} from "../types/game-state";
 
 const SAVE_KEY = "grass-touching-simulator.save.v1";
 const VALID_GRASS_TIERS = ["normal", "thick", "clover", "golden", "wildflower", "moss", "mushroom", "crystal", "frost"] as const;
@@ -56,6 +68,7 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
     upgrades: readRecord<UpgradeState>(saved.upgrades),
     seedShopPurchases: readBooleanRecord(saved.seedShopPurchases),
     inventory: readRecord<InventoryEntry>(saved.inventory),
+    placedWorldObjects: readPlacedWorldObjects(saved.placedWorldObjects, field),
     reachedMilestones: Array.isArray(saved.reachedMilestones)
       ? saved.reachedMilestones.filter((milestone): milestone is string => typeof milestone === "string")
       : initial.reachedMilestones,
@@ -110,6 +123,31 @@ function readBooleanRecord(value: unknown): Record<string, boolean> {
   }
 
   return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean"));
+}
+
+function readPlacedWorldObjects(value: unknown, field: Record<TileKey, FieldTile>): Record<string, PlacedWorldObject> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const placements: Record<string, PlacedWorldObject> = {};
+  const occupiedTiles = new Set<TileKey>();
+
+  for (const [objectId, placementValue] of Object.entries(value)) {
+    if (!isRecord(placementValue) || typeof placementValue.tileKey !== "string") {
+      continue;
+    }
+
+    const key = placementValue.tileKey as TileKey;
+    if (!field[key] || occupiedTiles.has(key)) {
+      continue;
+    }
+
+    placements[objectId] = { tileKey: key };
+    occupiedTiles.add(key);
+  }
+
+  return placements;
 }
 
 function readJournal(value: unknown, fallback: JournalState): JournalState {
