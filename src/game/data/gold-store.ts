@@ -30,7 +30,7 @@ export const GOLD_STORE_ITEMS: GoldStoreItem[] = [
   {
     id: "field_mouse",
     name: "Field Mouse",
-    description: "Animal. Sniffs out tiny glints, slightly improving gold luck.",
+    description: "Animal. Place it to scurry through nearby grass and sometimes find gold.",
     cost: 16,
     kind: "animal",
     maxQuantity: 1,
@@ -66,7 +66,7 @@ export const GOLD_STORE_ITEMS: GoldStoreItem[] = [
   {
     id: "meadow_rabbit",
     name: "Meadow Rabbit",
-    description: "Animal. Keeps the field lively, nudging seed and dew luck.",
+    description: "Animal. Place it to hop through nearby grass and sometimes find seeds.",
     cost: 28,
     kind: "animal",
     maxQuantity: 1,

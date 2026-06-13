@@ -1232,6 +1232,7 @@ export class GameScene extends Phaser.Scene {
       sprinkler: { tileKey: tileKey(0, 0) },
       bee_hive: { tileKey: tileKey(2, 0) },
       field_mouse: { tileKey: tileKey(-2, 0) },
+      meadow_rabbit: { tileKey: tileKey(-2, 2) },
       earthworm: { tileKey: tileKey(0, 2) },
       sheep: { tileKey: tileKey(0, -2) },
     };
@@ -4086,9 +4087,9 @@ export class GameScene extends Phaser.Scene {
       case "sheep":
         return "Grazes grown grass and turns touches into gold.";
       case "field_mouse":
-        return "Sniffs out tiny glints and improves gold luck.";
+        return "Scurries through nearby grown grass and sometimes finds gold.";
       case "meadow_rabbit":
-        return "Keeps the field lively, nudging seed and dew luck.";
+        return "Hops through nearby grown grass and sometimes finds seeds.";
       case "earthworm":
         return "Burrows through resting patches to speed regrowth.";
       default:
@@ -4789,6 +4790,7 @@ export class GameScene extends Phaser.Scene {
       return this.animalCompanions.update(delta, this.state, stats, {
         refreshTile: (tile) => this.refreshTile(tile),
         popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
+        emitSeedBurst: (tile) => this.emitSeedBurst(tile),
         emitGoldBurst: (tile, amount) => this.emitGoldBurst(tile, amount),
         playCompanionAction: (tile, action) => this.playCompanionAction(tile, action),
         playTouchFeedback: (tile, touchedTrait, isCrit) => this.playTouchFeedback(tile, touchedTrait, isCrit),
@@ -5465,7 +5467,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze" | "burrow"): void {
+  private playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze" | "burrow" | "scurry" | "hop"): void {
     const position = this.getTileVisualPosition(tile);
     if (!position) {
       return;
@@ -5493,6 +5495,20 @@ export class GameScene extends Phaser.Scene {
       this.spawnWorldActionArc("effect-gold-coin", "chicken", x, y - 7 * this.boardScale, 2, 0xffef78);
       this.emitBurst("dust-fleck", x, y + 11 * this.boardScale, 12, 0.58, 0.22);
       this.addCompanionPing(x, y - 12 * this.boardScale, 0xffef78, 0xffffff);
+      return;
+    }
+
+    if (action === "scurry") {
+      this.spawnWorldActionArc("effect-gold-coin", "field_mouse", x, y - 5 * this.boardScale, 2, 0xffef78);
+      this.emitBurst("dust-fleck", x, y + 9 * this.boardScale, 10, 0.52, 0.24);
+      this.addCompanionPing(x, y - 11 * this.boardScale, 0xffef78, 0xffffff);
+      return;
+    }
+
+    if (action === "hop") {
+      this.spawnWorldActionArc("effect-seed-kernel", "meadow_rabbit", x, y - 9 * this.boardScale, 2, 0xfff1a8);
+      this.emitBurst("grass-fleck", x, y - 2 * this.boardScale, 12, 0.62, 0.28);
+      this.addCompanionPing(x, y - 14 * this.boardScale, 0xdfffc8, 0xf7ffe8);
       return;
     }
 

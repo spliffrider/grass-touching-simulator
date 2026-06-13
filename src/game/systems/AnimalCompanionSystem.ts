@@ -6,32 +6,48 @@ import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait } from 
 export interface AnimalCompanionFeedback {
   refreshTile(tile: FieldTile): void;
   popAtTile(tile: FieldTile, text: string, color: string): void;
+  emitSeedBurst(tile: FieldTile): void;
   emitGoldBurst(tile: FieldTile, amount?: number): void;
-  playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze" | "burrow"): void;
+  playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze" | "burrow" | "scurry" | "hop"): void;
   playTouchFeedback(tile: FieldTile, touchedTrait: TileTrait, isCrit: boolean): void;
   playSound(sound: "regrow" | "seed" | "gold"): void;
   playGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean): void;
 }
 
 export class AnimalCompanionSystem {
+  private fieldMouseElapsed = 0;
   private beeHiveElapsed = 0;
   private chickenElapsed = 0;
   private sheepElapsed = 0;
+  private meadowRabbitElapsed = 0;
   private earthwormElapsed = 0;
 
   reset(): void {
+    this.fieldMouseElapsed = 0;
     this.beeHiveElapsed = 0;
     this.chickenElapsed = 0;
     this.sheepElapsed = 0;
+    this.meadowRabbitElapsed = 0;
     this.earthwormElapsed = 0;
   }
 
   update(delta: number, state: GameState, stats: RuntimeStats, feedback: AnimalCompanionFeedback): boolean {
     let changed = false;
+    const fieldMice = getInventoryQuantity(state, "field_mouse");
     const beeHives = getInventoryQuantity(state, "bee_hive");
     const chickens = getInventoryQuantity(state, "chicken");
     const sheep = getInventoryQuantity(state, "sheep");
+    const meadowRabbits = getInventoryQuantity(state, "meadow_rabbit");
     const earthworms = getInventoryQuantity(state, "earthworm");
+
+    if (fieldMice > 0) {
+      this.fieldMouseElapsed += delta;
+      const fieldMouseInterval = 14500;
+      if (this.fieldMouseElapsed >= fieldMouseInterval) {
+        this.fieldMouseElapsed = 0;
+        changed = this.runForagerTouch(state, stats, feedback, "field_mouse", "scurry", 1, "mouse", 0.22, 0) || changed;
+      }
+    }
 
     if (beeHives > 0) {
       this.beeHiveElapsed += delta;
@@ -60,6 +76,15 @@ export class AnimalCompanionSystem {
       }
     }
 
+    if (meadowRabbits > 0) {
+      this.meadowRabbitElapsed += delta;
+      const meadowRabbitInterval = 12000;
+      if (this.meadowRabbitElapsed >= meadowRabbitInterval) {
+        this.meadowRabbitElapsed = 0;
+        changed = this.runForagerTouch(state, stats, feedback, "meadow_rabbit", "hop", 2, "rabbit", 0, 0.32) || changed;
+      }
+    }
+
     if (earthworms > 0) {
       this.earthwormElapsed += delta;
       const earthwormInterval = Math.max(10000, 20000 - earthworms * 2200);
@@ -70,6 +95,52 @@ export class AnimalCompanionSystem {
     }
 
     return changed;
+  }
+
+  private runForagerTouch(
+    state: GameState,
+    stats: RuntimeStats,
+    feedback: AnimalCompanionFeedback,
+    objectId: "field_mouse" | "meadow_rabbit",
+    action: "scurry" | "hop",
+    radius: number,
+    label: string,
+    goldChance: number,
+    seedChance: number,
+  ): boolean {
+    const tile = getPlacedLocalGrownTile(state, objectId, radius);
+    if (!tile) {
+      return false;
+    }
+
+    const touchedTrait = tile.trait;
+    const touchedTier = getGrassTier(tile.tier);
+    const touch = touchTile(tile, state, stats, Date.now());
+    if (touch.gained === 0) {
+      return false;
+    }
+
+    feedback.playCompanionAction(tile, action);
+    feedback.playTouchFeedback(tile, touchedTrait, touch.isCrit);
+    feedback.refreshTile(tile);
+    feedback.popAtTile(tile, `${label} +${touch.gained}`, touch.isCrit ? "#ffef78" : "#dfffc8");
+    feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
+
+    if (goldChance > 0 && Math.random() < goldChance) {
+      state.gold += 1;
+      state.lifetimeGold += 1;
+      feedback.popAtTile(tile, "+1 gold", "#ffef78");
+      feedback.emitGoldBurst(tile);
+      feedback.playSound("gold");
+    } else if (seedChance > 0 && Math.random() < seedChance) {
+      state.seeds += 1;
+      state.lifetimeSeeds += 1;
+      feedback.popAtTile(tile, "+1 seed", "#fff1a8");
+      feedback.emitSeedBurst(tile);
+      feedback.playSound("seed");
+    }
+
+    return true;
   }
 
   private pollinateFromBeeHive(state: GameState, beeHives: number, feedback: AnimalCompanionFeedback): boolean {
@@ -182,4 +253,24 @@ export class AnimalCompanionSystem {
     feedback.playSound("regrow");
     return true;
   }
+}
+
+function getPlacedLocalGrownTile(state: GameState, objectId: "field_mouse" | "meadow_rabbit", radius: number): FieldTile | undefined {
+  const placement = state.placedWorldObjects[objectId];
+  const placedTile = placement ? state.field[placement.tileKey] : undefined;
+  if (!placedTile) {
+    return undefined;
+  }
+
+  const localTiles: FieldTile[] = [];
+  for (let y = placedTile.y - radius; y <= placedTile.y + radius; y += 1) {
+    for (let x = placedTile.x - radius; x <= placedTile.x + radius; x += 1) {
+      const tile = state.field[tileKey(x, y)];
+      if (tile?.grassState === "grown") {
+        localTiles.push(tile);
+      }
+    }
+  }
+
+  return Phaser.Utils.Array.GetRandom(localTiles);
 }
