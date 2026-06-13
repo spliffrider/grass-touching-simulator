@@ -334,7 +334,7 @@ export class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.creditsDevName = this.add
-      .text(0, 0, "rafbu", {
+      .text(0, 0, "sensiburner", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "24px",
         color: "#f7ffe8",
