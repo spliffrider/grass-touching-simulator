@@ -1,0 +1,88 @@
+{
+  "handoffVersion": 1,
+  "createdAt": "2026-06-13T00:00:00+02:00",
+  "project": {
+    "name": "Grass Touching Simulator",
+    "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+    "branch": "master",
+    "repository": "https://github.com/spliffrider/grass-touching-simulator.git",
+    "liveDomain": "https://grasstouchingsimulator.com"
+  },
+  "checkpoint": {
+    "name": "Alpha 2.0 - Sprinkler radius preview",
+    "summary": "Added a lightweight visual coverage footprint for placed Tiny Sprinklers when the sprinkler is hovered or selected for placement.",
+    "gameCommit": {
+      "hash": "3ce1fc911795336a23a124706a6f6e8c307c6422",
+      "shortHash": "3ce1fc9",
+      "message": "Show sprinkler coverage preview"
+    }
+  },
+  "deployment": {
+    "provider": "Vercel",
+    "target": "production",
+    "deploymentId": "dpl_2PszRYwLEpMPNU4wLnsEcGum79Ab",
+    "deploymentUrl": "https://grass-touching-simulator-awyn1g104-sensitech.vercel.app",
+    "inspectorUrl": "https://vercel.com/sensitech/grass-touching-simulator/2PszRYwLEpMPNU4wLnsEcGum79Ab",
+    "readyState": "READY",
+    "aliased": true,
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "liveDomainCheck": "HTTP 200 OK"
+  },
+  "implemented": [
+    "Placed Tiny Sprinklers now show a cyan coverage footprint when hovered in the world-object dock or selected for placement.",
+    "The preview draws the actual affected tile cells: radius 1 by default, radius 2 when Sprinkler Network is purchased.",
+    "The preview is hidden while blocking overlays are open or when the placed object is offscreen.",
+    "Placed object sprite depth was raised so the sprinkler remains visible above the preview.",
+    "The preview updates immediately when placement mode starts, cancels, hover starts, or hover ends."
+  ],
+  "performanceNotes": [
+    "The preview uses one Phaser Graphics object per placed world object and only draws while the sprinkler preview is active.",
+    "A small layout cache prevents redrawing unless radius, board scale, or screen position changes.",
+    "No full-field scans, physics bodies, or extra automation ticks were added.",
+    "The maximum preview draw is 9 cell outlines normally or 25 with Sprinkler Network."
+  ],
+  "filesChanged": [
+    "src/game/scenes/GameScene.ts"
+  ],
+  "verification": {
+    "localBuild": {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    "browserSmoke": {
+      "tool": "Codex in-app browser",
+      "url": "http://localhost:5173/?stress&perf&tiles=120",
+      "result": "passed",
+      "checks": [
+        "Stress mode loaded with 120 tiles.",
+        "Clicked the Tiny Sprinkler dock icon.",
+        "Confirmed the 3x3 cyan footprint is visible around the placed sprinkler.",
+        "Confirmed console errors were empty."
+      ]
+    },
+    "diffCheck": {
+      "command": "git diff --check",
+      "result": "passed",
+      "note": "Only the existing LF-to-CRLF working-copy warning appeared."
+    },
+    "deployment": {
+      "command": "npx vercel --prod --yes",
+      "result": "passed"
+    },
+    "liveDomain": {
+      "command": "Invoke-WebRequest -Uri https://grasstouchingsimulator.com -UseBasicParsing -TimeoutSec 20",
+      "result": "passed",
+      "statusCode": 200
+    }
+  },
+  "knownCaveats": [
+    "The preview currently exists only for Tiny Sprinkler because it is the only placed object with a tile-radius automation footprint.",
+    "The tile info panel can overlap part of the footprint, but the surrounding cells remain visible.",
+    "No special animation was added; this was intentionally kept simple for performance."
+  ],
+  "recommendedNextSteps": [
+    "Start the next automation layer with a manager/tick scheduler instead of adding frame-based work.",
+    "Add one simple automation object or worker behavior at a time and test each pass with ?stress&perf&tiles=120.",
+    "Consider a compact automation status panel only after there are at least two active automation sources to compare."
+  ]
+}
