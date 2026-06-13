@@ -25,7 +25,8 @@ import {
 import { addInventoryItem, consumeInventoryItem, getInventoryQuantity } from "../systems/InventorySystem";
 import { PLACEMENT_RADIUS, getNearbyPlacedObjectIds, getPlacedObjectAt, placeWorldObject, removeWorldObjectPlacement } from "../systems/PlacementSystem";
 import { AnimalCompanionSystem } from "../systems/AnimalCompanionSystem";
-import { getAutomationMilestoneBoostLabel } from "../systems/AutomationMilestoneSystem";
+import { AUTOMATION_DIRECTIVES, getAutomationDirective } from "../systems/AutomationDirectiveSystem";
+import { getAutomationMilestoneBoostLabel, getAutomationUnitCount } from "../systems/AutomationMilestoneSystem";
 import { AutomationScheduler } from "../systems/AutomationScheduler";
 import { AudioSystem } from "../systems/AudioSystem";
 import { ChiptuneMusicSystem } from "../systems/ChiptuneMusicSystem";
@@ -35,7 +36,18 @@ import { MutationSystem, type MutationEvent } from "../systems/MutationSystem";
 import { loadGame, resetSave, saveGame } from "../systems/SaveSystem";
 import { SprinklerSystem } from "../systems/SprinklerSystem";
 import { getRuntimeStats } from "../systems/UpgradeSystem";
-import type { CharacterClassId, FieldTile, GameState, GrassTierId, RuntimeStats, TileKey, TileTrait, TouchResult, WeatherId } from "../types/game-state";
+import type {
+  AutomationDirectiveId,
+  CharacterClassId,
+  FieldTile,
+  GameState,
+  GrassTierId,
+  RuntimeStats,
+  TileKey,
+  TileTrait,
+  TouchResult,
+  WeatherId,
+} from "../types/game-state";
 import { createTextButton, setTextButtonEnabled, setTextButtonText } from "../ui/buttons";
 
 const TILE_SIZE = 58;
@@ -238,6 +250,14 @@ interface QuestFilterView {
   label: Phaser.GameObjects.Text;
 }
 
+interface AutomationDirectiveView {
+  directiveId: AutomationDirectiveId;
+  container: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Rectangle;
+  name: Phaser.GameObjects.Text;
+  description: Phaser.GameObjects.Text;
+}
+
 const QUEST_FILTERS: Array<{ id: QuestFilterId; label: string }> = [
   { id: "all", label: "All" },
   { id: "ready", label: "Ready" },
@@ -316,6 +336,7 @@ export class GameScene extends Phaser.Scene {
   private questButton!: Phaser.GameObjects.Container;
   private seedButton!: Phaser.GameObjects.Container;
   private storeButton!: Phaser.GameObjects.Container;
+  private autoButton!: Phaser.GameObjects.Container;
   private journalButton!: Phaser.GameObjects.Container;
   private optionsButton!: Phaser.GameObjects.Container;
   private skillRoot!: Phaser.GameObjects.Container;
@@ -371,6 +392,13 @@ export class GameScene extends Phaser.Scene {
   private journalStatusText!: Phaser.GameObjects.Text;
   private journalBodyText!: Phaser.GameObjects.Text;
   private journalBackButton!: Phaser.GameObjects.Container;
+  private automationRoot!: Phaser.GameObjects.Container;
+  private automationBackdrop!: Phaser.GameObjects.Rectangle;
+  private automationPanel!: Phaser.GameObjects.Rectangle;
+  private automationTitleText!: Phaser.GameObjects.Text;
+  private automationStatusText!: Phaser.GameObjects.Text;
+  private automationBackButton!: Phaser.GameObjects.Container;
+  private automationDirectiveViews = new Map<AutomationDirectiveId, AutomationDirectiveView>();
   private optionsRoot!: Phaser.GameObjects.Container;
   private optionsBackdrop!: Phaser.GameObjects.Rectangle;
   private optionsPanel!: Phaser.GameObjects.Rectangle;
@@ -403,6 +431,7 @@ export class GameScene extends Phaser.Scene {
   private journalOpen = false;
   private seedShopOpen = false;
   private storeOpen = false;
+  private automationOpen = false;
   private optionsOpen = false;
   private selectedQuestFilter: QuestFilterId = "all";
   private musicVolume = DEFAULT_MUSIC_VOLUME;
@@ -579,6 +608,7 @@ export class GameScene extends Phaser.Scene {
     this.createJournal();
     this.createSeedShop();
     this.createGoldStore();
+    this.createAutomationPanel();
     this.createOptionsPanel();
     this.renderAllTiles();
     this.layoutHeader();
@@ -604,6 +634,7 @@ export class GameScene extends Phaser.Scene {
       this.layoutJournal();
       this.layoutSeedShop();
       this.layoutGoldStore();
+      this.layoutAutomationPanel();
       this.layoutOptionsPanel();
     });
 
@@ -629,6 +660,10 @@ export class GameScene extends Phaser.Scene {
       if (this.storeOpen) {
         this.storeScroll = Math.max(0, this.storeScroll + deltaY * 0.75);
         this.layoutGoldStore();
+        return;
+      }
+
+      if (this.automationOpen) {
         return;
       }
 
@@ -1316,6 +1351,7 @@ export class GameScene extends Phaser.Scene {
     this.questButton = createTextButton(this, "Quests", () => this.openQuestLog(), 118, 44, 20);
     this.seedButton = createTextButton(this, "Seeds", () => this.openSeedShop(), 118, 44, 20);
     this.storeButton = createTextButton(this, "Store", () => this.openGoldStore(), 118, 44, 20);
+    this.autoButton = createTextButton(this, "Auto", () => this.openAutomationPanel(), 118, 44, 20);
     this.journalButton = createTextButton(this, "Journal", () => this.openJournal(), 118, 44, 20);
     this.optionsButton = createTextButton(this, "Options", () => this.openOptions(), 118, 44, 20);
   }
@@ -1544,14 +1580,31 @@ export class GameScene extends Phaser.Scene {
     this.buildLabelText.setPosition(26, this.titleText.y + this.titleText.height + 1);
     this.resourceText.setPosition(26, this.buildLabelText.y + this.buildLabelText.height + 8);
     this.milestoneText.setPosition(26, this.layoutComboBadge());
-    this.skillButton.setPosition(this.scale.width - 142, 24);
-    this.questButton.setPosition(this.scale.width - 142, 76);
-    this.seedButton.setPosition(this.scale.width - 142, 128);
-    this.storeButton.setPosition(this.scale.width - 142, 180);
-    this.journalButton.setPosition(this.scale.width - 142, 232);
-    this.optionsButton.setPosition(this.scale.width - 142, this.state?.seedShopPurchases.field_journal ? 284 : 232);
+    this.layoutMenuButtons();
     this.layoutSeasonVisuals();
     this.layoutWeatherVisuals();
+  }
+
+  private layoutMenuButtons(): void {
+    const buttonX = this.scale.width - 142;
+    let buttonY = 24;
+    const visibleButtons = [
+      this.skillButton,
+      this.questButton,
+      this.seedButton,
+      this.storeButton,
+      getAutomationUnitCount(this.state) > 0 ? this.autoButton : undefined,
+      this.state.seedShopPurchases.field_journal === true ? this.journalButton : undefined,
+      this.optionsButton,
+    ].filter((button): button is Phaser.GameObjects.Container => button !== undefined);
+
+    this.autoButton.setVisible(getAutomationUnitCount(this.state) > 0);
+    this.journalButton.setVisible(this.state.seedShopPurchases.field_journal === true);
+
+    for (const button of visibleButtons) {
+      button.setPosition(buttonX, buttonY);
+      buttonY += 52;
+    }
   }
 
   private layoutComboBadge(): number {
@@ -2584,12 +2637,138 @@ export class GameScene extends Phaser.Scene {
     return navigator.maxTouchPoints > 0;
   }
 
+  private createAutomationPanel(): void {
+    this.automationRoot = this.add.container(0, 0).setDepth(108).setVisible(false);
+    this.automationBackdrop = this.add
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x102315, 0.62)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.automationPanel = this.add
+      .rectangle(0, 0, 560, 540, 0xf4ffdc, 0.98)
+      .setOrigin(0.5)
+      .setStrokeStyle(5, 0x2d6f36);
+    this.automationTitleText = this.add
+      .text(0, 0, "Automation", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "34px",
+        color: "#183d20",
+      })
+      .setOrigin(0.5);
+    this.automationStatusText = this.add
+      .text(0, 0, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "16px",
+        color: "#416247",
+        align: "center",
+      })
+      .setOrigin(0.5);
+    this.automationBackButton = createTextButton(this, "Back", () => this.closeAutomationPanel(), 118, 44, 109);
+
+    this.automationRoot.add([
+      this.automationBackdrop,
+      this.automationPanel,
+      this.automationTitleText,
+      this.automationStatusText,
+      this.automationBackButton,
+    ]);
+
+    for (const directive of AUTOMATION_DIRECTIVES) {
+      const container = this.add.container(0, 0).setSize(460, 68).setInteractive({ useHandCursor: true });
+      const bg = this.add.rectangle(0, 0, 460, 68, 0xe9ffd0, 0.96).setOrigin(0, 0).setStrokeStyle(2, 0x8fcf78, 0.8);
+      const name = this.add
+        .text(16, 10, directive.name, {
+          fontFamily: "Trebuchet MS, Arial",
+          fontSize: "20px",
+          color: "#183d20",
+        })
+        .setOrigin(0, 0);
+      const description = this.add
+        .text(16, 36, directive.description, {
+          fontFamily: "Trebuchet MS, Arial",
+          fontSize: "13px",
+          color: "#416247",
+          wordWrap: { width: 420 },
+        })
+        .setOrigin(0, 0);
+
+      container.add([bg, name, description]);
+      container.on("pointerdown", () => this.setAutomationDirective(directive.id));
+      this.automationDirectiveViews.set(directive.id, { directiveId: directive.id, container, bg, name, description });
+      this.automationRoot.add(container);
+    }
+
+    this.layoutAutomationPanel();
+  }
+
+  private layoutAutomationPanel(): void {
+    if (!this.automationRoot) {
+      return;
+    }
+
+    const panelWidth = Math.min(580, this.scale.width - 36);
+    const panelHeight = Math.min(540, this.scale.height - 48);
+    const centerX = this.scale.width / 2;
+    const centerY = this.scale.height / 2;
+    const rowWidth = Math.max(260, panelWidth - 72);
+    const rowHeight = this.scale.width < 560 ? 76 : 68;
+    const startY = centerY - panelHeight / 2 + 112;
+
+    this.resizeInteractiveBackdrop(this.automationBackdrop);
+    this.automationPanel.setPosition(centerX, centerY);
+    this.automationPanel.setSize(panelWidth, panelHeight);
+    this.automationTitleText.setPosition(centerX, centerY - panelHeight / 2 + 38);
+    this.automationStatusText.setPosition(centerX, centerY - panelHeight / 2 + 76);
+    this.automationStatusText.setWordWrapWidth(Math.max(260, panelWidth - 52));
+    this.automationBackButton.setPosition(centerX - 59, centerY + panelHeight / 2 - 58);
+
+    for (const [index, directive] of AUTOMATION_DIRECTIVES.entries()) {
+      const view = this.automationDirectiveViews.get(directive.id);
+      if (!view) {
+        continue;
+      }
+
+      const rowX = centerX - rowWidth / 2;
+      const rowY = startY + index * (rowHeight + 10);
+      view.container.setPosition(rowX, rowY).setSize(rowWidth, rowHeight);
+      view.bg.setSize(rowWidth, rowHeight);
+      view.name.setPosition(16, 9);
+      view.description.setPosition(16, this.scale.width < 560 ? 34 : 36);
+      view.description.setWordWrapWidth(Math.max(210, rowWidth - 32));
+    }
+  }
+
+  private refreshAutomationPanel(): void {
+    if (!this.automationRoot) {
+      return;
+    }
+
+    const currentDirective = getAutomationDirective(this.state);
+    this.automationStatusText.setText(`${getAutomationUnitCount(this.state)} active units | Directive: ${currentDirective.name}`);
+
+    for (const view of this.automationDirectiveViews.values()) {
+      const selected = view.directiveId === currentDirective.id;
+      view.bg.setFillStyle(selected ? 0xdfffc8 : 0xe9ffd0, selected ? 1 : 0.96);
+      view.bg.setStrokeStyle(selected ? 4 : 2, selected ? 0xf4df6a : 0x8fcf78, selected ? 0.96 : 0.8);
+      view.name.setColor(selected ? "#0d3018" : "#183d20");
+    }
+
+    this.layoutAutomationPanel();
+  }
+
   private getUpgradeLevel(upgradeId: string): number {
     return this.state.upgrades[upgradeId]?.level ?? 0;
   }
 
   private hasBlockingOverlayOpen(): boolean {
-    return this.skillTreeOpen || this.questLogOpen || this.journalOpen || this.seedShopOpen || this.storeOpen || this.optionsOpen;
+    return (
+      this.skillTreeOpen ||
+      this.questLogOpen ||
+      this.journalOpen ||
+      this.seedShopOpen ||
+      this.storeOpen ||
+      this.automationOpen ||
+      this.optionsOpen
+    );
   }
 
   private getSkillTreePoint(
@@ -2704,6 +2883,7 @@ export class GameScene extends Phaser.Scene {
     this.closeJournal();
     this.closeSeedShop();
     this.closeGoldStore();
+    this.closeAutomationPanel();
     this.closeOptions();
     this.skillTreeOpen = true;
     this.skillRoot.setVisible(true);
@@ -2724,6 +2904,7 @@ export class GameScene extends Phaser.Scene {
     this.closeJournal();
     this.closeSeedShop();
     this.closeGoldStore();
+    this.closeAutomationPanel();
     this.closeOptions();
     this.questLogOpen = true;
     this.questScroll = 0;
@@ -2749,6 +2930,7 @@ export class GameScene extends Phaser.Scene {
     this.closeQuestLog();
     this.closeSeedShop();
     this.closeGoldStore();
+    this.closeAutomationPanel();
     this.closeOptions();
     this.journalOpen = true;
     this.journalScroll = 0;
@@ -2768,6 +2950,7 @@ export class GameScene extends Phaser.Scene {
     this.closeQuestLog();
     this.closeJournal();
     this.closeGoldStore();
+    this.closeAutomationPanel();
     this.closeOptions();
     this.seedShopOpen = true;
     this.seedShopScroll = 0;
@@ -2787,6 +2970,7 @@ export class GameScene extends Phaser.Scene {
     this.closeQuestLog();
     this.closeJournal();
     this.closeSeedShop();
+    this.closeAutomationPanel();
     this.closeOptions();
     this.storeOpen = true;
     this.storeScroll = 0;
@@ -2801,12 +2985,52 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
   }
 
+  private openAutomationPanel(): void {
+    if (getAutomationUnitCount(this.state) === 0) {
+      this.showMessage("Unlock an automation helper first.", 1800);
+      this.audio.play("blocked");
+      return;
+    }
+
+    this.closeSkillTree();
+    this.closeQuestLog();
+    this.closeJournal();
+    this.closeSeedShop();
+    this.closeGoldStore();
+    this.closeOptions();
+    this.automationOpen = true;
+    this.automationRoot.setVisible(true);
+    this.audio.play("upgrade");
+    this.refreshAutomationPanel();
+    this.refreshUi();
+  }
+
+  private closeAutomationPanel(): void {
+    this.automationOpen = false;
+    this.automationRoot?.setVisible(false);
+    this.refreshUi();
+  }
+
+  private setAutomationDirective(directiveId: AutomationDirectiveId): void {
+    if (this.state.automationDirectiveId === directiveId) {
+      this.audio.play("blocked");
+      return;
+    }
+
+    this.state.automationDirectiveId = directiveId;
+    this.audio.play("upgrade");
+    this.saveState();
+    this.refreshAutomationPanel();
+    this.refreshUi();
+  }
+
   private openOptions(): void {
     this.closeSkillTree();
     this.closeQuestLog();
     this.closeJournal();
     this.closeSeedShop();
     this.closeGoldStore();
+    this.closeAutomationPanel();
     this.optionsOpen = true;
     this.optionsRoot.setVisible(true);
     this.music.start(this.musicVolume);
@@ -3040,6 +3264,7 @@ export class GameScene extends Phaser.Scene {
     this.closeQuestLog();
     this.closeSeedShop();
     this.closeGoldStore();
+    this.closeAutomationPanel();
     this.closeOptions();
   }
 
@@ -6157,6 +6382,9 @@ export class GameScene extends Phaser.Scene {
     if (this.storeOpen) {
       this.refreshGoldStore();
     }
+    if (this.automationOpen) {
+      this.refreshAutomationPanel();
+    }
     this.syncWorldObjects();
     this.layoutWorldObjects();
     this.setTextIfChanged(
@@ -6302,10 +6530,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const journalUnlocked = this.state.seedShopPurchases.field_journal === true;
-    this.journalButton.setVisible(journalUnlocked);
-    this.journalButton.setPosition(this.scale.width - 142, 232);
-    this.optionsButton.setPosition(this.scale.width - 142, journalUnlocked ? 284 : 232);
+    this.layoutMenuButtons();
   }
 
   private refreshJournal(): void {
@@ -7253,6 +7478,7 @@ export class GameScene extends Phaser.Scene {
       return "";
     }
 
+    const directive = getAutomationDirective(this.state);
     const boosts = [
       this.state.seedShopPurchases.forager_trails ? "trails" : "",
       this.state.seedShopPurchases.sprinkler_timer ? "timer" : "",
@@ -7262,10 +7488,10 @@ export class GameScene extends Phaser.Scene {
 
     if (compact) {
       const activeCount = (this.state.seedShopPurchases.sprinkler ? 1 : 0) + companionCount;
-      return `Auto: ${activeCount} active${boosts.length > 0 ? `, ${boosts.length} boosts` : ""}`;
+      return `Auto: ${activeCount} active, ${directive.shortName}${boosts.length > 0 ? `, ${boosts.length} boosts` : ""}`;
     }
 
-    return `Auto: ${parts.join(", ")}${boosts.length > 0 ? ` (${boosts.join(", ")})` : ""}`;
+    return `Auto: ${directive.shortName} - ${parts.join(", ")}${boosts.length > 0 ? ` (${boosts.join(", ")})` : ""}`;
   }
 }
 

@@ -1,4 +1,5 @@
 import { MAX_FIELD_TILES, createInitialState } from "./FieldSystem";
+import { isAutomationDirectiveId } from "./AutomationDirectiveSystem";
 import { isCharacterClassId } from "../data/character-classes";
 import { getGrassTier } from "../data/grass-tiers";
 import { CURRENT_SAVE_VERSION } from "../types/game-state";
@@ -80,6 +81,9 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
     activeWeatherId: readWeatherId(saved.activeWeatherId, initial.activeWeatherId),
     weatherEndsAt: readNumber(saved.weatherEndsAt, initial.weatherEndsAt ?? 0),
     selectedTrackId: typeof saved.selectedTrackId === "string" ? saved.selectedTrackId : initial.selectedTrackId,
+    automationDirectiveId: isAutomationDirectiveId(saved.automationDirectiveId)
+      ? saved.automationDirectiveId
+      : initial.automationDirectiveId,
     lastSavedAt: readNumber(saved.lastSavedAt, initial.lastSavedAt),
   };
 }

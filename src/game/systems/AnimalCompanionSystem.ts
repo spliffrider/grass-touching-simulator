@@ -1,8 +1,9 @@
 import { getGrassTier } from "../data/grass-tiers";
+import { getAutomationDirective } from "./AutomationDirectiveSystem";
 import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
-import { getRandomFieldTile, getRandomGrownTile, getRegrowingTiles, tileKey, touchTile } from "./FieldSystem";
+import { getRandomFieldTile, getRandomGrownTile, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
 import { getInventoryQuantity } from "./InventorySystem";
-import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait } from "../types/game-state";
+import type { AutomationDirectiveId, FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait } from "../types/game-state";
 
 export interface AnimalCompanionFeedback {
   refreshTile(tile: FieldTile): void;
@@ -42,79 +43,86 @@ export class AnimalCompanionSystem {
     const earthworms = getInventoryQuantity(state, "earthworm");
     const hasForagerTrails = state.seedShopPurchases.forager_trails === true;
     const automationIntervalMultiplier = getAutomationIntervalMultiplier(state);
+    const directiveId = getAutomationDirective(state).id;
 
     if (fieldMice > 0) {
       this.fieldMouseElapsed += delta;
-      const fieldMouseInterval = Math.max(
-        6500,
-        (hasForagerTrails ? 9500 : 14500) * automationIntervalMultiplier,
-      );
+      const fieldMouseInterval = Math.max(6500, (hasForagerTrails ? 9500 : 14500) * automationIntervalMultiplier);
       if (this.fieldMouseElapsed >= fieldMouseInterval) {
         this.fieldMouseElapsed = 0;
         const fieldMouseRadius = hasForagerTrails ? 2 : 1;
-        const fieldMouseGoldChance = hasForagerTrails ? 0.34 : 0.22;
-        changed = this.runForagerTouch(state, stats, feedback, "field_mouse", "scurry", fieldMouseRadius, "mouse", fieldMouseGoldChance, 0) || changed;
+        const fieldMouseGoldChance = (hasForagerTrails ? 0.34 : 0.22) + (directiveId === "supplies" ? 0.1 : 0);
+        changed =
+          this.runForagerTouch(
+            state,
+            stats,
+            feedback,
+            "field_mouse",
+            "scurry",
+            fieldMouseRadius,
+            "mouse",
+            fieldMouseGoldChance,
+            0,
+            directiveId,
+          ) || changed;
       }
     }
 
     if (beeHives > 0) {
       this.beeHiveElapsed += delta;
-      const beeInterval = Math.max(
-        6500,
-        Math.max(9000, 18000 - beeHives * 1800) * automationIntervalMultiplier,
-      );
+      const beeInterval = Math.max(6500, Math.max(9000, 18000 - beeHives * 1800) * automationIntervalMultiplier);
       if (this.beeHiveElapsed >= beeInterval) {
         this.beeHiveElapsed = 0;
-        changed = this.pollinateFromBeeHive(state, beeHives, feedback) || changed;
+        changed = this.pollinateFromBeeHive(state, beeHives, feedback, directiveId) || changed;
       }
     }
 
     if (chickens > 0) {
       this.chickenElapsed += delta;
-      const chickenInterval = Math.max(
-        8000,
-        Math.max(10000, 21000 - chickens * 2200) * automationIntervalMultiplier,
-      );
+      const chickenInterval = Math.max(8000, Math.max(10000, 21000 - chickens * 2200) * automationIntervalMultiplier);
       if (this.chickenElapsed >= chickenInterval) {
         this.chickenElapsed = 0;
-        changed = this.runChickenForage(state, chickens, feedback) || changed;
+        changed = this.runChickenForage(state, chickens, feedback, directiveId) || changed;
       }
     }
 
     if (sheep > 0) {
       this.sheepElapsed += delta;
-      const sheepInterval = Math.max(
-        10000,
-        Math.max(13000, 26000 - sheep * 3000) * automationIntervalMultiplier,
-      );
+      const sheepInterval = Math.max(10000, Math.max(13000, 26000 - sheep * 3000) * automationIntervalMultiplier);
       if (this.sheepElapsed >= sheepInterval) {
         this.sheepElapsed = 0;
-        changed = this.runSheepGraze(state, stats, sheep, feedback) || changed;
+        changed = this.runSheepGraze(state, stats, sheep, feedback, directiveId) || changed;
       }
     }
 
     if (meadowRabbits > 0) {
       this.meadowRabbitElapsed += delta;
-      const meadowRabbitInterval = Math.max(
-        6500,
-        (hasForagerTrails ? 8500 : 12000) * automationIntervalMultiplier,
-      );
+      const meadowRabbitInterval = Math.max(6500, (hasForagerTrails ? 8500 : 12000) * automationIntervalMultiplier);
       if (this.meadowRabbitElapsed >= meadowRabbitInterval) {
         this.meadowRabbitElapsed = 0;
-        const meadowRabbitSeedChance = hasForagerTrails ? 0.46 : 0.32;
-        changed = this.runForagerTouch(state, stats, feedback, "meadow_rabbit", "hop", 2, "rabbit", 0, meadowRabbitSeedChance) || changed;
+        const meadowRabbitSeedChance = (hasForagerTrails ? 0.46 : 0.32) + (directiveId === "supplies" ? 0.12 : 0);
+        changed =
+          this.runForagerTouch(
+            state,
+            stats,
+            feedback,
+            "meadow_rabbit",
+            "hop",
+            2,
+            "rabbit",
+            0,
+            meadowRabbitSeedChance,
+            directiveId,
+          ) || changed;
       }
     }
 
     if (earthworms > 0) {
       this.earthwormElapsed += delta;
-      const earthwormInterval = Math.max(
-        8000,
-        Math.max(10000, 20000 - earthworms * 2200) * automationIntervalMultiplier,
-      );
+      const earthwormInterval = Math.max(8000, Math.max(10000, 20000 - earthworms * 2200) * automationIntervalMultiplier);
       if (this.earthwormElapsed >= earthwormInterval) {
         this.earthwormElapsed = 0;
-        changed = this.runEarthwormBurrow(state, earthworms, feedback) || changed;
+        changed = this.runEarthwormBurrow(state, earthworms, feedback, directiveId) || changed;
       }
     }
 
@@ -131,8 +139,9 @@ export class AnimalCompanionSystem {
     label: string,
     goldChance: number,
     seedChance: number,
+    directiveId: AutomationDirectiveId,
   ): boolean {
-    const tile = getPlacedLocalGrownTile(state, objectId, radius);
+    const tile = getPlacedLocalGrownTile(state, objectId, radius, directiveId);
     if (!tile) {
       return false;
     }
@@ -167,7 +176,12 @@ export class AnimalCompanionSystem {
     return true;
   }
 
-  private pollinateFromBeeHive(state: GameState, beeHives: number, feedback: AnimalCompanionFeedback): boolean {
+  private pollinateFromBeeHive(
+    state: GameState,
+    beeHives: number,
+    feedback: AnimalCompanionFeedback,
+    directiveId: AutomationDirectiveId,
+  ): boolean {
     const anchor = getPlacedLocalFieldTile(state, "bee_hive", 2) ?? getRandomFieldTile(state);
     if (!anchor) {
       return false;
@@ -180,14 +194,17 @@ export class AnimalCompanionSystem {
       state.field[tileKey(anchor.x, anchor.y + 1)],
       state.field[tileKey(anchor.x, anchor.y - 1)],
     ].filter((tile): tile is FieldTile => tile !== undefined);
-    const improvedTiles = Phaser.Utils.Array.Shuffle(cluster).slice(0, Math.min(cluster.length, 1 + Math.min(beeHives, 2)));
+    const improvedTiles = Phaser.Utils.Array.Shuffle(cluster).slice(
+      0,
+      Math.min(cluster.length, 1 + Math.min(beeHives + (directiveId === "growth" ? 1 : 0), 3)),
+    );
 
     for (const tile of improvedTiles) {
       if (tile.grassState === "regrowing") {
         const remainingMs = Math.max(0, tile.regrowEndsAt - Date.now());
-        tile.regrowEndsAt = Date.now() + Math.floor(remainingMs * 0.75);
+        tile.regrowEndsAt = Date.now() + Math.floor(remainingMs * (directiveId === "growth" ? 0.66 : 0.75));
       } else {
-        tile.trait = Math.random() < 0.22 ? "lush" : "dewy";
+        tile.trait = Math.random() < (directiveId === "growth" ? 0.32 : 0.22) ? "lush" : "dewy";
       }
 
       feedback.refreshTile(tile);
@@ -202,13 +219,20 @@ export class AnimalCompanionSystem {
     return improvedTiles.length > 0;
   }
 
-  private runChickenForage(state: GameState, chickens: number, feedback: AnimalCompanionFeedback): boolean {
+  private runChickenForage(
+    state: GameState,
+    chickens: number,
+    feedback: AnimalCompanionFeedback,
+    directiveId: AutomationDirectiveId,
+  ): boolean {
     const tile = getRandomFieldTile(state);
     if (!tile) {
       return false;
     }
 
-    if (Math.random() < 0.62 + chickens * 0.05) {
+    const supportChance =
+      0.62 + chickens * 0.05 + (directiveId === "growth" ? 0.12 : directiveId === "supplies" ? -0.1 : 0);
+    if (Math.random() < supportChance) {
       tile.trait = tile.trait === "lush" ? "lush" : Math.random() < 0.25 ? "lush" : "dewy";
       if (tile.grassState === "regrowing") {
         tile.regrowEndsAt = Math.min(tile.regrowEndsAt, Date.now() + 1600);
@@ -229,8 +253,14 @@ export class AnimalCompanionSystem {
     return true;
   }
 
-  private runSheepGraze(state: GameState, stats: RuntimeStats, sheep: number, feedback: AnimalCompanionFeedback): boolean {
-    const tile = getRandomGrownTile(state);
+  private runSheepGraze(
+    state: GameState,
+    stats: RuntimeStats,
+    sheep: number,
+    feedback: AnimalCompanionFeedback,
+    directiveId: AutomationDirectiveId,
+  ): boolean {
+    const tile = directiveId === "harvest" ? pickBestGrownTile(state, 10) : getRandomGrownTile(state);
     if (!tile) {
       return false;
     }
@@ -242,7 +272,7 @@ export class AnimalCompanionSystem {
       return false;
     }
 
-    const goldGained = Math.random() < 0.28 + sheep * 0.08 ? 1 : 0;
+    const goldGained = Math.random() < 0.28 + sheep * 0.08 + (directiveId === "supplies" ? 0.12 : 0) ? 1 : 0;
     state.gold += goldGained;
     state.lifetimeGold += goldGained;
     feedback.playCompanionAction(tile, "graze");
@@ -258,14 +288,24 @@ export class AnimalCompanionSystem {
     return true;
   }
 
-  private runEarthwormBurrow(state: GameState, earthworms: number, feedback: AnimalCompanionFeedback): boolean {
-    const regrowingTiles = Phaser.Utils.Array.Shuffle(getRegrowingTiles(state)).slice(0, Math.min(1 + earthworms, 3));
+  private runEarthwormBurrow(
+    state: GameState,
+    earthworms: number,
+    feedback: AnimalCompanionFeedback,
+    directiveId: AutomationDirectiveId,
+  ): boolean {
+    const regrowingTiles = Phaser.Utils.Array.Shuffle(getRegrowingTiles(state)).slice(
+      0,
+      Math.min(1 + earthworms + (directiveId === "growth" ? 1 : 0), 3),
+    );
     if (regrowingTiles.length === 0) {
       return false;
     }
 
     const now = Date.now();
-    const regrowFactor = state.activeWeatherId === "warm_sunlight" ? 0.58 : state.activeWeatherId === "soft_rain" ? 0.62 : 0.68;
+    const baseRegrowFactor =
+      state.activeWeatherId === "warm_sunlight" ? 0.58 : state.activeWeatherId === "soft_rain" ? 0.62 : 0.68;
+    const regrowFactor = directiveId === "growth" ? Math.max(0.5, baseRegrowFactor - 0.08) : baseRegrowFactor;
     for (const tile of regrowingTiles) {
       const remainingMs = Math.max(0, tile.regrowEndsAt - now);
       tile.regrowEndsAt = now + Math.max(300, Math.floor(remainingMs * regrowFactor));
@@ -279,8 +319,19 @@ export class AnimalCompanionSystem {
   }
 }
 
-function getPlacedLocalGrownTile(state: GameState, objectId: "field_mouse" | "meadow_rabbit", radius: number): FieldTile | undefined {
-  return getPlacedLocalTile(state, objectId, radius, (tile) => tile.grassState === "grown");
+function getPlacedLocalGrownTile(
+  state: GameState,
+  objectId: "field_mouse" | "meadow_rabbit",
+  radius: number,
+  directiveId: AutomationDirectiveId,
+): FieldTile | undefined {
+  return getPlacedLocalTile(
+    state,
+    objectId,
+    radius,
+    (tile) => tile.grassState === "grown",
+    directiveId === "harvest" ? scoreHarvestTile : undefined,
+  );
 }
 
 function getPlacedLocalFieldTile(state: GameState, objectId: "bee_hive", radius: number): FieldTile | undefined {
@@ -292,6 +343,7 @@ function getPlacedLocalTile(
   objectId: "bee_hive" | "field_mouse" | "meadow_rabbit",
   radius: number,
   isCandidate: (tile: FieldTile) => boolean,
+  scoreCandidate?: (tile: FieldTile) => number,
 ): FieldTile | undefined {
   const placement = state.placedWorldObjects[objectId];
   const placedTile = placement ? state.field[placement.tileKey] : undefined;
@@ -309,5 +361,34 @@ function getPlacedLocalTile(
     }
   }
 
+  if (scoreCandidate) {
+    return pickBestTile(localTiles, scoreCandidate);
+  }
+
   return Phaser.Utils.Array.GetRandom(localTiles);
+}
+
+function pickBestGrownTile(state: GameState, maxSamples: number): FieldTile | undefined {
+  return pickBestTile(sampleGrownTiles(state, maxSamples), scoreHarvestTile);
+}
+
+function pickBestTile(tiles: FieldTile[], scoreTile: (tile: FieldTile) => number): FieldTile | undefined {
+  let bestTile: FieldTile | undefined;
+  let bestScore = -Infinity;
+
+  for (const tile of tiles) {
+    const score = scoreTile(tile);
+    if (!bestTile || score > bestScore) {
+      bestTile = tile;
+      bestScore = score;
+    }
+  }
+
+  return bestTile;
+}
+
+function scoreHarvestTile(tile: FieldTile): number {
+  const tierScore = getGrassTier(tile.tier).touchValue;
+  const traitScore = tile.trait === "lush" ? 3 : tile.trait === "dewy" ? 1 : 0;
+  return tierScore + traitScore + tile.fertility;
 }

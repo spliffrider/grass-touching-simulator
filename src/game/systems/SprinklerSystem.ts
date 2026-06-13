@@ -1,7 +1,8 @@
 import { getGrassTier } from "../data/grass-tiers";
+import { getAutomationDirective } from "./AutomationDirectiveSystem";
 import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
-import { getRandomGrownTile, tileKey, touchTile } from "./FieldSystem";
-import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait, TouchResult } from "../types/game-state";
+import { getRandomGrownTile, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
+import type { AutomationDirectiveId, FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait, TouchResult } from "../types/game-state";
 
 export interface SprinklerFeedback {
   refreshTile(tile: FieldTile): void;
@@ -44,12 +45,23 @@ export class SprinklerSystem {
     this.elapsed = 0;
     const touchesPerCycle = state.seedShopPurchases.sprinkler_network ? 2 : 1;
     const sprinklerRadius = state.seedShopPurchases.sprinkler_network ? 2 : 1;
+    const directiveId = getAutomationDirective(state).id;
     let changed = false;
 
     for (let i = 0; i < touchesPerCycle; i += 1) {
-      const tile = getSprinklerTargetTile(state, sprinklerRadius);
+      const tile = getSprinklerTargetTile(state, sprinklerRadius, directiveId);
       if (!tile) {
         break;
+      }
+
+      if (tile.grassState === "regrowing") {
+        const remainingMs = Math.max(0, tile.regrowEndsAt - Date.now());
+        tile.regrowEndsAt = Date.now() + Math.max(300, Math.floor(remainingMs * 0.58));
+        feedback.playSprinklerBurst(tile);
+        feedback.refreshTile(tile);
+        feedback.popAtTile(tile, "watered", "#d7fff2");
+        changed = true;
+        continue;
       }
 
       const touchedTrait = tile.trait;
@@ -73,10 +85,17 @@ export class SprinklerSystem {
       }
 
       if (state.seedShopPurchases.self_seeding_nozzle) {
-        feedback.tryDropSeed(tile, touchedTrait, stats, 0.25);
+        feedback.tryDropSeed(tile, touchedTrait, stats, directiveId === "supplies" ? 0.38 : 0.25);
       }
 
-      feedback.tryDropGold(tile, touchedTrait, touchedTier.id, touch, stats, 0.2);
+      feedback.tryDropGold(
+        tile,
+        touchedTrait,
+        touchedTier.id,
+        touch,
+        stats,
+        directiveId === "supplies" ? 0.32 : 0.2,
+      );
       feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
       changed = true;
     }
@@ -85,11 +104,19 @@ export class SprinklerSystem {
   }
 }
 
-function getSprinklerTargetTile(state: GameState, radius: number): FieldTile | undefined {
+function getSprinklerTargetTile(state: GameState, radius: number, directiveId: AutomationDirectiveId): FieldTile | undefined {
+  if (directiveId === "growth" && Math.random() < 0.72) {
+    return getSprinklerRegrowingTargetTile(state, radius) ?? getSprinklerGrownTargetTile(state, radius, directiveId);
+  }
+
+  return getSprinklerGrownTargetTile(state, radius, directiveId);
+}
+
+function getSprinklerGrownTargetTile(state: GameState, radius: number, directiveId: AutomationDirectiveId): FieldTile | undefined {
   const placement = state.placedWorldObjects.sprinkler;
   const placedTile = placement ? state.field[placement.tileKey] : undefined;
   if (!placedTile) {
-    return getRandomGrownTile(state);
+    return directiveId === "harvest" ? pickBestTile(sampleGrownTiles(state, 10), scoreHarvestTile) : getRandomGrownTile(state);
   }
 
   const localTiles: FieldTile[] = [];
@@ -103,10 +130,56 @@ function getSprinklerTargetTile(state: GameState, radius: number): FieldTile | u
     }
   }
 
+  if (directiveId === "harvest") {
+    return pickBestTile(localTiles, scoreHarvestTile) ?? pickBestTile(sampleGrownTiles(state, 10), scoreHarvestTile);
+  }
+
   return Phaser.Utils.Array.GetRandom(localTiles) ?? getRandomGrownTile(state);
+}
+
+function getSprinklerRegrowingTargetTile(state: GameState, radius: number): FieldTile | undefined {
+  const placement = state.placedWorldObjects.sprinkler;
+  const placedTile = placement ? state.field[placement.tileKey] : undefined;
+
+  if (!placedTile) {
+    return Phaser.Utils.Array.GetRandom(getRegrowingTiles(state));
+  }
+
+  const localTiles: FieldTile[] = [];
+  for (let y = placedTile.y - radius; y <= placedTile.y + radius; y += 1) {
+    for (let x = placedTile.x - radius; x <= placedTile.x + radius; x += 1) {
+      const tile = state.field[tileKey(x, y)];
+      if (tile?.grassState === "regrowing") {
+        localTiles.push(tile);
+      }
+    }
+  }
+
+  return Phaser.Utils.Array.GetRandom(localTiles) ?? Phaser.Utils.Array.GetRandom(getRegrowingTiles(state));
 }
 
 function getTouchPopText(touch: TouchResult, label: string): string {
   const prefix = [label, touch.doubled ? "DOUBLE" : "", touch.isCrit ? `CRIT x${touch.critMultiplier.toFixed(1)}` : ""].filter(Boolean).join(" ");
   return `${prefix ? `${prefix} ` : ""}+${touch.gained}`;
+}
+
+function pickBestTile(tiles: FieldTile[], scoreTile: (tile: FieldTile) => number): FieldTile | undefined {
+  let bestTile: FieldTile | undefined;
+  let bestScore = -Infinity;
+
+  for (const tile of tiles) {
+    const score = scoreTile(tile);
+    if (!bestTile || score > bestScore) {
+      bestTile = tile;
+      bestScore = score;
+    }
+  }
+
+  return bestTile;
+}
+
+function scoreHarvestTile(tile: FieldTile): number {
+  const tierScore = getGrassTier(tile.tier).touchValue;
+  const traitScore = tile.trait === "lush" ? 3 : tile.trait === "dewy" ? 1 : 0;
+  return tierScore + traitScore + tile.moisture;
 }

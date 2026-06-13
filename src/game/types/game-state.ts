@@ -21,7 +21,9 @@ export type WeatherId =
 
 export type CharacterClassId = "grass_toucher" | "femboy_slim" | "bard_de_wever";
 
-export const CURRENT_SAVE_VERSION = 6;
+export type AutomationDirectiveId = "balanced" | "growth" | "harvest" | "supplies";
+
+export const CURRENT_SAVE_VERSION = 7;
 
 export interface FieldTile {
   x: number;
@@ -80,6 +82,7 @@ export interface GameState {
   activeWeatherId?: WeatherId;
   weatherEndsAt?: number;
   selectedTrackId?: string;
+  automationDirectiveId: AutomationDirectiveId;
   lastSavedAt: number;
 }
 

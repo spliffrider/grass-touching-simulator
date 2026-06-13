@@ -191,6 +191,7 @@ export function createInitialState(characterClassId: CharacterClassId = DEFAULT_
     activeWeatherId: "calm",
     weatherEndsAt: 0,
     selectedTrackId: "cozy_meadow",
+    automationDirectiveId: "balanced",
     lastSavedAt: Date.now(),
   };
 }
