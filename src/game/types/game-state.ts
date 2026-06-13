@@ -23,7 +23,7 @@ export type CharacterClassId = "grass_toucher" | "femboy_slim" | "bard_de_wever"
 
 export type AutomationDirectiveId = "balanced" | "growth" | "harvest" | "supplies";
 
-export const CURRENT_SAVE_VERSION = 7;
+export const CURRENT_SAVE_VERSION = 8;
 
 export interface FieldTile {
   x: number;
@@ -60,6 +60,13 @@ export interface JournalState {
   bestComboCount: number;
 }
 
+export interface AutomationStatsState {
+  automatedActions: number;
+  automatedGrassTouches: number;
+  automationSupplyDrops: number;
+  usedDirectiveIds: AutomationDirectiveId[];
+}
+
 export interface GameState {
   saveVersion: number;
   characterClassId: CharacterClassId;
@@ -83,6 +90,7 @@ export interface GameState {
   weatherEndsAt?: number;
   selectedTrackId?: string;
   automationDirectiveId: AutomationDirectiveId;
+  automationStats: AutomationStatsState;
   lastSavedAt: number;
 }
 

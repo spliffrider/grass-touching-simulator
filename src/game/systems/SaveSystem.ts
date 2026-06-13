@@ -1,10 +1,12 @@
 import { MAX_FIELD_TILES, createInitialState } from "./FieldSystem";
 import { isAutomationDirectiveId } from "./AutomationDirectiveSystem";
+import { createAutomationStatsState } from "./AutomationProgressSystem";
 import { isCharacterClassId } from "../data/character-classes";
 import { getGrassTier } from "../data/grass-tiers";
 import { CURRENT_SAVE_VERSION } from "../types/game-state";
 import type {
   CharacterClassId,
+  AutomationStatsState,
   FieldTile,
   GameState,
   GrassTierId,
@@ -84,6 +86,7 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
     automationDirectiveId: isAutomationDirectiveId(saved.automationDirectiveId)
       ? saved.automationDirectiveId
       : initial.automationDirectiveId,
+    automationStats: readAutomationStats(saved.automationStats, initial.automationStats),
     lastSavedAt: readNumber(saved.lastSavedAt, initial.lastSavedAt),
   };
 }
@@ -171,6 +174,26 @@ function readJournal(value: unknown, fallback: JournalState): JournalState {
     discoveredTileTraits: readTileTraitArray(value.discoveredTileTraits, fallback.discoveredTileTraits),
     seenWeatherIds: readWeatherIdArray(value.seenWeatherIds, fallback.seenWeatherIds),
     bestComboCount: readNumber(value.bestComboCount, fallback.bestComboCount),
+  };
+}
+
+function readAutomationStats(value: unknown, fallback: AutomationStatsState): AutomationStatsState {
+  const base = createAutomationStatsState();
+  if (!isRecord(value)) {
+    return fallback;
+  }
+
+  const usedDirectiveIds = Array.isArray(value.usedDirectiveIds)
+    ? value.usedDirectiveIds.filter((directiveId): directiveId is AutomationStatsState["usedDirectiveIds"][number] =>
+        isAutomationDirectiveId(directiveId),
+      )
+    : base.usedDirectiveIds;
+
+  return {
+    automatedActions: readNumber(value.automatedActions, base.automatedActions),
+    automatedGrassTouches: readNumber(value.automatedGrassTouches, base.automatedGrassTouches),
+    automationSupplyDrops: readNumber(value.automationSupplyDrops, base.automationSupplyDrops),
+    usedDirectiveIds: unique(usedDirectiveIds.length > 0 ? usedDirectiveIds : base.usedDirectiveIds),
   };
 }
 

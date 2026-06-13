@@ -27,7 +27,8 @@ export function createTextButton(
       stroke: "#0a2414",
       strokeThickness: height < 40 ? 3 : 4,
     })
-    .setOrigin(0.5);
+    .setOrigin(0.5)
+    .setShadow(0, 2, "#06190f", 2, false, true);
 
   bg.setInteractive({ useHandCursor: true });
   bg.on("pointerover", () => {
@@ -35,19 +36,31 @@ export function createTextButton(
       return;
     }
     setButtonTexture(bg, "button-emerald-hover");
+    label.setColor("#fff3a8");
+    label.setScale(1.03);
   });
   bg.on("pointerout", () => {
+    const enabled = button.getData("enabled") !== false;
     setButtonTexture(bg, "button-emerald-normal");
+    label.setColor(enabled ? "#f7ffe8" : "#9ba992");
+    label.setScale(1);
+    label.setY(height / 2);
   });
   bg.on("pointerdown", () => {
     if (button.getData("enabled") === false) {
       return;
     }
     setButtonTexture(bg, "button-emerald-active");
+    label.setY(height / 2 + 1);
+    label.setScale(0.98);
     onClick();
   });
   bg.on("pointerup", () => {
-    setButtonTexture(bg, button.getData("enabled") === false ? "button-emerald-normal" : "button-emerald-hover");
+    const enabled = button.getData("enabled") !== false;
+    setButtonTexture(bg, enabled ? "button-emerald-hover" : "button-emerald-normal");
+    label.setColor(enabled ? "#fff3a8" : "#9ba992");
+    label.setY(height / 2);
+    label.setScale(enabled ? 1.03 : 1);
   });
   button.add([bg, label]);
   button.setData("bg", bg);

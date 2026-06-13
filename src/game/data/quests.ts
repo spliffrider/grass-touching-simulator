@@ -26,8 +26,15 @@ const countUpgradeLevels = (state: GameState): number =>
 const getInventoryQuantity = (state: GameState, itemId: string): number => state.inventory[itemId]?.quantity ?? 0;
 const countAnimals = (state: GameState): number =>
   Object.values(state.inventory).reduce((total, entry) => total + (entry.kind === "animal" ? entry.quantity : 0), 0);
+const countAutomationUnits = (state: GameState): number =>
+  (state.seedShopPurchases.sprinkler ? 1 : 0) +
+  ["field_mouse", "bee_hive", "chicken", "sheep", "meadow_rabbit", "earthworm"].reduce(
+    (total, itemId) => total + getInventoryQuantity(state, itemId),
+    0,
+  );
 const hasDiscoveredGrassTier = (state: GameState, tier: GrassTierId): boolean => state.journal.discoveredGrassTiers.includes(tier);
 const countDiscoveredGrassTiers = (state: GameState): number => state.journal.discoveredGrassTiers.length;
+const countUsedAutomationDirectives = (state: GameState): number => state.automationStats.usedDirectiveIds.length;
 const getClassName = (classId: CharacterClassId): string =>
   classId === "grass_toucher" ? "Grass Toucher" : classId === "femboy_slim" ? "Femboy Slim" : "Bard De Wever";
 
@@ -240,6 +247,86 @@ export const QUESTS: QuestDefinition[] = [
     prerequisiteQuestIds: ["seed_pouch_owner"],
     isComplete: (state) => state.seedShopPurchases.sprinkler === true,
     getProgress: (state) => (state.seedShopPurchases.sprinkler ? "Sprinkler bought" : "Not bought yet"),
+  },
+  {
+    id: "automation_actions_25",
+    category: "Automation",
+    name: "Let The Lawn Help",
+    description: "Let automation complete 25 successful actions.",
+    reward: { seeds: 4, gold: 1 },
+    prerequisiteQuestIds: ["sprinkler_owner"],
+    isComplete: (state) => state.automationStats.automatedActions >= 25,
+    getProgress: (state) => `${Math.min(25, state.automationStats.automatedActions)}/25 actions`,
+  },
+  {
+    id: "automation_units_2",
+    category: "Automation",
+    name: "Hands Mostly Free",
+    description: "Own 2 automation helpers.",
+    reward: { seeds: 5, gold: 2 },
+    prerequisiteQuestIds: ["sprinkler_owner"],
+    isComplete: (state) => countAutomationUnits(state) >= 2,
+    getProgress: (state) => `${Math.min(2, countAutomationUnits(state))}/2 helpers`,
+  },
+  {
+    id: "automated_touch_100",
+    category: "Automation",
+    name: "Self-Touching Grass",
+    description: "Earn 100 Grass Touches from automation.",
+    reward: { seeds: 7, gold: 3 },
+    prerequisiteQuestIds: ["automation_actions_25"],
+    isComplete: (state) => state.automationStats.automatedGrassTouches >= 100,
+    getProgress: (state) => `${Math.min(100, Math.floor(state.automationStats.automatedGrassTouches))}/100 auto touches`,
+  },
+  {
+    id: "automation_directives_all",
+    category: "Automation",
+    name: "Managerial Lawn Energy",
+    description: "Use all 4 automation directives.",
+    reward: { seeds: 8, gold: 3 },
+    prerequisiteQuestIds: ["automation_actions_25"],
+    isComplete: (state) => countUsedAutomationDirectives(state) >= 4,
+    getProgress: (state) => `${Math.min(4, countUsedAutomationDirectives(state))}/4 directives`,
+  },
+  {
+    id: "automation_supplies_10",
+    category: "Automation",
+    name: "Pocket-Sized Logistics",
+    description: "Earn 10 seed or gold drops from automation.",
+    reward: { seeds: 6, gold: 4 },
+    prerequisiteQuestIds: ["automation_units_2"],
+    isComplete: (state) => state.automationStats.automationSupplyDrops >= 10,
+    getProgress: (state) => `${Math.min(10, state.automationStats.automationSupplyDrops)}/10 supply drops`,
+  },
+  {
+    id: "automation_units_4",
+    category: "Automation",
+    name: "Tiny Operations Team",
+    description: "Own 4 automation helpers.",
+    reward: { seeds: 10, gold: 4 },
+    prerequisiteQuestIds: ["automation_units_2"],
+    isComplete: (state) => countAutomationUnits(state) >= 4,
+    getProgress: (state) => `${Math.min(4, countAutomationUnits(state))}/4 helpers`,
+  },
+  {
+    id: "automated_touch_500",
+    category: "Automation",
+    name: "The Lawn Has A Process",
+    description: "Earn 500 Grass Touches from automation.",
+    reward: { seeds: 12, gold: 5 },
+    prerequisiteQuestIds: ["automated_touch_100", "automation_units_4"],
+    isComplete: (state) => state.automationStats.automatedGrassTouches >= 500,
+    getProgress: (state) => `${Math.min(500, Math.floor(state.automationStats.automatedGrassTouches))}/500 auto touches`,
+  },
+  {
+    id: "automation_units_7",
+    category: "Automation",
+    name: "Lawn Department",
+    description: "Own 7 automation helpers.",
+    reward: { seeds: 15, gold: 7 },
+    prerequisiteQuestIds: ["automation_units_4"],
+    isComplete: (state) => countAutomationUnits(state) >= 7,
+    getProgress: (state) => `${Math.min(7, countAutomationUnits(state))}/7 helpers`,
   },
   {
     id: "field_journal_owner",

@@ -1,6 +1,7 @@
 import { getGrassTier } from "../data/grass-tiers";
 import { getAutomationDirective } from "./AutomationDirectiveSystem";
 import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
+import { recordAutomationAction, recordAutomationSupplyDrop, recordAutomationTouch } from "./AutomationProgressSystem";
 import { getRandomFieldTile, getRandomGrownTile, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
 import { getInventoryQuantity } from "./InventorySystem";
 import type { AutomationDirectiveId, FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait } from "../types/game-state";
@@ -158,16 +159,19 @@ export class AnimalCompanionSystem {
     feedback.refreshTile(tile);
     feedback.popAtTile(tile, `${label} +${touch.gained}`, touch.isCrit ? "#ffef78" : "#dfffc8");
     feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
+    recordAutomationTouch(state, touch.gained, directiveId);
 
     if (goldChance > 0 && Math.random() < goldChance) {
       state.gold += 1;
       state.lifetimeGold += 1;
+      recordAutomationSupplyDrop(state, 1, directiveId);
       feedback.popAtTile(tile, "+1 gold", "#ffef78");
       feedback.emitGoldBurst(tile);
       feedback.playSound("gold");
     } else if (seedChance > 0 && Math.random() < seedChance) {
       state.seeds += 1;
       state.lifetimeSeeds += 1;
+      recordAutomationSupplyDrop(state, 1, directiveId);
       feedback.popAtTile(tile, "+1 seed", "#fff1a8");
       feedback.emitSeedBurst(tile);
       feedback.playSound("seed");
@@ -210,6 +214,7 @@ export class AnimalCompanionSystem {
       feedback.refreshTile(tile);
       feedback.playCompanionAction(tile, "pollinate");
       feedback.popAtTile(tile, "pollinated", "#fff1a8");
+      recordAutomationAction(state, directiveId);
     }
 
     if (improvedTiles.length > 0) {
@@ -241,11 +246,14 @@ export class AnimalCompanionSystem {
       feedback.playCompanionAction(tile, "scratch");
       feedback.popAtTile(tile, "scratch", "#fff1a8");
       feedback.playSound("seed");
+      recordAutomationAction(state, directiveId);
       return true;
     }
 
     state.gold += 1;
     state.lifetimeGold += 1;
+    recordAutomationAction(state, directiveId);
+    recordAutomationSupplyDrop(state, 1, directiveId);
     feedback.playCompanionAction(tile, "forage");
     feedback.popAtTile(tile, "+1 gold", "#ffef78");
     feedback.emitGoldBurst(tile);
@@ -279,7 +287,9 @@ export class AnimalCompanionSystem {
     feedback.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     feedback.refreshTile(tile);
     feedback.popAtTile(tile, `sheep +${touch.gained}`, "#dfffc8");
+    recordAutomationTouch(state, touch.gained, directiveId);
     if (goldGained > 0) {
+      recordAutomationSupplyDrop(state, goldGained, directiveId);
       feedback.popAtTile(tile, `+${goldGained} gold`, "#ffef78");
       feedback.emitGoldBurst(tile, goldGained);
     }
@@ -312,6 +322,7 @@ export class AnimalCompanionSystem {
       feedback.refreshTile(tile);
       feedback.playCompanionAction(tile, "burrow");
       feedback.popAtTile(tile, state.activeWeatherId === "warm_sunlight" ? "sun-warmed worm" : "worm work", "#dfffc8");
+      recordAutomationAction(state, directiveId);
     }
 
     feedback.playSound("regrow");

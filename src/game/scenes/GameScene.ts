@@ -27,6 +27,7 @@ import { PLACEMENT_RADIUS, getNearbyPlacedObjectIds, getPlacedObjectAt, placeWor
 import { AnimalCompanionSystem } from "../systems/AnimalCompanionSystem";
 import { AUTOMATION_DIRECTIVES, getAutomationDirective } from "../systems/AutomationDirectiveSystem";
 import { getAutomationMilestoneBoostLabel, getAutomationUnitCount } from "../systems/AutomationMilestoneSystem";
+import { recordAutomationDirectiveUsed } from "../systems/AutomationProgressSystem";
 import { AutomationScheduler } from "../systems/AutomationScheduler";
 import { AudioSystem } from "../systems/AudioSystem";
 import { ChiptuneMusicSystem } from "../systems/ChiptuneMusicSystem";
@@ -141,11 +142,10 @@ const SKILL_NODE_FRAME_KEYS = {
 } as const;
 
 const SKILL_BRANCH_LABELS = [
-  { text: "Touch", x: 230, y: 50, color: "#dfffc8" },
-  { text: "Growth", x: 430, y: 190, color: "#bff4ff" },
-  { text: "Nature", x: 660, y: 50, color: "#d7fff2" },
-  { text: "Crits", x: 420, y: 525, color: "#ffef78" },
-  { text: "Meadow", x: 700, y: 335, color: "#dfffc8" },
+  { text: "Growth", x: 440, y: 22, color: "#bff4ff", revealedBy: ["faster_regrowth"] },
+  { text: "Touch", x: 842, y: 250, color: "#dfffc8", revealedBy: ["two_handed_technique"] },
+  { text: "Crits", x: 440, y: 542, color: "#ffef78", revealedBy: ["lucky_clover"] },
+  { text: "Nature", x: 92, y: 270, color: "#d7fff2", revealedBy: ["palm_press"] },
 ];
 
 const getSkillIconKey = (upgradeId: string): string => `skill-${upgradeId.replace(/_/g, "-")}`;
@@ -241,7 +241,7 @@ interface QuestItemView {
   claimButton: Phaser.GameObjects.Container;
 }
 
-type QuestFilterId = "all" | "ready" | "active" | "class" | "journal" | "claimed";
+type QuestFilterId = "all" | "ready" | "active" | "automation" | "class" | "journal" | "claimed";
 
 interface QuestFilterView {
   filterId: QuestFilterId;
@@ -262,6 +262,7 @@ const QUEST_FILTERS: Array<{ id: QuestFilterId; label: string }> = [
   { id: "all", label: "All" },
   { id: "ready", label: "Ready" },
   { id: "active", label: "Active" },
+  { id: "automation", label: "Auto" },
   { id: "class", label: "Class" },
   { id: "journal", label: "Journal" },
   { id: "claimed", label: "Claimed" },
@@ -292,6 +293,7 @@ interface SkillBranchLabelView {
   text: Phaser.GameObjects.Text;
   treeX: number;
   treeY: number;
+  revealedBy: string[];
 }
 
 interface StressStats {
@@ -1296,7 +1298,8 @@ export class GameScene extends Phaser.Scene {
         stroke: "#17491f",
         strokeThickness: 6,
       })
-      .setDepth(20);
+      .setDepth(20)
+      .setShadow(0, 3, "#06190f", 3, false, true);
 
     this.buildLabelText = this.add
       .text(26, 50, BUILD_LABEL, {
@@ -1307,23 +1310,25 @@ export class GameScene extends Phaser.Scene {
         strokeThickness: 4,
       })
       .setDepth(20)
-      .setAlpha(0.82);
+      .setAlpha(0.86)
+      .setShadow(0, 2, "#06190f", 2, false, true);
 
     this.resourceText = this.add
       .text(26, 62, "", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "18px",
         color: "#173b20",
-        backgroundColor: "#e9ffd0",
+        backgroundColor: "#f4ffdc",
         padding: { x: 12, y: 8 },
       })
-      .setDepth(20);
+      .setDepth(20)
+      .setShadow(0, 1, "#ffffff", 1, false, true);
 
     this.comboBadge = this.add.container(0, 0).setDepth(22).setVisible(false);
     this.comboBadgeBg = this.add
       .rectangle(0, 0, 178, 40, 0x12341c, 0.94)
       .setOrigin(0, 0.5)
-      .setStrokeStyle(2, 0xf4df6a, 0.78);
+      .setStrokeStyle(3, 0xf4df6a, 0.82);
     this.comboBadgeText = this.add
       .text(12, -10, "", {
         fontFamily: "Trebuchet MS, Arial",
@@ -1332,7 +1337,8 @@ export class GameScene extends Phaser.Scene {
         stroke: "#06190f",
         strokeThickness: 3,
       })
-      .setOrigin(0, 0.5);
+      .setOrigin(0, 0.5)
+      .setShadow(0, 2, "#06190f", 2, false, true);
     this.comboBadgeMeter = this.add.rectangle(12, 12, 0, 4, 0xf4df6a, 0.92).setOrigin(0, 0.5);
     this.comboBadge.add([this.comboBadgeBg, this.comboBadgeText, this.comboBadgeMeter]);
 
@@ -1345,7 +1351,8 @@ export class GameScene extends Phaser.Scene {
         strokeThickness: 4,
         wordWrap: { width: 420 },
       })
-      .setDepth(20);
+      .setDepth(20)
+      .setShadow(0, 2, "#06190f", 2, false, true);
 
     this.skillButton = createTextButton(this, "Skills", () => this.openSkillTree(), 118, 44, 20);
     this.questButton = createTextButton(this, "Quests", () => this.openQuestLog(), 118, 44, 20);
@@ -1690,7 +1697,7 @@ export class GameScene extends Phaser.Scene {
     this.skillBackdropPattern = this.add
       .image(this.scale.width / 2, this.scale.height / 2, "emerald-bg")
       .setOrigin(0.5)
-      .setAlpha(0.18);
+      .setAlpha(0.22);
 
     this.skillTitleText = this.add.text(0, 0, "Grass Skill Tree", {
       fontFamily: "Trebuchet MS, Arial",
@@ -1716,7 +1723,8 @@ export class GameScene extends Phaser.Scene {
         stroke: "#06190f",
         strokeThickness: 4,
       })
-      .setOrigin(0.5, 0);
+      .setOrigin(0.5, 0)
+      .setShadow(0, 2, "#06190f", 2, false, true);
 
     this.backButton = createTextButton(this, "Back", () => this.closeSkillTree(), 118, 44, 101);
     this.skillLineGraphics = this.add.graphics();
@@ -1739,9 +1747,10 @@ export class GameScene extends Phaser.Scene {
           stroke: "#102318",
           strokeThickness: 5,
         })
-        .setOrigin(0.5);
+        .setOrigin(0.5)
+        .setShadow(0, 2, "#06190f", 2, false, true);
 
-      this.skillBranchLabels.push({ text, treeX: branch.x, treeY: branch.y });
+      this.skillBranchLabels.push({ text, treeX: branch.x, treeY: branch.y, revealedBy: branch.revealedBy });
       this.skillRoot.add(text);
     }
 
@@ -1752,8 +1761,8 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setStrokeStyle(1, upgrade.tree.color, 0)
         .setInteractive({ useHandCursor: true });
-      const glow = this.add.ellipse(0, -4, 62, 48, upgrade.tree.color, 0.12).setStrokeStyle(2, upgrade.tree.color, 0.24);
-      const plate = this.add.circle(0, -4, 24, 0x06190f, 0.82).setStrokeStyle(3, upgrade.tree.color, 0.58);
+      const glow = this.add.ellipse(0, -4, 66, 52, upgrade.tree.color, 0.14).setStrokeStyle(2, upgrade.tree.color, 0.3);
+      const plate = this.add.circle(0, -4, 25, 0x06190f, 0.9).setStrokeStyle(3, upgrade.tree.color, 0.68);
       const frame = this.add
         .image(0, 0, SKILL_NODE_FRAME_KEYS.locked)
         .setDisplaySize(SKILL_NODE_VISUAL_SIZE, SKILL_NODE_VISUAL_SIZE)
@@ -1768,7 +1777,8 @@ export class GameScene extends Phaser.Scene {
           stroke: "#102318",
           strokeThickness: 5,
         })
-        .setOrigin(0.5);
+        .setOrigin(0.5)
+        .setShadow(0, 2, "#06190f", 2, false, true);
       const level = this.add
         .text(0, 31, "", {
           fontFamily: "Trebuchet MS, Arial",
@@ -1777,7 +1787,8 @@ export class GameScene extends Phaser.Scene {
           stroke: "#06190f",
           strokeThickness: 3,
         })
-        .setOrigin(0.5);
+        .setOrigin(0.5)
+        .setShadow(0, 2, "#06190f", 2, false, true);
 
       container.add([bg, glow, plate, frame, icon, lockedIcon, level]);
       bg.on("pointerover", () => this.previewSkill(upgrade.id));
@@ -1797,7 +1808,7 @@ export class GameScene extends Phaser.Scene {
       color: "#f4df6a",
       stroke: "#071b11",
       strokeThickness: 4,
-    });
+    }).setShadow(0, 2, "#06190f", 2, false, true);
     this.skillDetailCategory = this.add.text(24, 60, "", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "14px",
@@ -1886,7 +1897,10 @@ export class GameScene extends Phaser.Scene {
     this.skillDetailBg.setSize(SKILL_DETAIL_WIDTH, SKILL_DETAIL_HEIGHT);
 
     for (const label of this.skillBranchLabels) {
-      label.text.setVisible(false);
+      const visible = label.revealedBy.some((upgradeId) => this.isSkillVisible(upgradeId));
+      label.text.setVisible(visible);
+      label.text.setPosition(treeX + label.treeX * SKILL_MAP_X_SCALE * treeScale, treeY + label.treeY * SKILL_MAP_Y_SCALE * treeScale);
+      label.text.setScale(Math.max(0.76, treeScale));
     }
 
     for (const upgrade of UPGRADES) {
@@ -1895,9 +1909,11 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
 
+      const visible = this.isSkillVisible(upgrade.id);
       const point = this.getSkillTreePoint(upgrade, treeScale, treeX, treeY);
       view.container.setPosition(point.x, point.y);
       view.container.setScale(treeScale);
+      view.container.setVisible(visible);
       view.icon.setDisplaySize(treeScale < 0.62 ? 34 : 38, treeScale < 0.62 ? 34 : 38);
       view.level.setY(treeScale < 0.62 ? 29 : 31);
     }
@@ -1921,7 +1937,7 @@ export class GameScene extends Phaser.Scene {
       color: "#f4df6a",
       stroke: "#06190f",
       strokeThickness: 6,
-    });
+    }).setShadow(0, 3, "#06190f", 3, false, true);
     this.questResourceText = this.add.text(0, 0, "", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "18px",
@@ -2119,6 +2135,8 @@ export class GameScene extends Phaser.Scene {
         return ready;
       case "active":
         return available && !claimed;
+      case "automation":
+        return quest.category === "Automation";
       case "class":
         return quest.category === "Class";
       case "journal":
@@ -2136,6 +2154,7 @@ export class GameScene extends Phaser.Scene {
       all: QUESTS.filter((quest) => this.questMatchesFilter(quest, "all")).length,
       ready: QUESTS.filter((quest) => this.questMatchesFilter(quest, "ready")).length,
       active: QUESTS.filter((quest) => this.questMatchesFilter(quest, "active")).length,
+      automation: QUESTS.filter((quest) => this.questMatchesFilter(quest, "automation")).length,
       class: QUESTS.filter((quest) => this.questMatchesFilter(quest, "class")).length,
       journal: QUESTS.filter((quest) => this.questMatchesFilter(quest, "journal")).length,
       claimed: QUESTS.filter((quest) => this.questMatchesFilter(quest, "claimed")).length,
@@ -2149,6 +2168,8 @@ export class GameScene extends Phaser.Scene {
           return "No quest rewards are ready yet.";
         case "active":
           return "No active quests in this filter yet.";
+        case "automation":
+          return "No automation quests available in this list.";
         case "class":
           return "No class quests available in this list.";
         case "journal":
@@ -2166,6 +2187,8 @@ export class GameScene extends Phaser.Scene {
         return "Quest rewards ready to claim.";
       case "active":
         return "Available quests still in progress.";
+      case "automation":
+        return "Automation goals and helper milestones.";
       case "class":
         return "Class mastery quests.";
       case "journal":
@@ -2192,7 +2215,7 @@ export class GameScene extends Phaser.Scene {
       color: "#f7ffe8",
       stroke: "#17491f",
       strokeThickness: 6,
-    });
+    }).setShadow(0, 3, "#06190f", 3, false, true);
     this.journalResourceText = this.add.text(0, 0, "", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "18px",
@@ -2274,7 +2297,7 @@ export class GameScene extends Phaser.Scene {
       color: "#f7ffe8",
       stroke: "#17491f",
       strokeThickness: 6,
-    });
+    }).setShadow(0, 3, "#06190f", 3, false, true);
     this.seedResourceText = this.add.text(0, 0, "", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "18px",
@@ -2396,7 +2419,7 @@ export class GameScene extends Phaser.Scene {
       color: "#f7ffe8",
       stroke: "#17491f",
       strokeThickness: 6,
-    });
+    }).setShadow(0, 3, "#06190f", 3, false, true);
     this.storeResourceText = this.add.text(0, 0, "", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "18px",
@@ -2519,7 +2542,8 @@ export class GameScene extends Phaser.Scene {
         fontSize: "34px",
         color: "#183d20",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setShadow(0, 2, "#ffffff", 2, false, true);
     this.optionsVolumeLabel = this.add
       .text(0, 0, "", {
         fontFamily: "Trebuchet MS, Arial",
@@ -2653,7 +2677,8 @@ export class GameScene extends Phaser.Scene {
         fontSize: "34px",
         color: "#183d20",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setShadow(0, 2, "#ffffff", 2, false, true);
     this.automationStatusText = this.add
       .text(0, 0, "", {
         fontFamily: "Trebuchet MS, Arial",
@@ -2743,7 +2768,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     const currentDirective = getAutomationDirective(this.state);
-    this.automationStatusText.setText(`${getAutomationUnitCount(this.state)} active units | Directive: ${currentDirective.name}`);
+    this.automationStatusText.setText(
+      [
+        `${getAutomationUnitCount(this.state)} active units`,
+        `Directive: ${currentDirective.name}`,
+        `${Math.floor(this.state.automationStats.automatedGrassTouches)} auto touches`,
+        `${this.state.automationStats.automationSupplyDrops} supplies`,
+      ].join(" | "),
+    );
 
     for (const view of this.automationDirectiveViews.values()) {
       const selected = view.directiveId === currentDirective.id;
@@ -2757,6 +2789,71 @@ export class GameScene extends Phaser.Scene {
 
   private getUpgradeLevel(upgradeId: string): number {
     return this.state.upgrades[upgradeId]?.level ?? 0;
+  }
+
+  private isSkillVisible(upgradeId: string): boolean {
+    const upgrade = UPGRADES.find((candidate) => candidate.id === upgradeId);
+    if (!upgrade) {
+      return false;
+    }
+
+    const level = this.getUpgradeLevel(upgrade.id);
+    if (level > 0 || (upgrade.prerequisiteIds ?? []).length === 0) {
+      return true;
+    }
+
+    return (upgrade.prerequisiteIds ?? []).some((prerequisiteId) => this.getUpgradeLevel(prerequisiteId) > 0);
+  }
+
+  private getVisibleSkillIds(): Set<string> {
+    return new Set(UPGRADES.filter((upgrade) => this.isSkillVisible(upgrade.id)).map((upgrade) => upgrade.id));
+  }
+
+  private playSkillRevealFeedback(previousVisibleSkillIds: Set<string>): void {
+    let revealedCount = 0;
+
+    for (const upgrade of UPGRADES) {
+      if (previousVisibleSkillIds.has(upgrade.id) || !this.isSkillVisible(upgrade.id)) {
+        continue;
+      }
+
+      const view = this.skillNodeViews.get(upgrade.id);
+      if (!view) {
+        continue;
+      }
+
+      revealedCount += 1;
+      const targetAlpha = view.container.alpha;
+      const targetScaleX = view.container.scaleX;
+      const targetScaleY = view.container.scaleY;
+      this.tweens.killTweensOf(view.container);
+      view.container.setVisible(true);
+      view.container.setAlpha(0);
+      view.container.setScale(targetScaleX * 0.62, targetScaleY * 0.62);
+      view.container.setRotation(-0.08);
+
+      this.tweens.add({
+        targets: view.container,
+        alpha: targetAlpha,
+        scaleX: targetScaleX,
+        scaleY: targetScaleY,
+        angle: 0,
+        duration: 360,
+        ease: "Back.easeOut",
+      });
+      this.tweens.add({
+        targets: view.glow,
+        alpha: 0.46,
+        duration: 180,
+        yoyo: true,
+        ease: "Sine.easeOut",
+      });
+    }
+
+    if (revealedCount > 0) {
+      this.audio.play("unlock");
+      this.showMessage(revealedCount === 1 ? "A new skill sprouted." : `${revealedCount} new skills sprouted.`, 2200);
+    }
   }
 
   private hasBlockingOverlayOpen(): boolean {
@@ -2807,12 +2904,21 @@ export class GameScene extends Phaser.Scene {
       this.skillLineGraphics.fillCircle(treeX + x * treeScale, treeY + y * treeScale, Math.max(1.2, 2 * treeScale));
     }
 
+    this.drawDormantSkillHints(treeScale, treeX, treeY);
+
     for (const upgrade of UPGRADES) {
+      if (!this.isSkillVisible(upgrade.id)) {
+        continue;
+      }
+
       const prerequisiteIds = upgrade.prerequisiteIds ?? [];
 
       for (const prerequisiteId of prerequisiteIds) {
         const prerequisite = UPGRADES.find((candidate) => candidate.id === prerequisiteId);
         if (!prerequisite) {
+          continue;
+        }
+        if (!this.isSkillVisible(prerequisite.id)) {
           continue;
         }
 
@@ -2860,21 +2966,70 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private drawDormantSkillHints(treeScale: number, treeX: number, treeY: number): void {
+    for (const upgrade of UPGRADES) {
+      if (this.isSkillVisible(upgrade.id)) {
+        continue;
+      }
+
+      const visiblePrerequisites = (upgrade.prerequisiteIds ?? [])
+        .map((prerequisiteId) => UPGRADES.find((candidate) => candidate.id === prerequisiteId))
+        .filter((prerequisite): prerequisite is (typeof UPGRADES)[number] => prerequisite !== undefined && this.isSkillVisible(prerequisite.id));
+
+      if (visiblePrerequisites.length === 0) {
+        continue;
+      }
+
+      const end = this.getSkillTreePoint(upgrade, treeScale, treeX, treeY);
+
+      for (const prerequisite of visiblePrerequisites) {
+        const start = this.getSkillTreePoint(prerequisite, treeScale, treeX, treeY);
+        this.skillLineGraphics.lineStyle(Math.max(1, 1.6 * treeScale), 0xb7eba5, 0.16);
+        this.skillLineGraphics.beginPath();
+        this.skillLineGraphics.moveTo(start.x, start.y);
+        this.skillLineGraphics.lineTo(end.x, end.y);
+        this.skillLineGraphics.strokePath();
+      }
+
+      this.skillLineGraphics.fillStyle(0x0d2617, 0.52);
+      this.skillLineGraphics.fillCircle(end.x, end.y, Math.max(8, 13 * treeScale));
+      this.skillLineGraphics.lineStyle(Math.max(1, 2 * treeScale), 0xb7eba5, 0.28);
+      this.skillLineGraphics.strokeCircle(end.x, end.y, Math.max(8, 13 * treeScale));
+    }
+  }
+
   private previewSkill(upgradeId: string): void {
+    if (!this.isSkillVisible(upgradeId)) {
+      return;
+    }
+
     this.selectedSkillId = upgradeId;
     this.refreshUi();
   }
 
   private upgradeSkill(upgradeId: string): void {
+    if (!this.isSkillVisible(upgradeId)) {
+      this.setSkillStatus("That path has not sprouted yet.");
+      return;
+    }
+
+    const visibleBefore = this.getVisibleSkillIds();
     this.selectedSkillId = upgradeId;
     const upgraded = this.buyUpgrade(upgradeId);
     this.bumpSkillNode(upgradeId, upgraded);
+    if (upgraded) {
+      this.playSkillRevealFeedback(visibleBefore);
+    }
     this.refreshUi();
   }
 
   private upgradeSelectedSkill(): void {
+    const visibleBefore = this.getVisibleSkillIds();
     const upgraded = this.buyUpgrade(this.selectedSkillId);
     this.bumpSkillNode(this.selectedSkillId, upgraded);
+    if (upgraded) {
+      this.playSkillRevealFeedback(visibleBefore);
+    }
     this.refreshUi();
   }
 
@@ -2885,6 +3040,9 @@ export class GameScene extends Phaser.Scene {
     this.closeGoldStore();
     this.closeAutomationPanel();
     this.closeOptions();
+    if (!this.isSkillVisible(this.selectedSkillId)) {
+      this.selectedSkillId = UPGRADES[0].id;
+    }
     this.skillTreeOpen = true;
     this.skillRoot.setVisible(true);
     this.disarmReset();
@@ -3018,6 +3176,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.state.automationDirectiveId = directiveId;
+    recordAutomationDirectiveUsed(this.state, directiveId);
     this.audio.play("upgrade");
     this.saveState();
     this.refreshAutomationPanel();
@@ -6416,10 +6575,18 @@ export class GameScene extends Phaser.Scene {
         const maxed = level >= upgrade.maxLevel;
         const cost = getUpgradeCost(upgrade, level);
         const available = unlocked && !maxed && this.state.grassTouches >= cost;
+        const visible = this.isSkillVisible(upgrade.id);
 
         if (!view) {
           continue;
         }
+
+        view.container.setVisible(visible);
+        if (!visible) {
+          view.bg.disableInteractive();
+          continue;
+        }
+        view.bg.setInteractive({ useHandCursor: true });
 
         const selected = upgrade.id === this.selectedSkillId;
         const stroke = selected ? 0xfff08a : available ? 0xf4df6a : level > 0 ? upgrade.tree.color : 0x506056;
@@ -6879,6 +7046,12 @@ export class GameScene extends Phaser.Scene {
 
   private refreshSkillDetail(): void {
     const upgrade = UPGRADES.find((candidate) => candidate.id === this.selectedSkillId) ?? UPGRADES[0];
+    if (!this.isSkillVisible(upgrade.id)) {
+      this.selectedSkillId = UPGRADES[0].id;
+      this.refreshSkillDetail();
+      return;
+    }
+
     const level = this.state.upgrades[upgrade.id]?.level ?? 0;
     const cost = getUpgradeCost(upgrade, level);
     const maxed = level >= upgrade.maxLevel;
@@ -6936,11 +7109,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getUpgradeBranch(upgradeId: string): string {
+    if (upgradeId === "softer_grass") {
+      return "Root";
+    }
+
     if (["honest_work", "patient_observation", "slay_footwork", "perfect_pose", "steady_tempo", "encore_circle"].includes(upgradeId)) {
       return "Class";
     }
 
-    if (["softer_grass", "palm_press", "two_handed_technique", "mindful_contact", "barefoot_confidence"].includes(upgradeId)) {
+    if (["two_handed_technique", "mindful_contact", "barefoot_confidence", "soft_meadow"].includes(upgradeId)) {
       return "Touch";
     }
 
@@ -6952,7 +7129,7 @@ export class GameScene extends Phaser.Scene {
       return "Crits";
     }
 
-    if (["dew_appreciation", "morning_mist", "dew_respecter", "weather_watching"].includes(upgradeId)) {
+    if (["palm_press", "dew_appreciation", "morning_mist", "dew_respecter", "weather_watching", "grass_identification", "better_eyes"].includes(upgradeId)) {
       return "Nature";
     }
 
@@ -7143,6 +7320,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.tweens.killTweensOf(view.container);
+    view.container.setRotation(0);
     this.tweens.add({
       targets: view.container,
       scaleX: success ? view.container.scaleX * 1.16 : view.container.scaleX * 0.94,
@@ -7151,22 +7329,29 @@ export class GameScene extends Phaser.Scene {
       yoyo: true,
       ease: "Sine.easeOut",
     });
+    this.tweens.add({
+      targets: view.container,
+      angle: success ? 2.4 : -3.2,
+      duration: success ? 42 : 38,
+      yoyo: true,
+      repeat: success ? 2 : 3,
+      ease: "Sine.easeInOut",
+      onComplete: () => view.container.setRotation(0),
+    });
 
-    if (!success) {
-      this.tweens.add({
-        targets: view.container,
-        x: view.container.x + 5,
-        duration: 45,
-        yoyo: true,
-        repeat: 3,
-        ease: "Sine.easeInOut",
-      });
-    }
+    this.tweens.add({
+      targets: view.container,
+      x: view.container.x + (success ? 2 : 5),
+      duration: success ? 36 : 45,
+      yoyo: true,
+      repeat: success ? 1 : 3,
+      ease: "Sine.easeInOut",
+    });
   }
 
   private buyUpgrade(upgradeId: string): boolean {
     const upgrade = UPGRADES.find((candidate) => candidate.id === upgradeId);
-    if (!upgrade || !canUnlockUpgrade(this.state, upgrade)) {
+    if (!upgrade || !this.isSkillVisible(upgradeId) || !canUnlockUpgrade(this.state, upgrade)) {
       this.setSkillStatus("That skill has not sprouted yet.");
       this.audio.play("blocked");
       this.refreshUi();

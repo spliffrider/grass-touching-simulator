@@ -1,6 +1,7 @@
 import { getGrassTier } from "../data/grass-tiers";
 import { getAutomationDirective } from "./AutomationDirectiveSystem";
 import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
+import { recordAutomationAction, recordAutomationSupplyDrop, recordAutomationTouch } from "./AutomationProgressSystem";
 import { getRandomGrownTile, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
 import type { AutomationDirectiveId, FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait, TouchResult } from "../types/game-state";
 
@@ -9,7 +10,7 @@ export interface SprinklerFeedback {
   popAtTile(tile: FieldTile, text: string, color: string): void;
   playSprinklerBurst(tile: FieldTile): void;
   playTouchFeedback(tile: FieldTile, touchedTrait: TileTrait, isCrit: boolean): void;
-  tryDropSeed(tile: FieldTile, touchedTrait: TileTrait, stats: RuntimeStats, chanceScale: number): void;
+  tryDropSeed(tile: FieldTile, touchedTrait: TileTrait, stats: RuntimeStats, chanceScale: number): boolean;
   tryDropGold(
     tile: FieldTile,
     touchedTrait: TileTrait,
@@ -17,7 +18,7 @@ export interface SprinklerFeedback {
     touch: TouchResult,
     stats: RuntimeStats,
     chanceScale: number,
-  ): void;
+  ): boolean;
   playGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean): void;
 }
 
@@ -60,6 +61,7 @@ export class SprinklerSystem {
         feedback.playSprinklerBurst(tile);
         feedback.refreshTile(tile);
         feedback.popAtTile(tile, "watered", "#d7fff2");
+        recordAutomationAction(state, directiveId);
         changed = true;
         continue;
       }
@@ -84,18 +86,26 @@ export class SprinklerSystem {
         feedback.popAtTile(tile, "instant regrow", "#dfffc8");
       }
 
+      recordAutomationTouch(state, touch.gained, directiveId);
+
       if (state.seedShopPurchases.self_seeding_nozzle) {
-        feedback.tryDropSeed(tile, touchedTrait, stats, directiveId === "supplies" ? 0.38 : 0.25);
+        if (feedback.tryDropSeed(tile, touchedTrait, stats, directiveId === "supplies" ? 0.38 : 0.25)) {
+          recordAutomationSupplyDrop(state, 1, directiveId);
+        }
       }
 
-      feedback.tryDropGold(
-        tile,
-        touchedTrait,
-        touchedTier.id,
-        touch,
-        stats,
-        directiveId === "supplies" ? 0.32 : 0.2,
-      );
+      if (
+        feedback.tryDropGold(
+          tile,
+          touchedTrait,
+          touchedTier.id,
+          touch,
+          stats,
+          directiveId === "supplies" ? 0.32 : 0.2,
+        )
+      ) {
+        recordAutomationSupplyDrop(state, 1, directiveId);
+      }
       feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
       changed = true;
     }
