@@ -382,7 +382,6 @@ export const UPGRADES: UpgradeDefinition[] = [
     maxLevel: 4,
     classId: "grass_toucher",
     prerequisiteIds: ["soft_meadow", "grass_identification"],
-    iconAsset: "softer_grass",
     tree: { x: 820, y: 205, icon: "work", color: 0x9be86b },
     apply: (stats, level) => {
       stats.touchMultiplier += level * 0.75;
@@ -399,7 +398,6 @@ export const UPGRADES: UpgradeDefinition[] = [
     maxLevel: 3,
     classId: "grass_toucher",
     prerequisiteIds: ["honest_work"],
-    iconAsset: "grass_identification",
     tree: { x: 820, y: 285, icon: "look", color: 0xb7eba5 },
     apply: (stats, level) => {
       stats.rareTierMultiplier += level * 0.08;
