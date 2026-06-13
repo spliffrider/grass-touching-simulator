@@ -1,0 +1,87 @@
+{
+  "handoffVersion": 1,
+  "createdAt": "2026-06-13T00:00:00+02:00",
+  "project": {
+    "name": "Grass Touching Simulator",
+    "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+    "branch": "master",
+    "repository": "https://github.com/spliffrider/grass-touching-simulator.git",
+    "liveDomain": "https://grasstouchingsimulator.com"
+  },
+  "checkpoint": {
+    "name": "Alpha 2.0 - Placement-aware sprinkler automation",
+    "summary": "Changed Tiny Sprinkler automation from always-global random targeting to placement-focused targeting with a bounded local search for smooth performance.",
+    "gameCommit": {
+      "hash": "29e2db8e0a4b881d5d0fb97e648c1ab8f554af94",
+      "shortHash": "29e2db8",
+      "message": "Focus sprinkler automation around placement"
+    }
+  },
+  "deployment": {
+    "provider": "Vercel",
+    "target": "production",
+    "deploymentId": "dpl_2yvVnCxVH7CnoUf7jgQtfiqxXJxv",
+    "deploymentUrl": "https://grass-touching-simulator-mq3pt1v10-sensitech.vercel.app",
+    "inspectorUrl": "https://vercel.com/sensitech/grass-touching-simulator/2yvVnCxVH7CnoUf7jgQtfiqxXJxv",
+    "readyState": "READY",
+    "aliased": true,
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "liveDomainCheck": "HTTP 200 OK"
+  },
+  "implemented": [
+    "Tiny Sprinkler now prefers grown tiles near its placed tile.",
+    "Unplaced sprinkler still falls back to the previous global random behavior.",
+    "Base placed sprinkler searches radius 1.",
+    "Sprinkler Network searches radius 2 and still performs two touches per cycle.",
+    "The local search only runs on sprinkler ticks, not every frame.",
+    "Updated Seed Shop and world-object descriptions to explain focused watering."
+  ],
+  "performanceNotes": [
+    "The local search is a bounded square: at most 9 tile checks normally or 25 checks with Sprinkler Network.",
+    "The system falls back to getRandomGrownTile only when no local grown tile is available or no sprinkler is placed.",
+    "No new persistent save shape, no new per-frame object scan, and no new rendering loop were added."
+  ],
+  "filesChanged": [
+    "src/game/systems/SprinklerSystem.ts",
+    "src/game/data/seed-shop.ts",
+    "src/game/scenes/GameScene.ts"
+  ],
+  "verification": {
+    "localBuild": {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    "browserSmoke": {
+      "tool": "Codex in-app browser",
+      "url": "http://localhost:5173/?stress&perf&tiles=120",
+      "result": "passed",
+      "checks": [
+        "Stress mode loaded with a placed sprinkler.",
+        "Waited long enough for at least one sprinkler cycle.",
+        "Console errors were empty.",
+        "Canvas remained active at 1280x720."
+      ],
+      "note": "Screenshot capture timed out once in the browser bridge, but app state and console checks succeeded."
+    },
+    "deployment": {
+      "command": "npx vercel --prod --yes",
+      "result": "passed"
+    },
+    "liveDomain": {
+      "command": "Invoke-WebRequest -Uri https://grasstouchingsimulator.com -UseBasicParsing -TimeoutSec 20",
+      "result": "passed",
+      "statusCode": 200
+    }
+  },
+  "knownCaveats": [
+    "Sprinkler targeting is still intentionally simple: random local grown tile, no priority system yet.",
+    "If the placed sprinkler area is depleted, it falls back to global random targeting so automation does not stall.",
+    "No visual radius indicator exists yet for placement coverage."
+  ],
+  "recommendedNextSteps": [
+    "Add a lightweight placement radius preview for sprinklers when selected or hovered.",
+    "Consider object-specific targeting priorities later, such as preferring dewy/lush/rare grass near the sprinkler.",
+    "Keep automation expansions tick-based and bounded; avoid full-field scans per frame.",
+    "Continue testing ?stress&perf&tiles=120 after each automation change."
+  ]
+}
