@@ -142,10 +142,10 @@ const SKILL_NODE_FRAME_KEYS = {
 } as const;
 
 const SKILL_BRANCH_LABELS = [
-  { text: "Growth", x: 440, y: 22, color: "#bff4ff", revealedBy: ["faster_regrowth"] },
-  { text: "Touch", x: 842, y: 250, color: "#dfffc8", revealedBy: ["two_handed_technique"] },
-  { text: "Crits", x: 440, y: 542, color: "#ffef78", revealedBy: ["lucky_clover"] },
-  { text: "Nature", x: 92, y: 270, color: "#d7fff2", revealedBy: ["palm_press"] },
+  { text: "Growth", x: 440, y: 22, color: "#7be7ff", revealedBy: ["faster_regrowth"] },
+  { text: "Touch", x: 842, y: 250, color: "#dfff74", revealedBy: ["two_handed_technique"] },
+  { text: "Crits", x: 440, y: 542, color: "#ffef4a", revealedBy: ["lucky_clover"] },
+  { text: "Nature", x: 92, y: 270, color: "#82ffd0", revealedBy: ["palm_press"] },
 ];
 
 const getSkillIconKey = (upgradeId: string): string => `skill-${upgradeId.replace(/_/g, "-")}`;
@@ -206,6 +206,8 @@ interface SkillNodeView {
   icon: Phaser.GameObjects.Image;
   lockedIcon: Phaser.GameObjects.Text;
   level: Phaser.GameObjects.Text;
+  hoverTrembleTween?: Phaser.Tweens.Tween;
+  hoverGlowTween?: Phaser.Tweens.Tween;
 }
 
 interface SeedShopItemView {
@@ -1697,7 +1699,7 @@ export class GameScene extends Phaser.Scene {
     this.skillBackdropPattern = this.add
       .image(this.scale.width / 2, this.scale.height / 2, "emerald-bg")
       .setOrigin(0.5)
-      .setAlpha(0.22);
+      .setAlpha(0.34);
 
     this.skillTitleText = this.add.text(0, 0, "Grass Skill Tree", {
       fontFamily: "Trebuchet MS, Arial",
@@ -1761,8 +1763,8 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setStrokeStyle(1, upgrade.tree.color, 0)
         .setInteractive({ useHandCursor: true });
-      const glow = this.add.ellipse(0, -4, 66, 52, upgrade.tree.color, 0.14).setStrokeStyle(2, upgrade.tree.color, 0.3);
-      const plate = this.add.circle(0, -4, 25, 0x06190f, 0.9).setStrokeStyle(3, upgrade.tree.color, 0.68);
+      const glow = this.add.ellipse(0, -4, 74, 58, upgrade.tree.color, 0.22).setStrokeStyle(3, upgrade.tree.color, 0.44);
+      const plate = this.add.circle(0, -4, 26, 0x06190f, 0.94).setStrokeStyle(4, upgrade.tree.color, 0.78);
       const frame = this.add
         .image(0, 0, SKILL_NODE_FRAME_KEYS.locked)
         .setDisplaySize(SKILL_NODE_VISUAL_SIZE, SKILL_NODE_VISUAL_SIZE)
@@ -1791,7 +1793,11 @@ export class GameScene extends Phaser.Scene {
         .setShadow(0, 2, "#06190f", 2, false, true);
 
       container.add([bg, glow, plate, frame, icon, lockedIcon, level]);
-      bg.on("pointerover", () => this.previewSkill(upgrade.id));
+      bg.on("pointerover", () => {
+        this.previewSkill(upgrade.id);
+        this.startSkillHoverTremble(upgrade.id);
+      });
+      bg.on("pointerout", () => this.stopSkillHoverTremble(upgrade.id));
       bg.on("pointerdown", () => this.upgradeSkill(upgrade.id));
       this.skillNodeViews.set(upgrade.id, { upgradeId: upgrade.id, container, bg, glow, plate, frame, icon, lockedIcon, level });
       this.skillRoot.add(container);
@@ -2809,7 +2815,15 @@ export class GameScene extends Phaser.Scene {
     return new Set(UPGRADES.filter((upgrade) => this.isSkillVisible(upgrade.id)).map((upgrade) => upgrade.id));
   }
 
-  private playSkillRevealFeedback(previousVisibleSkillIds: Set<string>): void {
+  private willRevealHiddenSkillBranch(upgradeId: string): boolean {
+    if (!this.isSkillVisible(upgradeId) || this.getUpgradeLevel(upgradeId) > 0) {
+      return false;
+    }
+
+    return UPGRADES.some((upgrade) => (upgrade.prerequisiteIds ?? []).includes(upgradeId) && !this.isSkillVisible(upgrade.id));
+  }
+
+  private playSkillRevealFeedback(previousVisibleSkillIds: Set<string>, sourceUpgradeId: string): void {
     let revealedCount = 0;
 
     for (const upgrade of UPGRADES) {
@@ -2823,6 +2837,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       revealedCount += 1;
+      this.playSkillBranchRevealTrail(sourceUpgradeId, upgrade.id, upgrade.tree.color);
       const targetAlpha = view.container.alpha;
       const targetScaleX = view.container.scaleX;
       const targetScaleY = view.container.scaleY;
@@ -2852,8 +2867,66 @@ export class GameScene extends Phaser.Scene {
 
     if (revealedCount > 0) {
       this.audio.play("unlock");
+      this.flashScreen(0xf4df6a, 0.1, 240);
       this.showMessage(revealedCount === 1 ? "A new skill sprouted." : `${revealedCount} new skills sprouted.`, 2200);
     }
+  }
+
+  private playSkillBranchRevealTrail(sourceUpgradeId: string, revealedUpgradeId: string, color: number): void {
+    const sourceView = this.skillNodeViews.get(sourceUpgradeId);
+    const revealedView = this.skillNodeViews.get(revealedUpgradeId);
+    if (!sourceView || !revealedView) {
+      return;
+    }
+
+    const start = { x: sourceView.container.x, y: sourceView.container.y };
+    const end = { x: revealedView.container.x, y: revealedView.container.y };
+    const trail = this.add.graphics();
+    const spark = this.add.circle(start.x, start.y, 6, 0xf7ffe8, 1).setStrokeStyle(2, color, 0.92);
+    this.skillRoot.add([trail, spark]);
+
+    const progress = { value: 0 };
+    this.tweens.add({
+      targets: progress,
+      value: 1,
+      duration: 430,
+      ease: "Cubic.easeOut",
+      onUpdate: () => {
+        const currentX = Phaser.Math.Linear(start.x, end.x, progress.value);
+        const currentY = Phaser.Math.Linear(start.y, end.y, progress.value);
+        trail.clear();
+        trail.lineStyle(15, color, 0.2);
+        trail.beginPath();
+        trail.moveTo(start.x, start.y);
+        trail.lineTo(currentX, currentY);
+        trail.strokePath();
+        trail.lineStyle(4, 0xf7ffe8, 0.9);
+        trail.beginPath();
+        trail.moveTo(start.x, start.y);
+        trail.lineTo(currentX, currentY);
+        trail.strokePath();
+        spark.setPosition(currentX, currentY);
+        spark.setAlpha(1 - progress.value * 0.18);
+      },
+      onComplete: () => {
+        this.tweens.add({
+          targets: spark,
+          scaleX: 2.6,
+          scaleY: 2.6,
+          alpha: 0,
+          duration: 220,
+          ease: "Sine.easeOut",
+          onComplete: () => spark.destroy(),
+        });
+        this.tweens.add({
+          targets: trail,
+          alpha: 0,
+          duration: 260,
+          ease: "Sine.easeOut",
+          onComplete: () => trail.destroy(),
+        });
+      },
+    });
   }
 
   private hasBlockingOverlayOpen(): boolean {
@@ -2882,7 +2955,7 @@ export class GameScene extends Phaser.Scene {
 
   private drawSkillLines(treeScale: number, treeX: number, treeY: number): void {
     this.skillLineGraphics.clear();
-    this.skillLineGraphics.fillStyle(0x000000, 0.24);
+    this.skillLineGraphics.fillStyle(0x000000, 0.18);
     this.skillLineGraphics.fillCircle(treeX + 155 * treeScale, treeY + 138 * treeScale, 95 * treeScale);
     this.skillLineGraphics.fillCircle(treeX + 265 * treeScale, treeY + 250 * treeScale, 132 * treeScale);
     this.skillLineGraphics.fillCircle(treeX + 420 * treeScale, treeY + 210 * treeScale, 74 * treeScale);
@@ -2899,7 +2972,7 @@ export class GameScene extends Phaser.Scene {
       [625, 456],
     ];
 
-    this.skillLineGraphics.fillStyle(0xf4df6a, 0.34);
+    this.skillLineGraphics.fillStyle(0xffef78, 0.58);
     for (const [x, y] of starPoints) {
       this.skillLineGraphics.fillCircle(treeX + x * treeScale, treeY + y * treeScale, Math.max(1.2, 2 * treeScale));
     }
@@ -2923,44 +2996,44 @@ export class GameScene extends Phaser.Scene {
         }
 
         const primaryBranch = prerequisiteId === prerequisiteIds[0];
+        if (!primaryBranch) {
+          continue;
+        }
+
         const prerequisiteLevel = this.state.upgrades[prerequisite.id]?.level ?? 0;
         const upgradeLevel = this.state.upgrades[upgrade.id]?.level ?? 0;
         const active = prerequisiteLevel > 0 && upgradeLevel > 0;
         const available = prerequisiteLevel > 0 && canUnlockUpgrade(this.state, upgrade);
         const selectedConnection = upgrade.id === this.selectedSkillId || prerequisite.id === this.selectedSkillId;
 
-        if (!primaryBranch && !active && !available && !selectedConnection) {
-          continue;
-        }
-
-        const color = active ? 0xffe460 : available ? 0xffd24a : selectedConnection ? 0xf4df6a : 0x44624c;
-        const alpha = primaryBranch ? (active || available || selectedConnection ? 0.9 : 0.3) : active || selectedConnection ? 0.55 : 0.18;
-        const width = primaryBranch ? Math.max(2, 2.4 * treeScale) : Math.max(1.2, 1.6 * treeScale);
+        const color = active ? 0xfff06a : available ? 0xdfff74 : selectedConnection ? 0xf4df6a : 0x6f9473;
+        const alpha = active || available || selectedConnection ? 1 : 0.46;
+        const width = Math.max(2.6, 3.2 * treeScale);
         const start = this.getSkillTreePoint(prerequisite, treeScale, treeX, treeY);
         const end = this.getSkillTreePoint(upgrade, treeScale, treeX, treeY);
 
-        this.skillLineGraphics.lineStyle(width + 8 * treeScale, color, alpha * 0.18);
+        this.skillLineGraphics.lineStyle(width + 11 * treeScale, color, alpha * 0.24);
         this.skillLineGraphics.beginPath();
         this.skillLineGraphics.moveTo(start.x, start.y);
         this.skillLineGraphics.lineTo(end.x, end.y);
         this.skillLineGraphics.strokePath();
 
-        this.skillLineGraphics.lineStyle(width + 2 * treeScale, 0x06190f, Math.min(0.52, alpha * 0.55));
+        this.skillLineGraphics.lineStyle(width + 2 * treeScale, 0x06190f, Math.min(0.62, alpha * 0.58));
         this.skillLineGraphics.beginPath();
         this.skillLineGraphics.moveTo(start.x, start.y);
         this.skillLineGraphics.lineTo(end.x, end.y);
         this.skillLineGraphics.strokePath();
 
-        this.skillLineGraphics.lineStyle(width, color, Math.min(1, alpha + 0.08));
+        this.skillLineGraphics.lineStyle(width, color, Math.min(1, alpha + 0.12));
         this.skillLineGraphics.beginPath();
         this.skillLineGraphics.moveTo(start.x, start.y);
         this.skillLineGraphics.lineTo(end.x, end.y);
         this.skillLineGraphics.strokePath();
 
         if (active || available || selectedConnection) {
-          this.skillLineGraphics.fillStyle(color, Math.min(0.82, alpha + 0.1));
-          this.skillLineGraphics.fillCircle(start.x, start.y, Math.max(2.2, 3.2 * treeScale));
-          this.skillLineGraphics.fillCircle(end.x, end.y, Math.max(2.2, 3.2 * treeScale));
+          this.skillLineGraphics.fillStyle(color, Math.min(0.95, alpha + 0.12));
+          this.skillLineGraphics.fillCircle(start.x, start.y, Math.max(3, 4.2 * treeScale));
+          this.skillLineGraphics.fillCircle(end.x, end.y, Math.max(3, 4.2 * treeScale));
         }
       }
     }
@@ -2972,29 +3045,27 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
 
-      const visiblePrerequisites = (upgrade.prerequisiteIds ?? [])
-        .map((prerequisiteId) => UPGRADES.find((candidate) => candidate.id === prerequisiteId))
-        .filter((prerequisite): prerequisite is (typeof UPGRADES)[number] => prerequisite !== undefined && this.isSkillVisible(prerequisite.id));
+      const primaryPrerequisiteId = (upgrade.prerequisiteIds ?? [])[0];
+      const primaryPrerequisite = UPGRADES.find((candidate) => candidate.id === primaryPrerequisiteId);
 
-      if (visiblePrerequisites.length === 0) {
+      if (!primaryPrerequisite || !this.isSkillVisible(primaryPrerequisite.id)) {
         continue;
       }
 
       const end = this.getSkillTreePoint(upgrade, treeScale, treeX, treeY);
+      const start = this.getSkillTreePoint(primaryPrerequisite, treeScale, treeX, treeY);
+      this.skillLineGraphics.lineStyle(Math.max(1.2, 2.1 * treeScale), 0xdfff74, 0.3);
+      this.skillLineGraphics.beginPath();
+      this.skillLineGraphics.moveTo(start.x, start.y);
+      this.skillLineGraphics.lineTo(end.x, end.y);
+      this.skillLineGraphics.strokePath();
 
-      for (const prerequisite of visiblePrerequisites) {
-        const start = this.getSkillTreePoint(prerequisite, treeScale, treeX, treeY);
-        this.skillLineGraphics.lineStyle(Math.max(1, 1.6 * treeScale), 0xb7eba5, 0.16);
-        this.skillLineGraphics.beginPath();
-        this.skillLineGraphics.moveTo(start.x, start.y);
-        this.skillLineGraphics.lineTo(end.x, end.y);
-        this.skillLineGraphics.strokePath();
-      }
-
-      this.skillLineGraphics.fillStyle(0x0d2617, 0.52);
-      this.skillLineGraphics.fillCircle(end.x, end.y, Math.max(8, 13 * treeScale));
-      this.skillLineGraphics.lineStyle(Math.max(1, 2 * treeScale), 0xb7eba5, 0.28);
-      this.skillLineGraphics.strokeCircle(end.x, end.y, Math.max(8, 13 * treeScale));
+      this.skillLineGraphics.fillStyle(0x183d20, 0.74);
+      this.skillLineGraphics.fillCircle(end.x, end.y, Math.max(9, 15 * treeScale));
+      this.skillLineGraphics.lineStyle(Math.max(1.4, 2.6 * treeScale), 0xdfff74, 0.48);
+      this.skillLineGraphics.strokeCircle(end.x, end.y, Math.max(9, 15 * treeScale));
+      this.skillLineGraphics.fillStyle(0xf4df6a, 0.42);
+      this.skillLineGraphics.fillCircle(end.x, end.y, Math.max(2.4, 4 * treeScale));
     }
   }
 
@@ -3007,6 +3078,48 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
   }
 
+  private startSkillHoverTremble(upgradeId: string): void {
+    const view = this.skillNodeViews.get(upgradeId);
+    if (!view || view.hoverTrembleTween || !this.willRevealHiddenSkillBranch(upgradeId)) {
+      return;
+    }
+
+    view.container.setAngle(-1.8);
+    view.hoverTrembleTween = this.tweens.add({
+      targets: view.container,
+      angle: 1.8,
+      duration: 58,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+    view.hoverGlowTween = this.tweens.add({
+      targets: view.glow,
+      alpha: 0.56,
+      scaleX: 1.08,
+      scaleY: 1.08,
+      duration: 170,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+  }
+
+  private stopSkillHoverTremble(upgradeId: string): void {
+    const view = this.skillNodeViews.get(upgradeId);
+    if (!view) {
+      return;
+    }
+
+    view.hoverTrembleTween?.stop();
+    view.hoverGlowTween?.stop();
+    view.hoverTrembleTween = undefined;
+    view.hoverGlowTween = undefined;
+    view.container.setAngle(0);
+    view.glow.setAlpha(1);
+    view.glow.setScale(1);
+  }
+
   private upgradeSkill(upgradeId: string): void {
     if (!this.isSkillVisible(upgradeId)) {
       this.setSkillStatus("That path has not sprouted yet.");
@@ -3015,20 +3128,22 @@ export class GameScene extends Phaser.Scene {
 
     const visibleBefore = this.getVisibleSkillIds();
     this.selectedSkillId = upgradeId;
+    this.stopSkillHoverTremble(upgradeId);
     const upgraded = this.buyUpgrade(upgradeId);
     this.bumpSkillNode(upgradeId, upgraded);
     if (upgraded) {
-      this.playSkillRevealFeedback(visibleBefore);
+      this.playSkillRevealFeedback(visibleBefore, upgradeId);
     }
     this.refreshUi();
   }
 
   private upgradeSelectedSkill(): void {
     const visibleBefore = this.getVisibleSkillIds();
+    this.stopSkillHoverTremble(this.selectedSkillId);
     const upgraded = this.buyUpgrade(this.selectedSkillId);
     this.bumpSkillNode(this.selectedSkillId, upgraded);
     if (upgraded) {
-      this.playSkillRevealFeedback(visibleBefore);
+      this.playSkillRevealFeedback(visibleBefore, this.selectedSkillId);
     }
     this.refreshUi();
   }
@@ -6583,6 +6698,7 @@ export class GameScene extends Phaser.Scene {
 
         view.container.setVisible(visible);
         if (!visible) {
+          this.stopSkillHoverTremble(upgrade.id);
           view.bg.disableInteractive();
           continue;
         }

@@ -20,8 +20,8 @@ export interface UpgradeDefinition {
   isUnlocked(state: GameState): boolean;
 }
 
-const UPGRADE_COST_PACING_MULTIPLIER = 3.2;
-const UPGRADE_LEVEL_PACING_STEP = 0.2;
+const UPGRADE_COST_PACING_MULTIPLIER = 2.25;
+const UPGRADE_LEVEL_PACING_STEP = 0.14;
 
 function isClassUpgradeUnlocked(state: GameState, classId: CharacterClassId, requiredLifetimeTouches: number): boolean {
   return state.characterClassId === classId && state.lifetimeGrassTouches >= requiredLifetimeTouches;
@@ -67,7 +67,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       stats.dewChance += level * 0.04;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 90,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 80,
   },
   {
     id: "barefoot_confidence",
@@ -81,7 +81,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       stats.touchMultiplier += level * 2;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 180,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 120,
   },
   {
     id: "palm_press",
@@ -95,7 +95,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       stats.touchMultiplier += level * 1.5;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 120,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 35,
   },
   {
     id: "two_handed_technique",
@@ -109,7 +109,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       stats.doubleTouchChance += level * 0.02;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 150,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 45,
   },
   {
     id: "mindful_contact",
@@ -123,7 +123,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       stats.instantRegrowChance += level * 0.02;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 300,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 190,
   },
   {
     id: "lucky_clover",
@@ -137,7 +137,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       stats.critChance += level * 0.015;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 100,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 35,
   },
   {
     id: "dramatic_touch",
@@ -151,7 +151,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       stats.critMultiplier += level * 0.3;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 240,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 130,
   },
   {
     id: "satisfying_crunch",
@@ -166,7 +166,7 @@ export const UPGRADES: UpgradeDefinition[] = [
       stats.critChance += level * 0.006;
       stats.seedDropBonus += level * 0.012;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 380,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 240,
   },
   {
     id: "overreaction",
@@ -180,7 +180,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       stats.critMultiplier += level * 0.28;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 650,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 420,
   },
   {
     id: "fertile_soil",
@@ -194,7 +194,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       stats.regrowMultiplier *= Math.max(0.48, 1 - level * 0.03);
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 220,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 110,
   },
   {
     id: "morning_mist",
@@ -208,7 +208,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       stats.dewChance += level * 0.05;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 360,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 210,
   },
   {
     id: "warm_sunlight",
@@ -222,7 +222,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       stats.regrowMultiplier *= Math.max(0.5, 1 - level * 0.025);
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 210,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 95,
   },
   {
     id: "root_network",
@@ -231,13 +231,13 @@ export const UPGRADES: UpgradeDefinition[] = [
     baseCost: 400,
     costGrowth: 2.15,
     maxLevel: 6,
-    prerequisiteIds: ["fertile_soil", "warm_sunlight"],
+    prerequisiteIds: ["warm_sunlight", "fertile_soil"],
     tree: { x: 555, y: 95, icon: "roots", color: 0xb88a55 },
     apply: (stats, level) => {
       stats.regrowMultiplier *= Math.max(0.5, 1 - level * 0.02);
       stats.instantRegrowChance += level * 0.012;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 450,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 280,
   },
   {
     id: "perennial_patches",
@@ -251,7 +251,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       stats.instantRegrowChance += level * 0.025;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 850,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 560,
   },
   {
     id: "dew_respecter",
@@ -266,7 +266,7 @@ export const UPGRADES: UpgradeDefinition[] = [
       stats.dewChance += level * 0.03;
       stats.seedDropBonus += level * 0.01;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 520,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 330,
   },
   {
     id: "weather_watching",
@@ -281,7 +281,7 @@ export const UPGRADES: UpgradeDefinition[] = [
       stats.seedDropBonus += level * 0.01;
       stats.rareTierMultiplier += level * 0.05;
     },
-    isUnlocked: (state) => state.seedShopPurchases.weather_jar === true && state.lifetimeGrassTouches >= 650,
+    isUnlocked: (state) => state.seedShopPurchases.weather_jar === true && state.lifetimeGrassTouches >= 420,
   },
   {
     id: "soft_meadow",
@@ -295,7 +295,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       stats.touchMultiplier += level * 3;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 520,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 340,
   },
   {
     id: "grass_identification",
@@ -309,7 +309,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       stats.rareTierMultiplier += level * 0.1;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 340,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 170,
   },
   {
     id: "better_eyes",
@@ -324,7 +324,7 @@ export const UPGRADES: UpgradeDefinition[] = [
       stats.rareTouchBonus += level * 0.75;
       stats.rareTierMultiplier += level * 0.05;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 600,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 380,
   },
   {
     id: "clover_magnet",
@@ -339,7 +339,7 @@ export const UPGRADES: UpgradeDefinition[] = [
       stats.rareTierMultiplier += level * 0.12;
       stats.critChance += level * 0.008;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 780,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 520,
   },
   {
     id: "premium_pasture",
@@ -354,7 +354,7 @@ export const UPGRADES: UpgradeDefinition[] = [
       stats.rareTouchBonus += level * 1.25;
       stats.rareTierMultiplier += level * 0.15;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 1200,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 820,
   },
   {
     id: "grassmaxxing",
@@ -363,15 +363,15 @@ export const UPGRADES: UpgradeDefinition[] = [
     baseCost: 2100,
     costGrowth: 2.7,
     maxLevel: 3,
-    prerequisiteIds: ["premium_pasture", "overreaction", "perennial_patches"],
-    tree: { x: 790, y: 405, icon: "MAX", color: 0xf7ffe8 },
+    prerequisiteIds: ["overreaction", "premium_pasture", "perennial_patches"],
+    tree: { x: 630, y: 540, icon: "MAX", color: 0xf7ffe8 },
     apply: (stats, level) => {
       stats.touchMultiplier += level * 8;
       stats.critChance += level * 0.015;
       stats.seedDropBonus += level * 0.015;
       stats.rareTierMultiplier += level * 0.18;
     },
-    isUnlocked: (state) => state.lifetimeGrassTouches >= 2400,
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 1600,
   },
   {
     id: "honest_work",
@@ -444,7 +444,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     costGrowth: 2.25,
     maxLevel: 4,
     classId: "bard_de_wever",
-    prerequisiteIds: ["mindful_contact", "soft_meadow"],
+    prerequisiteIds: ["soft_meadow", "mindful_contact"],
     iconAsset: "mindful_contact",
     tree: { x: 815, y: 170, icon: "tempo", color: 0xbff4ff },
     apply: (stats, level) => {
