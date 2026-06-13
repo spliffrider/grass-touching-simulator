@@ -258,6 +258,8 @@ interface WorldObjectView {
 
 interface PlacedWorldObjectView {
   objectId: string;
+  coverage: Phaser.GameObjects.Graphics;
+  coverageLayoutKey?: string;
   container: Phaser.GameObjects.Container;
   aura: Phaser.GameObjects.Ellipse;
   sprite: Phaser.GameObjects.Image;
@@ -2992,7 +2994,10 @@ export class GameScene extends Phaser.Scene {
     this.destroyAllTileViews();
     this.worldObjectViews.forEach((view) => view.container.destroy());
     this.worldObjectViews.clear();
-    this.placedWorldObjectViews.forEach((view) => view.container.destroy());
+    this.placedWorldObjectViews.forEach((view) => {
+      view.coverage.destroy();
+      view.container.destroy();
+    });
     this.placedWorldObjectViews.clear();
     this.selectedPlacementObjectId = undefined;
     this.selectedSkillId = UPGRADES[0].id;
@@ -3459,6 +3464,7 @@ export class GameScene extends Phaser.Scene {
     if (this.selectedPlacementObjectId === id) {
       this.selectedPlacementObjectId = undefined;
       this.showMessage(`${this.getWorldObjectLabel(id)} placement canceled.`, 1600);
+      this.layoutPlacedWorldObjects();
       this.refreshUi();
       return;
     }
@@ -3467,6 +3473,7 @@ export class GameScene extends Phaser.Scene {
     this.pulseWorldObject(id, 0xffef78);
     this.showMessage(`Select a grass tile to place ${this.getWorldObjectLabel(id)}.`, 2200);
     this.refreshWorldObjectInfo(id);
+    this.layoutPlacedWorldObjects();
     this.refreshUi();
   }
 
@@ -3576,7 +3583,8 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
 
-      const container = this.add.container(0, 0).setDepth(34);
+      const coverage = this.add.graphics().setDepth(35).setVisible(false);
+      const container = this.add.container(0, 0).setDepth(36);
       const aura = this.add.ellipse(0, 8, 46, 24, 0xffef78, 0.16).setStrokeStyle(2, 0xffef78, 0.48);
       const sprite = this.add.image(0, 0, object.textureKey).setOrigin(0.5, 1);
       const label = this.add
@@ -3590,11 +3598,12 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5, 0);
 
       container.add([aura, sprite, label]);
-      this.placedWorldObjectViews.set(objectId, { objectId, container, aura, sprite, label });
+      this.placedWorldObjectViews.set(objectId, { objectId, coverage, container, aura, sprite, label });
     }
 
     for (const [objectId, view] of this.placedWorldObjectViews) {
       if (!activeIds.has(objectId)) {
+        view.coverage.destroy();
         view.container.destroy();
         this.placedWorldObjectViews.delete(objectId);
       }
@@ -3609,6 +3618,7 @@ export class GameScene extends Phaser.Scene {
       const tile = placement ? this.state.field[placement.tileKey] : undefined;
       const position = tile ? this.getTileScreenPosition(tile) : undefined;
       if (!position || this.hasBlockingOverlayOpen()) {
+        view.coverage.setVisible(false);
         view.container.setVisible(false);
         continue;
       }
@@ -3620,6 +3630,7 @@ export class GameScene extends Phaser.Scene {
         position.y >= -margin &&
         position.y <= this.scale.height + margin;
       view.container.setVisible(visible);
+      this.layoutPlacementCoveragePreview(objectId, view, position, visible);
       if (!visible) {
         continue;
       }
@@ -3631,6 +3642,57 @@ export class GameScene extends Phaser.Scene {
       view.label.setVisible(this.boardScale >= 0.62 || objectId === this.selectedPlacementObjectId);
       view.aura.setScale(1 + Math.sin(Date.now() * 0.003) * 0.04, 1);
     }
+  }
+
+  private layoutPlacementCoveragePreview(
+    objectId: string,
+    view: PlacedWorldObjectView,
+    position: { x: number; y: number },
+    objectVisible: boolean,
+  ): void {
+    if (objectId !== "sprinkler" || !objectVisible || !this.shouldShowSprinklerCoveragePreview()) {
+      view.coverage.setVisible(false);
+      return;
+    }
+
+    const radius = this.state.seedShopPurchases.sprinkler_network ? 2 : 1;
+    const tileSize = TILE_SIZE * this.boardScale;
+    const tileStep = (TILE_SIZE + TILE_GAP) * this.boardScale;
+    const coverageSize = tileSize + radius * 2 * tileStep + 12 * this.boardScale;
+    const boundsX = position.x - coverageSize / 2;
+    const boundsY = position.y - coverageSize / 2;
+    const layoutKey = `${radius}:${this.boardScale.toFixed(4)}:${position.x.toFixed(2)}:${position.y.toFixed(2)}`;
+
+    if (view.coverageLayoutKey === layoutKey) {
+      view.coverage.setVisible(true);
+      return;
+    }
+
+    view.coverageLayoutKey = layoutKey;
+
+    view.coverage.clear();
+    view.coverage.fillStyle(0x061b24, 0.28);
+    view.coverage.fillRect(boundsX, boundsY, coverageSize, coverageSize);
+    view.coverage.lineStyle(Math.max(2, 4 * this.boardScale), 0x8ff8ff, 0.96);
+    view.coverage.strokeRect(boundsX, boundsY, coverageSize, coverageSize);
+    view.coverage.lineStyle(Math.max(1, 2 * this.boardScale), 0xe6ffb8, 0.58);
+
+    for (let tileY = -radius; tileY <= radius; tileY += 1) {
+      for (let tileX = -radius; tileX <= radius; tileX += 1) {
+        view.coverage.strokeRect(
+          position.x + tileX * tileStep - tileSize / 2,
+          position.y + tileY * tileStep - tileSize / 2,
+          tileSize,
+          tileSize,
+        );
+      }
+    }
+
+    view.coverage.setVisible(true);
+  }
+
+  private shouldShowSprinklerCoveragePreview(): boolean {
+    return this.selectedPlacementObjectId === "sprinkler" || this.hoveredWorldObjectId === "sprinkler";
   }
 
   private playPlacementFeedback(tile: FieldTile, objectId: string): void {
@@ -3929,12 +3991,14 @@ export class GameScene extends Phaser.Scene {
     this.refreshWorldObjectInfo(id);
     this.positionWorldObjectInfo(id);
     this.tileInfoPanel.setVisible(true);
+    this.layoutPlacedWorldObjects();
   }
 
   private hideWorldObjectInfo(id: string): void {
     if (this.hoveredWorldObjectId === id && !this.hasTouchScreen()) {
       this.hoveredWorldObjectId = undefined;
       this.tileInfoPanel.setVisible(false);
+      this.layoutPlacedWorldObjects();
     }
   }
 
