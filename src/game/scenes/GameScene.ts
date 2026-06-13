@@ -25,6 +25,7 @@ import {
 import { addInventoryItem, consumeInventoryItem, getInventoryQuantity } from "../systems/InventorySystem";
 import { PLACEMENT_RADIUS, getNearbyPlacedObjectIds, getPlacedObjectAt, placeWorldObject, removeWorldObjectPlacement } from "../systems/PlacementSystem";
 import { AnimalCompanionSystem } from "../systems/AnimalCompanionSystem";
+import { AutomationScheduler } from "../systems/AutomationScheduler";
 import { AudioSystem } from "../systems/AudioSystem";
 import { ChiptuneMusicSystem } from "../systems/ChiptuneMusicSystem";
 import { ComboSystem, type ComboResult } from "../systems/ComboSystem";
@@ -390,6 +391,7 @@ export class GameScene extends Phaser.Scene {
   private lastAutoSaveAt = 0;
   private sprinkler = new SprinklerSystem();
   private animalCompanions = new AnimalCompanionSystem();
+  private automationScheduler = this.createAutomationScheduler();
   private combo = new ComboSystem();
   private drops = new DropSystem();
   private mutations = new MutationSystem();
@@ -551,6 +553,10 @@ export class GameScene extends Phaser.Scene {
     this.perfOverlayEnabled = this.stressMode || this.isPerfOverlayRequested();
     this.state = this.stressMode ? this.createStressState(data?.characterClassId) : data?.newGame ? resetSave(data.characterClassId) : loadGame();
     this.rebuildFieldMetrics();
+    this.automationScheduler.reset();
+    this.sprinkler.reset();
+    this.animalCompanions.reset();
+    this.mutations.reset();
     this.musicVolume = readStoredMusicVolume();
     this.music.setVolume(this.musicVolume);
     this.music.setTrack(this.state.selectedTrackId || "cozy_meadow");
@@ -775,9 +781,7 @@ export class GameScene extends Phaser.Scene {
       this.pruneRecentlyRegrown(now);
     });
     this.profileScope("systems", () => {
-      this.updateSprinkler(delta, stats);
-      this.updateAnimalCompanions(delta, stats);
-      this.updateMutations(delta);
+      this.automationScheduler.update(delta, stats);
     });
     this.journalDiscoveryRefreshElapsed += delta;
     if (this.journalDiscoveryRefreshElapsed >= JOURNAL_DISCOVERY_REFRESH_INTERVAL_MS) {
@@ -929,6 +933,28 @@ export class GameScene extends Phaser.Scene {
     this.runtimeStatsCache = getRuntimeStats(this.state);
     this.runtimeStatsCacheAt = now;
     return this.runtimeStatsCache;
+  }
+
+  private createAutomationScheduler(): AutomationScheduler<RuntimeStats> {
+    const scheduler = new AutomationScheduler<RuntimeStats>();
+    scheduler.add({
+      id: "sprinkler",
+      intervalMs: 250,
+      run: (deltaMs, stats) => this.updateSprinkler(deltaMs, stats),
+    });
+    scheduler.add({
+      id: "animal_companions",
+      intervalMs: 250,
+      initialDelayMs: 85,
+      run: (deltaMs, stats) => this.updateAnimalCompanions(deltaMs, stats),
+    });
+    scheduler.add({
+      id: "mutations",
+      intervalMs: 250,
+      initialDelayMs: 170,
+      run: (deltaMs) => this.updateMutations(deltaMs),
+    });
+    return scheduler;
   }
 
   private runWithAmbientFeedback<T>(callback: () => T): T {
@@ -2982,6 +3008,7 @@ export class GameScene extends Phaser.Scene {
     this.disarmReset();
     this.state = resetSave(characterClassId);
     this.rebuildFieldMetrics();
+    this.automationScheduler.reset();
     this.sprinkler.reset();
     this.animalCompanions.reset();
     this.mutations.reset();
