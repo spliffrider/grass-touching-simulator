@@ -584,6 +584,7 @@ export class GameScene extends Phaser.Scene {
     this.layoutSkillTree();
     this.layoutSeedShop();
     this.refreshUi();
+    this.layoutTiles();
     this.readyUnlockKeys = this.getReadyUnlockKeys();
     this.readyQuestKeys = this.getReadyQuestKeys();
     this.showMessage(
@@ -2891,6 +2892,7 @@ export class GameScene extends Phaser.Scene {
     this.audio.play(item.kind === "animal" ? "milestone" : "upgrade");
     this.saveState();
     this.refreshUi();
+    this.layoutTiles();
     this.playGoldStoreItemSuccess(item.id);
   }
 
@@ -2983,6 +2985,7 @@ export class GameScene extends Phaser.Scene {
     this.audio.play("upgrade");
     this.saveState();
     this.refreshUi();
+    this.layoutTiles();
     this.playSeedShopItemSuccess(item.id);
   }
 
@@ -5019,7 +5022,8 @@ export class GameScene extends Phaser.Scene {
     const timeText = `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
     const visible = !this.hasBlockingOverlayOpen();
-    this.setVisibleIfChanged(this.weatherBadge, visible);
+    const compact = this.scale.width < 620;
+    this.setVisibleIfChanged(this.weatherBadge, visible && !compact);
     this.setTextIfChanged(this.weatherBadgeTitle, `Weather Jar: ${weather.name}`);
     this.weatherBadgeTitle.setColor(weather.color);
     this.setTextIfChanged(this.weatherBadgeBody, `${weather.description} (${timeText})`);
@@ -6129,7 +6133,10 @@ export class GameScene extends Phaser.Scene {
         `Gold: ${Math.floor(this.state.gold)}`,
         `Lifetime: ${Math.floor(this.state.lifetimeGrassTouches)}`,
         `Patches: ${this.fieldTileCount}`,
-      ].join(resourceSeparator),
+        this.getAutomationStatusLine(compact),
+      ]
+        .filter(Boolean)
+        .join(resourceSeparator),
     );
     this.refreshComboBadge();
     setTextButtonText(this.questButton, readyQuestCount > 0 ? `Quests (${readyQuestCount})` : "Quests");
@@ -7194,7 +7201,7 @@ export class GameScene extends Phaser.Scene {
     const bounds = this.resourceText.getBounds();
 
     if (this.scale.width < 620) {
-      const lineHeight = Math.max(18, bounds.height / 5);
+      const lineHeight = Math.max(18, bounds.height / (this.getAutomationStatusLine() ? 6 : 5));
       const lineIndex = kind === "seed" ? 1 : 2;
       return {
         x: bounds.x + Math.min(bounds.width - 18, 92),
@@ -7226,6 +7233,37 @@ export class GameScene extends Phaser.Scene {
   private showMessage(message: string, duration: number): void {
     this.setTextIfChanged(this.milestoneText, message);
     this.time.delayedCall(duration, () => this.refreshUi());
+  }
+
+  private getAutomationStatusLine(compact = false): string {
+    const companionCount =
+      getInventoryQuantity(this.state, "field_mouse") +
+      getInventoryQuantity(this.state, "bee_hive") +
+      getInventoryQuantity(this.state, "chicken") +
+      getInventoryQuantity(this.state, "sheep") +
+      getInventoryQuantity(this.state, "meadow_rabbit") +
+      getInventoryQuantity(this.state, "earthworm");
+    const parts = [
+      this.state.seedShopPurchases.sprinkler ? "sprinkler" : "",
+      companionCount > 0 ? `${companionCount} companion${companionCount === 1 ? "" : "s"}` : "",
+    ].filter(Boolean);
+
+    if (parts.length === 0) {
+      return "";
+    }
+
+    const boosts = [
+      this.state.seedShopPurchases.forager_trails ? "trails" : "",
+      this.state.seedShopPurchases.sprinkler_timer ? "timer" : "",
+      this.state.seedShopPurchases.sprinkler_network ? "network" : "",
+    ].filter(Boolean);
+
+    if (compact) {
+      const activeCount = (this.state.seedShopPurchases.sprinkler ? 1 : 0) + companionCount;
+      return `Auto: ${activeCount} active${boosts.length > 0 ? `, ${boosts.length} boosts` : ""}`;
+    }
+
+    return `Auto: ${parts.join(", ")}${boosts.length > 0 ? ` (${boosts.join(", ")})` : ""}`;
   }
 }
 
