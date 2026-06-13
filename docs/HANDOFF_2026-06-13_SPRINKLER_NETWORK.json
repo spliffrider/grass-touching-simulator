@@ -1,0 +1,84 @@
+{
+  "handoffVersion": 1,
+  "createdAt": "2026-06-13T00:00:00+02:00",
+  "project": {
+    "name": "Grass Touching Simulator",
+    "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+    "branch": "master",
+    "repository": "https://github.com/spliffrider/grass-touching-simulator.git",
+    "liveDomain": "https://grasstouchingsimulator.com"
+  },
+  "checkpoint": {
+    "name": "Alpha 2.0 - Sprinkler Network automation",
+    "summary": "Shipped the Grass Toucher class path, then added and deployed the first follow-up automation upgrade: Sprinkler Network.",
+    "gameCommit": {
+      "hash": "6e50310",
+      "message": "Add sprinkler network automation"
+    },
+    "previousCheckpoint": {
+      "hash": "a053f72",
+      "message": "Add Grass Toucher class path"
+    },
+    "note": "This handoff file may be committed after the deployment commit as docs-only metadata."
+  },
+  "deployment": {
+    "provider": "Vercel",
+    "target": "production",
+    "deploymentId": "dpl_EiMfJUxF74wuWHEVtSqDda2EtbK6",
+    "deploymentUrl": "https://grass-touching-simulator-5j6uuxuxb-sensitech.vercel.app",
+    "inspectorUrl": "https://vercel.com/sensitech/grass-touching-simulator/EiMfJUxF74wuWHEVtSqDda2EtbK6",
+    "readyState": "READY",
+    "aliased": true,
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "liveDomainCheck": "HTTP 200 OK"
+  },
+  "implemented": [
+    "Added Seed Shop item Sprinkler Network.",
+    "Sprinkler Network unlocks after Self-Seeding Nozzle.",
+    "Sprinkler Network makes Tiny Sprinkler water up to two grown patches each cycle instead of one.",
+    "Added Seed Shop quest Little Irrigation Grid for buying Sprinkler Network.",
+    "Reused the existing Sprinkler Timer icon for this first automation pass."
+  ],
+  "filesChanged": [
+    "src/game/data/seed-shop.ts",
+    "src/game/systems/SprinklerSystem.ts",
+    "src/game/data/quests.ts",
+    "src/game/scenes/GameScene.ts"
+  ],
+  "verification": {
+    "localBuild": {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    "browserSmoke": {
+      "tool": "Codex in-app browser",
+      "result": "passed",
+      "checks": [
+        "?stress&perf&tiles=120 loaded with no console errors.",
+        "Seed Shop displayed Sprinkler Network as unlocked in stress state.",
+        "Sprinkler Network row rendered using the existing timer icon.",
+        "Perf overlay remained healthy during smoke."
+      ]
+    },
+    "deployment": {
+      "command": "npx vercel --prod --yes",
+      "result": "passed"
+    },
+    "liveDomain": {
+      "command": "Invoke-WebRequest -Uri https://grasstouchingsimulator.com -UseBasicParsing -TimeoutSec 20",
+      "result": "passed",
+      "statusCode": 200
+    }
+  },
+  "knownCaveats": [
+    "Sprinkler Network reuses the Sprinkler Timer icon; a custom icon can come later.",
+    "The new automation upgrade may need cost tuning after real playtesting.",
+    "Sprinkler Network doubles sprinkler touch output, but does not yet add offline progress."
+  ],
+  "recommendedNextSteps": [
+    "Playtest early-to-mid seed pacing to see whether Sprinkler Network at 170 seeds lands too late or too early.",
+    "Consider a custom Sprinkler Network item icon.",
+    "Next larger automation candidate: offline progress summary using lastSavedAt, capped to a safe max duration.",
+    "Keep testing ?stress&perf&tiles=120 after each automation expansion."
+  ]
+}
