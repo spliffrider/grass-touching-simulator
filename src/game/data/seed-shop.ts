@@ -13,7 +13,7 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
     id: "seed_pouch",
     name: "Seed Pouch",
     description: "Improves manual seed drop chance.",
-    cost: 8,
+    cost: 6,
     isUnlocked: () => true,
   },
   {
@@ -111,10 +111,10 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
 ];
 
 export function getSeedDropChance(state: GameState, bonus = 0): number {
-  let chance = 0.055;
+  let chance = 0.075;
 
   if (state.seedShopPurchases.seed_pouch) {
-    chance += 0.045;
+    chance += 0.055;
   }
 
   if (state.seedShopPurchases.compost_bin) {

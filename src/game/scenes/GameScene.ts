@@ -90,7 +90,6 @@ const AUTO_SAVE_INTERVAL_MS = 20000;
 const IDLE_SAVE_TIMEOUT_MS = 2400;
 const FALLBACK_SAVE_DELAY_MS = 160;
 const TILE_CULL_MARGIN_PX = 96;
-const TILE_LABEL_MIN_SCALE = 0.68;
 const TILE_VIEW_POOL_LIMIT = 36;
 const LIVE_TILE_VIEW_FIELD_LIMIT = 180;
 const POP_TEXT_POOL_LIMIT = 36;
@@ -286,6 +285,7 @@ interface PlacedWorldObjectView {
   coverage: Phaser.GameObjects.Graphics;
   coverageLayoutKey?: string;
   container: Phaser.GameObjects.Container;
+  hit: Phaser.GameObjects.Rectangle;
   aura: Phaser.GameObjects.Ellipse;
   sprite: Phaser.GameObjects.Image;
   label: Phaser.GameObjects.Text;
@@ -796,7 +796,6 @@ export class GameScene extends Phaser.Scene {
         }
         if (showRegrowFeedback && regrowFeedbackCount < this.getScaledBudget(MAX_REGROW_FEEDBACK_PER_BATCH) && this.getTileVisualPosition(tile)) {
           this.playRegrowFeedback(tile);
-          this.popAtTile(tile, tile.trait === "lush" ? "lush" : tile.trait === "dewy" ? "dew" : "grass", "#e7ffd1");
           regrowFeedbackCount += 1;
         }
       }
@@ -3768,10 +3767,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         this.positionTileView(tile, view, x, y);
-        const showLabel =
-          tileKey(tile.x, tile.y) === this.hoveredTileKey ||
-          (this.usesFullLiveTileViews() && this.boardScale >= TILE_LABEL_MIN_SCALE && (tile.tier !== "normal" || tile.trait === "lush"));
-        view.label.setVisible(showLabel);
+        view.label.setVisible(tileKey(tile.x, tile.y) === this.hoveredTileKey);
       }
     }
 
@@ -3909,7 +3905,7 @@ export class GameScene extends Phaser.Scene {
       const existing = this.worldObjectViews.get(object.id);
       if (existing) {
         existing.quantity = object.quantity;
-        existing.label.setText(this.getWorldObjectDockLabel(object.id, object.label, object.quantity));
+        existing.label.setText(this.getWorldObjectDockLabel(object.id, object.quantity));
         if (this.hoveredWorldObjectId === object.id) {
           this.refreshWorldObjectInfo(object.id);
         }
@@ -3923,7 +3919,7 @@ export class GameScene extends Phaser.Scene {
       const shadow = this.add.ellipse(0, 4, 42, 14, 0x214c26, 0.22);
       const sprite = this.add.image(0, 0, object.textureKey).setOrigin(0.5, 1);
       const label = this.add
-        .text(0, 15, this.getWorldObjectDockLabel(object.id, object.label, object.quantity), {
+        .text(0, 15, this.getWorldObjectDockLabel(object.id, object.quantity), {
           fontFamily: "Trebuchet MS, Arial",
           fontSize: "12px",
           color: "#f7ffe8",
@@ -3966,15 +3962,12 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private getWorldObjectDockLabel(id: string, label: string, quantity: number): string {
-    const parts = [quantity > 1 ? `${label} x${quantity}` : label];
-    if (this.state.placedWorldObjects[id]) {
-      parts.push("@");
-    }
+  private getWorldObjectDockLabel(id: string, quantity: number): string {
     if (this.selectedPlacementObjectId === id) {
-      parts.push("place");
+      return "place";
     }
-    return parts.join(" ");
+
+    return quantity > 1 ? `x${quantity}` : "";
   }
 
   private isWorldObjectOwned(id: string): boolean {
@@ -4085,6 +4078,10 @@ export class GameScene extends Phaser.Scene {
       view.container.setScale(dockScale);
       view.shadow.setScale(1 + Math.sin(Date.now() * 0.002 + index) * 0.03, 1);
       view.sprite.setDisplaySize(56, 56);
+      view.label.setText(
+        this.hoveredWorldObjectId === object.id ? this.getWorldObjectLabel(object.id) : this.getWorldObjectDockLabel(object.id, object.quantity),
+      );
+      view.label.setVisible(view.label.text.length > 0);
       view.label.setFontSize(dockScale < 0.7 ? 11 : 12);
     });
 
@@ -4116,6 +4113,9 @@ export class GameScene extends Phaser.Scene {
 
       const coverage = this.add.graphics().setDepth(35).setVisible(false);
       const container = this.add.container(0, 0).setDepth(36);
+      const hit = this.add
+        .rectangle(0, -16, 52, 58, 0xffffff, 0.001)
+        .setInteractive({ useHandCursor: true });
       const aura = this.add.ellipse(0, 8, 46, 24, 0xffef78, 0.16).setStrokeStyle(2, 0xffef78, 0.48);
       const sprite = this.add.image(0, 0, object.textureKey).setOrigin(0.5, 1);
       const label = this.add
@@ -4128,8 +4128,12 @@ export class GameScene extends Phaser.Scene {
         })
         .setOrigin(0.5, 0);
 
-      container.add([aura, sprite, label]);
-      this.placedWorldObjectViews.set(objectId, { objectId, coverage, container, aura, sprite, label });
+      hit.on("pointerover", () => this.showWorldObjectInfo(objectId));
+      hit.on("pointerout", () => this.hideWorldObjectInfo(objectId));
+      hit.on("pointerdown", () => this.beginWorldObjectPlacement(objectId));
+
+      container.add([hit, aura, sprite, label]);
+      this.placedWorldObjectViews.set(objectId, { objectId, coverage, container, hit, aura, sprite, label });
     }
 
     for (const [objectId, view] of this.placedWorldObjectViews) {
@@ -4170,7 +4174,7 @@ export class GameScene extends Phaser.Scene {
       view.container.setPosition(position.x, position.y - 5 * this.boardScale);
       view.container.setScale(scale);
       view.sprite.setDisplaySize(38, 38);
-      view.label.setVisible(this.boardScale >= 0.62 || objectId === this.selectedPlacementObjectId);
+      view.label.setVisible(objectId === this.hoveredWorldObjectId || objectId === this.selectedPlacementObjectId);
       view.aura.setScale(1 + Math.sin(Date.now() * 0.003) * 0.04, 1);
     }
   }
@@ -4523,6 +4527,7 @@ export class GameScene extends Phaser.Scene {
     this.positionWorldObjectInfo(id);
     this.tileInfoPanel.setVisible(true);
     this.layoutPlacedWorldObjects();
+    this.layoutWorldObjects();
   }
 
   private hideWorldObjectInfo(id: string): void {
@@ -4530,6 +4535,7 @@ export class GameScene extends Phaser.Scene {
       this.hoveredWorldObjectId = undefined;
       this.tileInfoPanel.setVisible(false);
       this.layoutPlacedWorldObjects();
+      this.layoutWorldObjects();
     }
   }
 
@@ -4620,15 +4626,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   private positionWorldObjectInfo(id: string): void {
-    const view = this.worldObjectViews.get(id);
-    if (!view) {
+    const placedView = this.placedWorldObjectViews.get(id);
+    const dockView = this.worldObjectViews.get(id);
+    const target = placedView?.container.visible ? placedView.container : dockView?.container;
+    if (!target) {
       return;
     }
 
     const panelWidth = 260;
     const panelHeight = 128;
-    const x = Phaser.Math.Clamp(view.container.x + 36 * view.container.scaleX, 12, this.scale.width - panelWidth - 12);
-    const y = Phaser.Math.Clamp(view.container.y - panelHeight - 62 * view.container.scaleY, 12, this.scale.height - panelHeight - 12);
+    const x = Phaser.Math.Clamp(target.x + 36 * target.scaleX, 12, this.scale.width - panelWidth - 12);
+    const y = Phaser.Math.Clamp(target.y - panelHeight - 62 * target.scaleY, 12, this.scale.height - panelHeight - 12);
 
     this.tileInfoPanel.setPosition(x, y);
   }
@@ -4697,7 +4705,7 @@ export class GameScene extends Phaser.Scene {
 
     this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     this.refreshTile(tile);
-    this.popAtTile(tile, this.getTouchPopText(touch, touchedTier.label), touch.isCrit ? "#ffef78" : touchedTier.id === "normal" ? "#f9ffe5" : "#dfffc8");
+    this.popAtTile(tile, this.getTouchPopText(touch), touch.isCrit ? "#ffef78" : touchedTier.id === "normal" ? "#f9ffe5" : "#dfffc8");
     this.applyPlacementSynergyFeedback(tile, placementSynergy, now);
     if (perfectTouchBonus > 0) {
       this.playPerfectTouchFeedback(tile, perfectTouchBonus);
@@ -5168,7 +5176,7 @@ export class GameScene extends Phaser.Scene {
       gainedTouches += touch.gained;
       this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
       this.refreshTile(tile);
-      this.popAtTile(tile, this.getTouchPopText(touch, touchedTier.label), touch.isCrit ? "#ffef78" : "#d7fff2");
+      this.popAtTile(tile, this.getTouchPopText(touch), touch.isCrit ? "#ffef78" : "#d7fff2");
       if (touch.instantRegrown) {
         this.popAtTile(tile, "instant regrow", "#dfffc8");
       }
@@ -5389,9 +5397,9 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.shake(duration, intensity);
   }
 
-  private getTouchPopText(touch: TouchResult, label: string): string {
-    const prefix = [label, touch.doubled ? "DOUBLE" : "", touch.isCrit ? `CRIT x${touch.critMultiplier.toFixed(1)}` : ""].filter(Boolean).join(" ");
-    return `${prefix ? `${prefix} ` : ""}+${touch.gained}`;
+  private getTouchPopText(touch: TouchResult): string {
+    const effects = [touch.doubled ? "2x" : "", touch.isCrit ? `CRIT x${touch.critMultiplier.toFixed(1)}` : ""].filter(Boolean);
+    return [`+${touch.gained}`, ...effects].join(" ");
   }
 
   private playComboFeedback(tile: FieldTile, combo: ComboResult): void {
@@ -6616,7 +6624,6 @@ export class GameScene extends Phaser.Scene {
     const nextTier = getNextGrassTier(this.state);
     const weather = this.state.seedShopPurchases.weather_jar ? getWeather(this.state.activeWeatherId) : undefined;
     const season = getSeasonForDate(new Date());
-    const characterClass = getCharacterClass(this.state.characterClassId);
     const compact = this.scale.width < 620;
     const resourceSeparator = compact ? "\n" : " | ";
 
@@ -6631,9 +6638,7 @@ export class GameScene extends Phaser.Scene {
         `Grass Touches: ${Math.floor(this.state.grassTouches)}`,
         `Seeds: ${Math.floor(this.state.seeds)}`,
         `Gold: ${Math.floor(this.state.gold)}`,
-        `Lifetime: ${Math.floor(this.state.lifetimeGrassTouches)}`,
         `Patches: ${this.fieldTileCount}`,
-        this.getAutomationStatusLine(compact),
       ]
         .filter(Boolean)
         .join(resourceSeparator),
@@ -6665,17 +6670,15 @@ export class GameScene extends Phaser.Scene {
       this.milestoneText,
       [
         nextMilestone
-          ? `Next surface spread: ${nextMilestone.name} at ${nextMilestone.requiredLifetimeTouches} lifetime touches`
-          : "All prototype surface spreads discovered.",
-        `Season: ${season.name} - ${season.description}`,
+          ? `Next spread: ${nextMilestone.name} at ${nextMilestone.requiredLifetimeTouches} lifetime touches`
+          : "All surface spreads discovered.",
         readyQuestCount > 0
-          ? `Quest ready: ${readyQuestCount} reward${readyQuestCount === 1 ? "" : "s"} waiting`
+          ? `Quest ready: ${readyQuestCount}`
           : nextQuest
-            ? `Next quest: ${nextQuest.name} - ${formatQuestProgress(nextQuest, this.state)}`
+            ? `Quest: ${nextQuest.name} - ${formatQuestProgress(nextQuest, this.state)}`
             : "All current quests claimed.",
-        `Class: ${characterClass.name} - ${characterClass.passiveName}`,
-        nextTier ? `Next grass tier: ${nextTier.name} at ${nextTier.unlockAtLifetimeTouches} lifetime touches` : "",
-        weather ? `Weather: ${weather.name} - ${weather.description}` : "",
+        nextTier ? `Next tier: ${nextTier.name} at ${nextTier.unlockAtLifetimeTouches}` : "",
+        weather ? `Weather: ${weather.name}` : `Season: ${season.name}`,
       ]
         .filter(Boolean)
         .join("\n"),

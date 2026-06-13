@@ -157,7 +157,7 @@ export class AnimalCompanionSystem {
     feedback.playCompanionAction(tile, action);
     feedback.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     feedback.refreshTile(tile);
-    feedback.popAtTile(tile, `${label} +${touch.gained}`, touch.isCrit ? "#ffef78" : "#dfffc8");
+    feedback.popAtTile(tile, `+${touch.gained}`, touch.isCrit ? "#ffef78" : "#dfffc8");
     feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     recordAutomationTouch(state, touch.gained, directiveId);
 
@@ -213,7 +213,6 @@ export class AnimalCompanionSystem {
 
       feedback.refreshTile(tile);
       feedback.playCompanionAction(tile, "pollinate");
-      feedback.popAtTile(tile, "pollinated", "#fff1a8");
       recordAutomationAction(state, directiveId);
     }
 
@@ -244,7 +243,6 @@ export class AnimalCompanionSystem {
       }
       feedback.refreshTile(tile);
       feedback.playCompanionAction(tile, "scratch");
-      feedback.popAtTile(tile, "scratch", "#fff1a8");
       feedback.playSound("seed");
       recordAutomationAction(state, directiveId);
       return true;
@@ -286,7 +284,7 @@ export class AnimalCompanionSystem {
     feedback.playCompanionAction(tile, "graze");
     feedback.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     feedback.refreshTile(tile);
-    feedback.popAtTile(tile, `sheep +${touch.gained}`, "#dfffc8");
+    feedback.popAtTile(tile, `+${touch.gained}`, "#dfffc8");
     recordAutomationTouch(state, touch.gained, directiveId);
     if (goldGained > 0) {
       recordAutomationSupplyDrop(state, goldGained, directiveId);
@@ -321,7 +319,6 @@ export class AnimalCompanionSystem {
       tile.regrowEndsAt = now + Math.max(300, Math.floor(remainingMs * regrowFactor));
       feedback.refreshTile(tile);
       feedback.playCompanionAction(tile, "burrow");
-      feedback.popAtTile(tile, state.activeWeatherId === "warm_sunlight" ? "sun-warmed worm" : "worm work", "#dfffc8");
       recordAutomationAction(state, directiveId);
     }
 

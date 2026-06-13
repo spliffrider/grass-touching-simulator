@@ -60,7 +60,6 @@ export class SprinklerSystem {
         tile.regrowEndsAt = Date.now() + Math.max(300, Math.floor(remainingMs * 0.58));
         feedback.playSprinklerBurst(tile);
         feedback.refreshTile(tile);
-        feedback.popAtTile(tile, "watered", "#d7fff2");
         recordAutomationAction(state, directiveId);
         changed = true;
         continue;
@@ -76,14 +75,10 @@ export class SprinklerSystem {
       feedback.playSprinklerBurst(tile);
       feedback.playTouchFeedback(tile, touchedTrait, touch.isCrit);
       feedback.refreshTile(tile);
-      feedback.popAtTile(
-        tile,
-        getTouchPopText(touch, touchedTier.id === "normal" ? "sprinkler" : touchedTier.label),
-        touch.isCrit ? "#ffef78" : "#d7fff2",
-      );
+      feedback.popAtTile(tile, getTouchPopText(touch), touch.isCrit ? "#ffef78" : "#d7fff2");
 
       if (touch.instantRegrown) {
-        feedback.popAtTile(tile, "instant regrow", "#dfffc8");
+        feedback.playSprinklerBurst(tile);
       }
 
       recordAutomationTouch(state, touch.gained, directiveId);
@@ -168,9 +163,9 @@ function getSprinklerRegrowingTargetTile(state: GameState, radius: number): Fiel
   return Phaser.Utils.Array.GetRandom(localTiles) ?? Phaser.Utils.Array.GetRandom(getRegrowingTiles(state));
 }
 
-function getTouchPopText(touch: TouchResult, label: string): string {
-  const prefix = [label, touch.doubled ? "DOUBLE" : "", touch.isCrit ? `CRIT x${touch.critMultiplier.toFixed(1)}` : ""].filter(Boolean).join(" ");
-  return `${prefix ? `${prefix} ` : ""}+${touch.gained}`;
+function getTouchPopText(touch: TouchResult): string {
+  const effects = [touch.doubled ? "2x" : "", touch.isCrit ? `CRIT x${touch.critMultiplier.toFixed(1)}` : ""].filter(Boolean);
+  return [`+${touch.gained}`, ...effects].join(" ");
 }
 
 function pickBestTile(tiles: FieldTile[], scoreTile: (tile: FieldTile) => number): FieldTile | undefined {
