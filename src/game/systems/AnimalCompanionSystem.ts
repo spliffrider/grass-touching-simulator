@@ -1,10 +1,10 @@
 import { getGrassTier } from "../data/grass-tiers";
-import { getAutomationDirective } from "./AutomationDirectiveSystem";
+import { getResolvedAutomationDirectiveId, type ResolvedAutomationDirectiveId } from "./AutomationDirectiveSystem";
 import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
 import { recordAutomationAction, recordAutomationSupplyDrop, recordAutomationTouch } from "./AutomationProgressSystem";
 import { getRandomFieldTile, getRandomGrownTile, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
 import { getInventoryQuantity } from "./InventorySystem";
-import type { AutomationDirectiveId, FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait } from "../types/game-state";
+import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait } from "../types/game-state";
 
 export interface AnimalCompanionFeedback {
   refreshTile(tile: FieldTile): void;
@@ -44,7 +44,7 @@ export class AnimalCompanionSystem {
     const earthworms = getInventoryQuantity(state, "earthworm");
     const hasForagerTrails = state.seedShopPurchases.forager_trails === true;
     const automationIntervalMultiplier = getAutomationIntervalMultiplier(state);
-    const directiveId = getAutomationDirective(state).id;
+    const directiveId = getResolvedAutomationDirectiveId(state);
 
     if (fieldMice > 0) {
       this.fieldMouseElapsed += delta;
@@ -140,7 +140,7 @@ export class AnimalCompanionSystem {
     label: string,
     goldChance: number,
     seedChance: number,
-    directiveId: AutomationDirectiveId,
+    directiveId: ResolvedAutomationDirectiveId,
   ): boolean {
     const tile = getPlacedLocalGrownTile(state, objectId, radius, directiveId);
     if (!tile) {
@@ -184,7 +184,7 @@ export class AnimalCompanionSystem {
     state: GameState,
     beeHives: number,
     feedback: AnimalCompanionFeedback,
-    directiveId: AutomationDirectiveId,
+    directiveId: ResolvedAutomationDirectiveId,
   ): boolean {
     const anchor = getPlacedLocalFieldTile(state, "bee_hive", 2) ?? getRandomFieldTile(state);
     if (!anchor) {
@@ -227,7 +227,7 @@ export class AnimalCompanionSystem {
     state: GameState,
     chickens: number,
     feedback: AnimalCompanionFeedback,
-    directiveId: AutomationDirectiveId,
+    directiveId: ResolvedAutomationDirectiveId,
   ): boolean {
     const tile = getRandomFieldTile(state);
     if (!tile) {
@@ -264,7 +264,7 @@ export class AnimalCompanionSystem {
     stats: RuntimeStats,
     sheep: number,
     feedback: AnimalCompanionFeedback,
-    directiveId: AutomationDirectiveId,
+    directiveId: ResolvedAutomationDirectiveId,
   ): boolean {
     const tile = directiveId === "harvest" ? pickBestGrownTile(state, 10) : getRandomGrownTile(state);
     if (!tile) {
@@ -300,7 +300,7 @@ export class AnimalCompanionSystem {
     state: GameState,
     earthworms: number,
     feedback: AnimalCompanionFeedback,
-    directiveId: AutomationDirectiveId,
+    directiveId: ResolvedAutomationDirectiveId,
   ): boolean {
     const regrowingTiles = Phaser.Utils.Array.Shuffle(getRegrowingTiles(state)).slice(
       0,
@@ -331,7 +331,7 @@ function getPlacedLocalGrownTile(
   state: GameState,
   objectId: "field_mouse" | "meadow_rabbit",
   radius: number,
-  directiveId: AutomationDirectiveId,
+  directiveId: ResolvedAutomationDirectiveId,
 ): FieldTile | undefined {
   return getPlacedLocalTile(
     state,

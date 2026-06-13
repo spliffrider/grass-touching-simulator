@@ -1,9 +1,9 @@
 import { getGrassTier } from "../data/grass-tiers";
-import { getAutomationDirective } from "./AutomationDirectiveSystem";
+import { getResolvedAutomationDirectiveId, type ResolvedAutomationDirectiveId } from "./AutomationDirectiveSystem";
 import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
 import { recordAutomationAction, recordAutomationSupplyDrop, recordAutomationTouch } from "./AutomationProgressSystem";
 import { getRandomGrownTile, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
-import type { AutomationDirectiveId, FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait, TouchResult } from "../types/game-state";
+import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait, TouchResult } from "../types/game-state";
 
 export interface SprinklerFeedback {
   refreshTile(tile: FieldTile): void;
@@ -46,7 +46,7 @@ export class SprinklerSystem {
     this.elapsed = 0;
     const touchesPerCycle = state.seedShopPurchases.sprinkler_network ? 2 : 1;
     const sprinklerRadius = state.seedShopPurchases.sprinkler_network ? 2 : 1;
-    const directiveId = getAutomationDirective(state).id;
+    const directiveId = getResolvedAutomationDirectiveId(state);
     let changed = false;
 
     for (let i = 0; i < touchesPerCycle; i += 1) {
@@ -109,7 +109,7 @@ export class SprinklerSystem {
   }
 }
 
-function getSprinklerTargetTile(state: GameState, radius: number, directiveId: AutomationDirectiveId): FieldTile | undefined {
+function getSprinklerTargetTile(state: GameState, radius: number, directiveId: ResolvedAutomationDirectiveId): FieldTile | undefined {
   if (directiveId === "growth" && Math.random() < 0.72) {
     return getSprinklerRegrowingTargetTile(state, radius) ?? getSprinklerGrownTargetTile(state, radius, directiveId);
   }
@@ -117,7 +117,7 @@ function getSprinklerTargetTile(state: GameState, radius: number, directiveId: A
   return getSprinklerGrownTargetTile(state, radius, directiveId);
 }
 
-function getSprinklerGrownTargetTile(state: GameState, radius: number, directiveId: AutomationDirectiveId): FieldTile | undefined {
+function getSprinklerGrownTargetTile(state: GameState, radius: number, directiveId: ResolvedAutomationDirectiveId): FieldTile | undefined {
   const placement = state.placedWorldObjects.sprinkler;
   const placedTile = placement ? state.field[placement.tileKey] : undefined;
   if (!placedTile) {

@@ -25,7 +25,7 @@ import {
 import { addInventoryItem, consumeInventoryItem, getInventoryQuantity } from "../systems/InventorySystem";
 import { PLACEMENT_RADIUS, getNearbyPlacedObjectIds, getPlacedObjectAt, placeWorldObject, removeWorldObjectPlacement } from "../systems/PlacementSystem";
 import { AnimalCompanionSystem } from "../systems/AnimalCompanionSystem";
-import { AUTOMATION_DIRECTIVES, getAutomationDirective } from "../systems/AutomationDirectiveSystem";
+import { AUTOMATION_DIRECTIVES, getAutomationDirective, getResolvedAutomationDirectiveId } from "../systems/AutomationDirectiveSystem";
 import { getAutomationMilestoneBoostLabel, getAutomationUnitCount } from "../systems/AutomationMilestoneSystem";
 import { recordAutomationAction, recordAutomationDirectiveUsed } from "../systems/AutomationProgressSystem";
 import { AutomationScheduler } from "../systems/AutomationScheduler";
@@ -2749,7 +2749,8 @@ export class GameScene extends Phaser.Scene {
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
     const rowWidth = Math.max(260, panelWidth - 72);
-    const rowHeight = this.scale.width < 560 ? 76 : 68;
+    const compact = this.scale.width < 560 || this.scale.height < 640;
+    const rowHeight = compact ? 64 : 68;
     const startY = centerY - panelHeight / 2 + 112;
 
     this.resizeInteractiveBackdrop(this.automationBackdrop);
@@ -2771,8 +2772,9 @@ export class GameScene extends Phaser.Scene {
       view.container.setPosition(rowX, rowY).setSize(rowWidth, rowHeight);
       view.bg.setSize(rowWidth, rowHeight);
       view.name.setPosition(16, 9);
-      view.description.setPosition(16, this.scale.width < 560 ? 34 : 36);
+      view.description.setPosition(16, compact ? 31 : 36);
       view.description.setWordWrapWidth(Math.max(210, rowWidth - 32));
+      view.description.setFontSize(compact ? 12 : 13);
     }
   }
 
@@ -2782,10 +2784,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     const currentDirective = getAutomationDirective(this.state);
+    const resolvedDirective = getResolvedAutomationDirectiveId(this.state);
+    const resolvedDirectiveName = AUTOMATION_DIRECTIVES.find((directive) => directive.id === resolvedDirective)?.name ?? "Balanced";
     this.automationStatusText.setText(
       [
         `${getAutomationUnitCount(this.state)} active units`,
-        `Directive: ${currentDirective.name}`,
+        `Directive: ${currentDirective.name}${currentDirective.id === "autopilot" ? ` -> ${resolvedDirectiveName}` : ""}`,
         `${Math.floor(this.state.automationStats.automatedGrassTouches)} auto touches`,
         `${this.state.automationStats.automationSupplyDrops} supplies`,
         this.state.seedShopPurchases.quest_clipboard ? "Clipboard: claiming quests" : "",
@@ -7821,6 +7825,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     const directive = getAutomationDirective(this.state);
+    const resolvedDirective = getResolvedAutomationDirectiveId(this.state);
+    const resolvedDirectiveName = AUTOMATION_DIRECTIVES.find((candidate) => candidate.id === resolvedDirective)?.shortName ?? "balanced";
     const boosts = [
       this.state.seedShopPurchases.forager_trails ? "trails" : "",
       this.state.seedShopPurchases.quest_clipboard ? "clipboard" : "",
@@ -7831,10 +7837,12 @@ export class GameScene extends Phaser.Scene {
 
     if (compact) {
       const activeCount = (this.state.seedShopPurchases.sprinkler ? 1 : 0) + companionCount;
-      return `Auto: ${activeCount} active, ${directive.shortName}${boosts.length > 0 ? `, ${boosts.length} boosts` : ""}`;
+      const directiveText = directive.id === "autopilot" ? `${directive.shortName}->${resolvedDirectiveName}` : directive.shortName;
+      return `Auto: ${activeCount} active, ${directiveText}${boosts.length > 0 ? `, ${boosts.length} boosts` : ""}`;
     }
 
-    return `Auto: ${directive.shortName} - ${parts.join(", ")}${boosts.length > 0 ? ` (${boosts.join(", ")})` : ""}`;
+    const directiveText = directive.id === "autopilot" ? `${directive.shortName} -> ${resolvedDirectiveName}` : directive.shortName;
+    return `Auto: ${directiveText} - ${parts.join(", ")}${boosts.length > 0 ? ` (${boosts.join(", ")})` : ""}`;
   }
 }
 

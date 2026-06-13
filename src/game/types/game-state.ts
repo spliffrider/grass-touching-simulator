@@ -21,7 +21,7 @@ export type WeatherId =
 
 export type CharacterClassId = "grass_toucher" | "femboy_slim" | "bard_de_wever";
 
-export type AutomationDirectiveId = "balanced" | "growth" | "harvest" | "supplies";
+export type AutomationDirectiveId = "balanced" | "growth" | "harvest" | "supplies" | "autopilot";
 
 export const CURRENT_SAVE_VERSION = 8;
 

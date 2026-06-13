@@ -1,4 +1,4 @@
-import type { CharacterClassId, GameState, GrassTierId } from "../types/game-state";
+import type { AutomationDirectiveId, CharacterClassId, GameState, GrassTierId } from "../types/game-state";
 
 export interface QuestReward {
   grassTouches?: number;
@@ -34,7 +34,9 @@ const countAutomationUnits = (state: GameState): number =>
   );
 const hasDiscoveredGrassTier = (state: GameState, tier: GrassTierId): boolean => state.journal.discoveredGrassTiers.includes(tier);
 const countDiscoveredGrassTiers = (state: GameState): number => state.journal.discoveredGrassTiers.length;
-const countUsedAutomationDirectives = (state: GameState): number => state.automationStats.usedDirectiveIds.length;
+const CORE_AUTOMATION_DIRECTIVES: AutomationDirectiveId[] = ["balanced", "growth", "harvest", "supplies"];
+const countUsedAutomationDirectives = (state: GameState): number =>
+  CORE_AUTOMATION_DIRECTIVES.filter((directiveId) => state.automationStats.usedDirectiveIds.includes(directiveId)).length;
 const getClassName = (classId: CharacterClassId): string =>
   classId === "grass_toucher" ? "Grass Toucher" : classId === "femboy_slim" ? "Femboy Slim" : "Bard De Wever";
 
