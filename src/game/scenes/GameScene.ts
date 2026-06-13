@@ -6399,7 +6399,13 @@ export class GameScene extends Phaser.Scene {
 
     const quest = QUESTS.find((candidate) => candidate.id === questId);
     const classClaim = quest?.category === "Class";
-    const burstColor = classClaim ? (this.state.characterClassId === "femboy_slim" ? 0xff7ea8 : 0xbff4ff) : 0xf4df6a;
+    const burstColor = classClaim
+      ? this.state.characterClassId === "femboy_slim"
+        ? 0xff7ea8
+        : this.state.characterClassId === "grass_toucher"
+          ? 0x9be86b
+          : 0xbff4ff
+      : 0xf4df6a;
     const popText = classClaim ? "mastered" : "claimed";
     const x = view.container.x + view.bg.width / 2;
     const y = view.container.y + view.bg.height / 2;
@@ -6589,7 +6595,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getUpgradeBranch(upgradeId: string): string {
-    if (["slay_footwork", "perfect_pose", "steady_tempo", "encore_circle"].includes(upgradeId)) {
+    if (["honest_work", "patient_observation", "slay_footwork", "perfect_pose", "steady_tempo", "encore_circle"].includes(upgradeId)) {
       return "Class";
     }
 

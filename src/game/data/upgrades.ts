@@ -374,6 +374,40 @@ export const UPGRADES: UpgradeDefinition[] = [
     isUnlocked: (state) => state.lifetimeGrassTouches >= 2400,
   },
   {
+    id: "honest_work",
+    name: "Honest Work",
+    description: "Grass Toucher only. Simple touches get a little stronger and seeds drop more reliably.",
+    baseCost: 850,
+    costGrowth: 2.25,
+    maxLevel: 4,
+    classId: "grass_toucher",
+    prerequisiteIds: ["soft_meadow", "grass_identification"],
+    iconAsset: "softer_grass",
+    tree: { x: 820, y: 205, icon: "work", color: 0x9be86b },
+    apply: (stats, level) => {
+      stats.touchMultiplier += level * 0.75;
+      stats.seedDropBonus += level * 0.004;
+    },
+    isUnlocked: (state) => isClassUpgradeUnlocked(state, "grass_toucher", 900),
+  },
+  {
+    id: "patient_observation",
+    name: "Patient Observation",
+    description: "Grass Toucher only. Rare grass is easier to notice, and the field recovers a little faster.",
+    baseCost: 1500,
+    costGrowth: 2.35,
+    maxLevel: 3,
+    classId: "grass_toucher",
+    prerequisiteIds: ["honest_work"],
+    iconAsset: "grass_identification",
+    tree: { x: 820, y: 285, icon: "look", color: 0xb7eba5 },
+    apply: (stats, level) => {
+      stats.rareTierMultiplier += level * 0.08;
+      stats.regrowMultiplier *= Math.max(0.86, 1 - level * 0.025);
+    },
+    isUnlocked: (state) => isClassUpgradeUnlocked(state, "grass_toucher", 1400),
+  },
+  {
     id: "slay_footwork",
     name: "Slay Footwork",
     description: "Femboy Slim only. Crits and double touches happen more often.",

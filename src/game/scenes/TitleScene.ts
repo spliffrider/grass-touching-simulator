@@ -727,25 +727,27 @@ export class TitleScene extends Phaser.Scene {
     const compact = this.scale.width < 980;
     const columns = narrow ? 1 : Math.min(this.classCards.length, compact ? 2 : 3);
     const rows = Math.max(1, Math.ceil(this.classCards.length / columns));
-    const panelWidth = Math.min(narrow ? 520 : columns === 2 ? 800 : 1080, this.scale.width - 36);
-    const panelHeight = Math.min(narrow ? 720 : rows > 1 ? 700 : 570, this.scale.height - 32);
+    const panelWidth = Math.min(narrow ? 370 : columns === 2 ? 800 : 1080, this.scale.width - (narrow ? 20 : 36));
+    const panelHeight = Math.min(narrow ? 820 : rows > 1 ? 700 : 570, this.scale.height - (narrow ? 24 : 32));
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
     const columnGap = narrow ? 0 : 24;
-    const rowGap = narrow ? 14 : 20;
-    const cardsAreaHeight = Math.max(130, panelHeight - (narrow ? 204 : 210));
-    const cardWidth = narrow ? Math.min(330, panelWidth - 58) : Math.min(316, (panelWidth - 72 - (columns - 1) * columnGap) / columns);
-    const cardHeight = Math.min(narrow ? 230 : rows > 1 ? 276 : 300, (cardsAreaHeight - (rows - 1) * rowGap) / rows);
-    const cardScaleX = cardWidth / 316;
-    const cardScaleY = cardHeight / 300;
-    const cardsTop = centerY - panelHeight / 2 + (narrow ? 136 : 150);
+    const rowGap = narrow ? 12 : 20;
+    const cardsAreaHeight = Math.max(300, panelHeight - (narrow ? 184 : 210));
+    const cardWidth = narrow ? Math.min(316, panelWidth - 48) : Math.min(316, (panelWidth - 72 - (columns - 1) * columnGap) / columns);
+    const cardHeight = Math.min(narrow ? 188 : rows > 1 ? 276 : 300, (cardsAreaHeight - (rows - 1) * rowGap) / rows);
+    const cardScale = narrow ? Math.min(1, cardWidth / 316) : 1;
+    const cardScaleX = narrow ? cardScale : cardWidth / 316;
+    const cardScaleY = narrow ? cardScale : cardHeight / 300;
+    const cardsTop = centerY - panelHeight / 2 + (narrow ? 124 : 150);
 
     this.resizeInteractiveBackdrop(this.classSelectBackdrop);
     this.classSelectPanel?.setPosition(centerX, centerY);
     this.classSelectPanel?.setScale(panelWidth / CLASS_PANEL_BASE_WIDTH, panelHeight / CLASS_PANEL_BASE_HEIGHT);
     this.classSelectTitle?.setPosition(centerX, centerY - panelHeight / 2 + 42);
-    this.classSelectTitle?.setFontSize(narrow ? 28 : 36);
-    this.classSelectSubtitle?.setPosition(centerX, centerY - panelHeight / 2 + (narrow ? 78 : 86));
+    this.classSelectTitle?.setFontSize(narrow ? 26 : 36);
+    this.classSelectSubtitle?.setPosition(centerX, centerY - panelHeight / 2 + (narrow ? 82 : 86));
+    this.classSelectSubtitle?.setFontSize(narrow ? 16 : 17);
     this.classSelectSubtitle?.setWordWrapWidth(Math.max(240, panelWidth - 76));
 
     this.classCards.forEach((card, index) => {
@@ -756,18 +758,56 @@ export class TitleScene extends Phaser.Scene {
       const cardX = centerX + columnOffset * (cardWidth + columnGap);
       const cardY = cardsTop + row * (cardHeight + rowGap) + cardHeight / 2;
       card.container.setPosition(cardX, cardY);
-      card.frame.setSize(316, 300);
-      card.hit.setSize(316, 300);
       card.container.setScale(cardScaleX, cardScaleY);
-      card.name.setFontSize(narrow ? 24 : compact ? 24 : 25);
-      card.archetype.setFontSize(narrow ? 15 : compact ? 15 : 16);
-      card.passive.setFontSize(narrow ? 16 : 17);
-      card.body.setWordWrapWidth(narrow ? 272 : compact ? 260 : 266);
-      card.body.setFontSize(cardHeight < 210 ? 12 : narrow ? 13 : 14);
+      this.layoutClassCard(card, narrow, compact, cardHeight / cardScaleY);
     });
 
     this.classBackHit?.setPosition(centerX, centerY + panelHeight / 2 - 38);
     this.classBackText?.setPosition(centerX, centerY + panelHeight / 2 - 38);
+  }
+
+  private layoutClassCard(card: ClassCard, narrow: boolean, compact: boolean, cardBaseHeight: number): void {
+    if (!narrow) {
+      const hasIcon = Boolean(card.characterClass.iconKey);
+      const iconX = hasIcon ? -104 : 0;
+      const textX = hasIcon ? 32 : 0;
+
+      card.frame.setSize(316, 300);
+      card.hit.setSize(316, 300);
+      card.iconBg.setPosition(iconX, -100).setScale(1);
+      card.icon.setPosition(iconX, -100).setDisplaySize(78, 78);
+      card.name.setPosition(textX, -126).setFontSize(compact ? 24 : hasIcon ? 25 : 28);
+      card.archetype.setPosition(textX, -96).setFontSize(compact ? 15 : 16);
+      card.passive.setPosition(textX, -66).setFontSize(hasIcon ? 17 : 19);
+      card.body
+        .setPosition(0, -40)
+        .setText([card.characterClass.passiveDescription, "", ...card.characterClass.statLines].join("\n"))
+        .setFontSize(14)
+        .setWordWrapWidth(compact ? 260 : 266)
+        .setLineSpacing(2);
+      card.button.setPosition(0, 130).setSize(188, 38);
+      card.buttonText.setPosition(0, 130).setFontSize(18);
+      return;
+    }
+
+    const top = -cardBaseHeight / 2;
+    const shortCard = cardBaseHeight < 168;
+
+    card.frame.setSize(316, cardBaseHeight);
+    card.hit.setSize(316, cardBaseHeight);
+    card.iconBg.setPosition(-108, top + 42).setScale(shortCard ? 0.66 : 0.74);
+    card.icon.setPosition(-108, top + 42).setDisplaySize(shortCard ? 54 : 62, shortCard ? 54 : 62);
+    card.name.setPosition(40, top + 23).setFontSize(shortCard ? 19 : 21);
+    card.archetype.setPosition(40, top + 45).setFontSize(shortCard ? 12 : 13);
+    card.passive.setPosition(40, top + 67).setFontSize(shortCard ? 13 : 14);
+    card.body
+      .setPosition(0, top + (shortCard ? 82 : 84))
+      .setText(card.characterClass.statLines.join("\n"))
+      .setFontSize(shortCard ? 11 : 12)
+      .setWordWrapWidth(260)
+      .setLineSpacing(shortCard ? -1 : 0);
+    card.button.setPosition(0, cardBaseHeight / 2 - 20).setSize(178, 32);
+    card.buttonText.setPosition(0, cardBaseHeight / 2 - 20).setFontSize(16);
   }
 
   private resizeInteractiveBackdrop(backdrop: Phaser.GameObjects.Rectangle | undefined): void {
