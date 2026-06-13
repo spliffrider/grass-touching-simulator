@@ -38,6 +38,13 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
     isUnlocked: (state) => state.seedShopPurchases.seed_pouch === true,
   },
   {
+    id: "quest_clipboard",
+    name: "Quest Clipboard",
+    description: "Automation claims ready quest rewards while you play.",
+    cost: 54,
+    isUnlocked: (state) => state.seedShopPurchases.field_journal === true && state.seedShopPurchases.sprinkler === true,
+  },
+  {
     id: "weather_jar",
     name: "Weather Jar",
     description: "Unlocks rotating weather effects for the field.",

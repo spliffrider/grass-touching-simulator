@@ -27,7 +27,7 @@ import { PLACEMENT_RADIUS, getNearbyPlacedObjectIds, getPlacedObjectAt, placeWor
 import { AnimalCompanionSystem } from "../systems/AnimalCompanionSystem";
 import { AUTOMATION_DIRECTIVES, getAutomationDirective } from "../systems/AutomationDirectiveSystem";
 import { getAutomationMilestoneBoostLabel, getAutomationUnitCount } from "../systems/AutomationMilestoneSystem";
-import { recordAutomationDirectiveUsed } from "../systems/AutomationProgressSystem";
+import { recordAutomationAction, recordAutomationDirectiveUsed } from "../systems/AutomationProgressSystem";
 import { AutomationScheduler } from "../systems/AutomationScheduler";
 import { AudioSystem } from "../systems/AudioSystem";
 import { ChiptuneMusicSystem } from "../systems/ChiptuneMusicSystem";
@@ -89,6 +89,8 @@ const QUEUED_SAVE_INTERVAL_MS = 6500;
 const AUTO_SAVE_INTERVAL_MS = 20000;
 const IDLE_SAVE_TIMEOUT_MS = 2400;
 const FALLBACK_SAVE_DELAY_MS = 160;
+const QUEST_CLIPBOARD_INTERVAL_MS = 9000;
+const QUEST_CLIPBOARD_MAX_CLAIMS = 2;
 const TILE_CULL_MARGIN_PX = 96;
 const TILE_VIEW_POOL_LIMIT = 36;
 const LIVE_TILE_VIEW_FIELD_LIMIT = 180;
@@ -154,6 +156,7 @@ const SEED_SHOP_ICON_KEYS: Record<string, string> = {
   sprinkler: "world-tiny-sprinkler",
   wild_spread: "item-wild-spread",
   field_journal: "item-field-journal",
+  quest_clipboard: "item-field-journal",
   weather_jar: "item-weather-jar",
   compost_bin: "item-compost-bin",
   bug_hotel: "item-bug-hotel",
@@ -993,6 +996,12 @@ export class GameScene extends Phaser.Scene {
       intervalMs: 250,
       initialDelayMs: 170,
       run: (deltaMs) => this.updateMutations(deltaMs),
+    });
+    scheduler.add({
+      id: "quest_clipboard",
+      intervalMs: QUEST_CLIPBOARD_INTERVAL_MS,
+      initialDelayMs: 2600,
+      run: () => this.updateQuestClipboard(),
     });
     return scheduler;
   }
@@ -2779,7 +2788,10 @@ export class GameScene extends Phaser.Scene {
         `Directive: ${currentDirective.name}`,
         `${Math.floor(this.state.automationStats.automatedGrassTouches)} auto touches`,
         `${this.state.automationStats.automationSupplyDrops} supplies`,
-      ].join(" | "),
+        this.state.seedShopPurchases.quest_clipboard ? "Clipboard: claiming quests" : "",
+      ]
+        .filter(Boolean)
+        .join(" | "),
     );
 
     for (const view of this.automationDirectiveViews.values()) {
@@ -4421,7 +4433,6 @@ export class GameScene extends Phaser.Scene {
 
     this.showTileInfo(tile);
     this.refreshHoverMarker();
-    this.positionTileInfo(tile);
   }
 
   private refreshHoverMarker(): void {
@@ -4448,7 +4459,6 @@ export class GameScene extends Phaser.Scene {
       .setStrokeStyle(Math.max(2, 4 * this.boardScale), 0xf4ff8a, 0.82)
       .setVisible(true);
 
-    this.positionTileInfo(tile);
   }
 
   private hideHoverMarker(): void {
@@ -4499,9 +4509,7 @@ export class GameScene extends Phaser.Scene {
 
     this.hoveredTileKey = tileKey(tile.x, tile.y);
     this.hoveredWorldObjectId = undefined;
-    this.refreshTileInfo(tile);
-    this.positionTileInfo(tile);
-    this.tileInfoPanel.setVisible(true);
+    this.tileInfoPanel.setVisible(false);
   }
 
   private hideTileInfo(tile: FieldTile): void {
@@ -5749,10 +5757,6 @@ export class GameScene extends Phaser.Scene {
     view.glint.setFillStyle(highlightColor, tier.id === "normal" ? 0 : 0.88);
     this.setTextIfChanged(view.label, isGrown ? this.getTileLabel(tile, tier.label) : "...");
     view.base.setTexture(isGrown ? "tile-dirt" : "tile-stubble");
-
-    if (this.hoveredTileKey === key) {
-      this.refreshTileInfo(tile);
-    }
 
     if (!this.needsTileView(tile, key)) {
       this.commonTileLayerDirty = true;
@@ -7002,12 +7006,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.state.claimedQuestIds.push(questId);
-    this.state.grassTouches += quest.reward.grassTouches ?? 0;
-    this.state.seeds += quest.reward.seeds ?? 0;
-    this.state.lifetimeSeeds += quest.reward.seeds ?? 0;
-    this.state.gold += quest.reward.gold ?? 0;
-    this.state.lifetimeGold += quest.reward.gold ?? 0;
+    this.applyQuestReward(quest);
     const claimMessage = `${quest.name} claimed: ${formatQuestReward(quest.reward)}.`;
     this.audio.play("milestone");
     this.saveState();
@@ -7015,6 +7014,45 @@ export class GameScene extends Phaser.Scene {
     this.playQuestClaimFeedback(questId);
     this.refreshUi();
     this.questStatusText.setText(claimMessage);
+  }
+
+  private applyQuestReward(quest: QuestDefinition): void {
+    this.state.claimedQuestIds.push(quest.id);
+    this.state.grassTouches += quest.reward.grassTouches ?? 0;
+    this.state.seeds += quest.reward.seeds ?? 0;
+    this.state.lifetimeSeeds += quest.reward.seeds ?? 0;
+    this.state.gold += quest.reward.gold ?? 0;
+    this.state.lifetimeGold += quest.reward.gold ?? 0;
+  }
+
+  private updateQuestClipboard(): void {
+    if (!this.state.seedShopPurchases.quest_clipboard) {
+      return;
+    }
+
+    const readyQuests = QUESTS.filter((quest) => isQuestClaimable(this.state, quest)).slice(0, QUEST_CLIPBOARD_MAX_CLAIMS);
+
+    if (readyQuests.length === 0) {
+      return;
+    }
+
+    for (const quest of readyQuests) {
+      this.applyQuestReward(quest);
+    }
+
+    recordAutomationAction(this.state);
+    this.readyQuestKeys = this.getReadyQuestKeys();
+    this.audio.play(readyQuests.length > 1 ? "milestone" : "seed");
+    this.saveState();
+    this.refreshUi();
+    this.bumpResourceHud();
+    this.playButtonCelebration(this.questButton, 0xffef78, "seed-fleck");
+
+    if (this.questLogOpen) {
+      this.questStatusText.setText(
+        `Quest Clipboard claimed ${readyQuests.length} reward${readyQuests.length === 1 ? "" : "s"}.`,
+      );
+    }
   }
 
   private playQuestClaimFeedback(questId: string): void {
@@ -7785,6 +7823,7 @@ export class GameScene extends Phaser.Scene {
     const directive = getAutomationDirective(this.state);
     const boosts = [
       this.state.seedShopPurchases.forager_trails ? "trails" : "",
+      this.state.seedShopPurchases.quest_clipboard ? "clipboard" : "",
       this.state.seedShopPurchases.sprinkler_timer ? "timer" : "",
       this.state.seedShopPurchases.sprinkler_network ? "network" : "",
       getAutomationMilestoneBoostLabel(this.state),
