@@ -1,4 +1,5 @@
 import { getGrassTier } from "../data/grass-tiers";
+import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
 import { getRandomGrownTile, tileKey, touchTile } from "./FieldSystem";
 import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait, TouchResult } from "../types/game-state";
 
@@ -32,7 +33,10 @@ export class SprinklerSystem {
     }
 
     this.elapsed += delta;
-    const sprinklerInterval = state.seedShopPurchases.sprinkler_timer ? 7000 : 11000;
+    const sprinklerInterval = Math.max(
+      5000,
+      (state.seedShopPurchases.sprinkler_timer ? 7000 : 11000) * getAutomationIntervalMultiplier(state),
+    );
     if (this.elapsed < sprinklerInterval) {
       return false;
     }

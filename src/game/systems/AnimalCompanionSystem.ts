@@ -1,4 +1,5 @@
 import { getGrassTier } from "../data/grass-tiers";
+import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
 import { getRandomFieldTile, getRandomGrownTile, getRegrowingTiles, tileKey, touchTile } from "./FieldSystem";
 import { getInventoryQuantity } from "./InventorySystem";
 import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait } from "../types/game-state";
@@ -40,10 +41,14 @@ export class AnimalCompanionSystem {
     const meadowRabbits = getInventoryQuantity(state, "meadow_rabbit");
     const earthworms = getInventoryQuantity(state, "earthworm");
     const hasForagerTrails = state.seedShopPurchases.forager_trails === true;
+    const automationIntervalMultiplier = getAutomationIntervalMultiplier(state);
 
     if (fieldMice > 0) {
       this.fieldMouseElapsed += delta;
-      const fieldMouseInterval = hasForagerTrails ? 9500 : 14500;
+      const fieldMouseInterval = Math.max(
+        6500,
+        (hasForagerTrails ? 9500 : 14500) * automationIntervalMultiplier,
+      );
       if (this.fieldMouseElapsed >= fieldMouseInterval) {
         this.fieldMouseElapsed = 0;
         const fieldMouseRadius = hasForagerTrails ? 2 : 1;
@@ -54,7 +59,10 @@ export class AnimalCompanionSystem {
 
     if (beeHives > 0) {
       this.beeHiveElapsed += delta;
-      const beeInterval = Math.max(9000, 18000 - beeHives * 1800);
+      const beeInterval = Math.max(
+        6500,
+        Math.max(9000, 18000 - beeHives * 1800) * automationIntervalMultiplier,
+      );
       if (this.beeHiveElapsed >= beeInterval) {
         this.beeHiveElapsed = 0;
         changed = this.pollinateFromBeeHive(state, beeHives, feedback) || changed;
@@ -63,7 +71,10 @@ export class AnimalCompanionSystem {
 
     if (chickens > 0) {
       this.chickenElapsed += delta;
-      const chickenInterval = Math.max(10000, 21000 - chickens * 2200);
+      const chickenInterval = Math.max(
+        8000,
+        Math.max(10000, 21000 - chickens * 2200) * automationIntervalMultiplier,
+      );
       if (this.chickenElapsed >= chickenInterval) {
         this.chickenElapsed = 0;
         changed = this.runChickenForage(state, chickens, feedback) || changed;
@@ -72,7 +83,10 @@ export class AnimalCompanionSystem {
 
     if (sheep > 0) {
       this.sheepElapsed += delta;
-      const sheepInterval = Math.max(13000, 26000 - sheep * 3000);
+      const sheepInterval = Math.max(
+        10000,
+        Math.max(13000, 26000 - sheep * 3000) * automationIntervalMultiplier,
+      );
       if (this.sheepElapsed >= sheepInterval) {
         this.sheepElapsed = 0;
         changed = this.runSheepGraze(state, stats, sheep, feedback) || changed;
@@ -81,7 +95,10 @@ export class AnimalCompanionSystem {
 
     if (meadowRabbits > 0) {
       this.meadowRabbitElapsed += delta;
-      const meadowRabbitInterval = hasForagerTrails ? 8500 : 12000;
+      const meadowRabbitInterval = Math.max(
+        6500,
+        (hasForagerTrails ? 8500 : 12000) * automationIntervalMultiplier,
+      );
       if (this.meadowRabbitElapsed >= meadowRabbitInterval) {
         this.meadowRabbitElapsed = 0;
         const meadowRabbitSeedChance = hasForagerTrails ? 0.46 : 0.32;
@@ -91,7 +108,10 @@ export class AnimalCompanionSystem {
 
     if (earthworms > 0) {
       this.earthwormElapsed += delta;
-      const earthwormInterval = Math.max(10000, 20000 - earthworms * 2200);
+      const earthwormInterval = Math.max(
+        8000,
+        Math.max(10000, 20000 - earthworms * 2200) * automationIntervalMultiplier,
+      );
       if (this.earthwormElapsed >= earthwormInterval) {
         this.earthwormElapsed = 0;
         changed = this.runEarthwormBurrow(state, earthworms, feedback) || changed;

@@ -25,6 +25,7 @@ import {
 import { addInventoryItem, consumeInventoryItem, getInventoryQuantity } from "../systems/InventorySystem";
 import { PLACEMENT_RADIUS, getNearbyPlacedObjectIds, getPlacedObjectAt, placeWorldObject, removeWorldObjectPlacement } from "../systems/PlacementSystem";
 import { AnimalCompanionSystem } from "../systems/AnimalCompanionSystem";
+import { getAutomationMilestoneBoostLabel } from "../systems/AutomationMilestoneSystem";
 import { AutomationScheduler } from "../systems/AutomationScheduler";
 import { AudioSystem } from "../systems/AudioSystem";
 import { ChiptuneMusicSystem } from "../systems/ChiptuneMusicSystem";
@@ -7256,6 +7257,7 @@ export class GameScene extends Phaser.Scene {
       this.state.seedShopPurchases.forager_trails ? "trails" : "",
       this.state.seedShopPurchases.sprinkler_timer ? "timer" : "",
       this.state.seedShopPurchases.sprinkler_network ? "network" : "",
+      getAutomationMilestoneBoostLabel(this.state),
     ].filter(Boolean);
 
     if (compact) {
