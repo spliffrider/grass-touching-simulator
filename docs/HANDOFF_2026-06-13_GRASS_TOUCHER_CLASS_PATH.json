@@ -1,0 +1,99 @@
+{
+  "handoffVersion": 1,
+  "createdAt": "2026-06-13T00:00:00+02:00",
+  "project": {
+    "name": "Grass Touching Simulator",
+    "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+    "branch": "master",
+    "repository": "https://github.com/spliffrider/grass-touching-simulator.git",
+    "liveDomain": "https://grasstouchingsimulator.com"
+  },
+  "checkpoint": {
+    "name": "Alpha 2.0 - Grass Toucher class path",
+    "summary": "Fixed mobile class picker readability, added Grass Toucher class-only skills and quests, verified locally, pushed, and deployed production.",
+    "gameCommit": {
+      "hash": "a053f72fe4467f074838cbd9b8f3c220e1759120",
+      "shortHash": "a053f72",
+      "message": "Add Grass Toucher class path"
+    }
+  },
+  "deployment": {
+    "provider": "Vercel",
+    "target": "production",
+    "deploymentId": "dpl_HYoYkjBxQquUTSHbZ5Cwen7xeruX",
+    "deploymentUrl": "https://grass-touching-simulator-cwh54khxv-sensitech.vercel.app",
+    "inspectorUrl": "https://vercel.com/sensitech/grass-touching-simulator/HYoYkjBxQquUTSHbZ5Cwen7xeruX",
+    "readyState": "READY",
+    "aliased": true,
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "liveDomainCheck": "HTTP 200 OK"
+  },
+  "filesChanged": [
+    {
+      "path": "src/game/scenes/TitleScene.ts",
+      "changes": [
+        "Changed narrow class picker cards to compact readable rows instead of vertically crushed desktop cards.",
+        "Kept desktop class picker layout visually unchanged."
+      ]
+    },
+    {
+      "path": "src/game/data/upgrades.ts",
+      "changes": [
+        "Added Grass Toucher-only Honest Work skill.",
+        "Added Grass Toucher-only Patient Observation skill.",
+        "Reused existing skill icon assets to avoid new asset requirements."
+      ]
+    },
+    {
+      "path": "src/game/data/quests.ts",
+      "changes": [
+        "Added Grass Toucher class quests An Honest Afternoon and Knows The Lawn."
+      ]
+    },
+    {
+      "path": "src/game/scenes/GameScene.ts",
+      "changes": [
+        "Class branch helper now recognizes the new Grass Toucher skill nodes.",
+        "Grass Toucher class quest claim feedback uses a green burst."
+      ]
+    }
+  ],
+  "verification": {
+    "localBuild": {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    "browserSmoke": {
+      "tool": "Codex in-app browser",
+      "result": "passed",
+      "checks": [
+        "Mobile class picker at 390x844 is readable.",
+        "Desktop class picker at 1280x720 still fits three cards.",
+        "Grass Toucher starts and HUD shows Grass Toucher - Honest Touch.",
+        "Skill tree renders the new Grass Toucher nodes with no missing asset errors.",
+        "Class quest filter shows the two Grass Toucher quests.",
+        "Stress/perf smoke at ?stress&perf&tiles=120 had no console errors."
+      ]
+    },
+    "deployment": {
+      "command": "npx vercel --prod --yes",
+      "result": "passed"
+    },
+    "liveDomain": {
+      "command": "Invoke-WebRequest -Uri https://grasstouchingsimulator.com -UseBasicParsing -TimeoutSec 20",
+      "result": "passed",
+      "statusCode": 200
+    }
+  },
+  "knownCaveats": [
+    "The new class skills are intentionally modest and may need real playtest tuning.",
+    "Skill tree is visually dense in maxed stress mode; new nodes are usable but future tree layout cleanup would help.",
+    "Mobile title art still crops horizontally by design from the existing title-screen behavior."
+  ],
+  "recommendedNextSteps": [
+    "Start the first automation slice from the clean Grass Toucher class path checkpoint.",
+    "Prefer extending existing SprinklerSystem or adding a small Watering Can system before larger offline progress.",
+    "After any automation change, run npm run build and smoke test ?stress&perf&tiles=120.",
+    "Keep automation from building manual combo/rhythm unless explicitly requested later."
+  ]
+}
