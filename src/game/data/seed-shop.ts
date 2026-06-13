@@ -19,7 +19,7 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
   {
     id: "sprinkler",
     name: "Tiny Sprinkler",
-    description: "Automatically touches one grown grass patch every few seconds.",
+    description: "Automatically touches grown grass. Place it to focus watering nearby.",
     cost: 22,
     isUnlocked: (state) => state.seedShopPurchases.seed_pouch === true,
   },
@@ -82,7 +82,7 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
   {
     id: "sprinkler_network",
     name: "Sprinkler Network",
-    description: "Tiny Sprinkler waters a second grown patch each cycle.",
+    description: "Tiny Sprinkler waters a second patch and reaches farther when placed.",
     cost: 170,
     isUnlocked: (state) => state.seedShopPurchases.self_seeding_nozzle === true,
   },

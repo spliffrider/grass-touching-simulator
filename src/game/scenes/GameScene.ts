@@ -3987,7 +3987,7 @@ export class GameScene extends Phaser.Scene {
   private getWorldObjectSummary(id: string): string {
     switch (id) {
       case "sprinkler":
-        return "Waters resting patches so the field keeps moving.";
+        return "Waters grown grass near its placed tile so the field keeps moving.";
       case "bee_hive":
         return "Bees periodically pollinate clusters into better grass.";
       case "chicken":

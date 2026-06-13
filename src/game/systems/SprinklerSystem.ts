@@ -1,5 +1,5 @@
 import { getGrassTier } from "../data/grass-tiers";
-import { getRandomGrownTile, touchTile } from "./FieldSystem";
+import { getRandomGrownTile, tileKey, touchTile } from "./FieldSystem";
 import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait, TouchResult } from "../types/game-state";
 
 export interface SprinklerFeedback {
@@ -39,10 +39,11 @@ export class SprinklerSystem {
 
     this.elapsed = 0;
     const touchesPerCycle = state.seedShopPurchases.sprinkler_network ? 2 : 1;
+    const sprinklerRadius = state.seedShopPurchases.sprinkler_network ? 2 : 1;
     let changed = false;
 
     for (let i = 0; i < touchesPerCycle; i += 1) {
-      const tile = getRandomGrownTile(state);
+      const tile = getSprinklerTargetTile(state, sprinklerRadius);
       if (!tile) {
         break;
       }
@@ -78,6 +79,27 @@ export class SprinklerSystem {
 
     return changed;
   }
+}
+
+function getSprinklerTargetTile(state: GameState, radius: number): FieldTile | undefined {
+  const placement = state.placedWorldObjects.sprinkler;
+  const placedTile = placement ? state.field[placement.tileKey] : undefined;
+  if (!placedTile) {
+    return getRandomGrownTile(state);
+  }
+
+  const localTiles: FieldTile[] = [];
+
+  for (let y = placedTile.y - radius; y <= placedTile.y + radius; y += 1) {
+    for (let x = placedTile.x - radius; x <= placedTile.x + radius; x += 1) {
+      const tile = state.field[tileKey(x, y)];
+      if (tile?.grassState === "grown") {
+        localTiles.push(tile);
+      }
+    }
+  }
+
+  return Phaser.Utils.Array.GetRandom(localTiles) ?? getRandomGrownTile(state);
 }
 
 function getTouchPopText(touch: TouchResult, label: string): string {
