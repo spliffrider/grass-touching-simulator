@@ -147,6 +147,7 @@ const SEED_SHOP_ICON_KEYS: Record<string, string> = {
   rain_barrel: "item-rain-barrel",
   sprinkler_timer: "item-sprinkler-timer",
   self_seeding_nozzle: "item-self-seeding-nozzle",
+  sprinkler_network: "item-sprinkler-timer",
   clover_press: "item-clover-press",
   seed_catalog: "item-seed-catalog",
 };

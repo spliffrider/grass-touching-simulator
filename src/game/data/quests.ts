@@ -382,6 +382,16 @@ export const QUESTS: QuestDefinition[] = [
     getProgress: (state) => (state.seedShopPurchases.sprinkler_timer ? "Sprinkler Timer bought" : "Not bought yet"),
   },
   {
+    id: "sprinkler_network_owner",
+    category: "Seed Shop",
+    name: "Little Irrigation Grid",
+    description: "Buy the Sprinkler Network.",
+    reward: { seeds: 9, gold: 4 },
+    prerequisiteQuestIds: ["sprinkler_timer_owner"],
+    isComplete: (state) => state.seedShopPurchases.sprinkler_network === true,
+    getProgress: (state) => (state.seedShopPurchases.sprinkler_network ? "Sprinkler Network bought" : "Not bought yet"),
+  },
+  {
     id: "clover_press_owner",
     category: "Seed Shop",
     name: "Pressed Luck",

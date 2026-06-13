@@ -80,6 +80,13 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
     isUnlocked: (state) => state.seedShopPurchases.sprinkler_timer === true,
   },
   {
+    id: "sprinkler_network",
+    name: "Sprinkler Network",
+    description: "Tiny Sprinkler waters a second grown patch each cycle.",
+    cost: 170,
+    isUnlocked: (state) => state.seedShopPurchases.self_seeding_nozzle === true,
+  },
+  {
     id: "clover_press",
     name: "Clover Press",
     description: "Rare grass and crits become slightly more common.",

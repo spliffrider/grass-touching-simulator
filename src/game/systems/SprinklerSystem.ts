@@ -38,38 +38,45 @@ export class SprinklerSystem {
     }
 
     this.elapsed = 0;
-    const tile = getRandomGrownTile(state);
-    if (!tile) {
-      return false;
+    const touchesPerCycle = state.seedShopPurchases.sprinkler_network ? 2 : 1;
+    let changed = false;
+
+    for (let i = 0; i < touchesPerCycle; i += 1) {
+      const tile = getRandomGrownTile(state);
+      if (!tile) {
+        break;
+      }
+
+      const touchedTrait = tile.trait;
+      const touchedTier = getGrassTier(tile.tier);
+      const touch = touchTile(tile, state, stats, Date.now());
+      if (touch.gained === 0) {
+        continue;
+      }
+
+      feedback.playSprinklerBurst(tile);
+      feedback.playTouchFeedback(tile, touchedTrait, touch.isCrit);
+      feedback.refreshTile(tile);
+      feedback.popAtTile(
+        tile,
+        getTouchPopText(touch, touchedTier.id === "normal" ? "sprinkler" : touchedTier.label),
+        touch.isCrit ? "#ffef78" : "#d7fff2",
+      );
+
+      if (touch.instantRegrown) {
+        feedback.popAtTile(tile, "instant regrow", "#dfffc8");
+      }
+
+      if (state.seedShopPurchases.self_seeding_nozzle) {
+        feedback.tryDropSeed(tile, touchedTrait, stats, 0.25);
+      }
+
+      feedback.tryDropGold(tile, touchedTrait, touchedTier.id, touch, stats, 0.2);
+      feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
+      changed = true;
     }
 
-    const touchedTrait = tile.trait;
-    const touchedTier = getGrassTier(tile.tier);
-    const touch = touchTile(tile, state, stats, Date.now());
-    if (touch.gained === 0) {
-      return false;
-    }
-
-    feedback.playSprinklerBurst(tile);
-    feedback.playTouchFeedback(tile, touchedTrait, touch.isCrit);
-    feedback.refreshTile(tile);
-    feedback.popAtTile(
-      tile,
-      getTouchPopText(touch, touchedTier.id === "normal" ? "sprinkler" : touchedTier.label),
-      touch.isCrit ? "#ffef78" : "#d7fff2",
-    );
-
-    if (touch.instantRegrown) {
-      feedback.popAtTile(tile, "instant regrow", "#dfffc8");
-    }
-
-    if (state.seedShopPurchases.self_seeding_nozzle) {
-      feedback.tryDropSeed(tile, touchedTrait, stats, 0.25);
-    }
-
-    feedback.tryDropGold(tile, touchedTrait, touchedTier.id, touch, stats, 0.2);
-    feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
-    return true;
+    return changed;
   }
 }
 
