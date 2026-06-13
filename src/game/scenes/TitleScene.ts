@@ -57,6 +57,8 @@ export class TitleScene extends Phaser.Scene {
   private creditsBackdrop!: Phaser.GameObjects.Rectangle;
   private creditsPanel!: Phaser.GameObjects.NineSlice;
   private creditsTitle!: Phaser.GameObjects.Text;
+  private creditsDevRole!: Phaser.GameObjects.Text;
+  private creditsDevName!: Phaser.GameObjects.Text;
   private creditsRole!: Phaser.GameObjects.Text;
   private creditsNames!: Phaser.GameObjects.Text;
   private creditsGrassRole!: Phaser.GameObjects.Text;
@@ -324,6 +326,23 @@ export class TitleScene extends Phaser.Scene {
         strokeThickness: 5,
       })
       .setOrigin(0.5);
+    this.creditsDevRole = this.add
+      .text(0, 0, "Developer", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "20px",
+        color: "#b7eba5",
+      })
+      .setOrigin(0.5);
+    this.creditsDevName = this.add
+      .text(0, 0, "rafbu", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "24px",
+        color: "#f7ffe8",
+        stroke: "#12341c",
+        strokeThickness: 4,
+        align: "center",
+      })
+      .setOrigin(0.5);
     this.creditsRole = this.add
       .text(0, 0, "Playtesters", {
         fontFamily: "Trebuchet MS, Arial",
@@ -378,6 +397,8 @@ export class TitleScene extends Phaser.Scene {
       this.creditsBackdrop,
       this.creditsPanel,
       this.creditsTitle,
+      this.creditsDevRole,
+      this.creditsDevName,
       this.creditsRole,
       this.creditsNames,
       this.creditsGrassRole,
@@ -683,8 +704,10 @@ export class TitleScene extends Phaser.Scene {
     this.creditsPanel?.setPosition(centerX, centerY);
     this.creditsPanel?.setScale(panelWidth / CREDITS_PANEL_BASE_WIDTH, panelHeight / CREDITS_PANEL_BASE_HEIGHT);
     this.creditsTitle?.setPosition(centerX, centerY - panelHeight / 2 + 42);
-    this.creditsRole?.setPosition(centerX, centerY - panelHeight / 2 + 88);
-    this.creditsNames?.setPosition(centerX, centerY - 24);
+    this.creditsDevRole?.setPosition(centerX, centerY - panelHeight / 2 + 84);
+    this.creditsDevName?.setPosition(centerX, centerY - panelHeight / 2 + 111);
+    this.creditsRole?.setPosition(centerX, centerY - panelHeight / 2 + 150);
+    this.creditsNames?.setPosition(centerX, centerY + 16);
     this.creditsNames?.setWordWrapWidth(Math.max(220, panelWidth - 50));
     this.creditsGrassRole?.setPosition(centerX, centerY + panelHeight / 2 - 110);
     this.creditsGrassName?.setPosition(centerX, centerY + panelHeight / 2 - 82);
