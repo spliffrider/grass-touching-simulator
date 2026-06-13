@@ -39,13 +39,16 @@ export class AnimalCompanionSystem {
     const sheep = getInventoryQuantity(state, "sheep");
     const meadowRabbits = getInventoryQuantity(state, "meadow_rabbit");
     const earthworms = getInventoryQuantity(state, "earthworm");
+    const hasForagerTrails = state.seedShopPurchases.forager_trails === true;
 
     if (fieldMice > 0) {
       this.fieldMouseElapsed += delta;
-      const fieldMouseInterval = 14500;
+      const fieldMouseInterval = hasForagerTrails ? 9500 : 14500;
       if (this.fieldMouseElapsed >= fieldMouseInterval) {
         this.fieldMouseElapsed = 0;
-        changed = this.runForagerTouch(state, stats, feedback, "field_mouse", "scurry", 1, "mouse", 0.22, 0) || changed;
+        const fieldMouseRadius = hasForagerTrails ? 2 : 1;
+        const fieldMouseGoldChance = hasForagerTrails ? 0.34 : 0.22;
+        changed = this.runForagerTouch(state, stats, feedback, "field_mouse", "scurry", fieldMouseRadius, "mouse", fieldMouseGoldChance, 0) || changed;
       }
     }
 
@@ -78,10 +81,11 @@ export class AnimalCompanionSystem {
 
     if (meadowRabbits > 0) {
       this.meadowRabbitElapsed += delta;
-      const meadowRabbitInterval = 12000;
+      const meadowRabbitInterval = hasForagerTrails ? 8500 : 12000;
       if (this.meadowRabbitElapsed >= meadowRabbitInterval) {
         this.meadowRabbitElapsed = 0;
-        changed = this.runForagerTouch(state, stats, feedback, "meadow_rabbit", "hop", 2, "rabbit", 0, 0.32) || changed;
+        const meadowRabbitSeedChance = hasForagerTrails ? 0.46 : 0.32;
+        changed = this.runForagerTouch(state, stats, feedback, "meadow_rabbit", "hop", 2, "rabbit", 0, meadowRabbitSeedChance) || changed;
       }
     }
 

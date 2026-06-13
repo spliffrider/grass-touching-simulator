@@ -66,6 +66,14 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
     isUnlocked: (state) => state.seedShopPurchases.weather_jar === true,
   },
   {
+    id: "forager_trails",
+    name: "Forager Trails",
+    description: "Field Mouse and Meadow Rabbit act more often around their placed tiles.",
+    cost: 105,
+    isUnlocked: (state) =>
+      (state.inventory.field_mouse?.quantity ?? 0) > 0 || (state.inventory.meadow_rabbit?.quantity ?? 0) > 0,
+  },
+  {
     id: "sprinkler_timer",
     name: "Sprinkler Timer",
     description: "Tiny Sprinkler touches grass more often.",
