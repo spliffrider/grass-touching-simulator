@@ -39,7 +39,7 @@ export const GOLD_STORE_ITEMS: GoldStoreItem[] = [
   {
     id: "bee_hive",
     name: "Bee Hive",
-    description: "Animal. Bees periodically improve little clusters of nearby grass.",
+    description: "Animal. Place it to pollinate nearby clusters into better grass.",
     cost: 24,
     kind: "animal",
     maxQuantity: 3,

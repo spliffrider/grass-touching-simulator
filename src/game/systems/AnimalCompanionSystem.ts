@@ -148,7 +148,7 @@ export class AnimalCompanionSystem {
   }
 
   private pollinateFromBeeHive(state: GameState, beeHives: number, feedback: AnimalCompanionFeedback): boolean {
-    const anchor = getRandomFieldTile(state);
+    const anchor = getPlacedLocalFieldTile(state, "bee_hive", 2) ?? getRandomFieldTile(state);
     if (!anchor) {
       return false;
     }
@@ -260,6 +260,19 @@ export class AnimalCompanionSystem {
 }
 
 function getPlacedLocalGrownTile(state: GameState, objectId: "field_mouse" | "meadow_rabbit", radius: number): FieldTile | undefined {
+  return getPlacedLocalTile(state, objectId, radius, (tile) => tile.grassState === "grown");
+}
+
+function getPlacedLocalFieldTile(state: GameState, objectId: "bee_hive", radius: number): FieldTile | undefined {
+  return getPlacedLocalTile(state, objectId, radius, () => true);
+}
+
+function getPlacedLocalTile(
+  state: GameState,
+  objectId: "bee_hive" | "field_mouse" | "meadow_rabbit",
+  radius: number,
+  isCandidate: (tile: FieldTile) => boolean,
+): FieldTile | undefined {
   const placement = state.placedWorldObjects[objectId];
   const placedTile = placement ? state.field[placement.tileKey] : undefined;
   if (!placedTile) {
@@ -270,7 +283,7 @@ function getPlacedLocalGrownTile(state: GameState, objectId: "field_mouse" | "me
   for (let y = placedTile.y - radius; y <= placedTile.y + radius; y += 1) {
     for (let x = placedTile.x - radius; x <= placedTile.x + radius; x += 1) {
       const tile = state.field[tileKey(x, y)];
-      if (tile?.grassState === "grown") {
+      if (tile && isCandidate(tile)) {
         localTiles.push(tile);
       }
     }

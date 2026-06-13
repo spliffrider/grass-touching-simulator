@@ -4084,7 +4084,7 @@ export class GameScene extends Phaser.Scene {
       case "sprinkler":
         return "Waters grown grass near its placed tile so the field keeps moving.";
       case "bee_hive":
-        return "Bees periodically pollinate clusters into better grass.";
+        return "Pollinates nearby clusters into better grass from its placed tile.";
       case "chicken":
         return "Scratches up gold or improves a random patch.";
       case "sheep":
