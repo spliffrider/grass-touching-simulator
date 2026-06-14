@@ -2,9 +2,12 @@ import Phaser from "phaser";
 import { DEFAULT_MUSIC_VOLUME, readStoredMusicVolume, writeStoredMusicVolume } from "../data/audio-settings";
 import {
   AUTOMATION_SYSTEMS,
+  getActiveAutomationPairSynergies,
   getAutomationOutputContext,
+  getAutomationSystemDerivativeSupport,
   getAutomationSystemCost,
   getAutomationSystemOwned,
+  getAutomationSystemPairSynergyLabel,
   getAutomationSystemTouchesPerMinute,
   getTotalAutomationTouchesPerMinute,
 } from "../data/automation-systems";
@@ -43,7 +46,14 @@ import {
 } from "../systems/AmountSystem";
 import { AUTOMATION_DIRECTIVES, getAutomationDirective, getResolvedAutomationDirectiveId } from "../systems/AutomationDirectiveSystem";
 import { AutomationIncomeSystem } from "../systems/AutomationIncomeSystem";
-import { getAutomationMilestoneBoostLabel, getAutomationUnitCount } from "../systems/AutomationMilestoneSystem";
+import {
+  formatAutomationMultiplier,
+  getAutomationMilestoneBoostLabel,
+  getAutomationSystemMilestoneMultiplier,
+  getAutomationSystemMilestoneLabel,
+  getAutomationUnitCount,
+  getNextAutomationSystemMilestone,
+} from "../systems/AutomationMilestoneSystem";
 import { recordAutomationAction, recordAutomationDirectiveUsed } from "../systems/AutomationProgressSystem";
 import { AutomationScheduler } from "../systems/AutomationScheduler";
 import { AudioSystem } from "../systems/AudioSystem";
@@ -110,6 +120,10 @@ const QUEST_CLIPBOARD_INTERVAL_MS = 9000;
 const QUEST_CLIPBOARD_MAX_CLAIMS = 2;
 const TILE_CULL_MARGIN_PX = 96;
 const TILE_VIEW_POOL_LIMIT = 36;
+
+function formatAutomationSupportUnits(support: number): string {
+  return support >= 10 ? support.toFixed(0) : support.toFixed(1);
+}
 const LIVE_TILE_VIEW_FIELD_LIMIT = 180;
 const POP_TEXT_POOL_LIMIT = 36;
 const TOUCH_FLOURISH_INTERVAL_MS = 72;
@@ -2812,10 +2826,12 @@ export class GameScene extends Phaser.Scene {
     const resolvedDirective = getResolvedAutomationDirectiveId(this.state);
     const resolvedDirectiveName = AUTOMATION_DIRECTIVES.find((directive) => directive.id === resolvedDirective)?.name ?? "Balanced";
     const stats = this.getCachedRuntimeStats();
+    const activeSynergyCount = getActiveAutomationPairSynergies(this.state, stats).length;
     this.automationStatusText.setText(
       [
         `${getAutomationUnitCount(this.state)} active units`,
         formatGrassTouchesPerMinute(getTotalAutomationTouchesPerMinute(this.state, stats)),
+        activeSynergyCount > 0 ? `${activeSynergyCount} ecosystem synergies` : "",
         `Directive: ${currentDirective.name}${currentDirective.id === "autopilot" ? ` -> ${resolvedDirectiveName}` : ""}`,
         `${formatGrassTouches(this.state.automationStats.automatedGrassTouches)} auto touches`,
         `${this.state.automationStats.automationSupplyDrops} supplies`,
@@ -3499,7 +3515,14 @@ export class GameScene extends Phaser.Scene {
     this.state.automationSystems ??= {};
     this.state.automationSystems[system.id] = { owned: owned + 1 };
     this.invalidateRuntimeStats();
-    this.setStoreStatus(`${system.name} running x${owned + 1}. Output: ${formatGrassTouchesPerMinute(getAutomationSystemTouchesPerMinute(this.state, system, this.getCachedRuntimeStats()))}.`);
+    const milestoneLabel = getAutomationSystemMilestoneLabel(this.state, system.id);
+    const derivativeSupport = getAutomationSystemDerivativeSupport(this.state, system.id);
+    const supportLabel = derivativeSupport > 0 ? `, +${formatAutomationSupportUnits(derivativeSupport)} support` : "";
+    this.setStoreStatus(
+      `${system.name} running x${owned + 1}. Output: ${formatGrassTouchesPerMinute(
+        getAutomationSystemTouchesPerMinute(this.state, system, this.getCachedRuntimeStats()),
+      )}${milestoneLabel ? ` (${milestoneLabel}${supportLabel})` : supportLabel}.`,
+    );
     this.audio.play(owned === 0 ? "milestone" : "upgrade");
     this.saveState();
     this.refreshUi();
@@ -3514,11 +3537,25 @@ export class GameScene extends Phaser.Scene {
 
     const owned = getAutomationSystemOwned(this.state, system.id);
     const nextCost = getAutomationSystemCost(system, owned);
-    const output = getAutomationSystemTouchesPerMinute(this.state, system, this.getCachedRuntimeStats());
+    const stats = this.getCachedRuntimeStats();
+    const output = getAutomationSystemTouchesPerMinute(this.state, system, stats);
+    const derivativeSupport = getAutomationSystemDerivativeSupport(this.state, system.id);
+    const ownedText =
+      derivativeSupport > 0 ? `${owned} owned + ${formatAutomationSupportUnits(derivativeSupport)} support` : `${owned} running`;
+    const milestoneMultiplier = getAutomationSystemMilestoneMultiplier(this.state, system.id);
+    const pairSynergyLabel = getAutomationSystemPairSynergyLabel(this.state, system.id, stats);
+    const nextMilestone = getNextAutomationSystemMilestone(this.state, system.id);
+    const nextMilestoneText = nextMilestone
+      ? `next boost x${formatAutomationMultiplier(nextMilestone.multiplier)} at ${nextMilestone.owned}`
+      : "max boost";
     this.setStoreStatus(
-      `${system.name}: ${owned} running | ${formatGrassTouchesPerMinute(output)} total | ${formatGrassTouchesPerMinute(
+      `${system.name}: ${ownedText} | ${formatGrassTouchesPerMinute(output)} total | ${formatGrassTouchesPerMinute(
         system.baseTouchesPerMinute,
-      )} each | Next: ${formatGrassTouches(nextCost)} Grass Touches`,
+      )} base each | boost x${formatAutomationMultiplier(milestoneMultiplier)}${
+        pairSynergyLabel ? ` | ${pairSynergyLabel}` : ""
+      } | ${nextMilestoneText} | Next: ${formatGrassTouches(
+        nextCost,
+      )} Grass Touches`,
     );
   }
 
@@ -7384,10 +7421,11 @@ export class GameScene extends Phaser.Scene {
   private refreshGoldStore(): void {
     const stats = this.getCachedRuntimeStats();
     const automationOutputContext = getAutomationOutputContext(this.state, stats);
+    const activeSynergyCount = automationOutputContext.activePairSynergies.length;
     this.storeResourceText.setText(
       `Grass Touches: ${formatGrassTouches(this.state.grassTouches)} | Automation: ${formatGrassTouchesPerMinute(
         getTotalAutomationTouchesPerMinute(this.state, stats, automationOutputContext),
-      )}`,
+      )}${activeSynergyCount > 0 ? ` | Synergies: ${activeSynergyCount}` : ""}`,
     );
 
     for (const system of AUTOMATION_SYSTEMS) {
@@ -7401,6 +7439,16 @@ export class GameScene extends Phaser.Scene {
       const cost = getAutomationSystemCost(system, owned);
       const affordable = canAffordGrassTouches(this.state.grassTouches, cost);
       const output = getAutomationSystemTouchesPerMinute(this.state, system, stats, automationOutputContext);
+      const derivativeSupport = getAutomationSystemDerivativeSupport(this.state, system.id);
+      const ownedText = derivativeSupport > 0 ? `${owned}+${formatAutomationSupportUnits(derivativeSupport)}` : `${owned}`;
+      const milestoneMultiplier = getAutomationSystemMilestoneMultiplier(this.state, system.id);
+      const nextMilestone = getNextAutomationSystemMilestone(this.state, system.id);
+      const milestoneStatus =
+        milestoneMultiplier > 1
+          ? `x${formatAutomationMultiplier(milestoneMultiplier)}`
+          : nextMilestone
+            ? `at ${nextMilestone.owned}`
+            : "max boost";
 
       view.container.setAlpha(unlocked || owned > 0 ? 1 : 0.68);
       view.bg.setFillStyle(owned > 0 ? 0x1c4728 : 0x12341c, unlocked || owned > 0 ? 0.96 : 0.62);
@@ -7411,13 +7459,13 @@ export class GameScene extends Phaser.Scene {
         view.status.setColor("#8ea594");
       } else if (!affordable) {
         view.status.setText(
-          `Owned: ${owned} | ${formatGrassTouchesPerMinute(output)} | Need ${formatGrassTouches(
+          `Owned ${ownedText} | ${formatGrassTouchesPerMinute(output)} | ${milestoneStatus} | Need ${formatGrassTouches(
             getMissingGrassTouches(this.state.grassTouches, cost),
-          )} GT`,
+          )}`,
         );
         view.status.setColor("#d6e6d0");
       } else {
-        view.status.setText(`Owned: ${owned} | ${formatGrassTouchesPerMinute(output)} | Next: ${formatGrassTouches(cost)} GT`);
+        view.status.setText(`Owned ${ownedText} | ${formatGrassTouchesPerMinute(output)} | ${milestoneStatus} | Cost ${formatGrassTouches(cost)}`);
         view.status.setColor("#f4df6a");
       }
     }

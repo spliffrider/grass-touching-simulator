@@ -1,4 +1,5 @@
 import { getGrassTier } from "../data/grass-tiers";
+import { getAutomationPairSynergyPower } from "../data/automation-systems";
 import { getResolvedAutomationDirectiveId, type ResolvedAutomationDirectiveId } from "./AutomationDirectiveSystem";
 import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
 import { recordAutomationAction, recordAutomationSupplyDrop, recordAutomationTouch } from "./AutomationProgressSystem";
@@ -44,7 +45,8 @@ export class SprinklerSystem {
     }
 
     this.elapsed = 0;
-    const touchesPerCycle = state.seedShopPurchases.sprinkler_network ? 2 : 1;
+    const bloomCyclePower = getAutomationPairSynergyPower(state, "bloom_cycle", stats);
+    const touchesPerCycle = (state.seedShopPurchases.sprinkler_network ? 2 : 1) + (bloomCyclePower >= 0.25 ? 1 : 0);
     const sprinklerRadius = state.seedShopPurchases.sprinkler_network ? 2 : 1;
     const directiveId = getResolvedAutomationDirectiveId(state);
     let changed = false;
@@ -84,7 +86,7 @@ export class SprinklerSystem {
       recordAutomationTouch(state, touch.gained, directiveId);
 
       if (state.seedShopPurchases.self_seeding_nozzle) {
-        if (feedback.tryDropSeed(tile, touchedTrait, stats, directiveId === "supplies" ? 0.38 : 0.25)) {
+        if (feedback.tryDropSeed(tile, touchedTrait, stats, (directiveId === "supplies" ? 0.38 : 0.25) + bloomCyclePower * 0.16)) {
           recordAutomationSupplyDrop(state, 1, directiveId);
         }
       }
@@ -96,7 +98,7 @@ export class SprinklerSystem {
           touchedTier.id,
           touch,
           stats,
-          directiveId === "supplies" ? 0.32 : 0.2,
+          (directiveId === "supplies" ? 0.32 : 0.2) + bloomCyclePower * 0.12,
         )
       ) {
         recordAutomationSupplyDrop(state, 1, directiveId);

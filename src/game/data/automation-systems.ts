@@ -1,4 +1,5 @@
 import { MAX_GRASS_TOUCH_AMOUNT, normalizeGrassTouches } from "../systems/AmountSystem";
+import { getAutomationSystemMilestoneMultiplier } from "../systems/AutomationMilestoneSystem";
 import type { AutomationSystemId, GameState, RuntimeStats } from "../types/game-state";
 
 export interface AutomationSystemDefinition {
@@ -15,7 +16,49 @@ export interface AutomationOutputContext {
   diversityMultiplier: number;
   globalMultiplier: number;
   pairSynergyMultiplierBySystem: Partial<Record<AutomationSystemId, number>>;
+  activePairSynergies: ActiveAutomationPairSynergy[];
 }
+
+const AUTOMATION_DERIVATIVE_SUPPORT_RATE = 0.2;
+
+export interface AutomationPairSynergyDefinition {
+  id: string;
+  name: string;
+  systemIds: readonly [AutomationSystemId, AutomationSystemId];
+}
+
+export interface ActiveAutomationPairSynergy {
+  definition: AutomationPairSynergyDefinition;
+  multiplier: number;
+}
+
+export const AUTOMATION_PAIR_SYNERGIES: AutomationPairSynergyDefinition[] = [
+  {
+    id: "bloom_cycle",
+    name: "Bloom Cycle",
+    systemIds: ["sprinkler", "bee_hive"],
+  },
+  {
+    id: "forager_circuit",
+    name: "Forager Circuit",
+    systemIds: ["field_mouse", "meadow_rabbit"],
+  },
+  {
+    id: "soil_scratch",
+    name: "Soil Scratch",
+    systemIds: ["earthworm", "chicken"],
+  },
+  {
+    id: "pasture_turnover",
+    name: "Pasture Turnover",
+    systemIds: ["earthworm", "sheep"],
+  },
+  {
+    id: "grazing_trail",
+    name: "Grazing Trail",
+    systemIds: ["sheep", "meadow_rabbit"],
+  },
+];
 
 export const AUTOMATION_SYSTEMS: AutomationSystemDefinition[] = [
   {
@@ -95,6 +138,21 @@ export function getAutomationSystemOwned(state: GameState, systemId: string): nu
   return Math.max(0, Math.floor(state.automationSystems?.[systemId]?.owned ?? 0));
 }
 
+export function getAutomationSystemDerivativeSupport(state: GameState, systemId: AutomationSystemId): number {
+  const systemIndex = AUTOMATION_SYSTEMS.findIndex((system) => system.id === systemId);
+  const supportingSystem = systemIndex >= 0 ? AUTOMATION_SYSTEMS[systemIndex + 1] : undefined;
+  const owned = getAutomationSystemOwned(state, systemId);
+  if (!supportingSystem || owned <= 0) {
+    return 0;
+  }
+
+  return getAutomationSystemOwned(state, supportingSystem.id) * AUTOMATION_DERIVATIVE_SUPPORT_RATE;
+}
+
+export function getAutomationSystemEffectiveOwned(state: GameState, systemId: AutomationSystemId): number {
+  return getAutomationSystemOwned(state, systemId) + getAutomationSystemDerivativeSupport(state, systemId);
+}
+
 export function getAutomationSystemCost(system: AutomationSystemDefinition, owned: number): number {
   return normalizeGrassTouches(Math.ceil(system.baseCost * system.costGrowth ** owned), MAX_GRASS_TOUCH_AMOUNT);
 }
@@ -104,21 +162,60 @@ export function getAutomationOutputContext(state: GameState, stats?: RuntimeStat
   const activeSystemTypes =
     diversityBonus > 0 ? AUTOMATION_SYSTEMS.reduce((total, system) => total + (getAutomationSystemOwned(state, system.id) > 0 ? 1 : 0), 0) : 0;
   const diversityMultiplier = diversityBonus > 0 ? 1 + Math.max(0, activeSystemTypes - 1) * diversityBonus : 1;
-  const pairBonus = stats?.automationPairSynergyBonus ?? 0;
-  const pairedSprinklerBeeUnits = pairBonus > 0 ? Math.min(getAutomationSystemOwned(state, "sprinkler"), getAutomationSystemOwned(state, "bee_hive")) : 0;
-  const sprinklerBeeMultiplier = 1 + Math.min(0.45, pairedSprinklerBeeUnits * pairBonus);
+  const activePairSynergies = getActiveAutomationPairSynergies(state, stats);
+  const pairSynergyMultiplierBySystem: Partial<Record<AutomationSystemId, number>> = {};
+
+  for (const synergy of activePairSynergies) {
+    for (const systemId of synergy.definition.systemIds) {
+      pairSynergyMultiplierBySystem[systemId] = (pairSynergyMultiplierBySystem[systemId] ?? 1) * synergy.multiplier;
+    }
+  }
 
   return {
     diversityMultiplier,
     globalMultiplier: stats?.automationGlobalMultiplier ?? 1,
-    pairSynergyMultiplierBySystem:
-      sprinklerBeeMultiplier > 1
-        ? {
-            sprinkler: sprinklerBeeMultiplier,
-            bee_hive: sprinklerBeeMultiplier,
-          }
-        : {},
+    pairSynergyMultiplierBySystem,
+    activePairSynergies,
   };
+}
+
+export function getActiveAutomationPairSynergies(state: GameState, stats?: RuntimeStats): ActiveAutomationPairSynergy[] {
+  const pairBonus = stats?.automationPairSynergyBonus ?? 0;
+  if (pairBonus <= 0) {
+    return [];
+  }
+
+  return AUTOMATION_PAIR_SYNERGIES.flatMap((definition) => {
+    const pairedUnits = Math.min(...definition.systemIds.map((systemId) => getAutomationSystemOwned(state, systemId)));
+    if (pairedUnits <= 0) {
+      return [];
+    }
+
+    return [
+      {
+        definition,
+        multiplier: 1 + Math.min(0.35, pairedUnits * pairBonus),
+      },
+    ];
+  });
+}
+
+export function getAutomationSystemPairSynergyLabel(
+  state: GameState,
+  systemId: AutomationSystemId,
+  stats?: RuntimeStats,
+): string {
+  const activeSynergies = getActiveAutomationPairSynergies(state, stats).filter((synergy) => synergy.definition.systemIds.includes(systemId));
+  if (activeSynergies.length === 0) {
+    return "";
+  }
+
+  return activeSynergies.map((synergy) => `${synergy.definition.name} x${synergy.multiplier.toFixed(2)}`).join(", ");
+}
+
+export function getAutomationPairSynergyPower(state: GameState, synergyId: string, stats?: RuntimeStats): number {
+  const synergy = getActiveAutomationPairSynergies(state, stats).find((candidate) => candidate.definition.id === synergyId);
+  return synergy ? synergy.multiplier - 1 : 0;
 }
 
 export function getAutomationSystemTouchesPerMinute(
@@ -127,14 +224,15 @@ export function getAutomationSystemTouchesPerMinute(
   stats?: RuntimeStats,
   context = getAutomationOutputContext(state, stats),
 ): number {
-  const owned = getAutomationSystemOwned(state, system.id);
-  if (owned <= 0) {
+  const effectiveOwned = getAutomationSystemEffectiveOwned(state, system.id);
+  if (effectiveOwned <= 0) {
     return 0;
   }
 
   const systemMultiplier = stats?.automationSystemMultipliers[system.id] ?? 1;
+  const milestoneMultiplier = getAutomationSystemMilestoneMultiplier(state, system.id);
   const pairMultiplier = context.pairSynergyMultiplierBySystem[system.id] ?? 1;
-  return owned * system.baseTouchesPerMinute * systemMultiplier * context.diversityMultiplier * pairMultiplier;
+  return effectiveOwned * system.baseTouchesPerMinute * milestoneMultiplier * systemMultiplier * context.diversityMultiplier * pairMultiplier;
 }
 
 export function getTotalAutomationTouchesPerMinute(state: GameState, stats?: RuntimeStats, context = getAutomationOutputContext(state, stats)): number {
