@@ -1,6 +1,6 @@
 import type { GameState, GrassTierId, RuntimeStats, TileTrait, TouchResult } from "../types/game-state";
 
-const BASE_GOLD_DROP_CHANCE = 0.014;
+const BASE_GOLD_DROP_CHANCE = 0.003;
 
 export function getGoldDropChance(
   state: GameState,
@@ -12,25 +12,25 @@ export function getGoldDropChance(
 ): number {
   let chance = BASE_GOLD_DROP_CHANCE + stats.goldDropBonus;
 
-  chance += touchedTrait === "lush" ? 0.009 : touchedTrait === "dewy" ? 0.004 : 0;
+  chance += touchedTrait === "lush" ? 0.002 : touchedTrait === "dewy" ? 0.001 : 0;
   chance += getTierGoldBonus(touchedTier);
-  chance += touch.isCrit ? 0.006 : 0;
-  chance += state.lifetimeGrassTouches >= 900 ? 0.003 : 0;
+  chance += touch.isCrit ? 0.002 : 0;
+  chance += state.lifetimeGrassTouches >= 900 ? 0.001 : 0;
 
-  return Math.min(0.12, chance * chanceScale);
+  return Math.min(0.035, chance * chanceScale);
 }
 
 function getTierGoldBonus(tier: GrassTierId): number {
   const bonuses = {
     normal: 0,
     thick: 0,
-    clover: 0.006,
-    golden: 0.022,
-    wildflower: 0.008,
-    moss: 0.004,
-    mushroom: 0.011,
-    crystal: 0.019,
-    frost: 0.014,
+    clover: 0.0015,
+    golden: 0.008,
+    wildflower: 0.002,
+    moss: 0.001,
+    mushroom: 0.003,
+    crystal: 0.006,
+    frost: 0.004,
   } satisfies Record<GrassTierId, number>;
 
   return bonuses[tier];

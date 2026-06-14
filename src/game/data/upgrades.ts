@@ -1,4 +1,5 @@
-import type { CharacterClassId, GameState, RuntimeStats } from "../types/game-state";
+import { MAX_GRASS_TOUCH_AMOUNT, normalizeGrassTouches } from "../systems/AmountSystem";
+import type { AutomationSystemId, CharacterClassId, GameState, RuntimeStats } from "../types/game-state";
 
 export interface UpgradeDefinition {
   id: string;
@@ -25,6 +26,12 @@ const UPGRADE_LEVEL_PACING_STEP = 0.14;
 
 function isClassUpgradeUnlocked(state: GameState, classId: CharacterClassId, requiredLifetimeTouches: number): boolean {
   return state.characterClassId === classId && state.lifetimeGrassTouches >= requiredLifetimeTouches;
+}
+
+function boostAutomationSystems(stats: RuntimeStats, systemIds: AutomationSystemId[], multiplier: number): void {
+  for (const systemId of systemIds) {
+    stats.automationSystemMultipliers[systemId] *= multiplier;
+  }
 }
 
 export const UPGRADES: UpgradeDefinition[] = [
@@ -284,6 +291,68 @@ export const UPGRADES: UpgradeDefinition[] = [
     isUnlocked: (state) => state.seedShopPurchases.weather_jar === true && state.lifetimeGrassTouches >= 420,
   },
   {
+    id: "sprinkler_calibration",
+    name: "Sprinkler Calibration",
+    description: "Tiny Sprinklers produce 8% more automatic Grass Touches per level.",
+    baseCost: 260,
+    costGrowth: 2.08,
+    maxLevel: 5,
+    prerequisiteIds: ["faster_regrowth"],
+    iconAsset: "warm_sunlight",
+    tree: { x: 555, y: 180, icon: "spray", color: 0x7fd8f0 },
+    apply: (stats, level) => {
+      boostAutomationSystems(stats, ["sprinkler"], 1 + level * 0.08);
+    },
+    isUnlocked: (state) => state.seedShopPurchases.sprinkler === true || state.lifetimeGrassTouches >= 220,
+  },
+  {
+    id: "helper_routes",
+    name: "Helper Routes",
+    description: "Field Mouse Routes and Bee Hive Shifts produce 7% more automation per level.",
+    baseCost: 520,
+    costGrowth: 2.16,
+    maxLevel: 5,
+    prerequisiteIds: ["grass_identification"],
+    iconAsset: "grass_identification",
+    tree: { x: 315, y: 390, icon: "route", color: 0xb7eba5 },
+    apply: (stats, level) => {
+      boostAutomationSystems(stats, ["field_mouse", "bee_hive"], 1 + level * 0.07);
+    },
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 420,
+  },
+  {
+    id: "grazing_logistics",
+    name: "Grazing Logistics",
+    description: "Earthworm Crews, Chicken Patrols, Sheep Loops, and Rabbit Circuits produce 6% more automation per level.",
+    baseCost: 900,
+    costGrowth: 2.2,
+    maxLevel: 5,
+    prerequisiteIds: ["soft_meadow"],
+    iconAsset: "soft_meadow",
+    tree: { x: 795, y: 340, icon: "loop", color: 0xc9f27b },
+    apply: (stats, level) => {
+      boostAutomationSystems(stats, ["earthworm", "chicken", "sheep", "meadow_rabbit"], 1 + level * 0.06);
+    },
+    isUnlocked: (state) => state.lifetimeGrassTouches >= 900,
+  },
+  {
+    id: "ecosystem_loop",
+    name: "Ecosystem Loop",
+    description:
+      "Each active automation system type boosts all automation by 2% per level after the first. Sprinklers and Bee Hives also amplify each other.",
+    baseCost: 1600,
+    costGrowth: 2.34,
+    maxLevel: 4,
+    prerequisiteIds: ["sprinkler_calibration", "helper_routes", "grazing_logistics"],
+    iconAsset: "root_network",
+    tree: { x: 565, y: 410, icon: "eco", color: 0xdfffc8 },
+    apply: (stats, level) => {
+      stats.automationDiversityBonus += level * 0.02;
+      stats.automationPairSynergyBonus += level * 0.01;
+    },
+    isUnlocked: (state) => Object.values(state.automationSystems ?? {}).some((system) => system.owned > 0) && state.lifetimeGrassTouches >= 1400,
+  },
+  {
     id: "soft_meadow",
     name: "Soft Meadow",
     description: "A late early-game touch boost from being surrounded by acceptable grass.",
@@ -471,7 +540,10 @@ export const UPGRADES: UpgradeDefinition[] = [
 
 export function getUpgradeCost(upgrade: UpgradeDefinition, level: number): number {
   const levelPacing = 1 + level * UPGRADE_LEVEL_PACING_STEP;
-  return Math.ceil(upgrade.baseCost * upgrade.costGrowth ** level * UPGRADE_COST_PACING_MULTIPLIER * levelPacing);
+  return normalizeGrassTouches(
+    Math.ceil(upgrade.baseCost * upgrade.costGrowth ** level * UPGRADE_COST_PACING_MULTIPLIER * levelPacing),
+    MAX_GRASS_TOUCH_AMOUNT,
+  );
 }
 
 export function canUnlockUpgrade(state: GameState, upgrade: UpgradeDefinition): boolean {

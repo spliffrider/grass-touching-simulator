@@ -1,3 +1,5 @@
+import type { GrassTouchAmount } from "../systems/AmountSystem";
+
 export type TileKey = `${number},${number}`;
 
 export type GrassState = "grown" | "regrowing";
@@ -23,7 +25,9 @@ export type CharacterClassId = "grass_toucher" | "femboy_slim" | "bard_de_wever"
 
 export type AutomationDirectiveId = "balanced" | "growth" | "harvest" | "supplies" | "autopilot";
 
-export const CURRENT_SAVE_VERSION = 8;
+export type AutomationSystemId = "sprinkler" | "field_mouse" | "bee_hive" | "earthworm" | "chicken" | "sheep" | "meadow_rabbit";
+
+export const CURRENT_SAVE_VERSION = 9;
 
 export interface FieldTile {
   x: number;
@@ -62,20 +66,24 @@ export interface JournalState {
 
 export interface AutomationStatsState {
   automatedActions: number;
-  automatedGrassTouches: number;
+  automatedGrassTouches: GrassTouchAmount;
   automationSupplyDrops: number;
   usedDirectiveIds: AutomationDirectiveId[];
+}
+
+export interface AutomationSystemState {
+  owned: number;
 }
 
 export interface GameState {
   saveVersion: number;
   characterClassId: CharacterClassId;
-  grassTouches: number;
+  grassTouches: GrassTouchAmount;
   seeds: number;
   lifetimeSeeds: number;
   gold: number;
   lifetimeGold: number;
-  lifetimeGrassTouches: number;
+  lifetimeGrassTouches: GrassTouchAmount;
   totalClickedPatches: number;
   mutationEvents: number;
   field: Record<TileKey, FieldTile>;
@@ -91,6 +99,7 @@ export interface GameState {
   selectedTrackId?: string;
   automationDirectiveId: AutomationDirectiveId;
   automationStats: AutomationStatsState;
+  automationSystems: Record<string, AutomationSystemState>;
   lastSavedAt: number;
 }
 
@@ -108,6 +117,10 @@ export interface RuntimeStats {
   instantRegrowChance: number;
   comboWindowMultiplier: number;
   comboBonusMultiplier: number;
+  automationGlobalMultiplier: number;
+  automationDiversityBonus: number;
+  automationPairSynergyBonus: number;
+  automationSystemMultipliers: Record<AutomationSystemId, number>;
 }
 
 export interface TouchResult {

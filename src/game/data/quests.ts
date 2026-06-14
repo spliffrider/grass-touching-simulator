@@ -1,3 +1,4 @@
+import { formatGrassTouches } from "../systems/AmountSystem";
 import type { AutomationDirectiveId, CharacterClassId, GameState, GrassTierId } from "../types/game-state";
 
 export interface QuestReward {
@@ -23,15 +24,8 @@ const countSeedShopPurchases = (state: GameState): number => Object.values(state
 const getUpgradeLevel = (state: GameState, upgradeId: string): number => state.upgrades[upgradeId]?.level ?? 0;
 const countUpgradeLevels = (state: GameState): number =>
   Object.values(state.upgrades).reduce((total, upgrade) => total + upgrade.level, 0);
-const getInventoryQuantity = (state: GameState, itemId: string): number => state.inventory[itemId]?.quantity ?? 0;
-const countAnimals = (state: GameState): number =>
-  Object.values(state.inventory).reduce((total, entry) => total + (entry.kind === "animal" ? entry.quantity : 0), 0);
 const countAutomationUnits = (state: GameState): number =>
-  (state.seedShopPurchases.sprinkler ? 1 : 0) +
-  ["field_mouse", "bee_hive", "chicken", "sheep", "meadow_rabbit", "earthworm"].reduce(
-    (total, itemId) => total + getInventoryQuantity(state, itemId),
-    0,
-  );
+  Object.values(state.automationSystems ?? {}).reduce((total, system) => total + Math.max(0, Math.floor(system.owned)), 0);
 const hasDiscoveredGrassTier = (state: GameState, tier: GrassTierId): boolean => state.journal.discoveredGrassTiers.includes(tier);
 const countDiscoveredGrassTiers = (state: GameState): number => state.journal.discoveredGrassTiers.length;
 const CORE_AUTOMATION_DIRECTIVES: AutomationDirectiveId[] = ["balanced", "growth", "harvest", "supplies"];
@@ -48,7 +42,7 @@ export const QUESTS: QuestDefinition[] = [
     description: "Reach 25 lifetime Grass Touches.",
     reward: { seeds: 2 },
     isComplete: (state) => state.lifetimeGrassTouches >= 25,
-    getProgress: (state) => `${Math.min(25, Math.floor(state.lifetimeGrassTouches))}/25 touches`,
+    getProgress: (state) => `${formatGrassTouches(Math.min(25, state.lifetimeGrassTouches))}/25 touches`,
   },
   {
     id: "touch_100",
@@ -58,7 +52,7 @@ export const QUESTS: QuestDefinition[] = [
     reward: { seeds: 3, gold: 1 },
     prerequisiteQuestIds: ["touch_25"],
     isComplete: (state) => state.lifetimeGrassTouches >= 100,
-    getProgress: (state) => `${Math.min(100, Math.floor(state.lifetimeGrassTouches))}/100 touches`,
+    getProgress: (state) => `${formatGrassTouches(Math.min(100, state.lifetimeGrassTouches))}/100 touches`,
   },
   {
     id: "touch_250",
@@ -68,7 +62,7 @@ export const QUESTS: QuestDefinition[] = [
     reward: { seeds: 4, gold: 1 },
     prerequisiteQuestIds: ["touch_100"],
     isComplete: (state) => state.lifetimeGrassTouches >= 250,
-    getProgress: (state) => `${Math.min(250, Math.floor(state.lifetimeGrassTouches))}/250 touches`,
+    getProgress: (state) => `${formatGrassTouches(Math.min(250, state.lifetimeGrassTouches))}/250 touches`,
   },
   {
     id: "touch_700",
@@ -78,7 +72,7 @@ export const QUESTS: QuestDefinition[] = [
     reward: { seeds: 6, gold: 2 },
     prerequisiteQuestIds: ["touch_250"],
     isComplete: (state) => state.lifetimeGrassTouches >= 700,
-    getProgress: (state) => `${Math.min(700, Math.floor(state.lifetimeGrassTouches))}/700 touches`,
+    getProgress: (state) => `${formatGrassTouches(Math.min(700, state.lifetimeGrassTouches))}/700 touches`,
   },
   {
     id: "touch_1500",
@@ -88,7 +82,7 @@ export const QUESTS: QuestDefinition[] = [
     reward: { seeds: 8, gold: 3 },
     prerequisiteQuestIds: ["touch_700"],
     isComplete: (state) => state.lifetimeGrassTouches >= 1500,
-    getProgress: (state) => `${Math.min(1500, Math.floor(state.lifetimeGrassTouches))}/1,500 touches`,
+    getProgress: (state) => `${formatGrassTouches(Math.min(1500, state.lifetimeGrassTouches))}/1,500 touches`,
   },
   {
     id: "touch_4200",
@@ -98,7 +92,7 @@ export const QUESTS: QuestDefinition[] = [
     reward: { seeds: 12, gold: 5 },
     prerequisiteQuestIds: ["touch_1500"],
     isComplete: (state) => state.lifetimeGrassTouches >= 4200,
-    getProgress: (state) => `${Math.min(4200, Math.floor(state.lifetimeGrassTouches))}/4,200 touches`,
+    getProgress: (state) => `${formatGrassTouches(Math.min(4200, state.lifetimeGrassTouches))}/4,200 touches`,
   },
   {
     id: "field_9",
@@ -244,11 +238,11 @@ export const QUESTS: QuestDefinition[] = [
     id: "sprinkler_owner",
     category: "Seed Shop",
     name: "Responsible Hydration",
-    description: "Buy the Tiny Sprinkler.",
+    description: "Get a Tiny Sprinkler running from the Store.",
     reward: { gold: 2 },
     prerequisiteQuestIds: ["seed_pouch_owner"],
-    isComplete: (state) => state.seedShopPurchases.sprinkler === true,
-    getProgress: (state) => (state.seedShopPurchases.sprinkler ? "Sprinkler bought" : "Not bought yet"),
+    isComplete: (state) => (state.automationSystems?.sprinkler?.owned ?? 0) > 0,
+    getProgress: (state) => `${Math.min(1, state.automationSystems?.sprinkler?.owned ?? 0)}/1 Tiny Sprinklers running`,
   },
   {
     id: "automation_actions_25",
@@ -278,7 +272,7 @@ export const QUESTS: QuestDefinition[] = [
     reward: { seeds: 7, gold: 3 },
     prerequisiteQuestIds: ["automation_actions_25"],
     isComplete: (state) => state.automationStats.automatedGrassTouches >= 100,
-    getProgress: (state) => `${Math.min(100, Math.floor(state.automationStats.automatedGrassTouches))}/100 auto touches`,
+    getProgress: (state) => `${formatGrassTouches(Math.min(100, state.automationStats.automatedGrassTouches))}/100 auto touches`,
   },
   {
     id: "automation_directives_all",
@@ -318,7 +312,7 @@ export const QUESTS: QuestDefinition[] = [
     reward: { seeds: 12, gold: 5 },
     prerequisiteQuestIds: ["automated_touch_100", "automation_units_4"],
     isComplete: (state) => state.automationStats.automatedGrassTouches >= 500,
-    getProgress: (state) => `${Math.min(500, Math.floor(state.automationStats.automatedGrassTouches))}/500 auto touches`,
+    getProgress: (state) => `${formatGrassTouches(Math.min(500, state.automationStats.automatedGrassTouches))}/500 auto touches`,
   },
   {
     id: "automation_units_7",
@@ -618,33 +612,33 @@ export const QUESTS: QuestDefinition[] = [
   },
   {
     id: "first_animal",
-    category: "Companions",
-    name: "Small Company",
-    description: "Own any animal companion.",
+    category: "Automation",
+    name: "Small Operations Desk",
+    description: "Own any running automation system.",
     reward: { seeds: 3, gold: 1 },
-    prerequisiteQuestIds: ["gold_5"],
-    isComplete: (state) => countAnimals(state) >= 1,
-    getProgress: (state) => `${Math.min(1, countAnimals(state))}/1 animals`,
+    prerequisiteQuestIds: ["sprinkler_owner"],
+    isComplete: (state) => countAutomationUnits(state) >= 1,
+    getProgress: (state) => `${Math.min(1, countAutomationUnits(state))}/1 systems`,
   },
   {
     id: "bee_hive_owner",
-    category: "Companions",
+    category: "Automation",
     name: "Polite Pollination",
-    description: "Own a Bee Hive.",
+    description: "Get a Bee Hive Shift running.",
     reward: { seeds: 5, gold: 1 },
     prerequisiteQuestIds: ["first_animal"],
-    isComplete: (state) => getInventoryQuantity(state, "bee_hive") >= 1,
-    getProgress: (state) => `${Math.min(1, getInventoryQuantity(state, "bee_hive"))}/1 Bee Hive`,
+    isComplete: (state) => (state.automationSystems?.bee_hive?.owned ?? 0) >= 1,
+    getProgress: (state) => `${Math.min(1, state.automationSystems?.bee_hive?.owned ?? 0)}/1 Bee Hive Shifts`,
   },
   {
     id: "animal_3",
-    category: "Companions",
+    category: "Automation",
     name: "Meadow Staff Meeting",
-    description: "Own 3 animal companions.",
+    description: "Own 3 running automation systems.",
     reward: { seeds: 8, gold: 3 },
     prerequisiteQuestIds: ["bee_hive_owner"],
-    isComplete: (state) => countAnimals(state) >= 3,
-    getProgress: (state) => `${Math.min(3, countAnimals(state))}/3 animals`,
+    isComplete: (state) => countAutomationUnits(state) >= 3,
+    getProgress: (state) => `${Math.min(3, countAutomationUnits(state))}/3 systems`,
   },
   {
     id: "weather_watching_1",
@@ -670,7 +664,7 @@ export const QUESTS: QuestDefinition[] = [
 
 export function formatQuestReward(reward: QuestReward): string {
   return [
-    reward.grassTouches ? `${reward.grassTouches} touches` : "",
+    reward.grassTouches ? `${formatGrassTouches(reward.grassTouches)} touches` : "",
     reward.seeds ? `${reward.seeds} seeds` : "",
     reward.gold ? `${reward.gold} gold` : "",
   ]

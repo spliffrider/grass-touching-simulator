@@ -1,3 +1,4 @@
+import { addGrassTouches } from "./AmountSystem";
 import type { AutomationDirectiveId, AutomationStatsState, GameState } from "../types/game-state";
 
 export function createAutomationStatsState(): AutomationStatsState {
@@ -19,7 +20,7 @@ export function recordAutomationTouch(
   gainedTouches: number,
   directiveId: AutomationDirectiveId = state.automationDirectiveId,
 ): void {
-  state.automationStats.automatedGrassTouches += Math.max(0, gainedTouches);
+  state.automationStats.automatedGrassTouches = addGrassTouches(state.automationStats.automatedGrassTouches, gainedTouches);
   recordAutomationAction(state, directiveId);
 }
 

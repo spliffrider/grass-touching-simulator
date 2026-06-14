@@ -18,8 +18,8 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
   },
   {
     id: "sprinkler",
-    name: "Tiny Sprinkler",
-    description: "Automatically touches grown grass. Place it to focus watering nearby.",
+    name: "Tiny Sprinkler Blueprint",
+    description: "Unlocks Tiny Sprinklers in the Automation Store.",
     cost: 22,
     isUnlocked: (state) => state.seedShopPurchases.seed_pouch === true,
   },

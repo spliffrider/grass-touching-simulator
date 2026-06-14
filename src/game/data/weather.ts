@@ -82,7 +82,7 @@ export const WEATHER_TYPES: WeatherDefinition[] = [
     apply: (stats) => {
       stats.rareTierMultiplier += 0.38;
       stats.rareTouchBonus += 2;
-      stats.goldDropBonus += 0.018;
+      stats.goldDropBonus += 0.006;
     },
   },
   {

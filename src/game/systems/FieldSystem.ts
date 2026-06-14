@@ -1,5 +1,6 @@
 import { getGrassTier, pickGrassTier } from "../data/grass-tiers";
 import { DEFAULT_CHARACTER_CLASS_ID } from "../data/character-classes";
+import { addGrassTouches } from "./AmountSystem";
 import { createAutomationStatsState } from "./AutomationProgressSystem";
 import { CURRENT_SAVE_VERSION } from "../types/game-state";
 import type { CharacterClassId, FieldTile, GameState, GrassTierId, RuntimeStats, TileKey, TileTrait, TouchResult } from "../types/game-state";
@@ -194,6 +195,7 @@ export function createInitialState(characterClassId: CharacterClassId = DEFAULT_
     selectedTrackId: "cozy_meadow",
     automationDirectiveId: "balanced",
     automationStats: createAutomationStatsState(),
+    automationSystems: {},
     lastSavedAt: Date.now(),
   };
 }
@@ -245,8 +247,8 @@ export function touchTile(tile: FieldTile, state: GameState, stats: RuntimeStats
     getRegrowingTileKeySet(state).delete(tileKey(tile.x, tile.y));
   }
 
-  state.grassTouches += gained;
-  state.lifetimeGrassTouches += gained;
+  state.grassTouches = addGrassTouches(state.grassTouches, gained);
+  state.lifetimeGrassTouches = addGrassTouches(state.lifetimeGrassTouches, gained);
   state.totalClickedPatches += 1;
 
   return { gained, isCrit, critMultiplier, doubled, instantRegrown };

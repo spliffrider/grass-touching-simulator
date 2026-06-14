@@ -19,6 +19,18 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
     instantRegrowChance: 0,
     comboWindowMultiplier: 1,
     comboBonusMultiplier: 1,
+    automationGlobalMultiplier: 1,
+    automationDiversityBonus: 0,
+    automationPairSynergyBonus: 0,
+    automationSystemMultipliers: {
+      sprinkler: 1,
+      field_mouse: 1,
+      bee_hive: 1,
+      earthworm: 1,
+      chicken: 1,
+      sheep: 1,
+      meadow_rabbit: 1,
+    },
   };
 
   getCharacterClass(state.characterClassId).apply(stats);
@@ -59,7 +71,7 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
   }
 
   if (state.inventory.field_mouse?.quantity > 0) {
-    stats.goldDropBonus += 0.003;
+    stats.goldDropBonus += 0.001;
   }
 
   if (state.inventory.meadow_rabbit?.quantity > 0) {
@@ -73,13 +85,19 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
   stats.critChance = Math.min(0.28, stats.critChance);
   stats.critMultiplier = Math.min(5.5, stats.critMultiplier);
   stats.seedDropBonus = Math.min(0.2, stats.seedDropBonus);
-  stats.goldDropBonus = Math.min(0.08, stats.goldDropBonus);
+  stats.goldDropBonus = Math.min(0.025, stats.goldDropBonus);
   stats.rareTierMultiplier = Math.min(2.8, Math.max(1, stats.rareTierMultiplier));
   stats.rareTouchBonus = Math.min(10, stats.rareTouchBonus);
   stats.doubleTouchChance = Math.min(0.32, stats.doubleTouchChance);
   stats.instantRegrowChance = Math.min(0.2, stats.instantRegrowChance);
   stats.comboWindowMultiplier = Math.min(1.45, Math.max(0.75, stats.comboWindowMultiplier));
   stats.comboBonusMultiplier = Math.min(1.7, Math.max(0.5, stats.comboBonusMultiplier));
+  stats.automationGlobalMultiplier = Math.min(8, Math.max(0.1, stats.automationGlobalMultiplier));
+  stats.automationDiversityBonus = Math.min(0.12, Math.max(0, stats.automationDiversityBonus));
+  stats.automationPairSynergyBonus = Math.min(0.08, Math.max(0, stats.automationPairSynergyBonus));
+  for (const systemId of Object.keys(stats.automationSystemMultipliers) as Array<keyof typeof stats.automationSystemMultipliers>) {
+    stats.automationSystemMultipliers[systemId] = Math.min(8, Math.max(0.1, stats.automationSystemMultipliers[systemId]));
+  }
   stats.regrowMultiplier = Math.max(0.42, stats.regrowMultiplier);
 
   return stats;

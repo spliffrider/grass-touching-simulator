@@ -1,12 +1,14 @@
 import { MAX_FIELD_TILES, createInitialState } from "./FieldSystem";
 import { isAutomationDirectiveId } from "./AutomationDirectiveSystem";
 import { createAutomationStatsState } from "./AutomationProgressSystem";
+import { normalizeGrassTouches } from "./AmountSystem";
 import { isCharacterClassId } from "../data/character-classes";
 import { getGrassTier } from "../data/grass-tiers";
 import { CURRENT_SAVE_VERSION } from "../types/game-state";
 import type {
   CharacterClassId,
   AutomationStatsState,
+  AutomationSystemState,
   FieldTile,
   GameState,
   GrassTierId,
@@ -56,22 +58,25 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
   const initial = createInitialState();
   const field = normalizeField(saved.field, initial.field);
 
+  const seedShopPurchases = readBooleanRecord(saved.seedShopPurchases);
+  const inventory = readRecord<InventoryEntry>(saved.inventory);
+
   return {
     ...initial,
     saveVersion: CURRENT_SAVE_VERSION,
     characterClassId: isCharacterClassId(saved.characterClassId) ? saved.characterClassId : initial.characterClassId,
-    grassTouches: readNumber(saved.grassTouches, initial.grassTouches),
+    grassTouches: normalizeGrassTouches(saved.grassTouches, initial.grassTouches),
     seeds: readNumber(saved.seeds, initial.seeds),
     lifetimeSeeds: readNumber(saved.lifetimeSeeds, initial.lifetimeSeeds),
     gold: readNumber(saved.gold, initial.gold),
     lifetimeGold: readNumber(saved.lifetimeGold, initial.lifetimeGold),
-    lifetimeGrassTouches: readNumber(saved.lifetimeGrassTouches, initial.lifetimeGrassTouches),
+    lifetimeGrassTouches: normalizeGrassTouches(saved.lifetimeGrassTouches, initial.lifetimeGrassTouches),
     totalClickedPatches: readNumber(saved.totalClickedPatches, initial.totalClickedPatches),
     mutationEvents: readNumber(saved.mutationEvents, initial.mutationEvents),
     field,
     upgrades: readRecord<UpgradeState>(saved.upgrades),
-    seedShopPurchases: readBooleanRecord(saved.seedShopPurchases),
-    inventory: readRecord<InventoryEntry>(saved.inventory),
+    seedShopPurchases,
+    inventory,
     placedWorldObjects: readPlacedWorldObjects(saved.placedWorldObjects, field),
     reachedMilestones: Array.isArray(saved.reachedMilestones)
       ? saved.reachedMilestones.filter((milestone): milestone is string => typeof milestone === "string")
@@ -87,6 +92,7 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
       ? saved.automationDirectiveId
       : initial.automationDirectiveId,
     automationStats: readAutomationStats(saved.automationStats, initial.automationStats),
+    automationSystems: readAutomationSystems(saved.automationSystems, seedShopPurchases, inventory),
     lastSavedAt: readNumber(saved.lastSavedAt, initial.lastSavedAt),
   };
 }
@@ -139,29 +145,9 @@ function readBooleanRecord(value: unknown): Record<string, boolean> {
   return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean"));
 }
 
-function readPlacedWorldObjects(value: unknown, field: Record<TileKey, FieldTile>): Record<string, PlacedWorldObject> {
-  if (!isRecord(value)) {
-    return {};
-  }
-
-  const placements: Record<string, PlacedWorldObject> = {};
-  const occupiedTiles = new Set<TileKey>();
-
-  for (const [objectId, placementValue] of Object.entries(value)) {
-    if (!isRecord(placementValue) || typeof placementValue.tileKey !== "string") {
-      continue;
-    }
-
-    const key = placementValue.tileKey as TileKey;
-    if (!field[key] || occupiedTiles.has(key)) {
-      continue;
-    }
-
-    placements[objectId] = { tileKey: key };
-    occupiedTiles.add(key);
-  }
-
-  return placements;
+function readPlacedWorldObjects(_value: unknown, _field: Record<TileKey, FieldTile>): Record<string, PlacedWorldObject> {
+  // Automation systems are now aggregate infrastructure rather than placed board objects.
+  return {};
 }
 
 function readJournal(value: unknown, fallback: JournalState): JournalState {
@@ -191,10 +177,45 @@ function readAutomationStats(value: unknown, fallback: AutomationStatsState): Au
 
   return {
     automatedActions: readNumber(value.automatedActions, base.automatedActions),
-    automatedGrassTouches: readNumber(value.automatedGrassTouches, base.automatedGrassTouches),
+    automatedGrassTouches: normalizeGrassTouches(value.automatedGrassTouches, base.automatedGrassTouches),
     automationSupplyDrops: readNumber(value.automationSupplyDrops, base.automationSupplyDrops),
     usedDirectiveIds: unique(usedDirectiveIds.length > 0 ? usedDirectiveIds : base.usedDirectiveIds),
   };
+}
+
+function readAutomationSystems(
+  value: unknown,
+  seedShopPurchases: Record<string, boolean>,
+  inventory: Record<string, InventoryEntry>,
+): Record<string, AutomationSystemState> {
+  const systems: Record<string, AutomationSystemState> = {};
+
+  if (isRecord(value)) {
+    for (const [systemId, systemValue] of Object.entries(value)) {
+      if (!isRecord(systemValue)) {
+        continue;
+      }
+
+      const owned = Math.max(0, Math.floor(readNumber(systemValue.owned, 0)));
+      if (owned > 0) {
+        systems[systemId] = { owned };
+      }
+    }
+  }
+
+  const legacyAutomationIds = ["field_mouse", "bee_hive", "chicken", "sheep", "meadow_rabbit", "earthworm"];
+  if (seedShopPurchases.sprinkler && (systems.sprinkler?.owned ?? 0) < 1) {
+    systems.sprinkler = { owned: 1 };
+  }
+
+  for (const itemId of legacyAutomationIds) {
+    const quantity = Math.max(0, Math.floor(inventory[itemId]?.quantity ?? 0));
+    if (quantity > 0 && (systems[itemId]?.owned ?? 0) < quantity) {
+      systems[itemId] = { owned: quantity };
+    }
+  }
+
+  return systems;
 }
 
 function readGrassTierArray(value: unknown, fallback: GrassTierId[]): GrassTierId[] {

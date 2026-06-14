@@ -1,5 +1,13 @@
 import Phaser from "phaser";
 import { DEFAULT_MUSIC_VOLUME, readStoredMusicVolume, writeStoredMusicVolume } from "../data/audio-settings";
+import {
+  AUTOMATION_SYSTEMS,
+  getAutomationOutputContext,
+  getAutomationSystemCost,
+  getAutomationSystemOwned,
+  getAutomationSystemTouchesPerMinute,
+  getTotalAutomationTouchesPerMinute,
+} from "../data/automation-systems";
 import { DEFAULT_CHARACTER_CLASS_ID, getCharacterClass } from "../data/character-classes";
 import { GRASS_TIERS, getGrassTier, getNextGrassTier } from "../data/grass-tiers";
 import { BUILD_LABEL } from "../data/build-info";
@@ -25,7 +33,16 @@ import {
 import { addInventoryItem, consumeInventoryItem, getInventoryQuantity } from "../systems/InventorySystem";
 import { PLACEMENT_RADIUS, getNearbyPlacedObjectIds, getPlacedObjectAt, placeWorldObject, removeWorldObjectPlacement } from "../systems/PlacementSystem";
 import { AnimalCompanionSystem } from "../systems/AnimalCompanionSystem";
+import {
+  addGrassTouches,
+  canAffordGrassTouches,
+  formatGrassTouches,
+  formatGrassTouchesPerMinute,
+  getMissingGrassTouches,
+  spendGrassTouches,
+} from "../systems/AmountSystem";
 import { AUTOMATION_DIRECTIVES, getAutomationDirective, getResolvedAutomationDirectiveId } from "../systems/AutomationDirectiveSystem";
+import { AutomationIncomeSystem } from "../systems/AutomationIncomeSystem";
 import { getAutomationMilestoneBoostLabel, getAutomationUnitCount } from "../systems/AutomationMilestoneSystem";
 import { recordAutomationAction, recordAutomationDirectiveUsed } from "../systems/AutomationProgressSystem";
 import { AutomationScheduler } from "../systems/AutomationScheduler";
@@ -110,7 +127,7 @@ const COMBO_AOE_CHANCE = 0.12;
 const COMBO_AOE_HIGH_CHANCE = 0.25;
 const PERFECT_TOUCH_WINDOW_MS = 650;
 const PERFECT_TOUCH_BONUS_MULTIPLIER = 0.25;
-const GOLDEN_HOUR_PERFECT_GOLD_CHANCE = 0.18;
+const GOLDEN_HOUR_PERFECT_GOLD_CHANCE = 0.04;
 const PERFECT_POSE_WINDOW_BONUS_MS = 50;
 const PERFECT_POSE_MULTIPLIER_BONUS = 0.04;
 const ENCORE_CIRCLE_AOE_CHANCE_BONUS = 0.02;
@@ -147,6 +164,7 @@ const SKILL_BRANCH_LABELS = [
   { text: "Touch", x: 842, y: 250, color: "#dfff74", revealedBy: ["two_handed_technique"] },
   { text: "Crits", x: 440, y: 542, color: "#ffef4a", revealedBy: ["lucky_clover"] },
   { text: "Nature", x: 92, y: 270, color: "#82ffd0", revealedBy: ["palm_press"] },
+  { text: "Automation", x: 675, y: 418, color: "#bff4ff", revealedBy: ["sprinkler_calibration", "helper_routes"] },
 ];
 
 const getSkillIconKey = (upgradeId: string): string => `skill-${upgradeId.replace(/_/g, "-")}`;
@@ -179,15 +197,7 @@ const GOLD_STORE_ICON_KEYS: Record<string, string> = {
   earthworm: "world-earthworm",
 };
 
-const WORLD_OBJECTS = [
-  { id: "sprinkler", textureKey: "world-tiny-sprinkler", label: "sprinkler", kind: "seed" },
-  { id: "bee_hive", textureKey: "world-bee-hive", label: "hive", kind: "inventory" },
-  { id: "chicken", textureKey: "world-chicken", label: "chicken", kind: "inventory" },
-  { id: "sheep", textureKey: "world-sheep", label: "sheep", kind: "inventory" },
-  { id: "field_mouse", textureKey: "world-field-mouse", label: "mouse", kind: "inventory" },
-  { id: "meadow_rabbit", textureKey: "world-meadow-rabbit", label: "rabbit", kind: "inventory" },
-  { id: "earthworm", textureKey: "world-earthworm", label: "worm", kind: "inventory" },
-] satisfies Array<{ id: string; textureKey: string; label: string; kind: "seed" | "inventory" }>;
+const WORLD_OBJECTS: Array<{ id: string; textureKey: string; label: string; kind: "seed" | "inventory" }> = [];
 
 interface TileView {
   base: Phaser.GameObjects.Image;
@@ -390,6 +400,7 @@ export class GameScene extends Phaser.Scene {
   private questResourceText!: Phaser.GameObjects.Text;
   private questStatusText!: Phaser.GameObjects.Text;
   private questBackButton!: Phaser.GameObjects.Container;
+  private questClaimReadyButton!: Phaser.GameObjects.Container;
   private questItemViews = new Map<string, QuestItemView>();
   private questFilterViews = new Map<QuestFilterId, QuestFilterView>();
   private journalRoot!: Phaser.GameObjects.Container;
@@ -427,6 +438,7 @@ export class GameScene extends Phaser.Scene {
   private lastAutoSaveAt = 0;
   private sprinkler = new SprinklerSystem();
   private animalCompanions = new AnimalCompanionSystem();
+  private automationIncome = new AutomationIncomeSystem();
   private automationScheduler = this.createAutomationScheduler();
   private combo = new ComboSystem();
   private drops = new DropSystem();
@@ -593,6 +605,7 @@ export class GameScene extends Phaser.Scene {
     this.automationScheduler.reset();
     this.sprinkler.reset();
     this.animalCompanions.reset();
+    this.automationIncome.reset();
     this.mutations.reset();
     this.musicVolume = readStoredMusicVolume();
     this.music.setVolume(this.musicVolume);
@@ -981,15 +994,9 @@ export class GameScene extends Phaser.Scene {
   private createAutomationScheduler(): AutomationScheduler<RuntimeStats> {
     const scheduler = new AutomationScheduler<RuntimeStats>();
     scheduler.add({
-      id: "sprinkler",
+      id: "automation_income",
       intervalMs: 250,
-      run: (deltaMs, stats) => this.updateSprinkler(deltaMs, stats),
-    });
-    scheduler.add({
-      id: "animal_companions",
-      intervalMs: 250,
-      initialDelayMs: 85,
-      run: (deltaMs, stats) => this.updateAnimalCompanions(deltaMs, stats),
+      run: (deltaMs, stats) => this.updateAutomationIncome(deltaMs, stats),
     });
     scheduler.add({
       id: "mutations",
@@ -1267,8 +1274,8 @@ export class GameScene extends Phaser.Scene {
       state.field[tileKey(x, y)] = tile;
     }
 
-    state.grassTouches = 250000;
-    state.lifetimeGrassTouches = 250000;
+    state.grassTouches = 1e24;
+    state.lifetimeGrassTouches = 1e24;
     state.seeds = 2500;
     state.lifetimeSeeds = 2500;
     state.gold = 2500;
@@ -1277,14 +1284,8 @@ export class GameScene extends Phaser.Scene {
     state.inventory = Object.fromEntries(
       GOLD_STORE_ITEMS.map((item) => [item.id, { quantity: item.maxQuantity ?? 4, kind: item.kind }]),
     );
-    state.placedWorldObjects = {
-      sprinkler: { tileKey: tileKey(0, 0) },
-      bee_hive: { tileKey: tileKey(2, 0) },
-      field_mouse: { tileKey: tileKey(-2, 0) },
-      meadow_rabbit: { tileKey: tileKey(-2, 2) },
-      earthworm: { tileKey: tileKey(0, 2) },
-      sheep: { tileKey: tileKey(0, -2) },
-    };
+    state.automationSystems = Object.fromEntries(AUTOMATION_SYSTEMS.map((system, index) => [system.id, { owned: 12 - index }]));
+    state.placedWorldObjects = {};
     state.upgrades = Object.fromEntries(UPGRADES.map((upgrade) => [upgrade.id, { level: upgrade.maxLevel }]));
     state.reachedMilestones = MILESTONES.map((milestone) => milestone.id);
     state.activeWeatherId = "soft_rain";
@@ -1969,7 +1970,15 @@ export class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
     this.questBackButton = createTextButton(this, "Back", () => this.closeQuestLog(), 118, 44, 105);
-    this.questRoot.add([this.questBackdrop, this.questTitleText, this.questResourceText, this.questStatusText, this.questBackButton]);
+    this.questClaimReadyButton = createTextButton(this, "Claim Ready", () => this.claimReadyQuestRewards(), 150, 38, 105);
+    this.questRoot.add([
+      this.questBackdrop,
+      this.questTitleText,
+      this.questResourceText,
+      this.questStatusText,
+      this.questBackButton,
+      this.questClaimReadyButton,
+    ]);
 
     for (const filter of QUEST_FILTERS) {
       const container = this.add.container(0, 0);
@@ -2044,7 +2053,7 @@ export class GameScene extends Phaser.Scene {
     const itemHeight = compact ? 138 : 106;
     const itemGap = itemHeight + 10;
     const filterRows = compact ? 2 : 1;
-    const filterY = compact ? 132 : 136;
+    const filterY = compact ? 182 : 136;
     const startY = filterY + filterRows * 36 + (compact ? 14 : 16);
     const availableHeight = Math.max(120, this.scale.height - startY - 22);
     const visibleQuests = this.getFilteredQuests();
@@ -2064,6 +2073,8 @@ export class GameScene extends Phaser.Scene {
     this.questStatusText.setPosition(this.scale.width / 2, compact ? 108 : 112);
     this.questBackButton.setScale(compact ? 0.9 : 1);
     this.questBackButton.setPosition(this.scale.width - 142, 24);
+    this.questClaimReadyButton.setScale(compact ? 0.86 : 1);
+    this.questClaimReadyButton.setPosition(compact ? 24 : this.scale.width - 314, compact ? 132 : 72);
     this.layoutQuestFilterButtons(x, panelWidth, filterY, compact);
 
     for (const view of this.questItemViews.values()) {
@@ -2424,10 +2435,10 @@ export class GameScene extends Phaser.Scene {
 
     this.storeRoot = this.add.container(0, 0).setDepth(108).setVisible(false);
     this.storeBackdrop = this.add
-      .rectangle(0, 0, this.scale.width, this.scale.height, 0x2a2f1c, 1)
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x102315, 1)
       .setOrigin(0, 0)
       .setInteractive();
-    this.storeTitleText = this.add.text(0, 0, "Gold Store", {
+    this.storeTitleText = this.add.text(0, 0, "Automation Store", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "34px",
       color: "#f7ffe8",
@@ -2437,15 +2448,15 @@ export class GameScene extends Phaser.Scene {
     this.storeResourceText = this.add.text(0, 0, "", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "18px",
-      color: "#173b20",
-      backgroundColor: "#fff1a8",
+      color: "#f7ffe8",
+      backgroundColor: "#0f3d22",
       padding: { x: 12, y: 8 },
     });
     this.storeStatusText = this.add
-      .text(0, 0, "Gold buys consumables and field companions.", {
+      .text(0, 0, "Buy running automation systems with Grass Touches.", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "16px",
-        color: "#f7ffe8",
+        color: "#dfffc8",
         stroke: "#17491f",
         strokeThickness: 4,
       })
@@ -2454,38 +2465,39 @@ export class GameScene extends Phaser.Scene {
 
     this.storeRoot.add([this.storeBackdrop, this.storeTitleText, this.storeResourceText, this.storeStatusText, this.storeBackButton]);
 
-    for (const item of GOLD_STORE_ITEMS) {
+    for (const system of AUTOMATION_SYSTEMS) {
       const container = this.add.container(0, 0);
       const bg = this.add
-        .rectangle(0, 0, 430, 98, 0xfff8d4, 0.96)
+        .rectangle(0, 0, 430, 98, 0x12341c, 0.96)
         .setOrigin(0, 0)
-        .setStrokeStyle(3, 0x8f6a1a)
+        .setStrokeStyle(3, 0xb7eba5)
         .setInteractive({ useHandCursor: true });
       const iconBg = this.add
-        .rectangle(14, 15, SHOP_ICON_SIZE + 10, SHOP_ICON_SIZE + 10, 0xfff1a8, 0.72)
+        .rectangle(14, 15, SHOP_ICON_SIZE + 10, SHOP_ICON_SIZE + 10, 0x0d2f1c, 0.82)
         .setOrigin(0, 0)
-        .setStrokeStyle(2, 0xc69232, 0.58);
-      const icon = this.add.image(43, 44, GOLD_STORE_ICON_KEYS[item.id] ?? "item-pocket-sunshine").setDisplaySize(SHOP_ICON_SIZE, SHOP_ICON_SIZE);
-      const name = this.add.text(78, 10, item.name, {
+        .setStrokeStyle(2, 0xb7eba5, 0.58);
+      const icon = this.add.image(43, 44, GOLD_STORE_ICON_KEYS[system.id] ?? "world-tiny-sprinkler").setDisplaySize(SHOP_ICON_SIZE, SHOP_ICON_SIZE);
+      const name = this.add.text(78, 10, system.name, {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "20px",
-        color: "#183d20",
+        color: "#f7ffe8",
       });
-      const description = this.add.text(78, 38, item.description, {
+      const description = this.add.text(78, 38, system.description, {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "14px",
-        color: "#5f5425",
+        color: "#d6e6d0",
         wordWrap: { width: 334 },
       });
       const status = this.add.text(78, 74, "", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "15px",
-        color: "#6d4c19",
+        color: "#b7eba5",
       });
 
-      bg.on("pointerdown", () => this.handleGoldStoreItemPressed(item.id));
+      bg.on("pointerover", () => this.showAutomationSystemDetails(system.id));
+      bg.on("pointerdown", () => this.buyAutomationSystem(system.id));
       container.add([bg, iconBg, icon, name, description, status]);
-      this.storeItemViews.set(item.id, { itemId: item.id, container, bg, iconBg, icon, name, description, status });
+      this.storeItemViews.set(system.id, { itemId: system.id, container, bg, iconBg, icon, name, description, status });
       this.storeRoot.add(container);
     }
 
@@ -2506,7 +2518,7 @@ export class GameScene extends Phaser.Scene {
     let y = startY - this.storeScroll;
 
     this.resizeInteractiveBackdrop(this.storeBackdrop);
-    this.storeTitleText.setFontSize(compact ? 30 : 34);
+    this.storeTitleText.setFontSize(compact ? 26 : 34);
     this.storeResourceText.setFontSize(compact ? 14 : 18);
     this.storeStatusText.setFontSize(compact ? 13 : 16);
     this.storeStatusText.setWordWrapWidth(Math.max(240, this.scale.width - 48));
@@ -2786,11 +2798,13 @@ export class GameScene extends Phaser.Scene {
     const currentDirective = getAutomationDirective(this.state);
     const resolvedDirective = getResolvedAutomationDirectiveId(this.state);
     const resolvedDirectiveName = AUTOMATION_DIRECTIVES.find((directive) => directive.id === resolvedDirective)?.name ?? "Balanced";
+    const stats = this.getCachedRuntimeStats();
     this.automationStatusText.setText(
       [
         `${getAutomationUnitCount(this.state)} active units`,
+        formatGrassTouchesPerMinute(getTotalAutomationTouchesPerMinute(this.state, stats)),
         `Directive: ${currentDirective.name}${currentDirective.id === "autopilot" ? ` -> ${resolvedDirectiveName}` : ""}`,
-        `${Math.floor(this.state.automationStats.automatedGrassTouches)} auto touches`,
+        `${formatGrassTouches(this.state.automationStats.automatedGrassTouches)} auto touches`,
         `${this.state.automationStats.automationSupplyDrops} supplies`,
         this.state.seedShopPurchases.quest_clipboard ? "Clipboard: claiming quests" : "",
       ]
@@ -3372,6 +3386,54 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.buyGoldStoreItem(item.id);
+  }
+
+  private buyAutomationSystem(systemId: string): void {
+    const system = AUTOMATION_SYSTEMS.find((candidate) => candidate.id === systemId);
+
+    if (!system || !system.isUnlocked(this.state)) {
+      this.setStoreStatus("That automation system has not unlocked yet.");
+      this.audio.play("blocked");
+      this.refreshUi();
+      return;
+    }
+
+    const owned = getAutomationSystemOwned(this.state, system.id);
+    const cost = getAutomationSystemCost(system, owned);
+    if (!canAffordGrassTouches(this.state.grassTouches, cost)) {
+      this.setStoreStatus(
+        `${system.name} costs ${formatGrassTouches(cost)} Grass Touches. You have ${formatGrassTouches(this.state.grassTouches)}.`,
+      );
+      this.audio.play("blocked");
+      this.refreshUi();
+      return;
+    }
+
+    this.state.grassTouches = spendGrassTouches(this.state.grassTouches, cost);
+    this.state.automationSystems ??= {};
+    this.state.automationSystems[system.id] = { owned: owned + 1 };
+    this.invalidateRuntimeStats();
+    this.setStoreStatus(`${system.name} running x${owned + 1}. Output: ${formatGrassTouchesPerMinute(getAutomationSystemTouchesPerMinute(this.state, system, this.getCachedRuntimeStats()))}.`);
+    this.audio.play(owned === 0 ? "milestone" : "upgrade");
+    this.saveState();
+    this.refreshUi();
+    this.playGoldStoreItemSuccess(system.id);
+  }
+
+  private showAutomationSystemDetails(systemId: string): void {
+    const system = AUTOMATION_SYSTEMS.find((candidate) => candidate.id === systemId);
+    if (!system) {
+      return;
+    }
+
+    const owned = getAutomationSystemOwned(this.state, system.id);
+    const nextCost = getAutomationSystemCost(system, owned);
+    const output = getAutomationSystemTouchesPerMinute(this.state, system, this.getCachedRuntimeStats());
+    this.setStoreStatus(
+      `${system.name}: ${owned} running | ${formatGrassTouchesPerMinute(output)} total | ${formatGrassTouchesPerMinute(
+        system.baseTouchesPerMinute,
+      )} each | Next: ${formatGrassTouches(nextCost)} Grass Touches`,
+    );
   }
 
   private buyGoldStoreItem(itemId: string): void {
@@ -4696,13 +4758,13 @@ export class GameScene extends Phaser.Scene {
       this.state.journal.bestComboCount = combo.count;
     }
     if (combo.bonusTouches > 0) {
-      this.state.grassTouches += combo.bonusTouches;
-      this.state.lifetimeGrassTouches += combo.bonusTouches;
+      this.state.grassTouches = addGrassTouches(this.state.grassTouches, combo.bonusTouches);
+      this.state.lifetimeGrassTouches = addGrassTouches(this.state.lifetimeGrassTouches, combo.bonusTouches);
     }
     const perfectTouchBonus = this.consumePerfectTouchBonus(tile, touch.gained, now);
     if (perfectTouchBonus > 0) {
-      this.state.grassTouches += perfectTouchBonus;
-      this.state.lifetimeGrassTouches += perfectTouchBonus;
+      this.state.grassTouches = addGrassTouches(this.state.grassTouches, perfectTouchBonus);
+      this.state.lifetimeGrassTouches = addGrassTouches(this.state.lifetimeGrassTouches, perfectTouchBonus);
     }
     const perfectGoldBonus = perfectTouchBonus > 0 ? this.rollPerfectTouchGoldBonus(touch.gained) : 0;
     if (perfectGoldBonus > 0) {
@@ -4711,8 +4773,8 @@ export class GameScene extends Phaser.Scene {
     }
     const placementSynergy = this.getPlacementSynergy(tile);
     if (placementSynergy.bonusTouches > 0) {
-      this.state.grassTouches += placementSynergy.bonusTouches;
-      this.state.lifetimeGrassTouches += placementSynergy.bonusTouches;
+      this.state.grassTouches = addGrassTouches(this.state.grassTouches, placementSynergy.bonusTouches);
+      this.state.lifetimeGrassTouches = addGrassTouches(this.state.lifetimeGrassTouches, placementSynergy.bonusTouches);
     }
 
     this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
@@ -4974,7 +5036,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const gold = Math.max(1, Math.floor(touch.gained * (touch.isCrit ? 0.08 : 0.04)));
+    const gold = Math.max(1, Math.floor(touch.gained * (touch.isCrit ? 0.025 : 0.012)));
     this.state.gold += gold;
     this.state.lifetimeGold += gold;
     this.popAtTile(originTile, `crystal +${gold} gold`, "#75e8ff");
@@ -5278,6 +5340,15 @@ export class GameScene extends Phaser.Scene {
 
     this.emitBurst("gold-fleck", position.x, position.y - 10, 14, 0.7, 0.24);
     this.spawnRewardArc("effect-gold-coin", position.x, position.y - 10, "gold", amount);
+  }
+
+  private updateAutomationIncome(delta: number, stats: RuntimeStats): void {
+    const result = this.automationIncome.update(delta, this.state, stats);
+    if (!result.changed) {
+      return;
+    }
+
+    this.queueSave();
   }
 
   private updateSprinkler(delta: number, stats: RuntimeStats): void {
@@ -6634,6 +6705,8 @@ export class GameScene extends Phaser.Scene {
     const season = getSeasonForDate(new Date());
     const compact = this.scale.width < 620;
     const resourceSeparator = compact ? "\n" : " | ";
+    const stats = this.getCachedRuntimeStats();
+    const automationTouchesPerMinute = getTotalAutomationTouchesPerMinute(this.state, stats);
 
     const overlayOpen = this.hasBlockingOverlayOpen();
     this.setTextIfChanged(this.titleText, "Grass Touching Simulator");
@@ -6643,9 +6716,10 @@ export class GameScene extends Phaser.Scene {
     this.setTextIfChanged(
       this.resourceText,
       [
-        `Grass Touches: ${Math.floor(this.state.grassTouches)}`,
+        `Grass Touches: ${formatGrassTouches(this.state.grassTouches)}`,
         `Seeds: ${Math.floor(this.state.seeds)}`,
         `Gold: ${Math.floor(this.state.gold)}`,
+        automationTouchesPerMinute > 0 ? `Auto: ${formatGrassTouchesPerMinute(automationTouchesPerMinute)}` : "",
         `Patches: ${this.fieldTileCount}`,
       ]
         .filter(Boolean)
@@ -6655,7 +6729,7 @@ export class GameScene extends Phaser.Scene {
     setTextButtonText(this.questButton, readyQuestCount > 0 ? `Quests (${readyQuestCount})` : "Quests");
     this.refreshJournalAccess();
     if (this.skillTreeOpen) {
-      this.setTextIfChanged(this.skillResourceText, `Available Grass Touches: ${Math.floor(this.state.grassTouches)}`);
+      this.setTextIfChanged(this.skillResourceText, `Available Grass Touches: ${formatGrassTouches(this.state.grassTouches)}`);
     }
     if (this.questLogOpen) {
       this.refreshQuestLog();
@@ -6678,14 +6752,14 @@ export class GameScene extends Phaser.Scene {
       this.milestoneText,
       [
         nextMilestone
-          ? `Next spread: ${nextMilestone.name} at ${nextMilestone.requiredLifetimeTouches} lifetime touches`
+          ? `Next spread: ${nextMilestone.name} at ${formatGrassTouches(nextMilestone.requiredLifetimeTouches)} lifetime touches`
           : "All surface spreads discovered.",
         readyQuestCount > 0
           ? `Quest ready: ${readyQuestCount}`
           : nextQuest
             ? `Quest: ${nextQuest.name} - ${formatQuestProgress(nextQuest, this.state)}`
             : "All current quests claimed.",
-        nextTier ? `Next tier: ${nextTier.name} at ${nextTier.unlockAtLifetimeTouches}` : "",
+        nextTier ? `Next tier: ${nextTier.name} at ${formatGrassTouches(nextTier.unlockAtLifetimeTouches)}` : "",
         weather ? `Weather: ${weather.name}` : `Season: ${season.name}`,
       ]
         .filter(Boolean)
@@ -6700,7 +6774,7 @@ export class GameScene extends Phaser.Scene {
         const unlocked = canUnlockUpgrade(this.state, upgrade);
         const maxed = level >= upgrade.maxLevel;
         const cost = getUpgradeCost(upgrade, level);
-        const available = unlocked && !maxed && this.state.grassTouches >= cost;
+        const available = unlocked && !maxed && canAffordGrassTouches(this.state.grassTouches, cost);
         const visible = this.isSkillVisible(upgrade.id);
 
         if (!view) {
@@ -6780,6 +6854,8 @@ export class GameScene extends Phaser.Scene {
     const relevantQuestCount = this.getRelevantQuestCount();
 
     setTextButtonText(this.questButton, readyCount > 0 ? `Quests (${readyCount})` : "Quests");
+    setTextButtonText(this.questClaimReadyButton, readyCount > 0 ? `Claim Ready (${readyCount})` : "Claim Ready");
+    setTextButtonEnabled(this.questClaimReadyButton, readyCount > 0);
     this.questResourceText?.setText(
       `Showing: ${filteredQuests.length}/${relevantQuestCount} | Claimed: ${claimedCount}/${relevantQuestCount} | Ready: ${readyCount}`,
     );
@@ -6967,7 +7043,7 @@ export class GameScene extends Phaser.Scene {
         const quantity = getInventoryQuantity(this.state, item.id);
         return quantity > 0
           ? `- ${item.name} x${quantity}: ${JOURNAL_COMPANION_NOTES[item.id] ?? item.description}`
-          : `- Undiscovered companion: ${item.isUnlocked(this.state) ? "Available in the Gold Store." : "Keep earning gold and meeting companions."}`;
+          : `- Undiscovered companion: ${item.isUnlocked(this.state) ? "Available as future automation." : "Keep expanding the lawn systems."}`;
       }),
     ].join("\n");
   }
@@ -7020,9 +7096,44 @@ export class GameScene extends Phaser.Scene {
     this.questStatusText.setText(claimMessage);
   }
 
+  private claimReadyQuestRewards(): void {
+    const claimedQuests: QuestDefinition[] = [];
+
+    for (let guard = 0; guard < QUESTS.length; guard += 1) {
+      const readyQuest = QUESTS.find((quest) => isQuestClaimable(this.state, quest));
+      if (!readyQuest) {
+        break;
+      }
+
+      this.applyQuestReward(readyQuest);
+      claimedQuests.push(readyQuest);
+    }
+
+    if (claimedQuests.length === 0) {
+      this.questStatusText.setText("No quest rewards are ready yet.");
+      this.audio.play("blocked");
+      return;
+    }
+
+    this.audio.play(claimedQuests.length > 1 ? "milestone" : "seed");
+    this.saveState();
+    this.readyQuestKeys = this.getReadyQuestKeys();
+    this.refreshUi();
+    this.bumpResourceHud();
+    this.playButtonCelebration(this.questClaimReadyButton, 0xffef78, "seed-fleck");
+
+    const firstQuest = claimedQuests[0];
+    const extraCount = claimedQuests.length - 1;
+    this.questStatusText.setText(
+      extraCount > 0
+        ? `Claimed ${claimedQuests.length} rewards, starting with ${firstQuest.name}.`
+        : `${firstQuest.name} claimed: ${formatQuestReward(firstQuest.reward)}.`,
+    );
+  }
+
   private applyQuestReward(quest: QuestDefinition): void {
     this.state.claimedQuestIds.push(quest.id);
-    this.state.grassTouches += quest.reward.grassTouches ?? 0;
+    this.state.grassTouches = addGrassTouches(this.state.grassTouches, quest.reward.grassTouches ?? 0);
     this.state.seeds += quest.reward.seeds ?? 0;
     this.state.lifetimeSeeds += quest.reward.seeds ?? 0;
     this.state.gold += quest.reward.gold ?? 0;
@@ -7164,43 +7275,43 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshGoldStore(): void {
-    this.storeResourceText.setText(`Gold: ${Math.floor(this.state.gold)} | Lifetime Gold: ${Math.floor(this.state.lifetimeGold)}`);
+    const stats = this.getCachedRuntimeStats();
+    const automationOutputContext = getAutomationOutputContext(this.state, stats);
+    this.storeResourceText.setText(
+      `Grass Touches: ${formatGrassTouches(this.state.grassTouches)} | Automation: ${formatGrassTouchesPerMinute(
+        getTotalAutomationTouchesPerMinute(this.state, stats, automationOutputContext),
+      )}`,
+    );
 
-    for (const item of GOLD_STORE_ITEMS) {
-      const view = this.storeItemViews.get(item.id);
+    for (const system of AUTOMATION_SYSTEMS) {
+      const view = this.storeItemViews.get(system.id);
       if (!view) {
         continue;
       }
 
-      const quantity = getInventoryQuantity(this.state, item.id);
-      const unlocked = item.isUnlocked(this.state);
-      const affordable = this.state.gold >= item.cost;
-      const maxed = item.maxQuantity !== undefined && quantity >= item.maxQuantity;
-      const owned = quantity > 0;
+      const owned = getAutomationSystemOwned(this.state, system.id);
+      const unlocked = system.isUnlocked(this.state);
+      const cost = getAutomationSystemCost(system, owned);
+      const affordable = canAffordGrassTouches(this.state.grassTouches, cost);
+      const output = getAutomationSystemTouchesPerMinute(this.state, system, stats, automationOutputContext);
 
-      view.container.setAlpha(unlocked || owned ? 1 : 0.72);
-      view.bg.setFillStyle(owned ? 0xfff1a8 : 0xfff8d4, unlocked || owned ? 0.96 : 0.68);
-      view.bg.setStrokeStyle(3, maxed ? 0x85d35e : affordable && unlocked ? 0xffef78 : 0x8f6a1a);
+      view.container.setAlpha(unlocked || owned > 0 ? 1 : 0.68);
+      view.bg.setFillStyle(owned > 0 ? 0x1c4728 : 0x12341c, unlocked || owned > 0 ? 0.96 : 0.62);
+      view.bg.setStrokeStyle(3, affordable && unlocked ? 0xffef78 : owned > 0 ? 0x85d35e : 0xb7eba5, unlocked || owned > 0 ? 0.86 : 0.44);
 
-      if (!unlocked && !owned) {
+      if (!unlocked && owned <= 0) {
         view.status.setText("Locked");
-        view.status.setColor("#c8d1cc");
-      } else if (maxed) {
-        view.status.setText(item.maxQuantity ? `Owned: ${quantity}/${item.maxQuantity} | Passive active` : "Owned | Passive active");
-        view.status.setColor("#26652e");
-      } else if (item.kind === "consumable" && owned) {
-        view.status.setText(`Owned: ${quantity} | Tap to use`);
-        view.status.setColor("#26652e");
-      } else if (item.kind === "animal" && owned && item.maxQuantity !== undefined) {
-        const countText = `Owned: ${quantity}/${item.maxQuantity}`;
-        view.status.setText(affordable ? `${countText} | Cost: ${item.cost} gold | Tap to add` : `${countText} | Need ${item.cost - Math.floor(this.state.gold)} more`);
-        view.status.setColor(affordable ? "#26652e" : "#6d4c19");
+        view.status.setColor("#8ea594");
       } else if (!affordable) {
-        view.status.setText(`Cost: ${item.cost} gold | Need ${item.cost - Math.floor(this.state.gold)} more`);
-        view.status.setColor("#6d4c19");
+        view.status.setText(
+          `Owned: ${owned} | ${formatGrassTouchesPerMinute(output)} | Need ${formatGrassTouches(
+            getMissingGrassTouches(this.state.grassTouches, cost),
+          )} GT`,
+        );
+        view.status.setColor("#d6e6d0");
       } else {
-        view.status.setText(`Cost: ${item.cost} gold | Tap to buy`);
-        view.status.setColor("#26652e");
+        view.status.setText(`Owned: ${owned} | ${formatGrassTouchesPerMinute(output)} | Next: ${formatGrassTouches(cost)} GT`);
+        view.status.setColor("#f4df6a");
       }
     }
   }
@@ -7241,16 +7352,21 @@ export class GameScene extends Phaser.Scene {
       this.skillDetailCost.setText("Keep touching grass to reveal this.");
       setTextButtonText(this.skillBuyButton, "Locked");
       setTextButtonEnabled(this.skillBuyButton, false);
-    } else if (this.state.grassTouches < cost) {
+    } else if (!canAffordGrassTouches(this.state.grassTouches, cost)) {
+      const missing = getMissingGrassTouches(this.state.grassTouches, cost);
       this.skillDetailCost.setText(
-        `Cost to Upgrade: ${cost} Grass Touches\nYou have: ${Math.floor(this.state.grassTouches)}\nNeed: ${
-          cost - Math.floor(this.state.grassTouches)
-        } more`,
+        `Cost to Upgrade: ${formatGrassTouches(cost)} Grass Touches\nYou have: ${formatGrassTouches(
+          this.state.grassTouches,
+        )}\nNeed: ${formatGrassTouches(missing)} more`,
       );
-      setTextButtonText(this.skillBuyButton, `Need ${cost - Math.floor(this.state.grassTouches)}`);
+      setTextButtonText(this.skillBuyButton, `Need ${formatGrassTouches(missing)}`);
       setTextButtonEnabled(this.skillBuyButton, false);
     } else {
-      this.skillDetailCost.setText(`Cost to Upgrade: ${cost} Grass Touches\nYou have: ${Math.floor(this.state.grassTouches)}\nReady to upgrade`);
+      this.skillDetailCost.setText(
+        `Cost to Upgrade: ${formatGrassTouches(cost)} Grass Touches\nYou have: ${formatGrassTouches(
+          this.state.grassTouches,
+        )}\nReady to upgrade`,
+      );
       setTextButtonText(this.skillBuyButton, "Upgrade");
       setTextButtonEnabled(this.skillBuyButton, true);
     }
@@ -7286,6 +7402,10 @@ export class GameScene extends Phaser.Scene {
       return "Growth";
     }
 
+    if (["sprinkler_calibration", "helper_routes", "grazing_logistics", "ecosystem_loop"].includes(upgradeId)) {
+      return "Automation";
+    }
+
     if (["lucky_clover", "dramatic_touch", "satisfying_crunch", "overreaction"].includes(upgradeId)) {
       return "Crits";
     }
@@ -7319,7 +7439,7 @@ export class GameScene extends Phaser.Scene {
     this.storeStatusText.setText(message);
     this.time.delayedCall(1900, () => {
       if (this.storeOpen) {
-        this.storeStatusText.setText("Gold buys consumables and field companions.");
+        this.storeStatusText.setText("Buy running automation systems with Grass Touches.");
       }
     });
   }
@@ -7423,7 +7543,7 @@ export class GameScene extends Phaser.Scene {
       const maxed = level >= upgrade.maxLevel;
       const cost = getUpgradeCost(upgrade, level);
 
-      if (!maxed && canUnlockUpgrade(this.state, upgrade) && this.state.grassTouches >= cost) {
+      if (!maxed && canUnlockUpgrade(this.state, upgrade) && canAffordGrassTouches(this.state.grassTouches, cost)) {
         keys.add(`upgrade:${upgrade.id}:${level + 1}`);
       }
     }
@@ -7434,11 +7554,11 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    for (const item of GOLD_STORE_ITEMS) {
-      const quantity = getInventoryQuantity(this.state, item.id);
-      const maxed = item.maxQuantity !== undefined && quantity >= item.maxQuantity;
-      if (!maxed && item.isUnlocked(this.state) && this.state.gold >= item.cost) {
-        keys.add(`gold:${item.id}:${quantity}`);
+    for (const system of AUTOMATION_SYSTEMS) {
+      const owned = getAutomationSystemOwned(this.state, system.id);
+      const cost = getAutomationSystemCost(system, owned);
+      if (system.isUnlocked(this.state) && canAffordGrassTouches(this.state.grassTouches, cost)) {
+        keys.add(`automation:${system.id}:${owned + 1}`);
       }
     }
 
@@ -7528,18 +7648,19 @@ export class GameScene extends Phaser.Scene {
     }
 
     const cost = getUpgradeCost(upgrade, level);
-    if (this.state.grassTouches < cost) {
+    if (!canAffordGrassTouches(this.state.grassTouches, cost)) {
+      const missing = getMissingGrassTouches(this.state.grassTouches, cost);
       this.setSkillStatus(
-        `${upgrade.name} costs ${cost}. You have ${Math.floor(this.state.grassTouches)}. Need ${
-          cost - Math.floor(this.state.grassTouches)
-        } more.`,
+        `${upgrade.name} costs ${formatGrassTouches(cost)}. You have ${formatGrassTouches(this.state.grassTouches)}. Need ${formatGrassTouches(
+          missing,
+        )} more.`,
       );
       this.audio.play("blocked");
       this.refreshUi();
       return false;
     }
 
-    this.state.grassTouches -= cost;
+    this.state.grassTouches = spendGrassTouches(this.state.grassTouches, cost);
     this.state.upgrades[upgrade.id] = { level: level + 1 };
     this.invalidateRuntimeStats();
     this.setSkillStatus(`${upgrade.name} upgraded to ${level + 1}/${upgrade.maxLevel}.`);

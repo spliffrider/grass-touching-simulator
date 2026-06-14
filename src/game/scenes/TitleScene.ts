@@ -98,6 +98,7 @@ export class TitleScene extends Phaser.Scene {
   private titleReady = false;
   private volumeSliderX = 0;
   private volumeSliderWidth = 1;
+  private readonly layoutTitleHandler = () => this.layoutTitle();
 
   constructor() {
     super("TitleScene");
@@ -119,6 +120,8 @@ export class TitleScene extends Phaser.Scene {
   create(): void {
     this.titleReady = true;
     if (this.isStressModeRequested()) {
+      this.titleReady = false;
+      this.scale.off("resize", this.layoutTitleHandler);
       this.scene.start("GameScene", { stressMode: true });
       return;
     }
@@ -178,10 +181,12 @@ export class TitleScene extends Phaser.Scene {
     this.startMenuThemeWhenAllowed();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.titleReady = false;
+      this.scale.off("resize", this.layoutTitleHandler);
       this.stopMenuTheme();
     });
 
-    this.scale.on("resize", () => this.layoutTitle());
+    this.scale.off("resize", this.layoutTitleHandler);
+    this.scale.on("resize", this.layoutTitleHandler);
     this.layoutTitle();
   }
 
@@ -614,6 +619,10 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private layoutTitle(): void {
+    if (!this.titleReady || !this.background?.active || !this.menuPanel?.active) {
+      return;
+    }
+
     const shortLandscape = this.scale.width > this.scale.height && this.scale.height < 520;
     const scale = shortLandscape
       ? Math.min(this.scale.width / SOURCE_WIDTH, this.scale.height / SOURCE_HEIGHT)
