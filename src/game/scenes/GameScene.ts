@@ -6707,6 +6707,7 @@ export class GameScene extends Phaser.Scene {
     const resourceSeparator = compact ? "\n" : " | ";
     const stats = this.getCachedRuntimeStats();
     const automationTouchesPerMinute = getTotalAutomationTouchesPerMinute(this.state, stats);
+    const automationUnitCount = getAutomationUnitCount(this.state);
 
     const overlayOpen = this.hasBlockingOverlayOpen();
     this.setTextIfChanged(this.titleText, "Grass Touching Simulator");
@@ -6720,6 +6721,7 @@ export class GameScene extends Phaser.Scene {
         `Seeds: ${Math.floor(this.state.seeds)}`,
         `Gold: ${Math.floor(this.state.gold)}`,
         automationTouchesPerMinute > 0 ? `Auto: ${formatGrassTouchesPerMinute(automationTouchesPerMinute)}` : "",
+        automationUnitCount > 0 ? `Systems: ${automationUnitCount}` : "",
         `Patches: ${this.fieldTileCount}`,
       ]
         .filter(Boolean)
