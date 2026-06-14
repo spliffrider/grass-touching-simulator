@@ -24,5 +24,6 @@ body,
 
 canvas {
   display: block;
+  image-rendering: pixelated;
   touch-action: none;
 }
