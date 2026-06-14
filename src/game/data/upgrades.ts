@@ -1,3 +1,4 @@
+import { hasTinySprinklerStoreUnlock } from "./automation-systems";
 import { MAX_GRASS_TOUCH_AMOUNT, normalizeGrassTouches } from "../systems/AmountSystem";
 import type { AutomationSystemId, CharacterClassId, GameState, RuntimeStats } from "../types/game-state";
 
@@ -303,7 +304,7 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: (stats, level) => {
       boostAutomationSystems(stats, ["sprinkler"], 1 + level * 0.08);
     },
-    isUnlocked: (state) => state.seedShopPurchases.sprinkler === true || state.lifetimeGrassTouches >= 220,
+    isUnlocked: (state) => hasTinySprinklerStoreUnlock(state) || state.lifetimeGrassTouches >= 220,
   },
   {
     id: "helper_routes",

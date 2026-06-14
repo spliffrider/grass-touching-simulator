@@ -57,6 +57,7 @@ export function resetSave(characterClassId?: CharacterClassId): GameState {
 function migrateGameState(saved: Record<string, unknown>): GameState {
   const initial = createInitialState();
   const field = normalizeField(saved.field, initial.field);
+  const savedVersion = readNumber(saved.saveVersion, 0);
 
   const seedShopPurchases = readBooleanRecord(saved.seedShopPurchases);
   const inventory = readRecord<InventoryEntry>(saved.inventory);
@@ -92,7 +93,7 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
       ? saved.automationDirectiveId
       : initial.automationDirectiveId,
     automationStats: readAutomationStats(saved.automationStats, initial.automationStats),
-    automationSystems: readAutomationSystems(saved.automationSystems, seedShopPurchases, inventory),
+    automationSystems: readAutomationSystems(saved.automationSystems, seedShopPurchases, inventory, savedVersion),
     lastSavedAt: readNumber(saved.lastSavedAt, initial.lastSavedAt),
   };
 }
@@ -187,6 +188,7 @@ function readAutomationSystems(
   value: unknown,
   seedShopPurchases: Record<string, boolean>,
   inventory: Record<string, InventoryEntry>,
+  savedVersion: number,
 ): Record<string, AutomationSystemState> {
   const systems: Record<string, AutomationSystemState> = {};
 
@@ -204,7 +206,7 @@ function readAutomationSystems(
   }
 
   const legacyAutomationIds = ["field_mouse", "bee_hive", "chicken", "sheep", "meadow_rabbit", "earthworm"];
-  if (seedShopPurchases.sprinkler && (systems.sprinkler?.owned ?? 0) < 1) {
+  if (savedVersion < 9 && seedShopPurchases.sprinkler && (systems.sprinkler?.owned ?? 0) < 1) {
     systems.sprinkler = { owned: 1 };
   }
 

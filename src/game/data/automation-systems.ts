@@ -25,7 +25,7 @@ export const AUTOMATION_SYSTEMS: AutomationSystemDefinition[] = [
     baseTouchesPerMinute: 10,
     baseCost: 48,
     costGrowth: 1.18,
-    isUnlocked: (state) => state.seedShopPurchases.sprinkler === true,
+    isUnlocked: (state) => hasTinySprinklerStoreUnlock(state),
   },
   {
     id: "field_mouse",
@@ -82,6 +82,10 @@ export const AUTOMATION_SYSTEMS: AutomationSystemDefinition[] = [
     isUnlocked: (state) => state.lifetimeGrassTouches >= 1900,
   },
 ];
+
+export function hasTinySprinklerStoreUnlock(state: GameState): boolean {
+  return state.seedShopPurchases.sprinkler === true || (state.upgrades.sprinkler_calibration?.level ?? 0) > 0;
+}
 
 export function getAutomationSystemDefinition(id: string): AutomationSystemDefinition | undefined {
   return AUTOMATION_SYSTEMS.find((system) => system.id === id);
