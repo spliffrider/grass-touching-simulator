@@ -3935,7 +3935,7 @@ export class GameScene extends Phaser.Scene {
     const maxVisibleX = Phaser.Math.Clamp(Math.ceil((this.scale.width + radius - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
     const minVisibleY = Phaser.Math.Clamp(Math.floor((0 - radius - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
     const maxVisibleY = Phaser.Math.Clamp(Math.ceil((this.scale.height + radius - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
-    this.layoutBoardBackdrop(centerX, centerY);
+    this.clearBoardBackdrop();
     this.layoutBoardLayers();
 
     for (let gridY = minVisibleY; gridY <= maxVisibleY; gridY += 1) {
@@ -4013,22 +4013,12 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private layoutBoardBackdrop(centerX: number, centerY: number): void {
+  private clearBoardBackdrop(): void {
     if (!this.boardBackdropGraphics) {
       return;
     }
 
-    const width = Math.min(this.scale.width * 1.12, this.boardScaledWidth + Math.max(80, 120 * this.boardScale));
-    const height = Math.min(this.scale.height * 0.74, this.boardScaledHeight + Math.max(56, 96 * this.boardScale));
-    const shadowY = centerY + Math.max(10, 18 * this.boardScale);
-
     this.boardBackdropGraphics.clear();
-    this.boardBackdropGraphics.fillStyle(0x07170e, 0.34);
-    this.boardBackdropGraphics.fillEllipse(centerX, shadowY, width, height);
-    this.boardBackdropGraphics.fillStyle(0x5f8c4a, 0.12);
-    this.boardBackdropGraphics.fillEllipse(centerX, shadowY - Math.max(4, 8 * this.boardScale), width * 0.92, height * 0.82);
-    this.boardBackdropGraphics.lineStyle(Math.max(2, 4 * this.boardScale), 0xb7eba5, 0.13);
-    this.boardBackdropGraphics.strokeEllipse(centerX, shadowY - Math.max(4, 8 * this.boardScale), width * 0.94, height * 0.84);
   }
 
   private needsTileView(tile: FieldTile, key: TileKey): boolean {
