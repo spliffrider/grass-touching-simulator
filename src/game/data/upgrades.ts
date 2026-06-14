@@ -299,7 +299,6 @@ export const UPGRADES: UpgradeDefinition[] = [
     costGrowth: 2.08,
     maxLevel: 5,
     prerequisiteIds: ["faster_regrowth"],
-    iconAsset: "warm_sunlight",
     tree: { x: 555, y: 180, icon: "spray", color: 0x7fd8f0 },
     apply: (stats, level) => {
       boostAutomationSystems(stats, ["sprinkler"], 1 + level * 0.08);
@@ -314,7 +313,6 @@ export const UPGRADES: UpgradeDefinition[] = [
     costGrowth: 2.16,
     maxLevel: 5,
     prerequisiteIds: ["grass_identification"],
-    iconAsset: "grass_identification",
     tree: { x: 315, y: 390, icon: "route", color: 0xb7eba5 },
     apply: (stats, level) => {
       boostAutomationSystems(stats, ["field_mouse", "bee_hive"], 1 + level * 0.07);
@@ -329,7 +327,6 @@ export const UPGRADES: UpgradeDefinition[] = [
     costGrowth: 2.2,
     maxLevel: 5,
     prerequisiteIds: ["soft_meadow"],
-    iconAsset: "soft_meadow",
     tree: { x: 795, y: 340, icon: "loop", color: 0xc9f27b },
     apply: (stats, level) => {
       boostAutomationSystems(stats, ["earthworm", "chicken", "sheep", "meadow_rabbit"], 1 + level * 0.06);
@@ -345,7 +342,6 @@ export const UPGRADES: UpgradeDefinition[] = [
     costGrowth: 2.34,
     maxLevel: 4,
     prerequisiteIds: ["sprinkler_calibration", "helper_routes", "grazing_logistics"],
-    iconAsset: "root_network",
     tree: { x: 565, y: 410, icon: "eco", color: 0xdfffc8 },
     apply: (stats, level) => {
       stats.automationDiversityBonus += level * 0.02;
@@ -484,7 +480,6 @@ export const UPGRADES: UpgradeDefinition[] = [
     maxLevel: 4,
     classId: "femboy_slim",
     prerequisiteIds: ["satisfying_crunch", "two_handed_technique"],
-    iconAsset: "two_handed_technique",
     tree: { x: 690, y: 440, icon: "2x", color: 0xff7ea8 },
     apply: (stats, level) => {
       stats.critChance += level * 0.008;
@@ -501,7 +496,6 @@ export const UPGRADES: UpgradeDefinition[] = [
     maxLevel: 3,
     classId: "femboy_slim",
     prerequisiteIds: ["slay_footwork"],
-    iconAsset: "dramatic_touch",
     tree: { x: 815, y: 540, icon: "pose", color: 0xffef78 },
     apply: () => {},
     isUnlocked: (state) => isClassUpgradeUnlocked(state, "femboy_slim", 1400),
@@ -515,7 +509,6 @@ export const UPGRADES: UpgradeDefinition[] = [
     maxLevel: 4,
     classId: "bard_de_wever",
     prerequisiteIds: ["soft_meadow", "mindful_contact"],
-    iconAsset: "mindful_contact",
     tree: { x: 815, y: 170, icon: "tempo", color: 0xbff4ff },
     apply: (stats, level) => {
       stats.comboWindowMultiplier *= 1 + level * 0.03;
@@ -532,7 +525,6 @@ export const UPGRADES: UpgradeDefinition[] = [
     maxLevel: 3,
     classId: "bard_de_wever",
     prerequisiteIds: ["steady_tempo"],
-    iconAsset: "premium_pasture",
     tree: { x: 815, y: 80, icon: "encore", color: 0xd7fff2 },
     apply: () => {},
     isUnlocked: (state) => isClassUpgradeUnlocked(state, "bard_de_wever", 1400),

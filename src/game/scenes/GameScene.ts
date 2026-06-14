@@ -147,6 +147,7 @@ const COMBO_AOE_NEIGHBORS = [
 const SKILL_NODE_SIZE = 78;
 const SKILL_MAP_X_SCALE = 0.72;
 const SKILL_MAP_Y_SCALE = 0.86;
+const SKILL_MAP_FOCUS_SCALE = 1.14;
 const SKILL_NODE_VISUAL_SIZE = 64;
 const SKILL_DETAIL_WIDTH = 360;
 const SKILL_DETAIL_HEIGHT = 400;
@@ -174,11 +175,12 @@ const SEED_SHOP_ICON_KEYS: Record<string, string> = {
   sprinkler: "world-tiny-sprinkler",
   wild_spread: "item-wild-spread",
   field_journal: "item-field-journal",
-  quest_clipboard: "item-field-journal",
+  quest_clipboard: "item-quest-clipboard",
   weather_jar: "item-weather-jar",
   compost_bin: "item-compost-bin",
   bug_hotel: "item-bug-hotel",
   rain_barrel: "item-rain-barrel",
+  forager_trails: "item-forager-trails",
   sprinkler_timer: "item-sprinkler-timer",
   self_seeding_nozzle: "item-self-seeding-nozzle",
   sprinkler_network: "item-sprinkler-network",
@@ -332,6 +334,7 @@ export class GameScene extends Phaser.Scene {
   private placedWorldObjectViews = new Map<string, PlacedWorldObjectView>();
   private selectedPlacementObjectId?: string;
   private emeraldBackground!: Phaser.GameObjects.Image;
+  private boardBackdropGraphics?: Phaser.GameObjects.Graphics;
   private ambientSpores?: Phaser.GameObjects.Particles.ParticleEmitter;
   private titleText!: Phaser.GameObjects.Text;
   private buildLabelText!: Phaser.GameObjects.Text;
@@ -359,6 +362,7 @@ export class GameScene extends Phaser.Scene {
   private skillRoot!: Phaser.GameObjects.Container;
   private skillBackdrop!: Phaser.GameObjects.Rectangle;
   private skillBackdropPattern!: Phaser.GameObjects.Image;
+  private skillMapBackdropGraphics!: Phaser.GameObjects.Graphics;
   private skillTitleText!: Phaser.GameObjects.Text;
   private skillResourceText!: Phaser.GameObjects.Text;
   private skillStatusText!: Phaser.GameObjects.Text;
@@ -565,6 +569,7 @@ export class GameScene extends Phaser.Scene {
     this.load.image("world-meadow-rabbit", "/assets/world/meadow-rabbit.png");
     this.load.image("world-sheep", "/assets/world/sheep.png");
     this.load.image("world-earthworm", "/assets/world/earthworm.png");
+    this.load.image("meadow-clearing-bg", "/assets/backgrounds/meadow-clearing-concept.webp");
     this.load.image("emerald-bg", "/assets/ui/emerald-bg.png");
     this.load.image("panel-emerald", "/assets/ui/panel-emerald.png");
     this.load.image("button-emerald-normal", "/assets/ui/button-emerald-normal.png");
@@ -601,6 +606,7 @@ export class GameScene extends Phaser.Scene {
     this.stressMode = data?.stressMode === true || this.isStressModeRequested();
     this.perfOverlayEnabled = this.stressMode || this.isPerfOverlayRequested();
     this.state = this.stressMode ? this.createStressState(data?.characterClassId) : data?.newGame ? resetSave(data.characterClassId) : loadGame();
+    this.applyPixelTextureFilters();
     this.rebuildFieldMetrics();
     this.automationScheduler.reset();
     this.sprinkler.reset();
@@ -1375,6 +1381,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createBoardLayers(): void {
+    this.boardBackdropGraphics = this.add.graphics().setDepth(-3);
     this.commonTileLayer = this.add
       .renderTexture(0, 0, this.scale.width, this.scale.height)
       .setOrigin(0, 0)
@@ -1543,10 +1550,10 @@ export class GameScene extends Phaser.Scene {
 
   private createEmeraldBackdrop(): void {
     this.emeraldBackground = this.add
-      .image(this.scale.width / 2, this.scale.height / 2, "emerald-bg")
+      .image(this.scale.width / 2, this.scale.height / 2, "meadow-clearing-bg")
       .setOrigin(0.5)
       .setDepth(-20)
-      .setAlpha(0.76);
+      .setAlpha(1);
     this.layoutEmeraldBackdrop();
     this.createAmbientSpores();
   }
@@ -1557,7 +1564,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.emeraldBackground.setPosition(this.scale.width / 2, this.scale.height / 2);
-    this.emeraldBackground.setDisplaySize(this.scale.width, this.scale.height);
+    const coverScale = Math.max(this.scale.width / this.emeraldBackground.width, this.scale.height / this.emeraldBackground.height);
+    this.emeraldBackground.setScale(coverScale);
     this.createAmbientSpores();
   }
 
@@ -1702,13 +1710,14 @@ export class GameScene extends Phaser.Scene {
     this.skillRoot = this.add.container(0, 0).setDepth(100).setVisible(false);
     this.skillBranchLabels = [];
     this.skillBackdrop = this.add
-      .rectangle(0, 0, this.scale.width, this.scale.height, 0x06190f, 1)
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x04130b, 0.97)
       .setOrigin(0, 0)
       .setInteractive();
     this.skillBackdropPattern = this.add
-      .image(this.scale.width / 2, this.scale.height / 2, "emerald-bg")
+      .image(this.scale.width / 2, this.scale.height / 2, "meadow-clearing-bg")
       .setOrigin(0.5)
-      .setAlpha(0.34);
+      .setAlpha(0.22);
+    this.skillMapBackdropGraphics = this.add.graphics();
 
     this.skillTitleText = this.add.text(0, 0, "Grass Skill Tree", {
       fontFamily: "Trebuchet MS, Arial",
@@ -1742,6 +1751,7 @@ export class GameScene extends Phaser.Scene {
     this.skillRoot.add([
       this.skillBackdrop,
       this.skillBackdropPattern,
+      this.skillMapBackdropGraphics,
       this.skillLineGraphics,
       this.skillTitleText,
       this.skillResourceText,
@@ -1874,14 +1884,17 @@ export class GameScene extends Phaser.Scene {
     const mapHeight = TREE_HEIGHT * SKILL_MAP_Y_SCALE;
     const treeScale = shortLandscape
       ? Math.max(0.38, Math.min(0.7, (this.scale.width - 310) / mapWidth, (this.scale.height - 126) / mapHeight))
-      : Math.min(1, (this.scale.width - reservedSideWidth) / mapWidth, (this.scale.height - reservedBottomHeight) / mapHeight);
+      : Math.min(SKILL_MAP_FOCUS_SCALE, (this.scale.width - reservedSideWidth) / mapWidth, (this.scale.height - reservedBottomHeight) / mapHeight);
     const treeWidth = mapWidth * treeScale;
-    const treeX = shortLandscape ? 34 : sidePanel ? Math.max(70, (this.scale.width - reservedSideWidth - treeWidth) / 2) : (this.scale.width - treeWidth) / 2;
-    const treeY = shortLandscape ? 118 : narrowPortrait || narrowDesktop ? 136 : 158;
+    const treeHeight = mapHeight * treeScale;
+    const treeX = Math.round(shortLandscape ? 34 : sidePanel ? Math.max(64, (this.scale.width - reservedSideWidth - treeWidth) / 2) : (this.scale.width - treeWidth) / 2);
+    const treeY = Math.round(shortLandscape ? 118 : narrowPortrait || narrowDesktop ? 136 : 148);
 
     this.skillBackdrop.setSize(this.scale.width, this.scale.height);
     this.skillBackdropPattern?.setPosition(this.scale.width / 2, this.scale.height / 2);
-    this.skillBackdropPattern?.setDisplaySize(this.scale.width, this.scale.height);
+    const patternCoverScale = Math.max(this.scale.width / this.skillBackdropPattern.width, this.scale.height / this.skillBackdropPattern.height);
+    this.skillBackdropPattern?.setScale(patternCoverScale);
+    this.layoutSkillMapBackdrop(treeX, treeY, treeWidth, treeHeight, treeScale, shortLandscape);
     this.skillTitleText.setText(narrowPortrait ? "Skills" : "Grass Skill Tree");
     this.skillTitleText.setFontSize(shortLandscape ? 25 : narrowPortrait ? 30 : 34);
     this.skillResourceText.setFontSize(shortLandscape || narrowPortrait ? 14 : 18);
@@ -1914,8 +1927,8 @@ export class GameScene extends Phaser.Scene {
     for (const label of this.skillBranchLabels) {
       const visible = label.revealedBy.some((upgradeId) => this.isSkillVisible(upgradeId));
       label.text.setVisible(visible);
-      label.text.setPosition(treeX + label.treeX * SKILL_MAP_X_SCALE * treeScale, treeY + label.treeY * SKILL_MAP_Y_SCALE * treeScale);
-      label.text.setScale(Math.max(0.76, treeScale));
+      label.text.setPosition(...this.getSkillTreeCoordinates(label.treeX, label.treeY, treeScale, treeX, treeY));
+      label.text.setScale(Math.max(0.82, treeScale));
     }
 
     for (const upgrade of UPGRADES) {
@@ -1929,7 +1942,7 @@ export class GameScene extends Phaser.Scene {
       view.container.setPosition(point.x, point.y);
       view.container.setScale(treeScale);
       view.container.setVisible(visible);
-      view.icon.setDisplaySize(treeScale < 0.62 ? 34 : 38, treeScale < 0.62 ? 34 : 38);
+      view.icon.setDisplaySize(treeScale < 0.62 ? 36 : 40, treeScale < 0.62 ? 36 : 40);
       view.level.setY(treeScale < 0.62 ? 29 : 31);
     }
 
@@ -2970,24 +2983,97 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
+  private applyPixelTextureFilters(): void {
+    const pixelTextureKeys = [
+      "tile-dirt",
+      "tile-stubble",
+      "grass-fleck",
+      "dew-fleck",
+      "world-tiny-sprinkler",
+      "world-bee-hive",
+      "world-chicken",
+      "world-field-mouse",
+      "world-meadow-rabbit",
+      "world-sheep",
+      "world-earthworm",
+      "panel-emerald",
+      "button-emerald-normal",
+      "button-emerald-hover",
+      "button-emerald-active",
+      SKILL_NODE_FRAME_KEYS.locked,
+      SKILL_NODE_FRAME_KEYS.available,
+      SKILL_NODE_FRAME_KEYS.owned,
+      SKILL_NODE_FRAME_KEYS.selected,
+      "selector-gold",
+      "effect-water-drop",
+      "effect-pollen-fleck",
+      "effect-bee-pixel",
+      "effect-gold-coin",
+      "effect-seed-kernel",
+      "effect-magic-spore",
+      ...GRASS_TIERS.flatMap((tier) => [`grass-${tier.id}`, `grass-${tier.id}-dewy`, `grass-${tier.id}-lush`]),
+      ...Object.values(SEED_SHOP_ICON_KEYS),
+      ...Object.values(GOLD_STORE_ICON_KEYS),
+      ...UPGRADES.map((upgrade) => getSkillIconKey(upgrade.id)),
+    ];
+
+    for (const key of new Set(pixelTextureKeys)) {
+      if (this.textures.exists(key)) {
+        this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+      }
+    }
+  }
+
+  private getSkillTreeCoordinates(x: number, y: number, treeScale: number, treeX: number, treeY: number): [number, number] {
+    return [Math.round(treeX + x * SKILL_MAP_X_SCALE * treeScale), Math.round(treeY + y * SKILL_MAP_Y_SCALE * treeScale)];
+  }
+
   private getSkillTreePoint(
     upgrade: (typeof UPGRADES)[number],
     treeScale: number,
     treeX: number,
     treeY: number,
   ): { x: number; y: number } {
-    return {
-      x: treeX + upgrade.tree.x * SKILL_MAP_X_SCALE * treeScale,
-      y: treeY + upgrade.tree.y * SKILL_MAP_Y_SCALE * treeScale,
-    };
+    const [x, y] = this.getSkillTreeCoordinates(upgrade.tree.x, upgrade.tree.y, treeScale, treeX, treeY);
+    return { x, y };
+  }
+
+  private layoutSkillMapBackdrop(
+    treeX: number,
+    treeY: number,
+    treeWidth: number,
+    treeHeight: number,
+    treeScale: number,
+    compact: boolean,
+  ): void {
+    const marginX = Math.max(28, 44 * treeScale);
+    const marginTop = Math.max(24, 34 * treeScale);
+    const marginBottom = Math.max(28, 44 * treeScale);
+    const x = Math.round(treeX - marginX);
+    const y = Math.round(treeY - marginTop);
+    const width = Math.round(treeWidth + marginX * 2);
+    const height = Math.round(treeHeight + marginTop + marginBottom);
+    const radius = compact ? 14 : 18;
+
+    this.skillMapBackdropGraphics.clear();
+    this.skillMapBackdropGraphics.fillStyle(0x071b11, 0.72);
+    this.skillMapBackdropGraphics.fillRoundedRect(x + 8, y + 10, width, height, radius);
+    this.skillMapBackdropGraphics.fillStyle(0x12341c, 0.92);
+    this.skillMapBackdropGraphics.fillRoundedRect(x, y, width, height, radius);
+    this.skillMapBackdropGraphics.lineStyle(Math.max(2, 3 * treeScale), 0xb7eba5, 0.46);
+    this.skillMapBackdropGraphics.strokeRoundedRect(x, y, width, height, radius);
+    this.skillMapBackdropGraphics.lineStyle(Math.max(1, 2 * treeScale), 0xffef78, 0.22);
+    this.skillMapBackdropGraphics.strokeRoundedRect(x + 8, y + 8, width - 16, height - 16, Math.max(8, radius - 5));
+    this.skillMapBackdropGraphics.fillStyle(0xb7eba5, 0.08);
+    this.skillMapBackdropGraphics.fillEllipse(x + width * 0.52, y + height * 0.5, width * 0.88, height * 0.68);
   }
 
   private drawSkillLines(treeScale: number, treeX: number, treeY: number): void {
     this.skillLineGraphics.clear();
     this.skillLineGraphics.fillStyle(0x000000, 0.18);
-    this.skillLineGraphics.fillCircle(treeX + 155 * treeScale, treeY + 138 * treeScale, 95 * treeScale);
-    this.skillLineGraphics.fillCircle(treeX + 265 * treeScale, treeY + 250 * treeScale, 132 * treeScale);
-    this.skillLineGraphics.fillCircle(treeX + 420 * treeScale, treeY + 210 * treeScale, 74 * treeScale);
+    this.skillLineGraphics.fillCircle(...this.getSkillTreeCoordinates(215, 160, treeScale, treeX, treeY), 95 * treeScale);
+    this.skillLineGraphics.fillCircle(...this.getSkillTreeCoordinates(365, 290, treeScale, treeX, treeY), 132 * treeScale);
+    this.skillLineGraphics.fillCircle(...this.getSkillTreeCoordinates(585, 244, treeScale, treeX, treeY), 74 * treeScale);
 
     const starPoints = [
       [84, 60],
@@ -3003,7 +3089,7 @@ export class GameScene extends Phaser.Scene {
 
     this.skillLineGraphics.fillStyle(0xffef78, 0.58);
     for (const [x, y] of starPoints) {
-      this.skillLineGraphics.fillCircle(treeX + x * treeScale, treeY + y * treeScale, Math.max(1.2, 2 * treeScale));
+      this.skillLineGraphics.fillCircle(...this.getSkillTreeCoordinates(x, y, treeScale, treeX, treeY), Math.max(1.2, 2 * treeScale));
     }
 
     this.drawDormantSkillHints(treeScale, treeX, treeY);
@@ -3812,6 +3898,7 @@ export class GameScene extends Phaser.Scene {
     const maxVisibleX = Phaser.Math.Clamp(Math.ceil((this.scale.width + radius - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
     const minVisibleY = Phaser.Math.Clamp(Math.floor((0 - radius - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
     const maxVisibleY = Phaser.Math.Clamp(Math.ceil((this.scale.height + radius - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
+    this.layoutBoardBackdrop(centerX, centerY);
     this.layoutBoardLayers();
 
     for (let gridY = minVisibleY; gridY <= maxVisibleY; gridY += 1) {
@@ -3887,6 +3974,24 @@ export class GameScene extends Phaser.Scene {
         this.boardHitZone.input.hitAreaCallback = Phaser.Geom.Rectangle.Contains;
       }
     }
+  }
+
+  private layoutBoardBackdrop(centerX: number, centerY: number): void {
+    if (!this.boardBackdropGraphics) {
+      return;
+    }
+
+    const width = Math.min(this.scale.width * 1.12, this.boardScaledWidth + Math.max(80, 120 * this.boardScale));
+    const height = Math.min(this.scale.height * 0.74, this.boardScaledHeight + Math.max(56, 96 * this.boardScale));
+    const shadowY = centerY + Math.max(10, 18 * this.boardScale);
+
+    this.boardBackdropGraphics.clear();
+    this.boardBackdropGraphics.fillStyle(0x07170e, 0.34);
+    this.boardBackdropGraphics.fillEllipse(centerX, shadowY, width, height);
+    this.boardBackdropGraphics.fillStyle(0x5f8c4a, 0.12);
+    this.boardBackdropGraphics.fillEllipse(centerX, shadowY - Math.max(4, 8 * this.boardScale), width * 0.92, height * 0.82);
+    this.boardBackdropGraphics.lineStyle(Math.max(2, 4 * this.boardScale), 0xb7eba5, 0.13);
+    this.boardBackdropGraphics.strokeEllipse(centerX, shadowY - Math.max(4, 8 * this.boardScale), width * 0.94, height * 0.84);
   }
 
   private needsTileView(tile: FieldTile, key: TileKey): boolean {
