@@ -93,7 +93,6 @@ These are not required for the current build, but would be useful soon:
 
 - `public/assets/ui/classes/grass-toucher-card.png` - larger class-card portrait or badge, `256x256`, transparent PNG.
 - `public/assets/effects/sprinkler-network-drop.png` - small water sparkle/drop for network bursts, `32x32`, transparent PNG.
-- `public/assets/ui/items/offline-progress.png` - item or panel icon for future offline progress, `96x96`, transparent PNG.
 
 ## Quick Validation
 

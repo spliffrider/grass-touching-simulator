@@ -1,6 +1,11 @@
 import { getGrassTier } from "../data/grass-tiers";
 import { getAutomationPairSynergyPower } from "../data/automation-systems";
-import { getResolvedAutomationDirectiveId, type ResolvedAutomationDirectiveId } from "./AutomationDirectiveSystem";
+import {
+  getAutomationDirectiveTouchStats,
+  getAutomationDirectiveTuning,
+  getResolvedAutomationDirectiveId,
+  type ResolvedAutomationDirectiveId,
+} from "./AutomationDirectiveSystem";
 import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
 import { recordAutomationAction, recordAutomationSupplyDrop, recordAutomationTouch } from "./AutomationProgressSystem";
 import { getRandomGrownTile, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
@@ -36,9 +41,10 @@ export class SprinklerSystem {
     }
 
     this.elapsed += delta;
+    const directiveTuning = getAutomationDirectiveTuning(state);
     const sprinklerInterval = Math.max(
       5000,
-      (state.seedShopPurchases.sprinkler_timer ? 7000 : 11000) * getAutomationIntervalMultiplier(state),
+      (state.seedShopPurchases.sprinkler_timer ? 7000 : 11000) * getAutomationIntervalMultiplier(state) * directiveTuning.helperIntervalMultiplier,
     );
     if (this.elapsed < sprinklerInterval) {
       return false;
@@ -49,6 +55,7 @@ export class SprinklerSystem {
     const touchesPerCycle = (state.seedShopPurchases.sprinkler_network ? 2 : 1) + (bloomCyclePower >= 0.25 ? 1 : 0);
     const sprinklerRadius = state.seedShopPurchases.sprinkler_network ? 2 : 1;
     const directiveId = getResolvedAutomationDirectiveId(state);
+    const directiveStats = getAutomationDirectiveTouchStats(state, stats);
     let changed = false;
 
     for (let i = 0; i < touchesPerCycle; i += 1) {
@@ -59,7 +66,7 @@ export class SprinklerSystem {
 
       if (tile.grassState === "regrowing") {
         const remainingMs = Math.max(0, tile.regrowEndsAt - Date.now());
-        tile.regrowEndsAt = Date.now() + Math.max(300, Math.floor(remainingMs * 0.58));
+        tile.regrowEndsAt = Date.now() + Math.max(300, Math.floor(remainingMs * 0.58 * directiveTuning.growthRegrowMultiplier));
         feedback.playSprinklerBurst(tile);
         feedback.refreshTile(tile);
         recordAutomationAction(state, directiveId);
@@ -69,7 +76,7 @@ export class SprinklerSystem {
 
       const touchedTrait = tile.trait;
       const touchedTier = getGrassTier(tile.tier);
-      const touch = touchTile(tile, state, stats, Date.now());
+      const touch = touchTile(tile, state, directiveStats, Date.now());
       if (touch.gained === 0) {
         continue;
       }
@@ -86,7 +93,14 @@ export class SprinklerSystem {
       recordAutomationTouch(state, touch.gained, directiveId);
 
       if (state.seedShopPurchases.self_seeding_nozzle) {
-        if (feedback.tryDropSeed(tile, touchedTrait, stats, (directiveId === "supplies" ? 0.38 : 0.25) + bloomCyclePower * 0.16)) {
+        if (
+          feedback.tryDropSeed(
+            tile,
+            touchedTrait,
+            stats,
+            Math.max(0.05, (directiveId === "supplies" ? 0.38 : 0.25) + bloomCyclePower * 0.16 + directiveTuning.supplyChanceBonus),
+          )
+        ) {
           recordAutomationSupplyDrop(state, 1, directiveId);
         }
       }
@@ -98,7 +112,7 @@ export class SprinklerSystem {
           touchedTier.id,
           touch,
           stats,
-          (directiveId === "supplies" ? 0.32 : 0.2) + bloomCyclePower * 0.12,
+          Math.max(0.05, (directiveId === "supplies" ? 0.32 : 0.2) + bloomCyclePower * 0.12 + directiveTuning.supplyChanceBonus),
         )
       ) {
         recordAutomationSupplyDrop(state, 1, directiveId);

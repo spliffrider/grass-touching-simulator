@@ -39,6 +39,11 @@ Performance reference:
 
 - `docs/PERFORMANCE_NOTES.md`: board redraw hitch postmortem, perf overlay interpretation, and rendering guardrails.
 
+## User Preferences
+
+- Do not suggest, design, or implement offline progress. The player should not receive automated rewards for time spent away from the game.
+- Keep `lastSavedAt` as save metadata only unless the user explicitly asks for another use.
+
 ## Runtime Architecture
 
 The game has two scenes:
@@ -208,7 +213,7 @@ Keep ids lowercase and stable. Save files store ids.
 
 ## Adding A New Runtime System
 
-Use this pattern for mechanics that run over time, such as tools, automation, quests, animal placement, offline progress, or world events.
+Use this pattern for mechanics that run over time, such as tools, automation, quests, animal placement, or world events.
 
 Create a file in:
 
@@ -534,24 +539,6 @@ For a new currency:
 6. Add spend logic near the shop/system that owns it.
 
 Try not to spread currency math across many scene methods. If it has drops or rewards, use a system.
-
-## Adding Offline Progress
-
-Offline progress should use:
-
-```ts
-state.lastSavedAt
-```
-
-Recommended approach:
-
-1. On load, compute elapsed time since `lastSavedAt`.
-2. Clamp elapsed time to a sane maximum.
-3. Run a dedicated `OfflineProgressSystem`.
-4. Return a summary for UI.
-5. Save once after applying.
-
-Do not try to simulate every frame while offline. Compute aggregate rewards.
 
 ## Build And Deployment
 

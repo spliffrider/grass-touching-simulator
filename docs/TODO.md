@@ -10,9 +10,6 @@ The classic incremental reset loop. You sacrifice your current run for a permane
 ### Combo / Streak System
 Touching grass tiles in quick succession builds a multiplier (e.g. 5x if you touch 10 tiles within 2 seconds). A `ComboSystem` tracks elapsed time since the last touch and a combo counter — both mutate `GameState` and feed into `RuntimeStats.touchMultiplier`. Very satisfying on mobile. Pairs well with audio pitch-ramp in your existing `AudioSystem`.
 
-### Offline Progress
-You already have `lastSavedAt` and even a note in the manual pointing at this. Compute elapsed time on load, simulate what the sprinklers + animals + regrowth would have done, cap it at some max (e.g. 8 hours), and show a little "Welcome back!" summary panel. Very expected in the genre and makes the game feel alive.
-
 ---
 
 ## 🐾 Content Systems (Medium Impact, Low Effort)

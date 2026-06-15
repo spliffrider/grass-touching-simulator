@@ -73,12 +73,12 @@
   "knownCaveats": [
     "Sprinkler Network reuses the Sprinkler Timer icon; a custom icon can come later.",
     "The new automation upgrade may need cost tuning after real playtesting.",
-    "Sprinkler Network doubles sprinkler touch output, but does not yet add offline progress."
+    "Sprinkler Network doubles sprinkler touch output."
   ],
   "recommendedNextSteps": [
     "Playtest early-to-mid seed pacing to see whether Sprinkler Network at 170 seeds lands too late or too early.",
     "Consider a custom Sprinkler Network item icon.",
-    "Next larger automation candidate: offline progress summary using lastSavedAt, capped to a safe max duration.",
+    "Do not pursue offline progress; the user explicitly does not want it.",
     "Keep testing ?stress&perf&tiles=120 after each automation expansion."
   ]
 }

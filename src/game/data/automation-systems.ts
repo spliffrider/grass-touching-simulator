@@ -1,4 +1,5 @@
 import { MAX_GRASS_TOUCH_AMOUNT, normalizeGrassTouches } from "../systems/AmountSystem";
+import { getAutomationDirectiveTuning } from "../systems/AutomationDirectiveSystem";
 import { getAutomationSystemMilestoneMultiplier } from "../systems/AutomationMilestoneSystem";
 import type { AutomationSystemId, GameState, RuntimeStats } from "../types/game-state";
 
@@ -236,7 +237,8 @@ export function getAutomationSystemTouchesPerMinute(
 }
 
 export function getTotalAutomationTouchesPerMinute(state: GameState, stats?: RuntimeStats, context = getAutomationOutputContext(state, stats)): number {
-  return AUTOMATION_SYSTEMS.reduce((total, system) => {
+  const baseOutput = AUTOMATION_SYSTEMS.reduce((total, system) => {
     return total + getAutomationSystemTouchesPerMinute(state, system, stats, context);
-  }, 0) * context.globalMultiplier;
+  }, 0);
+  return baseOutput * context.globalMultiplier * getAutomationDirectiveTuning(state).touchOutputMultiplier;
 }

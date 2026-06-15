@@ -92,7 +92,7 @@
   ],
   "recommendedNextSteps": [
     "Start the first automation slice from the clean Grass Toucher class path checkpoint.",
-    "Prefer extending existing SprinklerSystem or adding a small Watering Can system before larger offline progress.",
+    "Prefer extending existing SprinklerSystem or adding a small Watering Can system; do not pursue offline progress.",
     "After any automation change, run npm run build and smoke test ?stress&perf&tiles=120.",
     "Keep automation from building manual combo/rhythm unless explicitly requested later."
   ]
