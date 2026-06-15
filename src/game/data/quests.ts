@@ -1,4 +1,6 @@
 import { formatGrassTouches } from "../systems/AmountSystem";
+import { AUTOMATION_PAIR_SYNERGIES, AUTOMATION_SYSTEMS } from "./automation-systems";
+import { getAutomationSystemMilestoneTier } from "../systems/AutomationMilestoneSystem";
 import type { AutomationDirectiveId, CharacterClassId, GameState, GrassTierId } from "../types/game-state";
 
 export interface QuestReward {
@@ -26,11 +28,21 @@ const countUpgradeLevels = (state: GameState): number =>
   Object.values(state.upgrades).reduce((total, upgrade) => total + upgrade.level, 0);
 const countAutomationUnits = (state: GameState): number =>
   Object.values(state.automationSystems ?? {}).reduce((total, system) => total + Math.max(0, Math.floor(system.owned)), 0);
+const countAutomationSystemTypes = (state: GameState): number =>
+  AUTOMATION_SYSTEMS.filter((system) => (state.automationSystems?.[system.id]?.owned ?? 0) > 0).length;
+const countAutomationPairLinks = (state: GameState): number =>
+  AUTOMATION_PAIR_SYNERGIES.filter((synergy) =>
+    synergy.systemIds.every((systemId) => (state.automationSystems?.[systemId]?.owned ?? 0) > 0),
+  ).length;
+const countAutomationMilestoneSystems = (state: GameState, tier: number): number =>
+  AUTOMATION_SYSTEMS.filter((system) => getAutomationSystemMilestoneTier(state, system.id) >= tier).length;
 const hasDiscoveredGrassTier = (state: GameState, tier: GrassTierId): boolean => state.journal.discoveredGrassTiers.includes(tier);
 const countDiscoveredGrassTiers = (state: GameState): number => state.journal.discoveredGrassTiers.length;
 const CORE_AUTOMATION_DIRECTIVES: AutomationDirectiveId[] = ["balanced", "growth", "harvest", "supplies"];
 const countUsedAutomationDirectives = (state: GameState): number =>
   CORE_AUTOMATION_DIRECTIVES.filter((directiveId) => state.automationStats.usedDirectiveIds.includes(directiveId)).length;
+const hasUsedAutomationDirective = (state: GameState, directiveId: AutomationDirectiveId): boolean =>
+  state.automationStats.usedDirectiveIds.includes(directiveId);
 const getClassName = (classId: CharacterClassId): string =>
   classId === "grass_toucher" ? "Grass Toucher" : classId === "femboy_slim" ? "Femboy Slim" : "Bard De Wever";
 
@@ -285,6 +297,16 @@ export const QUESTS: QuestDefinition[] = [
     getProgress: (state) => `${Math.min(4, countUsedAutomationDirectives(state))}/4 directives`,
   },
   {
+    id: "automation_autopilot_used",
+    category: "Automation",
+    name: "Let The Lawn Decide",
+    description: "Use Auto-Pilot after trying the core directives.",
+    reward: { seeds: 8, gold: 4 },
+    prerequisiteQuestIds: ["automation_directives_all"],
+    isComplete: (state) => hasUsedAutomationDirective(state, "autopilot"),
+    getProgress: (state) => (hasUsedAutomationDirective(state, "autopilot") ? "Auto-Pilot used" : "Auto-Pilot not used yet"),
+  },
+  {
     id: "automation_supplies_10",
     category: "Automation",
     name: "Pocket-Sized Logistics",
@@ -323,6 +345,106 @@ export const QUESTS: QuestDefinition[] = [
     prerequisiteQuestIds: ["automation_units_4"],
     isComplete: (state) => countAutomationUnits(state) >= 7,
     getProgress: (state) => `${Math.min(7, countAutomationUnits(state))}/7 helpers`,
+  },
+  {
+    id: "automation_system_types_5",
+    category: "Automation",
+    name: "Department Diversity",
+    description: "Own 5 different automation system types.",
+    reward: { seeds: 16, gold: 8 },
+    prerequisiteQuestIds: ["automation_units_7"],
+    isComplete: (state) => countAutomationSystemTypes(state) >= 5,
+    getProgress: (state) => `${Math.min(5, countAutomationSystemTypes(state))}/5 system types`,
+  },
+  {
+    id: "automation_milestone_first",
+    category: "Automation",
+    name: "Five Of A Kind",
+    description: "Reach the first unit milestone with any automation system.",
+    reward: { seeds: 10, gold: 5 },
+    prerequisiteQuestIds: ["automation_units_4"],
+    isComplete: (state) => countAutomationMilestoneSystems(state, 1) >= 1,
+    getProgress: (state) => `${Math.min(1, countAutomationMilestoneSystems(state, 1))}/1 systems at first boost`,
+  },
+  {
+    id: "automation_milestone_10",
+    category: "Automation",
+    name: "Ten-Unit Rhythm",
+    description: "Reach the 10-owned milestone with any automation system.",
+    reward: { seeds: 16, gold: 8 },
+    prerequisiteQuestIds: ["automation_milestone_first", "automation_units_7"],
+    isComplete: (state) => countAutomationMilestoneSystems(state, 2) >= 1,
+    getProgress: (state) => `${Math.min(1, countAutomationMilestoneSystems(state, 2))}/1 systems at second boost`,
+  },
+  {
+    id: "automated_touch_2500",
+    category: "Automation",
+    name: "Unsupervised Lawn Moment",
+    description: "Earn 2,500 Grass Touches from automation.",
+    reward: { seeds: 18, gold: 8 },
+    prerequisiteQuestIds: ["automated_touch_500", "automation_units_7"],
+    isComplete: (state) => state.automationStats.automatedGrassTouches >= 2500,
+    getProgress: (state) => `${formatGrassTouches(Math.min(2500, state.automationStats.automatedGrassTouches))}/2,500 auto touches`,
+  },
+  {
+    id: "automated_touch_10000",
+    category: "Automation",
+    name: "Basically A Lawn Department",
+    description: "Earn 10,000 Grass Touches from automation.",
+    reward: { seeds: 24, gold: 12 },
+    prerequisiteQuestIds: ["automated_touch_2500", "automation_system_types_5"],
+    isComplete: (state) => state.automationStats.automatedGrassTouches >= 10000,
+    getProgress: (state) => `${formatGrassTouches(Math.min(10000, state.automationStats.automatedGrassTouches))}/10,000 auto touches`,
+  },
+  {
+    id: "automation_supplies_50",
+    category: "Automation",
+    name: "Supply Cabinet With Opinions",
+    description: "Earn 50 seed or gold drops from automation.",
+    reward: { seeds: 18, gold: 10 },
+    prerequisiteQuestIds: ["automation_supplies_10", "automation_autopilot_used"],
+    isComplete: (state) => state.automationStats.automationSupplyDrops >= 50,
+    getProgress: (state) => `${Math.min(50, state.automationStats.automationSupplyDrops)}/50 supply drops`,
+  },
+  {
+    id: "ecosystem_loop_owner",
+    category: "Automation",
+    name: "Ecosystem Paperwork",
+    description: "Buy Ecosystem Loop to unlock named automation synergies.",
+    reward: { seeds: 14, gold: 7 },
+    prerequisiteQuestIds: ["automation_units_4"],
+    isComplete: (state) => getUpgradeLevel(state, "ecosystem_loop") >= 1,
+    getProgress: (state) => `${Math.min(1, getUpgradeLevel(state, "ecosystem_loop"))}/1 Ecosystem Loop`,
+  },
+  {
+    id: "automation_pair_1",
+    category: "Automation",
+    name: "First Ecosystem Handshake",
+    description: "Own the systems for 1 named automation pair synergy.",
+    reward: { seeds: 14, gold: 7 },
+    prerequisiteQuestIds: ["ecosystem_loop_owner"],
+    isComplete: (state) => countAutomationPairLinks(state) >= 1,
+    getProgress: (state) => `${Math.min(1, countAutomationPairLinks(state))}/1 named pairs`,
+  },
+  {
+    id: "automation_pair_3",
+    category: "Automation",
+    name: "Synergy Web",
+    description: "Own the systems for 3 named automation pair synergies.",
+    reward: { seeds: 20, gold: 10 },
+    prerequisiteQuestIds: ["automation_pair_1", "automation_system_types_5"],
+    isComplete: (state) => countAutomationPairLinks(state) >= 3,
+    getProgress: (state) => `${Math.min(3, countAutomationPairLinks(state))}/3 named pairs`,
+  },
+  {
+    id: "automation_pair_5",
+    category: "Automation",
+    name: "Whole Meadow Union",
+    description: "Own the systems for all 5 named automation pair synergies.",
+    reward: { seeds: 28, gold: 14 },
+    prerequisiteQuestIds: ["automation_pair_3", "automated_touch_10000"],
+    isComplete: (state) => countAutomationPairLinks(state) >= 5,
+    getProgress: (state) => `${Math.min(5, countAutomationPairLinks(state))}/5 named pairs`,
   },
   {
     id: "field_journal_owner",
