@@ -114,8 +114,8 @@ const COMBO_BADGE_BUMP_INTERVAL_MS = 120;
 const AMBIENT_FEEDBACK_WINDOW_MS = 1000;
 const AMBIENT_BURST_PARTICLE_BUDGET = 120;
 const AMBIENT_TRANSIENT_OBJECT_BUDGET = 18;
-const AMBIENT_POP_TEXT_BUDGET = 10;
-const AMBIENT_REWARD_ARC_SPRITE_BUDGET = 8;
+const AMBIENT_POP_TEXT_BUDGET = 7;
+const AMBIENT_REWARD_ARC_SPRITE_BUDGET = 6;
 const AMBIENT_WORLD_ACTION_ARC_SPRITE_BUDGET = 10;
 const QUEUED_SAVE_INTERVAL_MS = 6500;
 const AUTO_SAVE_INTERVAL_MS = 20000;
@@ -3728,6 +3728,8 @@ export class GameScene extends Phaser.Scene {
     const purchaseLine =
       item.kind === "consumable" && quantity > 0
         ? "click to use"
+        : item.id === "seed_satchel" && unlocked
+          ? `cost ${item.cost} gold, opens +5 seeds`
         : unlocked
           ? `cost ${item.cost} gold`
           : "locked";
@@ -3758,6 +3760,19 @@ export class GameScene extends Phaser.Scene {
       this.setStoreStatus(`${item.name} costs ${item.cost} gold. You have ${Math.floor(this.state.gold)}.`);
       this.audio.play("blocked");
       this.refreshUi();
+      return;
+    }
+
+    if (item.id === "seed_satchel") {
+      this.state.gold -= item.cost;
+      this.state.seeds += 5;
+      this.state.lifetimeSeeds += 5;
+      this.invalidateRuntimeStats();
+      this.setStoreStatus("Seed Satchel opened into 5 seeds.");
+      this.audio.play("seed");
+      this.saveState();
+      this.refreshUi();
+      this.playGoldStoreItemSuccess(item.id);
       return;
     }
 
@@ -5917,9 +5932,13 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const busyField = this.fieldTileCount >= 220;
+    const comboPopInterval = busyField ? 10 : 5;
     if (combo.bonusTouches > 0) {
-      this.popAtTile(tile, `combo +${combo.bonusTouches}`, "#f4df6a");
-    } else if (combo.thresholdReached || combo.count <= 3 || combo.count % 5 === 0) {
+      if (!busyField || combo.thresholdReached || combo.count <= 3 || combo.count % comboPopInterval === 0) {
+        this.popAtTile(tile, `combo +${combo.bonusTouches}`, "#f4df6a");
+      }
+    } else if (combo.thresholdReached || combo.count <= 3 || combo.count % comboPopInterval === 0) {
       this.popAtTile(tile, `${combo.count} combo`, "#b7eba5");
     }
 
@@ -7829,6 +7848,9 @@ export class GameScene extends Phaser.Scene {
       } else if (item.kind === "consumable" && quantity > 0) {
         view.status.setText(`Owned ${quantity} | Click to use`);
         view.status.setColor("#f4df6a");
+      } else if (item.id === "seed_satchel" && affordable) {
+        view.status.setText(`Owned ${quantity} | Cost ${item.cost} gold | Opens +5 seeds`);
+        view.status.setColor("#f4df6a");
       } else if (maxed) {
         view.status.setText(`Owned ${quantity}${maxText} | Ready to place`);
         view.status.setColor("#b7eba5");
@@ -8256,11 +8278,11 @@ export class GameScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: pop,
-      y: pop.y - 34,
+      y: pop.y - 28,
       alpha: 0,
-      scaleX: 1.12,
-      scaleY: 1.12,
-      duration: 760,
+      scaleX: 1.06,
+      scaleY: 1.06,
+      duration: 560,
       ease: "Sine.easeOut",
       onComplete: () => this.releasePopText(pop),
     });
@@ -8400,7 +8422,7 @@ export class GameScene extends Phaser.Scene {
     const progress = { value: 0 };
     const sprite = this.add
       .image(start.x, start.y, texture)
-      .setDepth(82)
+      .setDepth(18)
       .setScale(Math.max(1.8, this.boardScale * 2.35))
       .setAlpha(0.95);
     const baseScale = sprite.scaleX;
