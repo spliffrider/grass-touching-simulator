@@ -296,6 +296,8 @@ interface GoldStoreItemView {
   status: Phaser.GameObjects.Text;
 }
 
+type StoreMode = "automation" | "goods";
+
 interface QuestItemView {
   questId: string;
   container: Phaser.GameObjects.Container;
@@ -446,8 +448,11 @@ export class GameScene extends Phaser.Scene {
   private storeTitleText!: Phaser.GameObjects.Text;
   private storeResourceText!: Phaser.GameObjects.Text;
   private storeStatusText!: Phaser.GameObjects.Text;
+  private storeAutomationButton!: Phaser.GameObjects.Container;
+  private storeGoodsButton!: Phaser.GameObjects.Container;
   private storeBackButton!: Phaser.GameObjects.Container;
-  private storeItemViews = new Map<string, GoldStoreItemView>();
+  private storeAutomationViews = new Map<string, GoldStoreItemView>();
+  private storeGoldItemViews = new Map<string, GoldStoreItemView>();
   private questRoot!: Phaser.GameObjects.Container;
   private questBackdrop!: Phaser.GameObjects.Rectangle;
   private questTitleText!: Phaser.GameObjects.Text;
@@ -504,6 +509,7 @@ export class GameScene extends Phaser.Scene {
   private journalOpen = false;
   private seedShopOpen = false;
   private storeOpen = false;
+  private storeMode: StoreMode = "automation";
   private automationOpen = false;
   private optionsOpen = false;
   private selectedQuestFilter: QuestFilterId = "all";
@@ -2489,21 +2495,22 @@ export class GameScene extends Phaser.Scene {
       view.status.setPosition(textX, itemHeight - 24);
       view.status.setWordWrapWidth(Math.max(160, panelWidth - textX - 12));
       view.container.setPosition(x, y);
-      view.container.setVisible(y > 118 - itemGap && y < this.scale.height + itemGap);
+      view.container.setVisible(y >= startY - 4 && y < this.scale.height + itemGap);
       y += itemGap;
     }
   }
 
   private createGoldStore(): void {
     this.storeRoot?.destroy();
-    this.storeItemViews.clear();
+    this.storeAutomationViews.clear();
+    this.storeGoldItemViews.clear();
 
     this.storeRoot = this.add.container(0, 0).setDepth(108).setVisible(false);
     this.storeBackdrop = this.add
       .rectangle(0, 0, this.scale.width, this.scale.height, 0x102315, 1)
       .setOrigin(0, 0)
       .setInteractive();
-    this.storeTitleText = this.add.text(0, 0, "Automation Store", {
+    this.storeTitleText = this.add.text(0, 0, "Store", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "34px",
       color: "#f7ffe8",
@@ -2518,7 +2525,7 @@ export class GameScene extends Phaser.Scene {
       padding: { x: 12, y: 8 },
     });
     this.storeStatusText = this.add
-      .text(0, 0, "Buy running automation systems with Grass Touches.", {
+      .text(0, 0, this.getDefaultStoreStatus(), {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "16px",
         color: "#dfffc8",
@@ -2526,9 +2533,19 @@ export class GameScene extends Phaser.Scene {
         strokeThickness: 4,
       })
       .setOrigin(0.5, 0);
+    this.storeAutomationButton = createTextButton(this, "Automation", () => this.setStoreMode("automation"), 134, 36, 109);
+    this.storeGoodsButton = createTextButton(this, "Goods", () => this.setStoreMode("goods"), 104, 36, 109);
     this.storeBackButton = createTextButton(this, "Back", () => this.closeGoldStore(), 118, 44, 109);
 
-    this.storeRoot.add([this.storeBackdrop, this.storeTitleText, this.storeResourceText, this.storeStatusText, this.storeBackButton]);
+    this.storeRoot.add([
+      this.storeBackdrop,
+      this.storeTitleText,
+      this.storeResourceText,
+      this.storeStatusText,
+      this.storeAutomationButton,
+      this.storeGoodsButton,
+      this.storeBackButton,
+    ]);
 
     for (const system of AUTOMATION_SYSTEMS) {
       const container = this.add.container(0, 0);
@@ -2562,7 +2579,43 @@ export class GameScene extends Phaser.Scene {
       bg.on("pointerover", () => this.showAutomationSystemDetails(system.id));
       bg.on("pointerdown", () => this.buyAutomationSystem(system.id));
       container.add([bg, iconBg, icon, name, description, status]);
-      this.storeItemViews.set(system.id, { itemId: system.id, container, bg, iconBg, icon, name, description, status });
+      this.storeAutomationViews.set(system.id, { itemId: system.id, container, bg, iconBg, icon, name, description, status });
+      this.storeRoot.add(container);
+    }
+
+    for (const item of GOLD_STORE_ITEMS) {
+      const container = this.add.container(0, 0);
+      const bg = this.add
+        .rectangle(0, 0, 430, 98, 0x12341c, 0.96)
+        .setOrigin(0, 0)
+        .setStrokeStyle(3, 0xb7eba5)
+        .setInteractive({ useHandCursor: true });
+      const iconBg = this.add
+        .rectangle(14, 15, SHOP_ICON_SIZE + 10, SHOP_ICON_SIZE + 10, 0x0d2f1c, 0.82)
+        .setOrigin(0, 0)
+        .setStrokeStyle(2, 0xb7eba5, 0.58);
+      const icon = this.add.image(43, 44, GOLD_STORE_ICON_KEYS[item.id] ?? "item-seed-satchel").setDisplaySize(SHOP_ICON_SIZE, SHOP_ICON_SIZE);
+      const name = this.add.text(78, 10, item.name, {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "20px",
+        color: "#f7ffe8",
+      });
+      const description = this.add.text(78, 38, item.description, {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "14px",
+        color: "#d6e6d0",
+        wordWrap: { width: 334 },
+      });
+      const status = this.add.text(78, 74, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "15px",
+        color: "#b7eba5",
+      });
+
+      bg.on("pointerover", () => this.showGoldStoreItemDetails(item.id));
+      bg.on("pointerdown", () => this.handleGoldStoreItemPressed(item.id));
+      container.add([bg, iconBg, icon, name, description, status]);
+      this.storeGoldItemViews.set(item.id, { itemId: item.id, container, bg, iconBg, icon, name, description, status });
       this.storeRoot.add(container);
     }
 
@@ -2575,9 +2628,11 @@ export class GameScene extends Phaser.Scene {
     const x = (this.scale.width - panelWidth) / 2;
     const itemHeight = compact ? 126 : 116;
     const itemGap = itemHeight + 10;
-    const startY = compact ? 172 : 158;
+    const startY = compact ? 208 : 196;
     const availableHeight = Math.max(120, this.scale.height - startY - 22);
-    const totalHeight = AUTOMATION_SYSTEMS.length * itemGap;
+    const activeViews = this.getActiveStoreItemViews();
+    const inactiveViews = this.storeMode === "automation" ? this.storeGoldItemViews : this.storeAutomationViews;
+    const totalHeight = activeViews.size * itemGap;
     const maxScroll = Math.max(0, totalHeight - availableHeight);
     this.storeScroll = Math.min(this.storeScroll, maxScroll);
     let y = startY - this.storeScroll;
@@ -2590,11 +2645,19 @@ export class GameScene extends Phaser.Scene {
     this.storeStatusText.setWordWrapWidth(Math.max(240, this.scale.width - 48));
     this.storeTitleText.setPosition(24, 24);
     this.storeResourceText.setPosition(26, compact ? 72 : 78);
-    this.storeStatusText.setPosition(this.scale.width / 2, compact ? 110 : 116);
+    this.storeStatusText.setPosition(this.scale.width / 2, compact ? 154 : 150);
+    this.storeAutomationButton.setScale(compact ? 0.82 : 0.92);
+    this.storeGoodsButton.setScale(compact ? 0.82 : 0.92);
+    this.storeAutomationButton.setPosition(x, compact ? 114 : 116);
+    this.storeGoodsButton.setPosition(x + (compact ? 122 : 134), compact ? 114 : 116);
     this.storeBackButton.setScale(compact ? 0.9 : 1);
     this.storeBackButton.setPosition(this.scale.width - 142, 24);
 
-    for (const view of this.storeItemViews.values()) {
+    for (const view of inactiveViews.values()) {
+      view.container.setVisible(false);
+    }
+
+    for (const view of activeViews.values()) {
       const textX = compact ? 70 : 78;
       const iconSize = compact ? 42 : SHOP_ICON_SIZE;
       const iconFrame = iconSize + 10;
@@ -2614,7 +2677,7 @@ export class GameScene extends Phaser.Scene {
       view.status.setFontSize(compact ? 12 : 13);
       view.status.setWordWrapWidth(Math.max(160, panelWidth - textX - 12));
       view.container.setPosition(x, y);
-      view.container.setVisible(y > 118 - itemGap && y < this.scale.height + itemGap);
+      view.container.setVisible(y >= startY - 4 && y < this.scale.height + itemGap);
       y += itemGap;
     }
   }
@@ -3427,6 +3490,7 @@ export class GameScene extends Phaser.Scene {
     this.closeOptions();
     this.storeOpen = true;
     this.storeScroll = 0;
+    this.storeStatusText.setText(this.getDefaultStoreStatus());
     this.storeRoot.setVisible(true);
     this.audio.play("upgrade");
     this.refreshUi();
@@ -3436,6 +3500,28 @@ export class GameScene extends Phaser.Scene {
     this.storeOpen = false;
     this.storeRoot?.setVisible(false);
     this.refreshUi();
+  }
+
+  private setStoreMode(mode: StoreMode): void {
+    if (this.storeMode === mode) {
+      return;
+    }
+
+    this.storeMode = mode;
+    this.storeScroll = 0;
+    this.storeStatusText.setText(this.getDefaultStoreStatus());
+    this.audio.play("upgrade");
+    this.refreshUi();
+  }
+
+  private getDefaultStoreStatus(): string {
+    return this.storeMode === "automation"
+      ? "Buy running automation systems with Grass Touches."
+      : "Spend gold on supplies and placeable companions.";
+  }
+
+  private getActiveStoreItemViews(): Map<string, GoldStoreItemView> {
+    return this.storeMode === "automation" ? this.storeAutomationViews : this.storeGoldItemViews;
   }
 
   private openAutomationPanel(): void {
@@ -3628,6 +3714,26 @@ export class GameScene extends Phaser.Scene {
         nextCost,
       )} Grass Touches`,
     );
+  }
+
+  private showGoldStoreItemDetails(itemId: string): void {
+    const item = GOLD_STORE_ITEMS.find((candidate) => candidate.id === itemId);
+    if (!item) {
+      return;
+    }
+
+    const quantity = getInventoryQuantity(this.state, item.id);
+    const maxQuantityText = item.maxQuantity === undefined ? "" : `/${item.maxQuantity}`;
+    const unlocked = item.isUnlocked(this.state);
+    const purchaseLine =
+      item.kind === "consumable" && quantity > 0
+        ? "click to use"
+        : unlocked
+          ? `cost ${item.cost} gold`
+          : "locked";
+    const placementLine = item.kind === "animal" ? "place from the field dock after buying" : "consumable";
+
+    this.setStoreStatus(`${item.name}: ${item.kind} | owned ${quantity}${maxQuantityText} | ${purchaseLine} | ${placementLine}`);
   }
 
   private buyGoldStoreItem(itemId: string): void {
@@ -7602,6 +7708,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshGoldStore(): void {
+    this.refreshStoreModeButtons();
+    if (this.storeMode === "goods") {
+      this.refreshGoldItemStore();
+      this.layoutGoldStore();
+      return;
+    }
+
+    this.refreshAutomationStore();
+    this.layoutGoldStore();
+  }
+
+  private refreshStoreModeButtons(): void {
+    this.storeAutomationButton.setAlpha(this.storeMode === "automation" ? 1 : 0.72);
+    this.storeGoodsButton.setAlpha(this.storeMode === "goods" ? 1 : 0.72);
+  }
+
+  private refreshAutomationStore(): void {
     const stats = this.getCachedRuntimeStats();
     const automationOutputContext = getAutomationOutputContext(this.state, stats);
     const activeSynergyCount = automationOutputContext.activePairSynergies.length;
@@ -7617,7 +7740,7 @@ export class GameScene extends Phaser.Scene {
     );
 
     for (const system of AUTOMATION_SYSTEMS) {
-      const view = this.storeItemViews.get(system.id);
+      const view = this.storeAutomationViews.get(system.id);
       if (!view) {
         continue;
       }
@@ -7669,6 +7792,51 @@ export class GameScene extends Phaser.Scene {
         view.status.setText(
           `Owned ${owned}${supportSuffix} | ${formatGrassTouchesPerMinute(output)} (${outputDelta}) | ${milestoneStatus} | Cost ${formatGrassTouches(cost)}`,
         );
+        view.status.setColor("#f4df6a");
+      }
+    }
+  }
+
+  private refreshGoldItemStore(): void {
+    const compact = this.scale.width < 560;
+    const ownedCompanions = GOLD_STORE_ITEMS.filter((item) => item.kind === "animal" && getInventoryQuantity(this.state, item.id) > 0).length;
+    const totalCompanions = GOLD_STORE_ITEMS.filter((item) => item.kind === "animal").length;
+    this.storeResourceText.setText(
+      compact
+        ? `Gold: ${Math.floor(this.state.gold)}\nCompanions: ${ownedCompanions}/${totalCompanions}`
+        : `Gold: ${Math.floor(this.state.gold)} | Seeds: ${Math.floor(this.state.seeds)} | Companions: ${ownedCompanions}/${totalCompanions}`,
+    );
+
+    for (const item of GOLD_STORE_ITEMS) {
+      const view = this.storeGoldItemViews.get(item.id);
+      if (!view) {
+        continue;
+      }
+
+      const quantity = getInventoryQuantity(this.state, item.id);
+      const unlocked = item.isUnlocked(this.state);
+      const maxed = item.maxQuantity !== undefined && quantity >= item.maxQuantity;
+      const affordable = this.state.gold >= item.cost;
+      const maxText = item.maxQuantity === undefined ? "" : `/${item.maxQuantity}`;
+
+      view.container.setAlpha(unlocked || quantity > 0 ? 1 : 0.68);
+      view.bg.setFillStyle(quantity > 0 ? 0x1c4728 : 0x12341c, unlocked || quantity > 0 ? 0.96 : 0.62);
+      view.bg.setStrokeStyle(3, affordable && unlocked && !maxed ? 0xffef78 : quantity > 0 ? 0x85d35e : 0xb7eba5, unlocked || quantity > 0 ? 0.86 : 0.44);
+
+      if (!unlocked && quantity <= 0) {
+        view.status.setText("Locked");
+        view.status.setColor("#8ea594");
+      } else if (item.kind === "consumable" && quantity > 0) {
+        view.status.setText(`Owned ${quantity} | Click to use`);
+        view.status.setColor("#f4df6a");
+      } else if (maxed) {
+        view.status.setText(`Owned ${quantity}${maxText} | Ready to place`);
+        view.status.setColor("#b7eba5");
+      } else if (!affordable) {
+        view.status.setText(`Owned ${quantity}${maxText} | Need ${item.cost - Math.floor(this.state.gold)} gold`);
+        view.status.setColor("#d6e6d0");
+      } else {
+        view.status.setText(`Owned ${quantity}${maxText} | Cost ${item.cost} gold`);
         view.status.setColor("#f4df6a");
       }
     }
@@ -7797,13 +7965,13 @@ export class GameScene extends Phaser.Scene {
     this.storeStatusText.setText(message);
     this.time.delayedCall(duration, () => {
       if (this.storeOpen) {
-        this.storeStatusText.setText("Buy running automation systems with Grass Touches.");
+        this.storeStatusText.setText(this.getDefaultStoreStatus());
       }
     });
   }
 
   private playGoldStoreItemSuccess(itemId: string): void {
-    const view = this.storeItemViews.get(itemId);
+    const view = this.getActiveStoreItemViews().get(itemId);
     if (!view || !this.storeOpen || !view.container.visible) {
       return;
     }
@@ -7917,6 +8085,14 @@ export class GameScene extends Phaser.Scene {
       const cost = getAutomationSystemCost(system, owned);
       if (system.isUnlocked(this.state) && canAffordGrassTouches(this.state.grassTouches, cost)) {
         keys.add(`automation:${system.id}:${owned + 1}`);
+      }
+    }
+
+    for (const item of GOLD_STORE_ITEMS) {
+      const quantity = getInventoryQuantity(this.state, item.id);
+      const maxed = item.maxQuantity !== undefined && quantity >= item.maxQuantity;
+      if (!maxed && item.isUnlocked(this.state) && this.state.gold >= item.cost && (item.kind !== "consumable" || quantity === 0)) {
+        keys.add(`gold:${item.id}:${quantity + 1}`);
       }
     }
 
