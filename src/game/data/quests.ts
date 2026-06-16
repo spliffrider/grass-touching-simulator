@@ -257,12 +257,27 @@ export const QUESTS: QuestDefinition[] = [
     getProgress: (state) => `${Math.min(1, state.automationSystems?.sprinkler?.owned ?? 0)}/1 Tiny Sprinklers running`,
   },
   {
+    id: "sprinkler_placed",
+    category: "Automation",
+    name: "Aim The Rain",
+    description: "Place your Tiny Sprinkler on the field.",
+    reward: { seeds: 3, gold: 1 },
+    prerequisiteQuestIds: ["seed_pouch_owner"],
+    isComplete: (state) => state.placedWorldObjects.sprinkler !== undefined,
+    getProgress: (state) =>
+      state.placedWorldObjects.sprinkler
+        ? "Tiny Sprinkler placed"
+        : (state.automationSystems?.sprinkler?.owned ?? 0) > 0
+          ? "Not placed yet"
+          : "Get a Tiny Sprinkler running first",
+  },
+  {
     id: "automation_actions_25",
     category: "Automation",
     name: "Let The Lawn Help",
     description: "Let automation complete 25 successful actions.",
     reward: { seeds: 4, gold: 1 },
-    prerequisiteQuestIds: ["sprinkler_owner"],
+    prerequisiteQuestIds: ["sprinkler_placed"],
     isComplete: (state) => state.automationStats.automatedActions >= 25,
     getProgress: (state) => `${Math.min(25, state.automationStats.automatedActions)}/25 actions`,
   },

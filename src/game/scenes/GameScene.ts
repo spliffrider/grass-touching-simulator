@@ -237,7 +237,15 @@ const GOLD_STORE_ICON_KEYS: Record<string, string> = {
   earthworm: "world-earthworm",
 };
 
-const WORLD_OBJECTS: Array<{ id: string; textureKey: string; label: string; kind: "seed" | "inventory" }> = [];
+const WORLD_OBJECTS: Array<{ id: string; textureKey: string; label: string; kind: "automation" | "inventory" }> = [
+  { id: "sprinkler", textureKey: "world-tiny-sprinkler", label: "Tiny Sprinkler", kind: "automation" },
+  { id: "field_mouse", textureKey: "world-field-mouse", label: "Field Mouse", kind: "inventory" },
+  { id: "bee_hive", textureKey: "world-bee-hive", label: "Bee Hive", kind: "inventory" },
+  { id: "earthworm", textureKey: "world-earthworm", label: "Earthworm", kind: "inventory" },
+  { id: "chicken", textureKey: "world-chicken", label: "Chicken", kind: "inventory" },
+  { id: "sheep", textureKey: "world-sheep", label: "Sheep", kind: "inventory" },
+  { id: "meadow_rabbit", textureKey: "world-meadow-rabbit", label: "Meadow Rabbit", kind: "inventory" },
+];
 
 interface TileView {
   base: Phaser.GameObjects.Image;
@@ -3561,12 +3569,14 @@ export class GameScene extends Phaser.Scene {
     const milestoneLabel = getAutomationSystemMilestoneLabel(this.state, system.id);
     const derivativeSupport = getAutomationSystemDerivativeSupport(this.state, system.id);
     const supportLabel = derivativeSupport > 0 ? `, +${formatAutomationSupportUnits(derivativeSupport)} support` : "";
-    this.setStoreStatus(
-      `${system.name} running x${owned + 1}. Output: ${formatGrassTouchesPerMinute(nextOutput)} (${formatAutomationOutputDelta(
-        previousOutput,
-        nextOutput,
-      )})${milestoneLabel ? ` (${milestoneLabel}${supportLabel})` : supportLabel}.`,
-    );
+    const statusMessage =
+      system.id === "sprinkler" && owned === 0
+        ? `${system.name} running x1. Back on the field, click the sprinkler icon to place its coverage.`
+        : `${system.name} running x${owned + 1}. Output: ${formatGrassTouchesPerMinute(nextOutput)} (${formatAutomationOutputDelta(
+            previousOutput,
+            nextOutput,
+          )})${milestoneLabel ? ` (${milestoneLabel}${supportLabel})` : supportLabel}.`;
+    this.setStoreStatus(statusMessage, system.id === "sprinkler" && owned === 0 ? 4600 : undefined);
     this.audio.play(owned === 0 ? "milestone" : "upgrade");
     this.saveState();
     this.refreshUi();
@@ -4216,7 +4226,7 @@ export class GameScene extends Phaser.Scene {
 
   private getActiveWorldObjects(): Array<{ id: string; textureKey: string; label: string; quantity: number }> {
     return WORLD_OBJECTS.flatMap((object) => {
-      const quantity = object.kind === "seed" ? (this.state.seedShopPurchases[object.id] ? 1 : 0) : getInventoryQuantity(this.state, object.id);
+      const quantity = this.getWorldObjectQuantity(object.id);
 
       if (quantity <= 0) {
         return [];
@@ -4235,12 +4245,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   private isWorldObjectOwned(id: string): boolean {
+    return this.getWorldObjectQuantity(id) > 0;
+  }
+
+  private getWorldObjectQuantity(id: string): number {
     const object = WORLD_OBJECTS.find((candidate) => candidate.id === id);
     if (!object) {
-      return false;
+      return 0;
     }
 
-    return object.kind === "seed" ? this.state.seedShopPurchases[id] === true : getInventoryQuantity(this.state, id) > 0;
+    return object.kind === "automation" ? getAutomationSystemOwned(this.state, id) : getInventoryQuantity(this.state, id);
   }
 
   private beginWorldObjectPlacement(id: string): void {
@@ -4816,10 +4830,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshWorldObjectInfo(id: string): void {
-    const quantity = id === "sprinkler" ? (this.state.seedShopPurchases.sprinkler ? 1 : 0) : getInventoryQuantity(this.state, id);
+    const quantity = this.getWorldObjectQuantity(id);
     const storeItem = GOLD_STORE_ITEMS.find((item) => item.id === id);
     const seedItem = SEED_SHOP_ITEMS.find((item) => item.id === id);
-    const title = storeItem?.name ?? seedItem?.name ?? this.getWorldObjectLabel(id);
+    const title = this.getWorldObjectLabel(id) ?? storeItem?.name ?? seedItem?.name ?? id;
     const summary = this.getWorldObjectSummary(id);
     const countLine = quantity > 1 ? `Owned: ${quantity}` : quantity === 1 ? "Owned: 1" : "";
     const placement = this.state.placedWorldObjects[id];
@@ -5019,6 +5033,9 @@ export class GameScene extends Phaser.Scene {
     this.layoutWorldObjects();
     this.refreshTileInfo(tile);
     this.popAtTile(tile, `${this.getWorldObjectLabel(objectId)} placed`, "#ffef78");
+    if (objectId === "sprinkler") {
+      this.showMessage("Tiny Sprinkler placed. Its water reaches nearby patches.", 3400);
+    }
     this.playPlacementFeedback(tile, objectId);
     this.audio.play("upgrade");
     this.saveState();
@@ -7653,9 +7670,9 @@ export class GameScene extends Phaser.Scene {
     this.playShopItemSuccess(view.container, view.bg, view.iconBg, view.icon, 0x85d35e);
   }
 
-  private setStoreStatus(message: string): void {
+  private setStoreStatus(message: string, duration = 1900): void {
     this.storeStatusText.setText(message);
-    this.time.delayedCall(1900, () => {
+    this.time.delayedCall(duration, () => {
       if (this.storeOpen) {
         this.storeStatusText.setText("Buy running automation systems with Grass Touches.");
       }
@@ -8154,8 +8171,9 @@ export class GameScene extends Phaser.Scene {
       getInventoryQuantity(this.state, "sheep") +
       getInventoryQuantity(this.state, "meadow_rabbit") +
       getInventoryQuantity(this.state, "earthworm");
+    const sprinklerCount = getAutomationSystemOwned(this.state, "sprinkler");
     const parts = [
-      this.state.seedShopPurchases.sprinkler ? "sprinkler" : "",
+      sprinklerCount > 0 ? "sprinkler" : "",
       companionCount > 0 ? `${companionCount} companion${companionCount === 1 ? "" : "s"}` : "",
     ].filter(Boolean);
 
@@ -8175,7 +8193,7 @@ export class GameScene extends Phaser.Scene {
     ].filter(Boolean);
 
     if (compact) {
-      const activeCount = (this.state.seedShopPurchases.sprinkler ? 1 : 0) + companionCount;
+      const activeCount = (sprinklerCount > 0 ? 1 : 0) + companionCount;
       const directiveText = directive.id === "autopilot" ? `${directive.shortName}->${resolvedDirectiveName}` : directive.shortName;
       return `Auto: ${activeCount} active, ${directiveText}${boosts.length > 0 ? `, ${boosts.length} boosts` : ""}`;
     }

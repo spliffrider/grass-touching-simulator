@@ -146,9 +146,22 @@ function readBooleanRecord(value: unknown): Record<string, boolean> {
   return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean"));
 }
 
-function readPlacedWorldObjects(_value: unknown, _field: Record<TileKey, FieldTile>): Record<string, PlacedWorldObject> {
-  // Automation systems are now aggregate infrastructure rather than placed board objects.
-  return {};
+function readPlacedWorldObjects(value: unknown, field: Record<TileKey, FieldTile>): Record<string, PlacedWorldObject> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const placements: Record<string, PlacedWorldObject> = {};
+
+  for (const [objectId, placement] of Object.entries(value)) {
+    if (!isRecord(placement) || typeof placement.tileKey !== "string" || !field[placement.tileKey as TileKey]) {
+      continue;
+    }
+
+    placements[objectId] = { tileKey: placement.tileKey as TileKey };
+  }
+
+  return placements;
 }
 
 function readJournal(value: unknown, fallback: JournalState): JournalState {
