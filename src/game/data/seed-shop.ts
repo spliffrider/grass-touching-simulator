@@ -24,18 +24,18 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
     isUnlocked: (state) => state.seedShopPurchases.seed_pouch === true,
   },
   {
-    id: "wild_spread",
-    name: "Wild Spread",
-    description: "Seed drops sometimes sprout an extra nearby grass tile.",
-    cost: 35,
-    isUnlocked: (state) => state.seedShopPurchases.sprinkler === true,
-  },
-  {
     id: "field_journal",
     name: "Field Journal",
     description: "Studying grass makes rare tiers appear slightly more often.",
     cost: 28,
     isUnlocked: (state) => state.seedShopPurchases.seed_pouch === true,
+  },
+  {
+    id: "wild_spread",
+    name: "Wild Spread",
+    description: "Seed drops sometimes sprout an extra nearby grass tile.",
+    cost: 35,
+    isUnlocked: (state) => state.seedShopPurchases.sprinkler === true,
   },
   {
     id: "quest_clipboard",

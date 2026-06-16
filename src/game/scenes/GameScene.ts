@@ -667,7 +667,6 @@ export class GameScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor("#06190f");
     this.createEmeraldBackdrop();
-    this.updateWeather(Date.now(), false);
     this.createTileTextures();
     this.createHeader();
     this.createBoardLayers();
@@ -682,6 +681,7 @@ export class GameScene extends Phaser.Scene {
     this.createGoldStore();
     this.createAutomationPanel();
     this.createOptionsPanel();
+    this.updateWeather(Date.now(), false);
     this.renderAllTiles();
     this.layoutHeader();
     this.layoutSkillTree();
@@ -1718,9 +1718,11 @@ export class GameScene extends Phaser.Scene {
     this.weatherTint.setSize(this.scale.width, this.scale.height);
     const compact = this.scale.width < 720;
     const badgeWidth = compact ? Math.max(220, this.scale.width - 180) : 280;
+    const rightMenuLeft = this.scale.width - 156;
+    const desktopBadgeX = Math.max(26, rightMenuLeft - badgeWidth - 18);
     this.weatherBadgeBg.setSize(badgeWidth, compact ? 66 : 58);
     this.weatherBadgeBody.setWordWrapWidth(badgeWidth - 30);
-    this.weatherBadge.setPosition(compact ? 26 : this.scale.width - 320, compact ? this.optionsButton.y + 58 : 232);
+    this.weatherBadge.setPosition(compact ? 26 : desktopBadgeX, compact ? this.optionsButton.y + 58 : 232);
 
     if (this.state?.seedShopPurchases.weather_jar && this.state.activeWeatherId && this.activeWeatherVisualId === this.state.activeWeatherId) {
       this.createWeatherParticleEffect(this.state.activeWeatherId);
@@ -6512,6 +6514,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playJournalCelebration(): void {
+    if (!this.journalButton || !this.resourceText) {
+      return;
+    }
+
     if (this.journalButton.visible) {
       this.playButtonCelebration(this.journalButton, 0xdfffc8, "dew-fleck");
       return;
