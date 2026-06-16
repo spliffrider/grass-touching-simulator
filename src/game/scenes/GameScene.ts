@@ -130,6 +130,10 @@ function formatAutomationSupportUnits(support: number): string {
   return support >= 10 ? support.toFixed(0) : support.toFixed(1);
 }
 
+function formatAutomationSupportText(support: number): string {
+  return support > 0 ? `Support +${formatAutomationSupportUnits(support)}` : "";
+}
+
 function getAutomationPreviewState(state: GameState, systemId: string, owned: number): GameState {
   return {
     ...state,
@@ -3570,14 +3574,15 @@ export class GameScene extends Phaser.Scene {
     );
     const milestoneLabel = getAutomationSystemMilestoneLabel(this.state, system.id);
     const derivativeSupport = getAutomationSystemDerivativeSupport(this.state, system.id);
-    const supportLabel = derivativeSupport > 0 ? `, +${formatAutomationSupportUnits(derivativeSupport)} support` : "";
+    const supportText = formatAutomationSupportText(derivativeSupport);
+    const bonusParts = [milestoneLabel, supportText].filter(Boolean);
     const statusMessage =
       system.id === "sprinkler" && owned === 0
         ? `${system.name} running x1. Back on the field, click the sprinkler icon to place its coverage.`
         : `${system.name} running x${owned + 1}. Output: ${formatGrassTouchesPerMinute(nextOutput)} (${formatAutomationOutputDelta(
             previousOutput,
             nextOutput,
-          )})${milestoneLabel ? ` (${milestoneLabel}${supportLabel})` : supportLabel}.`;
+          )})${bonusParts.length > 0 ? ` (${bonusParts.join(", ")})` : ""}.`;
     this.setStoreStatus(statusMessage, system.id === "sprinkler" && owned === 0 ? 4600 : undefined);
     this.audio.play(owned === 0 ? "milestone" : "upgrade");
     this.saveState();
@@ -7633,7 +7638,8 @@ export class GameScene extends Phaser.Scene {
       );
       const outputDelta = formatAutomationOutputDelta(output, previewOutput);
       const derivativeSupport = getAutomationSystemDerivativeSupport(this.state, system.id);
-      const ownedText = derivativeSupport > 0 ? `${owned}+${formatAutomationSupportUnits(derivativeSupport)}` : `${owned}`;
+      const supportText = formatAutomationSupportText(derivativeSupport);
+      const supportSuffix = supportText ? ` | ${supportText}` : "";
       const milestoneMultiplier = getAutomationSystemMilestoneMultiplier(this.state, system.id);
       const nextMilestone = getNextAutomationSystemMilestone(previewState, system.id);
       const milestoneStatus =
@@ -7654,14 +7660,14 @@ export class GameScene extends Phaser.Scene {
         view.status.setColor("#8ea594");
       } else if (!affordable) {
         view.status.setText(
-          `Owned ${ownedText} | ${formatGrassTouchesPerMinute(output)} (${outputDelta}) | ${milestoneStatus} | Need ${formatGrassTouches(
+          `Owned ${owned}${supportSuffix} | ${formatGrassTouchesPerMinute(output)} (${outputDelta}) | ${milestoneStatus} | Need ${formatGrassTouches(
             getMissingGrassTouches(this.state.grassTouches, cost),
           )}`,
         );
         view.status.setColor("#d6e6d0");
       } else {
         view.status.setText(
-          `Owned ${ownedText} | ${formatGrassTouchesPerMinute(output)} (${outputDelta}) | ${milestoneStatus} | Cost ${formatGrassTouches(cost)}`,
+          `Owned ${owned}${supportSuffix} | ${formatGrassTouchesPerMinute(output)} (${outputDelta}) | ${milestoneStatus} | Cost ${formatGrassTouches(cost)}`,
         );
         view.status.setColor("#f4df6a");
       }
