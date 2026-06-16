@@ -7,6 +7,7 @@ export interface DropFeedback {
   createTileView(tile: FieldTile): void;
   layoutTiles(): void;
   popAtTile(tile: FieldTile, text: string, color: string): void;
+  playWildSpread(originTile: FieldTile, addedTiles: FieldTile[]): void;
   emitSeedBurst(tile: FieldTile): void;
   emitGoldBurst(tile: FieldTile, amount?: number): void;
   playSound(sound: "seed" | "regrow" | "gold"): void;
@@ -46,8 +47,10 @@ export class DropSystem {
 
       if (addedTiles.length > 0) {
         feedback.layoutTiles();
+        feedback.playWildSpread(tile, addedTiles);
+        feedback.popAtTile(tile, "Wild Spread!", "#fff1a8");
         for (const addedTile of addedTiles) {
-          feedback.popAtTile(addedTile, "sprout", "#dfffc8");
+          feedback.popAtTile(addedTile, "wild sprout", "#dfffc8");
         }
         feedback.playSound("regrow");
       }

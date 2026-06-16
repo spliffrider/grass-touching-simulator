@@ -5521,6 +5521,7 @@ export class GameScene extends Phaser.Scene {
         this.layoutTiles();
       },
       popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
+      playWildSpread: (originTile, addedTiles) => this.playWildSpreadFeedback(originTile, addedTiles),
       emitSeedBurst: (tile) => this.emitSeedBurst(tile),
       emitGoldBurst: (tile, amount) => this.emitGoldBurst(tile, amount),
       playSound: (sound) => this.audio.play(sound),
@@ -5545,6 +5546,116 @@ export class GameScene extends Phaser.Scene {
 
     this.emitBurst("gold-fleck", position.x, position.y - 10, 14, 0.7, 0.24);
     this.spawnRewardArc("effect-gold-coin", position.x, position.y - 10, "gold", amount);
+  }
+
+  private playWildSpreadFeedback(originTile: FieldTile, addedTiles: FieldTile[]): void {
+    if (addedTiles.length === 0) {
+      return;
+    }
+
+    const originPosition = this.getTileVisualPosition(originTile);
+    if (originPosition && !this.isAmbientFeedbackActive()) {
+      this.emitBurst("seed-fleck", originPosition.x, originPosition.y - 12, 18, 0.82, 0.24);
+    }
+
+    addedTiles.forEach((addedTile, index) => {
+      this.playTileDropIn(addedTile, index * 90);
+      this.time.delayedCall(index * 90 + 90, () => this.playWildSpreadSprout(originTile, addedTile));
+    });
+
+    const patchText = addedTiles.length === 1 ? "+1 patch" : `+${addedTiles.length} patches`;
+    this.showMessage(`Wild Spread: ${patchText}`, 1800);
+  }
+
+  private playWildSpreadSprout(originTile: FieldTile, addedTile: FieldTile): void {
+    const originPosition = this.getTileVisualPosition(originTile);
+    const targetPosition = this.getTileVisualPosition(addedTile);
+    if (!targetPosition) {
+      return;
+    }
+
+    if (originPosition && this.getBudgetedRewardArcSpriteCount(1) > 0) {
+      this.spawnWildSpreadSeedArc(originPosition, targetPosition);
+    }
+
+    if (this.reserveAmbientTransientObject(2)) {
+      const ring = this.add
+        .ellipse(
+          targetPosition.x,
+          targetPosition.y + 3 * this.boardScale,
+          TILE_SIZE * 0.34 * this.boardScale,
+          TILE_SIZE * 0.2 * this.boardScale,
+          0xdfffc8,
+          0.24,
+        )
+        .setStrokeStyle(Math.max(2, 3 * this.boardScale), 0xfff1a8, 0.85)
+        .setDepth(39);
+      const sprout = this.add
+        .star(
+          targetPosition.x,
+          targetPosition.y - 15 * this.boardScale,
+          5,
+          TILE_SIZE * 0.07 * this.boardScale,
+          TILE_SIZE * 0.32 * this.boardScale,
+          0xdfffc8,
+          0.82,
+        )
+        .setStrokeStyle(2, 0xffffff, 0.86)
+        .setDepth(40);
+
+      this.tweens.add({
+        targets: ring,
+        scaleX: 2,
+        scaleY: 1.55,
+        alpha: 0,
+        duration: 520,
+        ease: "Sine.easeOut",
+        onComplete: () => ring.destroy(),
+      });
+
+      this.tweens.add({
+        targets: sprout,
+        angle: 35,
+        scaleX: 1.45,
+        scaleY: 1.45,
+        y: sprout.y - 10 * this.boardScale,
+        alpha: 0,
+        duration: 480,
+        ease: "Sine.easeOut",
+        onComplete: () => sprout.destroy(),
+      });
+    }
+
+    this.emitBurst("grass-fleck", targetPosition.x, targetPosition.y - 6, 22, 0.95, 0.24);
+    this.emitBurst("seed-fleck", targetPosition.x, targetPosition.y - 14, 10, 0.72, 0.18);
+  }
+
+  private spawnWildSpreadSeedArc(start: { x: number; y: number }, end: { x: number; y: number }): void {
+    const arcStart = new Phaser.Math.Vector2(start.x, start.y - 12 * this.boardScale);
+    const arcEnd = new Phaser.Math.Vector2(end.x, end.y - 12 * this.boardScale);
+    const control = new Phaser.Math.Vector2((arcStart.x + arcEnd.x) / 2, Math.min(arcStart.y, arcEnd.y) - 54 * this.boardScale);
+    const curve = new Phaser.Curves.QuadraticBezier(arcStart, control, arcEnd);
+    const progress = { value: 0 };
+    const seed = this.add
+      .image(arcStart.x, arcStart.y, "effect-seed-kernel")
+      .setDepth(42)
+      .setScale(Math.max(1.35, this.boardScale * 1.9))
+      .setAlpha(0.95);
+    const baseScale = seed.scaleX;
+
+    this.tweens.add({
+      targets: progress,
+      value: 1,
+      duration: 520,
+      ease: "Sine.easeInOut",
+      onUpdate: () => {
+        const point = curve.getPoint(progress.value);
+        seed.setPosition(point.x, point.y);
+        seed.setAngle(260 * progress.value);
+        seed.setScale(baseScale * (1 - progress.value * 0.28));
+      },
+      onComplete: () => seed.destroy(),
+    });
   }
 
   private updateAutomationIncome(delta: number, stats: RuntimeStats): void {
