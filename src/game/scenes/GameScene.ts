@@ -167,6 +167,8 @@ const COMBO_AOE_MIN_COUNT = 18;
 const COMBO_AOE_HIGH_COUNT = 36;
 const COMBO_AOE_CHANCE = 0.12;
 const COMBO_AOE_HIGH_CHANCE = 0.25;
+const AUTOMATION_COMBO_WINDOW_MS = 12000;
+const AUTOMATION_COMBO_BONUS_SCALE = 0.35;
 const PERFECT_TOUCH_WINDOW_MS = 650;
 const PERFECT_TOUCH_BONUS_MULTIPLIER = 0.25;
 const GOLDEN_HOUR_PERFECT_GOLD_CHANCE = 0.04;
@@ -176,6 +178,9 @@ const ENCORE_CIRCLE_AOE_CHANCE_BONUS = 0.02;
 const WILDFLOWER_POLLINATE_CHANCE = 0.22;
 const MUSHROOM_SPORE_CHANCE = 0.18;
 const CRYSTAL_GOLD_CHANCE = 0.16;
+const WATERING_CAN_REGROW_FACTOR = 0.7;
+const WATERING_CAN_SPLASH_REGROW_FACTOR = 0.78;
+const WATERING_CAN_MIN_REMAINING_MS = 320;
 const COMBO_AOE_NEIGHBORS = [
   { x: -1, y: -1 },
   { x: 0, y: -1 },
@@ -215,6 +220,7 @@ const getSkillIconKey = (upgradeId: string): string => `skill-${upgradeId.replac
 const SEED_SHOP_ICON_KEYS: Record<string, string> = {
   seed_pouch: "item-seed-pouch",
   sprinkler: "world-tiny-sprinkler",
+  watering_can: "item-watering-can",
   wild_spread: "item-wild-spread",
   field_journal: "item-field-journal",
   quest_clipboard: "item-quest-clipboard",
@@ -239,6 +245,10 @@ const GOLD_STORE_ICON_KEYS: Record<string, string> = {
   sheep: "world-sheep",
   meadow_rabbit: "world-meadow-rabbit",
   earthworm: "world-earthworm",
+};
+
+const ITEM_ICON_ASSET_PATHS: Partial<Record<string, string>> = {
+  "item-watering-can": "/assets/ui/items/watering-can.svg",
 };
 
 const WORLD_OBJECTS: Array<{ id: string; textureKey: string; label: string; kind: "automation" | "inventory" }> = [
@@ -297,6 +307,7 @@ interface GoldStoreItemView {
 }
 
 type StoreMode = "automation" | "goods";
+type ComboTouchSource = "manual" | "sprinkler" | "field_mouse" | "meadow_rabbit" | "sheep";
 
 interface QuestItemView {
   questId: string;
@@ -642,7 +653,7 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
 
-      this.load.image(itemKey, `/assets/ui/items/${itemKey.replace("item-", "")}.png`);
+      this.load.image(itemKey, ITEM_ICON_ASSET_PATHS[itemKey] ?? `/assets/ui/items/${itemKey.replace("item-", "")}.png`);
     }
 
     for (const upgrade of UPGRADES) {
@@ -5076,19 +5087,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const combo = this.combo.recordManualTouch(now, touch.gained, {
-      windowMs: this.combo.getBaseWindowMs() * stats.comboWindowMultiplier,
-      bonusMultiplier: stats.comboBonusMultiplier,
-    });
-    this.lastMusicComboLevel = combo.count;
-    this.music.setComboLevel(combo.count);
-    if (combo.count > this.state.journal.bestComboCount) {
-      this.state.journal.bestComboCount = combo.count;
-    }
-    if (combo.bonusTouches > 0) {
-      this.state.grassTouches = addGrassTouches(this.state.grassTouches, combo.bonusTouches);
-      this.state.lifetimeGrassTouches = addGrassTouches(this.state.lifetimeGrassTouches, combo.bonusTouches);
-    }
+    const combo = this.recordComboTouch(tile, touch, stats, now, "manual");
     const perfectTouchBonus = this.consumePerfectTouchBonus(tile, touch.gained, now);
     if (perfectTouchBonus > 0) {
       this.state.grassTouches = addGrassTouches(this.state.grassTouches, perfectTouchBonus);
@@ -5109,6 +5108,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshTile(tile);
     this.popAtTile(tile, this.getTouchPopText(touch), touch.isCrit ? "#ffef78" : touchedTier.id === "normal" ? "#f9ffe5" : "#dfffc8");
     this.applyPlacementSynergyFeedback(tile, placementSynergy, now);
+    this.applyWateringCanSplash(tile, now, combo.count);
     if (perfectTouchBonus > 0) {
       this.playPerfectTouchFeedback(tile, perfectTouchBonus);
       if (perfectGoldBonus > 0) {
@@ -5132,6 +5132,35 @@ export class GameScene extends Phaser.Scene {
     } finally {
       this.recordPerfScope("touch", performance.now() - perfStart);
     }
+  }
+
+  private recordComboTouch(tile: FieldTile, touch: TouchResult, stats: RuntimeStats, now: number, source: ComboTouchSource): ComboResult {
+    const automated = source !== "manual";
+    const combo = this.combo.recordTouch(now, touch.gained, {
+      windowMs: automated ? AUTOMATION_COMBO_WINDOW_MS * stats.comboWindowMultiplier : this.combo.getBaseWindowMs() * stats.comboWindowMultiplier,
+      bonusMultiplier: stats.comboBonusMultiplier * (automated ? AUTOMATION_COMBO_BONUS_SCALE : 1),
+    });
+
+    this.lastMusicComboLevel = combo.count;
+    this.music.setComboLevel(combo.count);
+    if (combo.count > this.state.journal.bestComboCount) {
+      this.state.journal.bestComboCount = combo.count;
+    }
+    if (combo.bonusTouches > 0) {
+      this.state.grassTouches = addGrassTouches(this.state.grassTouches, combo.bonusTouches);
+      this.state.lifetimeGrassTouches = addGrassTouches(this.state.lifetimeGrassTouches, combo.bonusTouches);
+    }
+    if (automated) {
+      this.playAutomationComboFlair(tile, combo, source);
+    }
+
+    return combo;
+  }
+
+  private recordAutomationComboTouch(tile: FieldTile, touch: TouchResult, stats: RuntimeStats, source: Exclude<ComboTouchSource, "manual">): number {
+    const combo = this.recordComboTouch(tile, touch, stats, Date.now(), source);
+    this.playComboFeedback(tile, combo, source);
+    return combo.count;
   }
 
   private placeSelectedWorldObject(tile: FieldTile): void {
@@ -5256,6 +5285,40 @@ export class GameScene extends Phaser.Scene {
         this.playPlacementPulse(placedTile, objectId);
       }
     }
+  }
+
+  private applyWateringCanSplash(originTile: FieldTile, now: number, comboCount: number): void {
+    if (!this.state.seedShopPurchases.watering_can) {
+      return;
+    }
+
+    const nearbyRestingTiles = Phaser.Utils.Array.Shuffle(this.getNeighborTiles(originTile).filter((tile) => tile.grassState === "regrowing"));
+    const maxSplashTiles = 1 + (comboCount >= 6 ? 1 : 0) + (comboCount >= 12 ? 1 : 0);
+    const candidates = [originTile, ...nearbyRestingTiles].filter((tile) => tile.grassState === "regrowing");
+    const wateredTiles: FieldTile[] = [];
+
+    for (const tile of candidates) {
+      if (wateredTiles.length >= maxSplashTiles) {
+        break;
+      }
+
+      const remainingMs = Math.max(0, tile.regrowEndsAt - now);
+      if (remainingMs <= WATERING_CAN_MIN_REMAINING_MS) {
+        continue;
+      }
+
+      const regrowFactor = tile === originTile ? WATERING_CAN_REGROW_FACTOR : WATERING_CAN_SPLASH_REGROW_FACTOR;
+      tile.regrowEndsAt = now + Math.max(WATERING_CAN_MIN_REMAINING_MS, Math.floor(remainingMs * regrowFactor));
+      this.refreshTile(tile);
+      this.playWateringCanSplash(tile, tile === originTile);
+      wateredTiles.push(tile);
+    }
+
+    if (wateredTiles.length === 0) {
+      return;
+    }
+
+    this.popAtTile(originTile, wateredTiles.length > 1 ? `watered x${wateredTiles.length}` : "watered", "#bff4ff");
   }
 
   private pollinateNeighborFromPlacement(originTile: FieldTile): void {
@@ -5808,7 +5871,8 @@ export class GameScene extends Phaser.Scene {
           this.drops.tryDropSeed(this.state, tile, touchedTrait, runtimeStats, this.getDropFeedback(), chanceScale),
         tryDropGold: (tile, touchedTrait, touchedTier, touch, runtimeStats, chanceScale) =>
           this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier, touch, runtimeStats, this.getDropFeedback(), chanceScale),
-        playGrassTouch: (tier, trait, isCrit) => this.audio.playGrassTouch(tier, trait, isCrit),
+        recordAutomationCombo: (tile, touch, source) => this.recordAutomationComboTouch(tile, touch, stats, source),
+        playGrassTouch: (tier, trait, isCrit, comboCount) => this.audio.playGrassTouch(tier, trait, isCrit, comboCount),
       });
     });
 
@@ -5830,8 +5894,9 @@ export class GameScene extends Phaser.Scene {
         emitGoldBurst: (tile, amount) => this.emitGoldBurst(tile, amount),
         playCompanionAction: (tile, action) => this.playCompanionAction(tile, action),
         playTouchFeedback: (tile, touchedTrait, isCrit) => this.playTouchFeedback(tile, touchedTrait, isCrit),
+        recordAutomationCombo: (tile, touch, source) => this.recordAutomationComboTouch(tile, touch, stats, source),
         playSound: (sound) => this.audio.play(sound),
-        playGrassTouch: (tier, trait, isCrit) => this.audio.playGrassTouch(tier, trait, isCrit),
+        playGrassTouch: (tier, trait, isCrit, comboCount) => this.audio.playGrassTouch(tier, trait, isCrit, comboCount),
       });
     });
 
@@ -5927,19 +5992,20 @@ export class GameScene extends Phaser.Scene {
     return [`+${touch.gained}`, ...effects].join(" ");
   }
 
-  private playComboFeedback(tile: FieldTile, combo: ComboResult): void {
+  private playComboFeedback(tile: FieldTile, combo: ComboResult, source: ComboTouchSource = "manual"): void {
     if (combo.count < 2) {
       return;
     }
 
+    const automated = source !== "manual";
     const busyField = this.fieldTileCount >= 220;
     const comboPopInterval = busyField ? 10 : 5;
     if (combo.bonusTouches > 0) {
       if (!busyField || combo.thresholdReached || combo.count <= 3 || combo.count % comboPopInterval === 0) {
-        this.popAtTile(tile, `combo +${combo.bonusTouches}`, "#f4df6a");
+        this.popAtTile(tile, `${automated ? "auto " : "combo "}+${combo.bonusTouches}`, automated ? "#bff4ff" : "#f4df6a");
       }
     } else if (combo.thresholdReached || combo.count <= 3 || combo.count % comboPopInterval === 0) {
-      this.popAtTile(tile, `${combo.count} combo`, "#b7eba5");
+      this.popAtTile(tile, automated ? `auto combo ${combo.count}` : `${combo.count} combo`, automated ? "#bff4ff" : "#b7eba5");
     }
 
     this.refreshComboBadge();
@@ -5950,13 +6016,81 @@ export class GameScene extends Phaser.Scene {
     }
 
     const multiplier = combo.multiplier.toFixed(combo.multiplier >= 2 ? 0 : 2);
-    this.showMessage(`${combo.thresholdReached} combo! Touch streak x${multiplier}.`, 1600);
+    this.showMessage(
+      automated ? `Automation streak ${combo.thresholdReached}! Combo x${multiplier}.` : `${combo.thresholdReached} combo! Touch streak x${multiplier}.`,
+      1600,
+    );
     this.audio.play(combo.thresholdReached >= 15 ? "unlock" : "crit");
 
     const view = this.tileViews.get(tileKey(tile.x, tile.y));
     if (view) {
       this.emitBurst("crit-fleck", view.label.x, view.label.y - 12, 26, 1.1 + Math.min(1, combo.thresholdReached / 40), 0.16);
     }
+  }
+
+  private playAutomationComboFlair(tile: FieldTile, combo: ComboResult, source: Exclude<ComboTouchSource, "manual">): void {
+    const position = this.getTileVisualPosition(tile);
+    if (!position) {
+      return;
+    }
+
+    const palette = {
+      sprinkler: { color: 0xa8e8ff, stroke: 0xd7fff2, texture: "effect-water-drop" },
+      field_mouse: { color: 0xffef78, stroke: 0xffffff, texture: "effect-gold-coin" },
+      meadow_rabbit: { color: 0xfff1a8, stroke: 0xffffff, texture: "effect-seed-kernel" },
+      sheep: { color: 0xdfffc8, stroke: 0xf7ffe8, texture: "grass-fleck" },
+    } satisfies Record<Exclude<ComboTouchSource, "manual">, { color: number; stroke: number; texture: string }>;
+    const style = palette[source];
+    const thresholdPulse = combo.thresholdReached !== undefined;
+    const comboScale = Phaser.Math.Clamp(combo.count / 32, 0.35, 1.25);
+
+    this.emitBurst(style.texture, position.x, position.y - 12 * this.boardScale, thresholdPulse ? 22 : 8, 0.58 + comboScale * 0.36, 0.2);
+
+    if (!thresholdPulse && combo.count > 3 && combo.count % 6 !== 0) {
+      return;
+    }
+
+    if (!this.reserveAmbientTransientObject(2)) {
+      return;
+    }
+
+    const ring = this.add
+      .ellipse(position.x, position.y + 2 * this.boardScale, TILE_SIZE * 0.42 * this.boardScale, TILE_SIZE * 0.22 * this.boardScale, style.color, 0.18)
+      .setStrokeStyle(Math.max(2, 3 * this.boardScale), style.stroke, 0.86)
+      .setDepth(39);
+    const spark = this.add
+      .star(
+        position.x,
+        position.y - 16 * this.boardScale,
+        6,
+        TILE_SIZE * 0.06 * this.boardScale,
+        TILE_SIZE * (thresholdPulse ? 0.42 : 0.28) * this.boardScale,
+        style.color,
+        thresholdPulse ? 0.86 : 0.62,
+      )
+      .setStrokeStyle(2, style.stroke, 0.85)
+      .setDepth(40);
+
+    this.tweens.add({
+      targets: ring,
+      scaleX: thresholdPulse ? 2.4 : 1.7,
+      scaleY: thresholdPulse ? 1.75 : 1.35,
+      alpha: 0,
+      duration: thresholdPulse ? 560 : 380,
+      ease: "Sine.easeOut",
+      onComplete: () => ring.destroy(),
+    });
+    this.tweens.add({
+      targets: spark,
+      angle: 48,
+      scaleX: thresholdPulse ? 1.7 : 1.32,
+      scaleY: thresholdPulse ? 1.7 : 1.32,
+      y: spark.y - (thresholdPulse ? 14 : 8) * this.boardScale,
+      alpha: 0,
+      duration: thresholdPulse ? 620 : 420,
+      ease: "Sine.easeOut",
+      onComplete: () => spark.destroy(),
+    });
   }
 
   private playClassTouchFeedback(tile: FieldTile, touch: TouchResult, combo: ComboResult): void {
@@ -6502,6 +6636,51 @@ export class GameScene extends Phaser.Scene {
         onComplete: () => sparkle.destroy(),
       });
     }
+  }
+
+  private playWateringCanSplash(tile: FieldTile, primary: boolean): void {
+    const position = this.getTileVisualPosition(tile);
+    if (!position) {
+      return;
+    }
+
+    const x = position.x;
+    const y = position.y;
+    this.emitBurst("effect-water-drop", x, y - 14 * this.boardScale, primary ? 16 : 9, primary ? 0.88 : 0.62, 0.32);
+
+    if (!primary || !this.reserveAmbientTransientObject(2)) {
+      return;
+    }
+
+    const ring = this.add
+      .ellipse(x, y + 1 * this.boardScale, TILE_SIZE * 0.34 * this.boardScale, TILE_SIZE * 0.19 * this.boardScale, 0xbff4ff, 0.18)
+      .setStrokeStyle(2, 0xd7fff2, 0.78)
+      .setDepth(38);
+    const droplet = this.add
+      .image(x + 5 * this.boardScale, y - 18 * this.boardScale, "effect-water-drop")
+      .setScale(2.2 * this.boardScale)
+      .setDepth(39)
+      .setAlpha(0.9);
+
+    this.tweens.add({
+      targets: ring,
+      scaleX: 1.7,
+      scaleY: 1.38,
+      alpha: 0,
+      duration: 360,
+      ease: "Sine.easeOut",
+      onComplete: () => ring.destroy(),
+    });
+    this.tweens.add({
+      targets: droplet,
+      x: droplet.x + 5 * this.boardScale,
+      y: droplet.y + 16 * this.boardScale,
+      angle: 12,
+      alpha: 0,
+      duration: 420,
+      ease: "Sine.easeIn",
+      onComplete: () => droplet.destroy(),
+    });
   }
 
   private playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze" | "burrow" | "scurry" | "hop"): void {
@@ -7506,7 +7685,7 @@ export class GameScene extends Phaser.Scene {
       `- Milestones reached: ${this.state.reachedMilestones.length}/${MILESTONES.length}`,
       `- Quests claimed: ${this.state.claimedQuestIds.length}/${this.getRelevantQuestCount()}`,
       `- Hybrid mutations: ${this.state.mutationEvents}`,
-      `- Best manual combo: ${this.state.journal.bestComboCount}`,
+      `- Best combo: ${this.state.journal.bestComboCount}`,
     ].join("\n");
   }
 

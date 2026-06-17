@@ -10,7 +10,7 @@ import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
 import { recordAutomationAction, recordAutomationSupplyDrop, recordAutomationTouch } from "./AutomationProgressSystem";
 import { getRandomFieldTile, getRandomGrownTile, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
 import { getInventoryQuantity } from "./InventorySystem";
-import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait } from "../types/game-state";
+import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait, TouchResult } from "../types/game-state";
 
 export interface AnimalCompanionFeedback {
   refreshTile(tile: FieldTile): void;
@@ -19,8 +19,9 @@ export interface AnimalCompanionFeedback {
   emitGoldBurst(tile: FieldTile, amount?: number): void;
   playCompanionAction(tile: FieldTile, action: "pollinate" | "scratch" | "forage" | "graze" | "burrow" | "scurry" | "hop"): void;
   playTouchFeedback(tile: FieldTile, touchedTrait: TileTrait, isCrit: boolean): void;
+  recordAutomationCombo(tile: FieldTile, touch: TouchResult, source: "field_mouse" | "meadow_rabbit" | "sheep"): number;
   playSound(sound: "regrow" | "seed" | "gold"): void;
-  playGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean): void;
+  playGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean, comboCount?: number): void;
 }
 
 export class AnimalCompanionSystem {
@@ -223,8 +224,9 @@ export class AnimalCompanionSystem {
     feedback.playTouchFeedback(tile, touchedTrait, touch.isCrit);
     feedback.refreshTile(tile);
     feedback.popAtTile(tile, `+${touch.gained}`, touch.isCrit ? "#ffef78" : "#dfffc8");
-    feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
     recordAutomationTouch(state, touch.gained, directiveId);
+    const comboCount = feedback.recordAutomationCombo(tile, touch, objectId);
+    feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, comboCount);
 
     if (goldChance > 0 && Math.random() < goldChance) {
       state.gold += 1;
@@ -378,12 +380,13 @@ export class AnimalCompanionSystem {
     feedback.refreshTile(tile);
     feedback.popAtTile(tile, `+${touch.gained}`, "#dfffc8");
     recordAutomationTouch(state, touch.gained, directiveId);
+    const comboCount = feedback.recordAutomationCombo(tile, touch, "sheep");
     if (goldGained > 0) {
       recordAutomationSupplyDrop(state, goldGained, directiveId);
       feedback.popAtTile(tile, `+${goldGained} gold`, "#ffef78");
       feedback.emitGoldBurst(tile, goldGained);
     }
-    feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
+    feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, comboCount);
     feedback.playSound("gold");
     return true;
   }

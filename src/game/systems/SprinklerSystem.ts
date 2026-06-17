@@ -25,7 +25,8 @@ export interface SprinklerFeedback {
     stats: RuntimeStats,
     chanceScale: number,
   ): boolean;
-  playGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean): void;
+  recordAutomationCombo(tile: FieldTile, touch: TouchResult, source: "sprinkler"): number;
+  playGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean, comboCount?: number): void;
 }
 
 export class SprinklerSystem {
@@ -91,6 +92,7 @@ export class SprinklerSystem {
       }
 
       recordAutomationTouch(state, touch.gained, directiveId);
+      const comboCount = feedback.recordAutomationCombo(tile, touch, "sprinkler");
 
       if (state.seedShopPurchases.self_seeding_nozzle) {
         if (
@@ -117,7 +119,7 @@ export class SprinklerSystem {
       ) {
         recordAutomationSupplyDrop(state, 1, directiveId);
       }
-      feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
+      feedback.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, comboCount);
       changed = true;
     }
 

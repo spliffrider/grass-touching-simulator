@@ -24,6 +24,13 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
     isUnlocked: (state) => state.seedShopPurchases.seed_pouch === true,
   },
   {
+    id: "watering_can",
+    name: "Watering Can",
+    description: "Manual touches water nearby resting patches so they regrow sooner.",
+    cost: 18,
+    isUnlocked: (state) => state.seedShopPurchases.seed_pouch === true,
+  },
+  {
     id: "field_journal",
     name: "Field Journal",
     description: "Studying grass makes rare tiers appear slightly more often.",

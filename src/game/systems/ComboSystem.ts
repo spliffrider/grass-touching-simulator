@@ -35,7 +35,7 @@ export class ComboSystem {
     this.currentWindowMs = COMBO_WINDOW_MS;
   }
 
-  recordManualTouch(now: number, baseTouches: number, options: ComboRecordOptions = {}): ComboResult {
+  recordTouch(now: number, baseTouches: number, options: ComboRecordOptions = {}): ComboResult {
     const windowMs = Math.max(600, Math.floor(options.windowMs ?? COMBO_WINDOW_MS));
     const bonusMultiplier = Math.max(0, options.bonusMultiplier ?? 1);
     const previousCount = this.count;
@@ -59,6 +59,10 @@ export class ComboSystem {
       thresholdReached,
       touchIntervalMs: isContinuing ? now - previousTouchAt : undefined,
     };
+  }
+
+  recordManualTouch(now: number, baseTouches: number, options: ComboRecordOptions = {}): ComboResult {
+    return this.recordTouch(now, baseTouches, options);
   }
 
   update(now: number): boolean {
