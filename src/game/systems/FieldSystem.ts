@@ -174,6 +174,7 @@ export function createInitialState(characterClassId: CharacterClassId = DEFAULT_
     lifetimeGold: 0,
     lifetimeGrassTouches: 0,
     totalClickedPatches: 0,
+    wateredPatches: 0,
     mutationEvents: 0,
     field: {
       [tileKey(0, 0)]: createTile(0, 0, "normal", "normal"),

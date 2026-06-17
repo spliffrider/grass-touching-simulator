@@ -6,6 +6,7 @@ export function createAutomationStatsState(): AutomationStatsState {
     automatedActions: 0,
     automatedGrassTouches: 0,
     automationSupplyDrops: 0,
+    bestAutomationComboCount: 0,
     usedDirectiveIds: ["balanced"],
   };
 }

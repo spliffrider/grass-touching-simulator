@@ -587,6 +587,7 @@ export class GameScene extends Phaser.Scene {
   private lastTouchFlourishAt = 0;
   private comboBadgeRefreshElapsed = COMBO_BADGE_REFRESH_INTERVAL_MS;
   private lastMusicComboLevel = 0;
+  private activeComboSource: ComboTouchSource = "manual";
   private nextHoverRefreshAt = 0;
   private lastHoverPointerX = Number.NaN;
   private lastHoverPointerY = Number.NaN;
@@ -1065,11 +1066,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createAutomationScheduler(): AutomationScheduler<RuntimeStats> {
-    const scheduler = new AutomationScheduler<RuntimeStats>();
+    const scheduler = new AutomationScheduler<RuntimeStats>(250, 6);
     scheduler.add({
       id: "automation_income",
       intervalMs: 250,
       run: (deltaMs, stats) => this.updateAutomationIncome(deltaMs, stats),
+    });
+    scheduler.add({
+      id: "sprinkler",
+      intervalMs: 250,
+      initialDelayMs: 90,
+      run: (deltaMs, stats) => this.updateSprinkler(deltaMs, stats),
+    });
+    scheduler.add({
+      id: "animal_companions",
+      intervalMs: 250,
+      initialDelayMs: 130,
+      run: (deltaMs, stats) => this.updateAnimalCompanions(deltaMs, stats),
     });
     scheduler.add({
       id: "mutations",
@@ -1702,7 +1715,7 @@ export class GameScene extends Phaser.Scene {
 
   private layoutComboBadge(): number {
     const compact = this.scale.width < 760;
-    const badgeWidth = compact ? 158 : 178;
+    const badgeWidth = compact ? 166 : 194;
     const badgeHeight = compact ? 36 : 40;
     const resourceBottom = this.resourceText.y + this.resourceText.height;
     const rightUiLeft = this.scale.width - 156;
@@ -2958,6 +2971,7 @@ export class GameScene extends Phaser.Scene {
         )} output, ${helperTempoText}`,
         `${formatGrassTouches(this.state.automationStats.automatedGrassTouches)} auto touches`,
         `${this.state.automationStats.automationSupplyDrops} supplies`,
+        `Best auto streak ${this.state.automationStats.bestAutomationComboCount}`,
         this.state.seedShopPurchases.quest_clipboard ? "Clipboard: claiming quests" : "",
       ]
         .filter(Boolean)
@@ -3919,6 +3933,7 @@ export class GameScene extends Phaser.Scene {
     this.animalCompanions.reset();
     this.mutations.reset();
     this.combo.reset();
+    this.activeComboSource = "manual";
     this.lastMusicComboLevel = 0;
     this.music.setComboLevel(0);
     this.recentlyRegrownAt.clear();
@@ -5141,10 +5156,14 @@ export class GameScene extends Phaser.Scene {
       bonusMultiplier: stats.comboBonusMultiplier * (automated ? AUTOMATION_COMBO_BONUS_SCALE : 1),
     });
 
+    this.activeComboSource = source;
     this.lastMusicComboLevel = combo.count;
     this.music.setComboLevel(combo.count);
     if (combo.count > this.state.journal.bestComboCount) {
       this.state.journal.bestComboCount = combo.count;
+    }
+    if (automated && combo.count > this.state.automationStats.bestAutomationComboCount) {
+      this.state.automationStats.bestAutomationComboCount = combo.count;
     }
     if (combo.bonusTouches > 0) {
       this.state.grassTouches = addGrassTouches(this.state.grassTouches, combo.bonusTouches);
@@ -5159,6 +5178,18 @@ export class GameScene extends Phaser.Scene {
 
   private recordAutomationComboTouch(tile: FieldTile, touch: TouchResult, stats: RuntimeStats, source: Exclude<ComboTouchSource, "manual">): number {
     const combo = this.recordComboTouch(tile, touch, stats, Date.now(), source);
+    this.playComboFeedback(tile, combo, source);
+    return combo.count;
+  }
+
+  private recordAutomationComboAction(tile: FieldTile, stats: RuntimeStats, source: Exclude<ComboTouchSource, "manual">): number {
+    const combo = this.recordComboTouch(
+      tile,
+      { gained: 0, isCrit: false, critMultiplier: 1, doubled: false, instantRegrown: false },
+      stats,
+      Date.now(),
+      source,
+    );
     this.playComboFeedback(tile, combo, source);
     return combo.count;
   }
@@ -5318,6 +5349,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    this.state.wateredPatches += wateredTiles.length;
     this.popAtTile(originTile, wateredTiles.length > 1 ? `watered x${wateredTiles.length}` : "watered", "#bff4ff");
   }
 
@@ -5872,6 +5904,7 @@ export class GameScene extends Phaser.Scene {
         tryDropGold: (tile, touchedTrait, touchedTier, touch, runtimeStats, chanceScale) =>
           this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier, touch, runtimeStats, this.getDropFeedback(), chanceScale),
         recordAutomationCombo: (tile, touch, source) => this.recordAutomationComboTouch(tile, touch, stats, source),
+        recordAutomationComboAction: (tile, source) => this.recordAutomationComboAction(tile, stats, source),
         playGrassTouch: (tier, trait, isCrit, comboCount) => this.audio.playGrassTouch(tier, trait, isCrit, comboCount),
       });
     });
@@ -7463,6 +7496,7 @@ export class GameScene extends Phaser.Scene {
     this.setVisibleIfChanged(this.comboBadge, show);
 
     if (!show) {
+      this.activeComboSource = "manual";
       return;
     }
 
@@ -7471,10 +7505,13 @@ export class GameScene extends Phaser.Scene {
     const badgeWidth = this.comboBadgeBg.width;
     const meterWidth = Math.max(8, (badgeWidth - 24) * remaining);
     const multiplierText = multiplier > 1 ? ` x${multiplier.toFixed(multiplier >= 2 ? 0 : 2)}` : "";
+    const automated = this.activeComboSource !== "manual";
 
-    this.setTextIfChanged(this.comboBadgeText, `Combo ${count}${multiplierText}`);
+    this.comboBadgeText.setColor(automated ? "#bff4ff" : "#f7ffe8");
+    this.comboBadgeBg.setStrokeStyle(3, automated ? 0xa8e8ff : 0xf4df6a, automated ? 0.9 : 0.82);
+    this.setTextIfChanged(this.comboBadgeText, `${automated ? "Auto Streak" : "Combo"} ${count}${multiplierText}`);
     this.comboBadgeMeter.setSize(meterWidth, 4);
-    this.comboBadgeMeter.setFillStyle(multiplier > 1 ? 0xf4df6a : 0xb7eba5, 0.92);
+    this.comboBadgeMeter.setFillStyle(automated ? 0xa8e8ff : multiplier > 1 ? 0xf4df6a : 0xb7eba5, 0.92);
   }
 
   private refreshQuestLog(): void {
@@ -7685,7 +7722,9 @@ export class GameScene extends Phaser.Scene {
       `- Milestones reached: ${this.state.reachedMilestones.length}/${MILESTONES.length}`,
       `- Quests claimed: ${this.state.claimedQuestIds.length}/${this.getRelevantQuestCount()}`,
       `- Hybrid mutations: ${this.state.mutationEvents}`,
+      `- Watered patches: ${this.state.wateredPatches}`,
       `- Best combo: ${this.state.journal.bestComboCount}`,
+      `- Best automation streak: ${this.state.automationStats.bestAutomationComboCount}`,
     ].join("\n");
   }
 

@@ -27,7 +27,7 @@ export type AutomationDirectiveId = "balanced" | "growth" | "harvest" | "supplie
 
 export type AutomationSystemId = "sprinkler" | "field_mouse" | "bee_hive" | "earthworm" | "chicken" | "sheep" | "meadow_rabbit";
 
-export const CURRENT_SAVE_VERSION = 9;
+export const CURRENT_SAVE_VERSION = 10;
 
 export interface FieldTile {
   x: number;
@@ -68,6 +68,7 @@ export interface AutomationStatsState {
   automatedActions: number;
   automatedGrassTouches: GrassTouchAmount;
   automationSupplyDrops: number;
+  bestAutomationComboCount: number;
   usedDirectiveIds: AutomationDirectiveId[];
 }
 
@@ -85,6 +86,7 @@ export interface GameState {
   lifetimeGold: number;
   lifetimeGrassTouches: GrassTouchAmount;
   totalClickedPatches: number;
+  wateredPatches: number;
   mutationEvents: number;
   field: Record<TileKey, FieldTile>;
   upgrades: Record<string, UpgradeState>;

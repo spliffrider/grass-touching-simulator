@@ -73,6 +73,7 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
     lifetimeGold: readNumber(saved.lifetimeGold, initial.lifetimeGold),
     lifetimeGrassTouches: normalizeGrassTouches(saved.lifetimeGrassTouches, initial.lifetimeGrassTouches),
     totalClickedPatches: readNumber(saved.totalClickedPatches, initial.totalClickedPatches),
+    wateredPatches: readNumber(saved.wateredPatches, initial.wateredPatches),
     mutationEvents: readNumber(saved.mutationEvents, initial.mutationEvents),
     field,
     upgrades: readRecord<UpgradeState>(saved.upgrades),
@@ -193,6 +194,7 @@ function readAutomationStats(value: unknown, fallback: AutomationStatsState): Au
     automatedActions: readNumber(value.automatedActions, base.automatedActions),
     automatedGrassTouches: normalizeGrassTouches(value.automatedGrassTouches, base.automatedGrassTouches),
     automationSupplyDrops: readNumber(value.automationSupplyDrops, base.automationSupplyDrops),
+    bestAutomationComboCount: readNumber(value.bestAutomationComboCount, base.bestAutomationComboCount),
     usedDirectiveIds: unique(usedDirectiveIds.length > 0 ? usedDirectiveIds : base.usedDirectiveIds),
   };
 }

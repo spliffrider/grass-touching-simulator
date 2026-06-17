@@ -26,6 +26,7 @@ export interface SprinklerFeedback {
     chanceScale: number,
   ): boolean;
   recordAutomationCombo(tile: FieldTile, touch: TouchResult, source: "sprinkler"): number;
+  recordAutomationComboAction(tile: FieldTile, source: "sprinkler"): number;
   playGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean, comboCount?: number): void;
 }
 
@@ -71,6 +72,7 @@ export class SprinklerSystem {
         feedback.playSprinklerBurst(tile);
         feedback.refreshTile(tile);
         recordAutomationAction(state, directiveId);
+        feedback.recordAutomationComboAction(tile, "sprinkler");
         changed = true;
         continue;
       }

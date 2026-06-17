@@ -247,6 +247,19 @@ export const QUESTS: QuestDefinition[] = [
     getProgress: (state) => (state.seedShopPurchases.seed_pouch ? "Seed Pouch bought" : "Not bought yet"),
   },
   {
+    id: "watering_can_practice",
+    category: "Seed Shop",
+    name: "Light Rain Practice",
+    description: "Use the Watering Can to speed up 12 resting patches.",
+    reward: { seeds: 4, gold: 1 },
+    prerequisiteQuestIds: ["seed_pouch_owner"],
+    isComplete: (state) => state.wateredPatches >= 12,
+    getProgress: (state) =>
+      state.seedShopPurchases.watering_can
+        ? `${Math.min(12, state.wateredPatches)}/12 patches watered`
+        : "Buy the Watering Can first",
+  },
+  {
     id: "sprinkler_owner",
     category: "Seed Shop",
     name: "Responsible Hydration",
@@ -280,6 +293,16 @@ export const QUESTS: QuestDefinition[] = [
     prerequisiteQuestIds: ["sprinkler_placed"],
     isComplete: (state) => state.automationStats.automatedActions >= 25,
     getProgress: (state) => `${Math.min(25, state.automationStats.automatedActions)}/25 actions`,
+  },
+  {
+    id: "automation_streak_6",
+    category: "Automation",
+    name: "Let It Chain",
+    description: "Reach an automation streak of 6.",
+    reward: { seeds: 4, gold: 1 },
+    prerequisiteQuestIds: ["sprinkler_placed"],
+    isComplete: (state) => state.automationStats.bestAutomationComboCount >= 6,
+    getProgress: (state) => `${Math.min(6, state.automationStats.bestAutomationComboCount)}/6 best auto streak`,
   },
   {
     id: "automation_units_2",
