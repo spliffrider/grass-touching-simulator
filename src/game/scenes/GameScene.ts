@@ -274,6 +274,7 @@ interface SkillNodeView {
   upgradeId: string;
   container: Phaser.GameObjects.Container;
   bg: Phaser.GameObjects.Rectangle;
+  readyGlow: Phaser.GameObjects.Ellipse;
   glow: Phaser.GameObjects.Ellipse;
   plate: Phaser.GameObjects.Arc;
   frame: Phaser.GameObjects.Image;
@@ -287,23 +288,27 @@ interface SkillNodeView {
 interface SeedShopItemView {
   itemId: string;
   container: Phaser.GameObjects.Container;
+  attentionGlow: Phaser.GameObjects.Rectangle;
   bg: Phaser.GameObjects.Rectangle;
   iconBg: Phaser.GameObjects.Rectangle;
   icon: Phaser.GameObjects.Image;
   name: Phaser.GameObjects.Text;
   description: Phaser.GameObjects.Text;
   status: Phaser.GameObjects.Text;
+  readyBadge: Phaser.GameObjects.Text;
 }
 
 interface GoldStoreItemView {
   itemId: string;
   container: Phaser.GameObjects.Container;
+  attentionGlow: Phaser.GameObjects.Rectangle;
   bg: Phaser.GameObjects.Rectangle;
   iconBg: Phaser.GameObjects.Rectangle;
   icon: Phaser.GameObjects.Image;
   name: Phaser.GameObjects.Text;
   description: Phaser.GameObjects.Text;
   status: Phaser.GameObjects.Text;
+  readyBadge: Phaser.GameObjects.Text;
 }
 
 type StoreMode = "automation" | "goods";
@@ -312,12 +317,14 @@ type ComboTouchSource = "manual" | "sprinkler" | "field_mouse" | "meadow_rabbit"
 interface QuestItemView {
   questId: string;
   container: Phaser.GameObjects.Container;
+  attentionGlow: Phaser.GameObjects.Rectangle;
   bg: Phaser.GameObjects.Rectangle;
   name: Phaser.GameObjects.Text;
   description: Phaser.GameObjects.Text;
   progress: Phaser.GameObjects.Text;
   reward: Phaser.GameObjects.Text;
   claimButton: Phaser.GameObjects.Container;
+  readyBadge: Phaser.GameObjects.Text;
 }
 
 type QuestFilterId = "all" | "ready" | "active" | "automation" | "class" | "journal" | "claimed";
@@ -1864,6 +1871,10 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setStrokeStyle(1, upgrade.tree.color, 0)
         .setInteractive({ useHandCursor: true });
+      const readyGlow = this.add
+        .ellipse(0, -4, 90, 76, 0xffef78, 0.16)
+        .setStrokeStyle(4, 0xffef78, 0.82)
+        .setVisible(false);
       const glow = this.add.ellipse(0, -4, 74, 58, upgrade.tree.color, 0.22).setStrokeStyle(3, upgrade.tree.color, 0.44);
       const plate = this.add.circle(0, -4, 26, 0x06190f, 0.94).setStrokeStyle(4, upgrade.tree.color, 0.78);
       const frame = this.add
@@ -1893,14 +1904,14 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setShadow(0, 2, "#06190f", 2, false, true);
 
-      container.add([bg, glow, plate, frame, icon, lockedIcon, level]);
+      container.add([bg, readyGlow, glow, plate, frame, icon, lockedIcon, level]);
       bg.on("pointerover", () => {
         this.previewSkill(upgrade.id);
         this.startSkillHoverTremble(upgrade.id);
       });
       bg.on("pointerout", () => this.stopSkillHoverTremble(upgrade.id));
       bg.on("pointerdown", () => this.upgradeSkill(upgrade.id));
-      this.skillNodeViews.set(upgrade.id, { upgradeId: upgrade.id, container, bg, glow, plate, frame, icon, lockedIcon, level });
+      this.skillNodeViews.set(upgrade.id, { upgradeId: upgrade.id, container, bg, readyGlow, glow, plate, frame, icon, lockedIcon, level });
       this.skillRoot.add(container);
     }
 
@@ -2100,6 +2111,7 @@ export class GameScene extends Phaser.Scene {
 
     for (const quest of QUESTS) {
       const container = this.add.container(0, 0);
+      const attentionGlow = this.createReadyRowGlow(470, 116, 0.16, 0.85);
       const bg = this.add
         .rectangle(0, 0, 460, 106, 0x12341c, 0.95)
         .setOrigin(0, 0)
@@ -2129,9 +2141,21 @@ export class GameScene extends Phaser.Scene {
       });
       const claimButton = createTextButton(this, "Claim", () => this.claimQuestReward(quest.id), 120, 36, 105);
       claimButton.setPosition(312, 60);
+      const readyBadge = this.createReadyBadge();
 
-      container.add([bg, name, description, progress, reward, claimButton]);
-      this.questItemViews.set(quest.id, { questId: quest.id, container, bg, name, description, progress, reward, claimButton });
+      container.add([attentionGlow, bg, name, description, progress, reward, claimButton, readyBadge]);
+      this.questItemViews.set(quest.id, {
+        questId: quest.id,
+        container,
+        attentionGlow,
+        bg,
+        name,
+        description,
+        progress,
+        reward,
+        claimButton,
+        readyBadge,
+      });
       this.questRoot.add(container);
     }
 
@@ -2183,6 +2207,8 @@ export class GameScene extends Phaser.Scene {
       const textWidth = Math.max(170, panelWidth - (compact ? 34 : 178));
 
       view.bg.setSize(panelWidth, itemHeight);
+      view.attentionGlow.setPosition(panelWidth / 2, itemHeight / 2);
+      view.attentionGlow.setSize(panelWidth + 10, itemHeight + 10);
       view.name.setPosition(14, 10);
       view.name.setFontSize(compact ? 18 : 20);
       view.name.setWordWrapWidth(textWidth);
@@ -2195,6 +2221,8 @@ export class GameScene extends Phaser.Scene {
       view.reward.setAlign(compact ? "left" : "center");
       view.claimButton.setScale(compact ? 0.88 : 1);
       view.claimButton.setPosition(compact ? panelWidth - 122 : claimX, compact ? 88 : 60);
+      view.readyBadge.setPosition(panelWidth - 12, 10);
+      view.readyBadge.setFontSize(compact ? 12 : 13);
       view.container.setPosition(x, y);
       view.container.setVisible(y > 118 - itemGap && y < this.scale.height + itemGap);
       y += itemGap;
@@ -2440,6 +2468,7 @@ export class GameScene extends Phaser.Scene {
 
     for (const item of SEED_SHOP_ITEMS) {
       const container = this.add.container(0, 0);
+      const attentionGlow = this.createReadyRowGlow(430, 102);
       const bg = this.add
         .rectangle(0, 0, 420, 92, 0xf4ffdc, 0.96)
         .setOrigin(0, 0)
@@ -2466,10 +2495,11 @@ export class GameScene extends Phaser.Scene {
         fontSize: "15px",
         color: "#6d4c19",
       });
+      const readyBadge = this.createReadyBadge();
 
       bg.on("pointerdown", () => this.buySeedShopItem(item.id));
-      container.add([bg, iconBg, icon, name, description, status]);
-      this.seedItemViews.set(item.id, { itemId: item.id, container, bg, iconBg, icon, name, description, status });
+      container.add([attentionGlow, bg, iconBg, icon, name, description, status, readyBadge]);
+      this.seedItemViews.set(item.id, { itemId: item.id, container, attentionGlow, bg, iconBg, icon, name, description, status, readyBadge });
       this.seedRoot.add(container);
     }
 
@@ -2506,6 +2536,8 @@ export class GameScene extends Phaser.Scene {
       const iconFrame = iconSize + 10;
 
       view.bg.setSize(panelWidth, itemHeight);
+      view.attentionGlow.setPosition(panelWidth / 2, itemHeight / 2);
+      view.attentionGlow.setSize(panelWidth + 10, itemHeight + 10);
       view.iconBg.setPosition(12, compact ? 14 : 14);
       view.iconBg.setSize(iconFrame, iconFrame);
       view.icon.setPosition(12 + iconFrame / 2, (compact ? 14 : 14) + iconFrame / 2);
@@ -2518,6 +2550,8 @@ export class GameScene extends Phaser.Scene {
       view.description.setWordWrapWidth(Math.max(160, panelWidth - textX - 12));
       view.status.setPosition(textX, itemHeight - 24);
       view.status.setWordWrapWidth(Math.max(160, panelWidth - textX - 12));
+      view.readyBadge.setPosition(panelWidth - 12, compact ? 8 : 10);
+      view.readyBadge.setFontSize(compact ? 12 : 13);
       view.container.setPosition(x, y);
       view.container.setVisible(y >= startY - 4 && y < this.scale.height + itemGap);
       y += itemGap;
@@ -2573,6 +2607,7 @@ export class GameScene extends Phaser.Scene {
 
     for (const system of AUTOMATION_SYSTEMS) {
       const container = this.add.container(0, 0);
+      const attentionGlow = this.createReadyRowGlow(440, 108);
       const bg = this.add
         .rectangle(0, 0, 430, 98, 0x12341c, 0.96)
         .setOrigin(0, 0)
@@ -2599,16 +2634,18 @@ export class GameScene extends Phaser.Scene {
         fontSize: "15px",
         color: "#b7eba5",
       });
+      const readyBadge = this.createReadyBadge();
 
       bg.on("pointerover", () => this.showAutomationSystemDetails(system.id));
       bg.on("pointerdown", () => this.buyAutomationSystem(system.id));
-      container.add([bg, iconBg, icon, name, description, status]);
-      this.storeAutomationViews.set(system.id, { itemId: system.id, container, bg, iconBg, icon, name, description, status });
+      container.add([attentionGlow, bg, iconBg, icon, name, description, status, readyBadge]);
+      this.storeAutomationViews.set(system.id, { itemId: system.id, container, attentionGlow, bg, iconBg, icon, name, description, status, readyBadge });
       this.storeRoot.add(container);
     }
 
     for (const item of GOLD_STORE_ITEMS) {
       const container = this.add.container(0, 0);
+      const attentionGlow = this.createReadyRowGlow(440, 108);
       const bg = this.add
         .rectangle(0, 0, 430, 98, 0x12341c, 0.96)
         .setOrigin(0, 0)
@@ -2635,11 +2672,12 @@ export class GameScene extends Phaser.Scene {
         fontSize: "15px",
         color: "#b7eba5",
       });
+      const readyBadge = this.createReadyBadge();
 
       bg.on("pointerover", () => this.showGoldStoreItemDetails(item.id));
       bg.on("pointerdown", () => this.handleGoldStoreItemPressed(item.id));
-      container.add([bg, iconBg, icon, name, description, status]);
-      this.storeGoldItemViews.set(item.id, { itemId: item.id, container, bg, iconBg, icon, name, description, status });
+      container.add([attentionGlow, bg, iconBg, icon, name, description, status, readyBadge]);
+      this.storeGoldItemViews.set(item.id, { itemId: item.id, container, attentionGlow, bg, iconBg, icon, name, description, status, readyBadge });
       this.storeRoot.add(container);
     }
 
@@ -2687,6 +2725,8 @@ export class GameScene extends Phaser.Scene {
       const iconFrame = iconSize + 10;
 
       view.bg.setSize(panelWidth, itemHeight);
+      view.attentionGlow.setPosition(panelWidth / 2, itemHeight / 2);
+      view.attentionGlow.setSize(panelWidth + 10, itemHeight + 10);
       view.iconBg.setPosition(12, compact ? 16 : 15);
       view.iconBg.setSize(iconFrame, iconFrame);
       view.icon.setPosition(12 + iconFrame / 2, (compact ? 16 : 15) + iconFrame / 2);
@@ -2700,6 +2740,8 @@ export class GameScene extends Phaser.Scene {
       view.status.setPosition(textX, itemHeight - 36);
       view.status.setFontSize(compact ? 12 : 13);
       view.status.setWordWrapWidth(Math.max(160, panelWidth - textX - 12));
+      view.readyBadge.setPosition(panelWidth - 12, compact ? 8 : 10);
+      view.readyBadge.setFontSize(compact ? 12 : 13);
       view.container.setPosition(x, y);
       view.container.setVisible(y >= startY - 4 && y < this.scale.height + itemGap);
       y += itemGap;
@@ -2815,6 +2857,27 @@ export class GameScene extends Phaser.Scene {
       backdrop.input.hitArea = new Phaser.Geom.Rectangle(0, 0, this.scale.width, this.scale.height);
       backdrop.input.hitAreaCallback = Phaser.Geom.Rectangle.Contains;
     }
+  }
+
+  private createReadyRowGlow(width: number, height: number, fillAlpha = 0.14, strokeAlpha = 0.82): Phaser.GameObjects.Rectangle {
+    return this.add
+      .rectangle(width / 2, height / 2, width, height, 0xffef78, fillAlpha)
+      .setOrigin(0.5)
+      .setStrokeStyle(3, 0xffef78, strokeAlpha)
+      .setVisible(false);
+  }
+
+  private createReadyBadge(): Phaser.GameObjects.Text {
+    return this.add
+      .text(0, 0, "Ready", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "13px",
+        color: "#173b20",
+        backgroundColor: "#ffef78",
+        padding: { x: 7, y: 3 },
+      })
+      .setOrigin(1, 0)
+      .setVisible(false);
   }
 
   private refreshOptionsPanel(): void {
@@ -3425,6 +3488,10 @@ export class GameScene extends Phaser.Scene {
     this.closeOptions();
     if (!this.isSkillVisible(this.selectedSkillId)) {
       this.selectedSkillId = UPGRADES[0].id;
+    }
+    const readyUpgrade = UPGRADES.find((upgrade) => this.isUpgradeReady(upgrade));
+    if (readyUpgrade) {
+      this.selectedSkillId = readyUpgrade.id;
     }
     this.skillTreeOpen = true;
     this.skillRoot.setVisible(true);
@@ -7450,6 +7517,7 @@ export class GameScene extends Phaser.Scene {
         view.container.setVisible(visible);
         if (!visible) {
           this.stopSkillHoverTremble(upgrade.id);
+          this.setReadyPulse(view.readyGlow, false);
           view.bg.disableInteractive();
           continue;
         }
@@ -7472,6 +7540,7 @@ export class GameScene extends Phaser.Scene {
         view.bg.setStrokeStyle(1, stroke, 0);
         view.glow.setFillStyle(stroke, selected ? 0.28 : available ? 0.22 : level > 0 ? 0.14 : 0.05);
         view.glow.setStrokeStyle(selected ? 3 : 2, stroke, selected ? 0.72 : available ? 0.48 : level > 0 ? 0.32 : 0.12);
+        this.setReadyPulse(view.readyGlow, available, 1.12, 1.16);
         view.plate.setFillStyle(level > 0 ? 0x102f1a : unlocked ? 0x0d2617 : 0x07150e, unlocked || level > 0 ? 0.9 : 0.76);
         view.plate.setStrokeStyle(selected ? 4 : available ? 3 : 2, stroke, selected ? 0.95 : available ? 0.82 : level > 0 ? 0.58 : 0.28);
         view.frame.setTexture(frameKey);
@@ -7502,6 +7571,48 @@ export class GameScene extends Phaser.Scene {
       readyUnlockList.some((key) => key.startsWith("automation:") || key.startsWith("gold:")),
     );
     setTextButtonAttention(this.questButton, currentReadyQuestKeys.size > 0);
+  }
+
+  private setReadyItemAttention(
+    view: { attentionGlow: Phaser.GameObjects.Rectangle; readyBadge: Phaser.GameObjects.Text },
+    active: boolean,
+  ): void {
+    view.readyBadge.setVisible(active);
+    this.setReadyPulse(view.attentionGlow, active, 1.02, 1.06);
+  }
+
+  private setReadyPulse(
+    glow: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Ellipse,
+    active: boolean,
+    scaleX = 1.06,
+    scaleY = 1.1,
+  ): void {
+    if (glow.getData("readyPulseActive") === active) {
+      return;
+    }
+
+    glow.setData("readyPulseActive", active);
+    this.tweens.killTweensOf(glow);
+    glow.setVisible(active);
+
+    if (!active) {
+      glow.setAlpha(1);
+      glow.setScale(1);
+      return;
+    }
+
+    glow.setAlpha(0.78);
+    glow.setScale(1);
+    this.tweens.add({
+      targets: glow,
+      alpha: 0.22,
+      scaleX,
+      scaleY,
+      duration: 820,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
   }
 
   private refreshComboBadge(): void {
@@ -7561,15 +7672,17 @@ export class GameScene extends Phaser.Scene {
       const available = isQuestAvailable(this.state, quest);
       const complete = available && quest.isComplete(this.state);
       const claimed = this.state.claimedQuestIds.includes(quest.id);
+      const ready = complete && !claimed;
 
       view.bg.setFillStyle(claimed ? 0x20351f : complete ? 0x1c4728 : available ? 0x12341c : 0x14231a, claimed ? 0.74 : 0.95);
-      view.bg.setStrokeStyle(3, claimed ? 0x51615a : complete ? 0xf4df6a : available ? 0xb7eba5 : 0x496455, complete ? 0.9 : 0.62);
+      view.bg.setStrokeStyle(3, claimed ? 0x51615a : ready ? 0xffef78 : available ? 0xb7eba5 : 0x496455, ready ? 0.98 : 0.62);
       view.container.setAlpha(claimed ? 0.72 : available ? 1 : 0.78);
       view.progress.setText(claimed ? "Claimed" : formatQuestProgress(quest, this.state));
-      view.progress.setColor(complete ? "#f4df6a" : available ? "#b7eba5" : "#8ea594");
+      view.progress.setColor(ready ? "#f4df6a" : available ? "#b7eba5" : "#8ea594");
       view.reward.setText(`Reward:\n${formatQuestReward(quest.reward)}`);
-      setTextButtonText(view.claimButton, claimed ? "Claimed" : complete ? "Claim" : "Locked");
-      setTextButtonEnabled(view.claimButton, complete && !claimed);
+      setTextButtonText(view.claimButton, claimed ? "Claimed" : ready ? "Claim" : "Locked");
+      setTextButtonEnabled(view.claimButton, ready);
+      this.setReadyItemAttention(view, ready);
     }
 
     if (this.questLogOpen) {
@@ -7937,10 +8050,12 @@ export class GameScene extends Phaser.Scene {
       const purchased = this.state.seedShopPurchases[item.id] === true;
       const unlocked = item.isUnlocked(this.state);
       const affordable = this.state.seeds >= item.cost;
+      const ready = !purchased && unlocked && affordable;
 
       view.container.setAlpha(unlocked || purchased ? 1 : 0.76);
       view.bg.setFillStyle(purchased ? 0xdfffc8 : 0xf4ffdc, unlocked || purchased ? 0.96 : 0.7);
-      view.bg.setStrokeStyle(3, purchased ? 0x85d35e : affordable && unlocked ? 0xf5ec72 : 0x2d6f36);
+      view.bg.setStrokeStyle(3, purchased ? 0x85d35e : ready ? 0xffef78 : 0x2d6f36, ready ? 0.98 : 1);
+      this.setReadyItemAttention(view, ready);
 
       if (purchased) {
         view.status.setText("Unlocked");
@@ -7971,8 +8086,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshStoreModeButtons(): void {
+    const hasReadyAutomation = AUTOMATION_SYSTEMS.some((system) => {
+      const owned = getAutomationSystemOwned(this.state, system.id);
+      const cost = getAutomationSystemCost(system, owned);
+      return system.isUnlocked(this.state) && canAffordGrassTouches(this.state.grassTouches, cost);
+    });
+    const hasReadyGoods = GOLD_STORE_ITEMS.some((item) => {
+      const quantity = getInventoryQuantity(this.state, item.id);
+      const maxed = item.maxQuantity !== undefined && quantity >= item.maxQuantity;
+      return !maxed && item.isUnlocked(this.state) && this.state.gold >= item.cost && (item.kind !== "consumable" || quantity === 0);
+    });
+
     this.storeAutomationButton.setAlpha(this.storeMode === "automation" ? 1 : 0.72);
     this.storeGoodsButton.setAlpha(this.storeMode === "goods" ? 1 : 0.72);
+    setTextButtonAttention(this.storeAutomationButton, hasReadyAutomation);
+    setTextButtonAttention(this.storeGoodsButton, hasReadyGoods);
   }
 
   private refreshAutomationStore(): void {
@@ -8000,6 +8128,7 @@ export class GameScene extends Phaser.Scene {
       const unlocked = system.isUnlocked(this.state);
       const cost = getAutomationSystemCost(system, owned);
       const affordable = canAffordGrassTouches(this.state.grassTouches, cost);
+      const ready = unlocked && affordable;
       const output = getDirectiveAdjustedAutomationOutput(
         this.state,
         getAutomationSystemTouchesPerMinute(this.state, system, stats, automationOutputContext),
@@ -8027,7 +8156,8 @@ export class GameScene extends Phaser.Scene {
 
       view.container.setAlpha(unlocked || owned > 0 ? 1 : 0.68);
       view.bg.setFillStyle(owned > 0 ? 0x1c4728 : 0x12341c, unlocked || owned > 0 ? 0.96 : 0.62);
-      view.bg.setStrokeStyle(3, affordable && unlocked ? 0xffef78 : owned > 0 ? 0x85d35e : 0xb7eba5, unlocked || owned > 0 ? 0.86 : 0.44);
+      view.bg.setStrokeStyle(3, ready ? 0xffef78 : owned > 0 ? 0x85d35e : 0xb7eba5, ready ? 0.98 : unlocked || owned > 0 ? 0.86 : 0.44);
+      this.setReadyItemAttention(view, ready);
 
       if (!unlocked && owned <= 0) {
         view.status.setText("Locked");
@@ -8069,10 +8199,12 @@ export class GameScene extends Phaser.Scene {
       const maxed = item.maxQuantity !== undefined && quantity >= item.maxQuantity;
       const affordable = this.state.gold >= item.cost;
       const maxText = item.maxQuantity === undefined ? "" : `/${item.maxQuantity}`;
+      const ready = !maxed && unlocked && affordable && (item.kind !== "consumable" || quantity === 0);
 
       view.container.setAlpha(unlocked || quantity > 0 ? 1 : 0.68);
       view.bg.setFillStyle(quantity > 0 ? 0x1c4728 : 0x12341c, unlocked || quantity > 0 ? 0.96 : 0.62);
-      view.bg.setStrokeStyle(3, affordable && unlocked && !maxed ? 0xffef78 : quantity > 0 ? 0x85d35e : 0xb7eba5, unlocked || quantity > 0 ? 0.86 : 0.44);
+      view.bg.setStrokeStyle(3, ready ? 0xffef78 : quantity > 0 ? 0x85d35e : 0xb7eba5, ready ? 0.98 : unlocked || quantity > 0 ? 0.86 : 0.44);
+      this.setReadyItemAttention(view, ready);
 
       if (!unlocked && quantity <= 0) {
         view.status.setText("Locked");
@@ -8319,11 +8451,8 @@ export class GameScene extends Phaser.Scene {
     const keys = new Set<string>();
 
     for (const upgrade of UPGRADES) {
-      const level = this.state.upgrades[upgrade.id]?.level ?? 0;
-      const maxed = level >= upgrade.maxLevel;
-      const cost = getUpgradeCost(upgrade, level);
-
-      if (!maxed && canUnlockUpgrade(this.state, upgrade) && canAffordGrassTouches(this.state.grassTouches, cost)) {
+      if (this.isUpgradeReady(upgrade)) {
+        const level = this.state.upgrades[upgrade.id]?.level ?? 0;
         keys.add(`upgrade:${upgrade.id}:${level + 1}`);
       }
     }
@@ -8351,6 +8480,13 @@ export class GameScene extends Phaser.Scene {
     }
 
     return keys;
+  }
+
+  private isUpgradeReady(upgrade: (typeof UPGRADES)[number]): boolean {
+    const level = this.state.upgrades[upgrade.id]?.level ?? 0;
+    const maxed = level >= upgrade.maxLevel;
+    const cost = getUpgradeCost(upgrade, level);
+    return !maxed && canUnlockUpgrade(this.state, upgrade) && canAffordGrassTouches(this.state.grassTouches, cost);
   }
 
   private checkReadyUnlocks(): void {
