@@ -9,6 +9,11 @@ export function createTextButton(
   depth: number,
 ): Phaser.GameObjects.Container {
   const button = scene.add.container(0, 0).setDepth(depth);
+  const attentionGlow = scene.add
+    .rectangle(width / 2, height / 2, width + 10, height + 10, 0xffef78, 0.12)
+    .setOrigin(0.5)
+    .setStrokeStyle(3, 0xffef78, 0.9)
+    .setVisible(false);
   const hasEmeraldButtons =
     scene.textures.exists("button-emerald-normal") &&
     scene.textures.exists("button-emerald-hover") &&
@@ -30,6 +35,7 @@ export function createTextButton(
     .setOrigin(0.5)
     .setShadow(0, 2, "#06190f", 2, false, true);
 
+  attentionGlow.setData("attentionActive", false);
   bg.setInteractive({ useHandCursor: true });
   bg.on("pointerover", () => {
     if (button.getData("enabled") === false) {
@@ -62,9 +68,10 @@ export function createTextButton(
     label.setY(height / 2);
     label.setScale(enabled ? 1.03 : 1);
   });
-  button.add([bg, label]);
+  button.add([attentionGlow, bg, label]);
   button.setData("bg", bg);
   button.setData("label", label);
+  button.setData("attentionGlow", attentionGlow);
   button.setData("enabled", true);
   return button;
 }
@@ -91,6 +98,44 @@ export function setTextButtonEnabled(button: Phaser.GameObjects.Container, enabl
   bg?.setAlpha(enabled ? 1 : 0.58);
   label?.setColor(enabled ? "#f7ffe8" : "#9ba992");
   label?.setAlpha(enabled ? 1 : 0.82);
+}
+
+export function setTextButtonAttention(button: Phaser.GameObjects.Container, active: boolean): void {
+  const glow = button.getData("attentionGlow") as Phaser.GameObjects.Rectangle | undefined;
+  const bg = button.getData("bg") as TextButtonBg | undefined;
+  if (!glow || glow.getData("attentionActive") === active) {
+    return;
+  }
+
+  glow.setData("attentionActive", active);
+  button.scene.tweens.killTweensOf(glow);
+  glow.setVisible(active);
+
+  if (!active) {
+    glow.setAlpha(1);
+    glow.setScale(1);
+    if (bg instanceof Phaser.GameObjects.Rectangle) {
+      bg.setStrokeStyle(3, 0x2d6f36);
+    }
+    return;
+  }
+
+  if (bg instanceof Phaser.GameObjects.Rectangle) {
+    bg.setStrokeStyle(3, 0xffef78, 0.98);
+  }
+
+  glow.setAlpha(0.72);
+  glow.setScale(1);
+  button.scene.tweens.add({
+    targets: glow,
+    alpha: 0.2,
+    scaleX: 1.08,
+    scaleY: 1.16,
+    duration: 760,
+    yoyo: true,
+    repeat: -1,
+    ease: "Sine.easeInOut",
+  });
 }
 
 function setButtonTexture(bg: TextButtonBg | undefined, texture: string): void {

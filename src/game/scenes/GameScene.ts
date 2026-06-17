@@ -81,7 +81,7 @@ import type {
   TouchResult,
   WeatherId,
 } from "../types/game-state";
-import { createTextButton, setTextButtonEnabled, setTextButtonText } from "../ui/buttons";
+import { createTextButton, setTextButtonAttention, setTextButtonEnabled, setTextButtonText } from "../ui/buttons";
 
 const TILE_SIZE = 58;
 const TILE_GAP = 8;
@@ -708,10 +708,10 @@ export class GameScene extends Phaser.Scene {
     this.layoutHeader();
     this.layoutSkillTree();
     this.layoutSeedShop();
-    this.refreshUi();
-    this.layoutTiles();
     this.readyUnlockKeys = this.getReadyUnlockKeys();
     this.readyQuestKeys = this.getReadyQuestKeys();
+    this.refreshUi();
+    this.layoutTiles();
     this.showMessage(
       this.stressMode ? "Stress mode: big field, busy systems, no save writes." : "Touch the grass. Let it regrow. Become reasonable.",
       3600,
@@ -7361,7 +7361,8 @@ export class GameScene extends Phaser.Scene {
   private refreshUi(): void {
     const nextMilestone = MILESTONES.find((milestone) => !this.state.reachedMilestones.includes(milestone.id));
     const nextQuest = QUESTS.find((quest) => !this.state.claimedQuestIds.includes(quest.id) && isQuestAvailable(this.state, quest));
-    const readyQuestCount = this.readyQuestKeys.size;
+    const currentReadyQuestKeys = this.getReadyQuestKeys();
+    const readyQuestCount = currentReadyQuestKeys.size;
     const nextTier = getNextGrassTier(this.state);
     const weather = this.state.seedShopPurchases.weather_jar ? getWeather(this.state.activeWeatherId) : undefined;
     const season = getSeasonForDate(new Date());
@@ -7391,6 +7392,7 @@ export class GameScene extends Phaser.Scene {
     );
     this.refreshComboBadge();
     setTextButtonText(this.questButton, readyQuestCount > 0 ? `Quests (${readyQuestCount})` : "Quests");
+    this.refreshMenuButtonAttention(currentReadyQuestKeys);
     this.refreshJournalAccess();
     if (this.skillTreeOpen) {
       this.setTextIfChanged(this.skillResourceText, `Available Grass Touches: ${formatGrassTouches(this.state.grassTouches)}`);
@@ -7488,6 +7490,18 @@ export class GameScene extends Phaser.Scene {
 
       this.refreshSkillDetail();
     }
+  }
+
+  private refreshMenuButtonAttention(currentReadyQuestKeys = this.getReadyQuestKeys()): void {
+    const readyUnlockKeys = this.getReadyUnlockKeys();
+    const readyUnlockList = [...readyUnlockKeys];
+    setTextButtonAttention(this.skillButton, readyUnlockList.some((key) => key.startsWith("upgrade:")));
+    setTextButtonAttention(this.seedButton, readyUnlockList.some((key) => key.startsWith("seed:")));
+    setTextButtonAttention(
+      this.storeButton,
+      readyUnlockList.some((key) => key.startsWith("automation:") || key.startsWith("gold:")),
+    );
+    setTextButtonAttention(this.questButton, currentReadyQuestKeys.size > 0);
   }
 
   private refreshComboBadge(): void {
