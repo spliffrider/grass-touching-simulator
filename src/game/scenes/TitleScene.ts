@@ -6,7 +6,8 @@ import { ChiptuneMusicSystem, TITLE_TRACK_ID } from "../systems/ChiptuneMusicSys
 import { hasSavedGame, resetSave } from "../systems/SaveSystem";
 import type { CharacterClassId } from "../types/game-state";
 
-const TITLE_BACKGROUND_KEY = "title-background";
+const TITLE_BACKGROUND_LANDSCAPE_KEY = "title-background-landscape";
+const TITLE_BACKGROUND_PORTRAIT_KEY = "title-background-portrait";
 const CREDITS_PANEL_BASE_WIDTH = 420;
 const CREDITS_PANEL_BASE_HEIGHT = 290;
 const OPTIONS_PANEL_BASE_WIDTH = 460;
@@ -110,7 +111,8 @@ export class TitleScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image(TITLE_BACKGROUND_KEY, "/assets/backgrounds/meadow-clearing-concept.webp");
+    this.load.image(TITLE_BACKGROUND_LANDSCAPE_KEY, "/assets/backgrounds/title-wholesome-landscape.webp");
+    this.load.image(TITLE_BACKGROUND_PORTRAIT_KEY, "/assets/backgrounds/title-wholesome-portrait.webp");
     this.load.image("panel-emerald", "/assets/ui/panel-emerald.png");
     this.load.image("title-selector-leaf", "/assets/title-selector-leaf.png");
     this.load.image("title-selector-flower", "/assets/title-selector-flower.png");
@@ -132,7 +134,7 @@ export class TitleScene extends Phaser.Scene {
     }
 
     this.menuThemeVolume = readStoredMusicVolume();
-    this.background = this.add.image(0, 0, TITLE_BACKGROUND_KEY).setOrigin(0.5).setDepth(0);
+    this.background = this.add.image(0, 0, this.getTitleBackgroundKey()).setOrigin(0.5).setDepth(0);
     this.titleArt = this.add.graphics().setDepth(2);
     this.foregroundArt = this.add.graphics().setDepth(5);
     this.createTitleMark();
@@ -637,6 +639,11 @@ export class TitleScene extends Phaser.Scene {
       return;
     }
 
+    const backgroundKey = this.getTitleBackgroundKey();
+    if (this.background.texture.key !== backgroundKey) {
+      this.background.setTexture(backgroundKey);
+    }
+
     const short = this.scale.height < 560;
     const narrow = this.scale.width < 680;
     const compact = short || narrow;
@@ -692,6 +699,10 @@ export class TitleScene extends Phaser.Scene {
     this.layoutCreditsPanel();
   }
 
+  private getTitleBackgroundKey(): string {
+    return this.scale.height > this.scale.width * 1.15 ? TITLE_BACKGROUND_PORTRAIT_KEY : TITLE_BACKGROUND_LANDSCAPE_KEY;
+  }
+
   private fitTextToWidth(text: Phaser.GameObjects.Text, maxWidth: number, preferredSize: number, minSize: number): void {
     let size = preferredSize;
     text.setFontSize(size);
@@ -719,18 +730,14 @@ export class TitleScene extends Phaser.Scene {
     const menuX = centerX - menuWidth / 2;
 
     this.titleArt.clear();
-    this.titleArt.fillStyle(0x06190f, 0.6);
+    this.titleArt.fillStyle(0x06190f, 0.74);
     this.titleArt.fillRoundedRect(titleX + 8, titleTop + 8, titleWidth, titleHeight, 20);
-    this.titleArt.fillStyle(0x0c2e1c, 0.56);
+    this.titleArt.fillStyle(0x0c2e1c, 0.9);
     this.titleArt.fillRoundedRect(titleX, titleTop, titleWidth, titleHeight, 20);
     this.titleArt.lineStyle(compact ? 3 : 4, 0xb7eba5, 0.72);
     this.titleArt.strokeRoundedRect(titleX, titleTop, titleWidth, titleHeight, 20);
     this.titleArt.lineStyle(2, 0xffef78, 0.32);
     this.titleArt.strokeRoundedRect(titleX + 8, titleTop + 8, titleWidth - 16, titleHeight - 16, 14);
-    this.titleArt.fillStyle(0xffef78, 0.18);
-    this.titleArt.fillEllipse(centerX - titleWidth * 0.34, titleTop + titleHeight * 0.24, titleWidth * 0.16, titleHeight * 0.22);
-    this.titleArt.fillStyle(0x95ee66, 0.14);
-    this.titleArt.fillEllipse(centerX + titleWidth * 0.34, titleTop + titleHeight * 0.26, titleWidth * 0.18, titleHeight * 0.24);
 
     this.drawMenuPanel(menuX, menuTop, menuWidth, menuHeight, compact);
     this.drawForegroundShade();
@@ -764,9 +771,6 @@ export class TitleScene extends Phaser.Scene {
       this.foregroundArt.fillStyle(0x06190f, 0.05 + index * 0.025);
       this.foregroundArt.fillRect(0, y, this.scale.width, bandHeight);
     }
-
-    this.foregroundArt.fillStyle(0xf4df6a, 0.08);
-    this.foregroundArt.fillEllipse(this.scale.width * 0.74, this.scale.height * 0.24, this.scale.width * 0.18, this.scale.height * 0.08);
   }
 
   private setActiveMenuButton(id: TitleButton["id"]): void {
