@@ -27,6 +27,7 @@ import {
   createTile,
   expandField,
   getFieldBounds,
+  getFieldTiles,
   getRegrowingTiles,
   tileKey,
   touchTile,
@@ -117,6 +118,11 @@ const AMBIENT_TRANSIENT_OBJECT_BUDGET = 18;
 const AMBIENT_POP_TEXT_BUDGET = 7;
 const AMBIENT_REWARD_ARC_SPRITE_BUDGET = 6;
 const AMBIENT_WORLD_ACTION_ARC_SPRITE_BUDGET = 10;
+const AUTO_TOUCH_VISUAL_CREDIT_LIMIT = 7;
+const AUTO_TOUCH_VISUAL_SAMPLE_LIMIT = 36;
+const AUTO_TOUCH_VISUAL_MIN_INTERVAL_MS = 110;
+const AUTO_TOUCH_VISUAL_MAX_INTERVAL_MS = 420;
+const AUTO_TOUCH_POP_INTERVAL_MS = 1300;
 const QUEUED_SAVE_INTERVAL_MS = 6500;
 const AUTO_SAVE_INTERVAL_MS = 20000;
 const IDLE_SAVE_TIMEOUT_MS = 2400;
@@ -592,6 +598,9 @@ export class GameScene extends Phaser.Scene {
   private popTextPool: Phaser.GameObjects.Text[] = [];
   private activePopTexts = new Set<Phaser.GameObjects.Text>();
   private lastTouchFlourishAt = 0;
+  private autoTouchVisualCredit = 0;
+  private lastAutoTouchVisualAt = 0;
+  private lastAutoTouchPopAt = 0;
   private comboBadgeRefreshElapsed = COMBO_BADGE_REFRESH_INTERVAL_MS;
   private lastMusicComboLevel = 0;
   private activeComboSource: ComboTouchSource = "manual";
@@ -6067,7 +6076,122 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    this.runWithAmbientFeedback(() => this.queueAutomationTouchVisuals(result.gained, result.touchesPerMinute));
     this.queueSave();
+  }
+
+  private queueAutomationTouchVisuals(gained: number, touchesPerMinute: number): void {
+    if (gained <= 0 || touchesPerMinute <= 0 || this.hasBlockingOverlayOpen()) {
+      return;
+    }
+
+    if (this.children.list.length >= DISPLAY_OBJECT_CRITICAL_LIMIT || this.effectQuality <= MIN_EFFECT_QUALITY) {
+      this.autoTouchVisualCredit = 0;
+      return;
+    }
+
+    const now = Date.now();
+    const visualWeight = Phaser.Math.Clamp(Math.log2(gained + 1), 1, 4);
+    const rateWeight = Phaser.Math.Clamp(touchesPerMinute / 180, 0.35, 3);
+    this.autoTouchVisualCredit = Math.min(
+      this.getScaledBudget(AUTO_TOUCH_VISUAL_CREDIT_LIMIT),
+      this.autoTouchVisualCredit + visualWeight * 0.68 + rateWeight * 0.32,
+    );
+
+    if (this.autoTouchVisualCredit < 1) {
+      return;
+    }
+
+    const objectPressure = this.children.list.length >= DISPLAY_OBJECT_PRESSURE_LIMIT;
+    const cadence = Phaser.Math.Clamp(
+      60000 / Math.max(1, touchesPerMinute * (objectPressure || this.effectQuality < 0.58 ? 0.48 : 1.35)),
+      AUTO_TOUCH_VISUAL_MIN_INTERVAL_MS,
+      AUTO_TOUCH_VISUAL_MAX_INTERVAL_MS,
+    );
+    if (now - this.lastAutoTouchVisualAt < cadence) {
+      return;
+    }
+
+    const tile = this.pickAutomationTouchVisualTile();
+    if (!tile) {
+      return;
+    }
+
+    this.autoTouchVisualCredit = Math.max(0, this.autoTouchVisualCredit - 1);
+    this.lastAutoTouchVisualAt = now;
+    this.playAutomationTouchVisual(tile, now);
+  }
+
+  private pickAutomationTouchVisualTile(): FieldTile | undefined {
+    const candidates: FieldTile[] = [];
+    const tiles = getFieldTiles(this.state);
+    const attempts = Math.min(tiles.length, AUTO_TOUCH_VISUAL_SAMPLE_LIMIT);
+
+    for (let index = 0; index < attempts; index += 1) {
+      const tile = tiles[Phaser.Math.Between(0, tiles.length - 1)];
+      if (tile.grassState !== "grown") {
+        continue;
+      }
+
+      const position = this.getTileVisualPosition(tile);
+      if (!position || !this.isScreenPositionNearViewport(position, TILE_CULL_MARGIN_PX)) {
+        continue;
+      }
+
+      candidates.push(tile);
+    }
+
+    return Phaser.Utils.Array.GetRandom(candidates);
+  }
+
+  private playAutomationTouchVisual(tile: FieldTile, now: number): void {
+    const position = this.getTileVisualPosition(tile);
+    if (!position || !this.reserveAmbientTransientObject(2)) {
+      return;
+    }
+
+    const x = position.x;
+    const y = position.y;
+    const color = this.getTierHighlightColor(tile.tier);
+    const stroke = tile.tier === "normal" ? 0xbff4ff : color;
+    const grassGhost = this.add
+      .image(x, y, this.getGrassTextureKey(tile))
+      .setScale(this.boardScale * this.getGrassScale(tile))
+      .setTint(stroke)
+      .setAlpha(0.38)
+      .setDepth(34);
+    const ring = this.add
+      .ellipse(x, y + 2 * this.boardScale, TILE_SIZE * 0.5 * this.boardScale, TILE_SIZE * 0.3 * this.boardScale, 0xbff4ff, 0.13)
+      .setStrokeStyle(Math.max(1, 2 * this.boardScale), stroke, 0.74)
+      .setDepth(35);
+
+    this.tweens.add({
+      targets: grassGhost,
+      scaleX: grassGhost.scaleX * 1.14,
+      scaleY: grassGhost.scaleY * 0.72,
+      y: y + 5 * this.boardScale,
+      alpha: 0,
+      duration: 250,
+      ease: "Sine.easeOut",
+      onComplete: () => grassGhost.destroy(),
+    });
+
+    this.tweens.add({
+      targets: ring,
+      scaleX: 1.85,
+      scaleY: 1.45,
+      alpha: 0,
+      duration: 330,
+      ease: "Sine.easeOut",
+      onComplete: () => ring.destroy(),
+    });
+
+    this.emitBurst(tile.trait === "dewy" ? "dew-fleck" : "grass-fleck", x, y - 6 * this.boardScale, 6, 0.45, 0.1);
+
+    if (this.effectQuality >= 0.58 && this.boardScale >= COMPACT_TILE_EFFECT_SCALE && now - this.lastAutoTouchPopAt >= AUTO_TOUCH_POP_INTERVAL_MS) {
+      this.lastAutoTouchPopAt = now;
+      this.popAtTile(tile, "auto", "#bff4ff");
+    }
   }
 
   private updateSprinkler(delta: number, stats: RuntimeStats): void {
