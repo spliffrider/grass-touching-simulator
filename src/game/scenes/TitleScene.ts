@@ -110,7 +110,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image(TITLE_BACKGROUND_KEY, "/assets/backgrounds/meadow-clearing-concept.webp");
+    this.load.image(TITLE_BACKGROUND_KEY, "/assets/title-screen.png");
     this.load.image("panel-emerald", "/assets/ui/panel-emerald.png");
     this.load.image("title-selector-leaf", "/assets/title-selector-leaf.png");
     this.load.image("title-selector-flower", "/assets/title-selector-flower.png");
@@ -226,7 +226,7 @@ export class TitleScene extends Phaser.Scene {
       .setShadow(0, 4, "#0a180c", 3, false, true);
 
     this.subtitleText = this.add
-      .text(0, 0, "FEEL THE GRASS. RELAX. BREATHE.", {
+      .text(0, 0, "A SOOTHING JOURNEY INTO NATURE\nFEEL THE GRASS. RELAX. BREATHE.", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "19px",
         color: "#f7ffe8",
@@ -237,6 +237,7 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(8)
       .setShadow(0, 2, "#06190f", 2, false, true);
+    this.subtitleText.setLineSpacing(2);
   }
 
   private startMenuThemeWhenAllowed(): void {
@@ -712,25 +713,24 @@ export class TitleScene extends Phaser.Scene {
     compact: boolean,
     short: boolean,
   ): void {
-    const titleWidth = Math.min(this.scale.width - 28, Math.max(330, titleMaxWidth + (compact ? 18 : 56)));
-    const titleHeight = short ? 116 : compact ? 146 : 188;
+    const narrow = this.scale.width < 680;
+    const titleWidth = narrow ? this.scale.width - 2 : Math.min(this.scale.width - 28, Math.max(330, titleMaxWidth + (compact ? 18 : 56)));
+    const titleHeight = short ? 150 : narrow ? Math.min(this.scale.height * 0.44, 372) : compact ? 216 : 306;
     const titleX = centerX - titleWidth / 2;
     const titleTop = Math.max(10, titleY - (short ? 29 : compact ? 39 : 53));
     const menuX = centerX - menuWidth / 2;
 
     this.titleArt.clear();
-    this.titleArt.fillStyle(0x06190f, 0.6);
-    this.titleArt.fillRoundedRect(titleX + 8, titleTop + 8, titleWidth, titleHeight, 20);
-    this.titleArt.fillStyle(0x0c2e1c, 0.56);
-    this.titleArt.fillRoundedRect(titleX, titleTop, titleWidth, titleHeight, 20);
-    this.titleArt.lineStyle(compact ? 3 : 4, 0xb7eba5, 0.72);
-    this.titleArt.strokeRoundedRect(titleX, titleTop, titleWidth, titleHeight, 20);
-    this.titleArt.lineStyle(2, 0xffef78, 0.32);
-    this.titleArt.strokeRoundedRect(titleX + 8, titleTop + 8, titleWidth - 16, titleHeight - 16, 14);
-    this.titleArt.fillStyle(0xffef78, 0.18);
-    this.titleArt.fillEllipse(centerX - titleWidth * 0.34, titleTop + titleHeight * 0.24, titleWidth * 0.16, titleHeight * 0.22);
-    this.titleArt.fillStyle(0x95ee66, 0.14);
-    this.titleArt.fillEllipse(centerX + titleWidth * 0.34, titleTop + titleHeight * 0.26, titleWidth * 0.18, titleHeight * 0.24);
+    this.titleArt.fillStyle(0x06190f, 0.56);
+    this.titleArt.fillRoundedRect(titleX + 8, titleTop + 8, titleWidth, titleHeight, 22);
+    this.titleArt.fillStyle(0x123d22, 1);
+    this.titleArt.fillRoundedRect(titleX, titleTop, titleWidth, titleHeight, 22);
+    this.titleArt.fillStyle(0x1f6a36, 0.2);
+    this.titleArt.fillRoundedRect(titleX + 10, titleTop + 10, titleWidth - 20, titleHeight - 20, 16);
+    this.titleArt.lineStyle(compact ? 3 : 4, 0xe0ffc9, 0.78);
+    this.titleArt.strokeRoundedRect(titleX, titleTop, titleWidth, titleHeight, 22);
+    this.titleArt.lineStyle(2, 0xffef78, 0.36);
+    this.titleArt.strokeRoundedRect(titleX + 9, titleTop + 9, titleWidth - 18, titleHeight - 18, 15);
 
     this.drawMenuPanel(menuX, menuTop, menuWidth, menuHeight, compact);
     this.drawForegroundShade();
@@ -739,19 +739,23 @@ export class TitleScene extends Phaser.Scene {
   private drawMenuPanel(x: number, y: number, width: number, height: number, compact: boolean): void {
     const border = compact ? 3 : 4;
     const inset = compact ? 8 : 12;
+    const narrow = this.scale.width < 680;
+    const panelX = narrow ? 12 : x;
+    const panelWidth = narrow ? this.scale.width - 24 : width;
+    const panelHeight = narrow && this.scale.height >= 560 ? Math.min(this.scale.height - y - 28, height + 72) : height;
     this.menuPanel.clear();
-    this.menuPanel.fillStyle(0x04130b, 0.68);
-    this.menuPanel.fillRoundedRect(x + 9, y + 10, width, height, 18);
-    this.menuPanel.fillStyle(0x071b11, 0.84);
-    this.menuPanel.fillRoundedRect(x, y, width, height, 18);
-    this.menuPanel.fillStyle(0x0f3d22, 0.62);
-    this.menuPanel.fillRoundedRect(x + border, y + border, width - border * 2, height - border * 2, 14);
+    this.menuPanel.fillStyle(0x04130b, 0.72);
+    this.menuPanel.fillRoundedRect(panelX + 9, y + 10, panelWidth, panelHeight, 18);
+    this.menuPanel.fillStyle(0x071b11, 0.94);
+    this.menuPanel.fillRoundedRect(panelX, y, panelWidth, panelHeight, 18);
+    this.menuPanel.fillStyle(0x15522b, 0.82);
+    this.menuPanel.fillRoundedRect(panelX + border, y + border, panelWidth - border * 2, panelHeight - border * 2, 14);
     this.menuPanel.fillStyle(0xb7eba5, 0.16);
-    this.menuPanel.fillRoundedRect(x + inset, y + inset, width - inset * 2, compact ? 8 : 12, 4);
+    this.menuPanel.fillRoundedRect(panelX + inset, y + inset, panelWidth - inset * 2, compact ? 8 : 12, 4);
     this.menuPanel.lineStyle(border, 0xb7eba5, 0.76);
-    this.menuPanel.strokeRoundedRect(x, y, width, height, 18);
+    this.menuPanel.strokeRoundedRect(panelX, y, panelWidth, panelHeight, 18);
     this.menuPanel.lineStyle(2, 0xffef78, 0.24);
-    this.menuPanel.strokeRoundedRect(x + inset, y + inset, width - inset * 2, height - inset * 2, 10);
+    this.menuPanel.strokeRoundedRect(panelX + inset, y + inset, panelWidth - inset * 2, panelHeight - inset * 2, 10);
   }
 
   private drawForegroundShade(): void {
@@ -764,9 +768,6 @@ export class TitleScene extends Phaser.Scene {
       this.foregroundArt.fillStyle(0x06190f, 0.05 + index * 0.025);
       this.foregroundArt.fillRect(0, y, this.scale.width, bandHeight);
     }
-
-    this.foregroundArt.fillStyle(0xf4df6a, 0.08);
-    this.foregroundArt.fillEllipse(this.scale.width * 0.74, this.scale.height * 0.24, this.scale.width * 0.18, this.scale.height * 0.08);
   }
 
   private setActiveMenuButton(id: TitleButton["id"]): void {
