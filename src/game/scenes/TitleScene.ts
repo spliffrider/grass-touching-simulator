@@ -6,8 +6,7 @@ import { ChiptuneMusicSystem, TITLE_TRACK_ID } from "../systems/ChiptuneMusicSys
 import { hasSavedGame, resetSave } from "../systems/SaveSystem";
 import type { CharacterClassId } from "../types/game-state";
 
-const SOURCE_WIDTH = 1366;
-const SOURCE_HEIGHT = 768;
+const TITLE_BACKGROUND_KEY = "title-background";
 const CREDITS_PANEL_BASE_WIDTH = 420;
 const CREDITS_PANEL_BASE_HEIGHT = 290;
 const OPTIONS_PANEL_BASE_WIDTH = 460;
@@ -26,6 +25,7 @@ interface TitleButton {
   hitWidth: number;
   hitHeight: number;
   selectorWidth: number;
+  frame: Phaser.GameObjects.Rectangle;
   hit: Phaser.GameObjects.Rectangle;
   label: Phaser.GameObjects.Text;
 }
@@ -47,6 +47,11 @@ interface ClassCard {
 
 export class TitleScene extends Phaser.Scene {
   private background!: Phaser.GameObjects.Image;
+  private titleArt!: Phaser.GameObjects.Graphics;
+  private foregroundArt!: Phaser.GameObjects.Graphics;
+  private titleTopText!: Phaser.GameObjects.Text;
+  private titleBottomText!: Phaser.GameObjects.Text;
+  private subtitleText!: Phaser.GameObjects.Text;
   private selectorLeft!: Phaser.GameObjects.Image;
   private selectorRight!: Phaser.GameObjects.Image;
   private menuPanel!: Phaser.GameObjects.Graphics;
@@ -105,7 +110,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image("title-screen", "/assets/title-screen.png");
+    this.load.image(TITLE_BACKGROUND_KEY, "/assets/backgrounds/meadow-clearing-concept.webp");
     this.load.image("panel-emerald", "/assets/ui/panel-emerald.png");
     this.load.image("title-selector-leaf", "/assets/title-selector-leaf.png");
     this.load.image("title-selector-flower", "/assets/title-selector-flower.png");
@@ -127,7 +132,10 @@ export class TitleScene extends Phaser.Scene {
     }
 
     this.menuThemeVolume = readStoredMusicVolume();
-    this.background = this.add.image(0, 0, "title-screen").setOrigin(0.5);
+    this.background = this.add.image(0, 0, TITLE_BACKGROUND_KEY).setOrigin(0.5).setDepth(0);
+    this.titleArt = this.add.graphics().setDepth(2);
+    this.foregroundArt = this.add.graphics().setDepth(5);
+    this.createTitleMark();
     this.createMenuButton("start", 683, 469, 390, 56, 220);
     this.createMenuButton("continue", 683, 529, 350, 54, 205);
     this.createMenuButton("options", 683, 589, 300, 54, 170);
@@ -190,6 +198,47 @@ export class TitleScene extends Phaser.Scene {
     this.layoutTitle();
   }
 
+  private createTitleMark(): void {
+    this.titleTopText = this.add
+      .text(0, 0, "GRASS TOUCHING", {
+        fontFamily: "Impact, Trebuchet MS, Arial",
+        fontSize: "66px",
+        color: "#95ee66",
+        stroke: "#062713",
+        strokeThickness: 10,
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setDepth(8)
+      .setShadow(0, 4, "#0a180c", 3, false, true);
+
+    this.titleBottomText = this.add
+      .text(0, 0, "SIMULATOR", {
+        fontFamily: "Impact, Trebuchet MS, Arial",
+        fontSize: "64px",
+        color: "#ffd76a",
+        stroke: "#3a1c10",
+        strokeThickness: 10,
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setDepth(8)
+      .setShadow(0, 4, "#0a180c", 3, false, true);
+
+    this.subtitleText = this.add
+      .text(0, 0, "FEEL THE GRASS. RELAX. BREATHE.", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "19px",
+        color: "#f7ffe8",
+        stroke: "#092213",
+        strokeThickness: 5,
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setDepth(8)
+      .setShadow(0, 2, "#06190f", 2, false, true);
+  }
+
   private startMenuThemeWhenAllowed(): void {
     this.menuTheme.setTrack(TITLE_TRACK_ID);
     this.menuTheme.setComboLevel(32);
@@ -237,27 +286,32 @@ export class TitleScene extends Phaser.Scene {
     hitHeight: number,
     selectorWidth: number,
   ): void {
+    const frame = this.add
+      .rectangle(0, 0, hitWidth, hitHeight, 0x0b2a18, 0.72)
+      .setOrigin(0.5)
+      .setDepth(7)
+      .setStrokeStyle(2, 0xb7eba5, 0.42);
     const hit = this.add
       .rectangle(0, 0, hitWidth, hitHeight, 0xffffff, 0.001)
       .setOrigin(0.5)
-      .setDepth(9)
+      .setDepth(11)
       .setInteractive({ useHandCursor: true });
     const label = this.add
       .text(0, 0, this.getMenuButtonLabel(id), {
         fontFamily: "Impact, Trebuchet MS, Arial",
         fontSize: "42px",
-        color: "#ffe6a3",
+        color: "#fff1a8",
         stroke: "#2b160f",
-        strokeThickness: 7,
-        shadow: { offsetX: 2, offsetY: 3, color: "#f7ffe8", blur: 0, stroke: false, fill: false },
+        strokeThickness: 6,
+        shadow: { offsetX: 0, offsetY: 3, color: "#06190f", blur: 2, stroke: false, fill: true },
       })
       .setOrigin(0.5)
-      .setDepth(7);
+      .setDepth(9);
 
     hit.on("pointerover", () => this.setActiveMenuButton(id));
     hit.on("pointerdown", () => this.handleButton(id));
 
-    this.buttons.push({ id, sourceX, sourceY, hitWidth, hitHeight, selectorWidth, hit, label });
+    this.buttons.push({ id, sourceX, sourceY, hitWidth, hitHeight, selectorWidth, frame, hit, label });
   }
 
   private getMenuButtonLabel(id: TitleButton["id"]): string {
@@ -579,60 +633,140 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private layoutTitle(): void {
-    if (!this.titleReady || !this.background?.active || !this.menuPanel?.active) {
+    if (!this.titleReady || !this.background?.active || !this.menuPanel?.active || !this.titleArt?.active) {
       return;
     }
 
-    const shortLandscape = this.scale.width > this.scale.height && this.scale.height < 520;
-    const scale = shortLandscape
-      ? Math.min(this.scale.width / SOURCE_WIDTH, this.scale.height / SOURCE_HEIGHT)
-      : Math.max(this.scale.width / SOURCE_WIDTH, this.scale.height / SOURCE_HEIGHT);
-    const displayWidth = SOURCE_WIDTH * scale;
-    const displayHeight = SOURCE_HEIGHT * scale;
-    const offsetX = (this.scale.width - displayWidth) / 2;
-    const offsetY = (this.scale.height - displayHeight) / 2;
+    const short = this.scale.height < 560;
+    const narrow = this.scale.width < 680;
+    const compact = short || narrow;
+    const coverScale = Math.max(this.scale.width / this.background.width, this.scale.height / this.background.height);
+    const displayWidth = this.background.width * coverScale;
+    const displayHeight = this.background.height * coverScale;
+    const centerX = this.scale.width / 2;
 
-    this.background.setPosition(this.scale.width / 2, this.scale.height / 2);
+    this.background.setPosition(centerX, this.scale.height / 2);
     this.background.setDisplaySize(displayWidth, displayHeight);
     this.noticeText?.setPosition(this.scale.width / 2, this.scale.height - 34);
     this.buildLabelText?.setPosition(this.scale.width - 14, this.scale.height - 10);
-    this.drawMenuPanel(scale, offsetX, offsetY);
+
+    const titleY = short ? 38 : compact ? 58 : 70;
+    const titleMaxWidth = Math.max(260, Math.min(760, this.scale.width - 36));
+    this.fitTextToWidth(this.titleTopText, titleMaxWidth, short ? 36 : compact ? 48 : 68, 30);
+    this.fitTextToWidth(this.titleBottomText, titleMaxWidth, short ? 35 : compact ? 47 : 66, 29);
+    this.subtitleText.setFontSize(short ? 12 : compact ? 15 : 19);
+    this.subtitleText.setWordWrapWidth(titleMaxWidth);
+    this.titleTopText.setPosition(centerX, titleY);
+    this.titleBottomText.setPosition(centerX, titleY + (short ? 37 : compact ? 48 : 66));
+    this.subtitleText.setPosition(centerX, titleY + (short ? 78 : compact ? 102 : 138));
+
+    const menuRowHeight = short ? 34 : compact ? 42 : 50;
+    const menuGap = short ? 5 : compact ? 8 : 10;
+    const menuWidth = Math.min(short ? 286 : compact ? 330 : 390, this.scale.width - 38);
+    const menuHeight = this.buttons.length * menuRowHeight + (this.buttons.length - 1) * menuGap + (short ? 24 : 36);
+    const menuTop = Phaser.Math.Clamp(
+      Math.max(this.subtitleText.y + (short ? 26 : 42), this.scale.height * (short ? 0.38 : 0.48)),
+      short ? 84 : 174,
+      Math.max(short ? 84 : 174, this.scale.height - menuHeight - 26),
+    );
+
+    this.drawTitleArt(centerX, titleY, titleMaxWidth, menuTop, menuWidth, menuHeight, compact, short);
     this.layoutOptionsPanel();
     this.layoutClassSelectPanel();
 
-    for (const button of this.buttons) {
-      const x = offsetX + button.sourceX * scale;
-      const y = offsetY + button.sourceY * scale;
-      button.hit.setPosition(x, y);
-      button.hit.setScale(scale);
-      button.label.setPosition(x, y - 1 * scale);
-      button.label.setFontSize(Math.max(20, Math.round((button.id === "credits" ? 30 : button.id === "quit" ? 38 : 43) * scale)));
-      button.label.setStroke("#2b160f", Math.max(3, Math.round(7 * scale)));
-    }
+    this.buttons.forEach((button, index) => {
+      const active = button.id === this.activeButtonId;
+      const y = menuTop + (short ? 12 : 18) + menuRowHeight / 2 + index * (menuRowHeight + menuGap);
+      const rowWidth = button.id === "credits" ? menuWidth * 0.72 : button.id === "quit" ? menuWidth * 0.66 : menuWidth * 0.86;
+      button.frame.setPosition(centerX, y).setSize(rowWidth, menuRowHeight);
+      button.frame.setFillStyle(active ? 0xffef78 : 0x0b2a18, active ? 0.32 : 0.7);
+      button.frame.setStrokeStyle(active ? 4 : 2, active ? 0xffef78 : 0xb7eba5, active ? 0.96 : 0.42);
+      button.hit.setPosition(centerX, y).setSize(Math.max(rowWidth, 180), menuRowHeight + 8).setScale(1);
+      button.label.setPosition(centerX, y - (short ? 1 : 2));
+      button.label.setFontSize(short ? (button.id === "credits" ? 22 : 29) : compact ? (button.id === "credits" ? 25 : 34) : button.id === "credits" ? 30 : 41);
+      button.label.setColor(active ? "#fff7c7" : "#ffe6a3");
+      button.label.setStroke("#2b160f", short ? 4 : 6);
+    });
 
-    this.layoutMenuSelectors(scale, offsetX, offsetY);
+    this.layoutMenuSelectors();
     this.layoutCreditsPanel();
   }
 
-  private drawMenuPanel(scale: number, offsetX: number, offsetY: number): void {
-    const x = offsetX + 482 * scale;
-    const y = offsetY + 410 * scale;
-    const width = 402 * scale;
-    const height = 326 * scale;
-    const border = Math.max(3, Math.round(5 * scale));
-    const inset = Math.max(6, Math.round(10 * scale));
+  private fitTextToWidth(text: Phaser.GameObjects.Text, maxWidth: number, preferredSize: number, minSize: number): void {
+    let size = preferredSize;
+    text.setFontSize(size);
 
+    while (text.width > maxWidth && size > minSize) {
+      size -= 2;
+      text.setFontSize(size);
+    }
+  }
+
+  private drawTitleArt(
+    centerX: number,
+    titleY: number,
+    titleMaxWidth: number,
+    menuTop: number,
+    menuWidth: number,
+    menuHeight: number,
+    compact: boolean,
+    short: boolean,
+  ): void {
+    const titleWidth = Math.min(this.scale.width - 28, Math.max(330, titleMaxWidth + (compact ? 18 : 56)));
+    const titleHeight = short ? 116 : compact ? 146 : 188;
+    const titleX = centerX - titleWidth / 2;
+    const titleTop = Math.max(10, titleY - (short ? 29 : compact ? 39 : 53));
+    const menuX = centerX - menuWidth / 2;
+
+    this.titleArt.clear();
+    this.titleArt.fillStyle(0x06190f, 0.6);
+    this.titleArt.fillRoundedRect(titleX + 8, titleTop + 8, titleWidth, titleHeight, 20);
+    this.titleArt.fillStyle(0x0c2e1c, 0.56);
+    this.titleArt.fillRoundedRect(titleX, titleTop, titleWidth, titleHeight, 20);
+    this.titleArt.lineStyle(compact ? 3 : 4, 0xb7eba5, 0.72);
+    this.titleArt.strokeRoundedRect(titleX, titleTop, titleWidth, titleHeight, 20);
+    this.titleArt.lineStyle(2, 0xffef78, 0.32);
+    this.titleArt.strokeRoundedRect(titleX + 8, titleTop + 8, titleWidth - 16, titleHeight - 16, 14);
+    this.titleArt.fillStyle(0xffef78, 0.18);
+    this.titleArt.fillEllipse(centerX - titleWidth * 0.34, titleTop + titleHeight * 0.24, titleWidth * 0.16, titleHeight * 0.22);
+    this.titleArt.fillStyle(0x95ee66, 0.14);
+    this.titleArt.fillEllipse(centerX + titleWidth * 0.34, titleTop + titleHeight * 0.26, titleWidth * 0.18, titleHeight * 0.24);
+
+    this.drawMenuPanel(menuX, menuTop, menuWidth, menuHeight, compact);
+    this.drawForegroundShade();
+  }
+
+  private drawMenuPanel(x: number, y: number, width: number, height: number, compact: boolean): void {
+    const border = compact ? 3 : 4;
+    const inset = compact ? 8 : 12;
     this.menuPanel.clear();
-    this.menuPanel.fillStyle(0x071b11, 0.88);
-    this.menuPanel.fillRect(x, y, width, height);
-    this.menuPanel.fillStyle(0x0f3d22, 0.72);
-    this.menuPanel.fillRect(x + border, y + border, width - border * 2, height - border * 2);
+    this.menuPanel.fillStyle(0x04130b, 0.68);
+    this.menuPanel.fillRoundedRect(x + 9, y + 10, width, height, 18);
+    this.menuPanel.fillStyle(0x071b11, 0.84);
+    this.menuPanel.fillRoundedRect(x, y, width, height, 18);
+    this.menuPanel.fillStyle(0x0f3d22, 0.62);
+    this.menuPanel.fillRoundedRect(x + border, y + border, width - border * 2, height - border * 2, 14);
     this.menuPanel.fillStyle(0xb7eba5, 0.16);
-    this.menuPanel.fillRect(x + inset, y + inset, width - inset * 2, Math.max(6, 12 * scale));
-    this.menuPanel.lineStyle(border, 0xb7eba5, 0.86);
-    this.menuPanel.strokeRect(x, y, width, height);
-    this.menuPanel.lineStyle(Math.max(2, Math.round(2 * scale)), 0x05130b, 0.78);
-    this.menuPanel.strokeRect(x + inset, y + inset, width - inset * 2, height - inset * 2);
+    this.menuPanel.fillRoundedRect(x + inset, y + inset, width - inset * 2, compact ? 8 : 12, 4);
+    this.menuPanel.lineStyle(border, 0xb7eba5, 0.76);
+    this.menuPanel.strokeRoundedRect(x, y, width, height, 18);
+    this.menuPanel.lineStyle(2, 0xffef78, 0.24);
+    this.menuPanel.strokeRoundedRect(x + inset, y + inset, width - inset * 2, height - inset * 2, 10);
+  }
+
+  private drawForegroundShade(): void {
+    this.foregroundArt.clear();
+
+    const bandCount = 6;
+    for (let index = 0; index < bandCount; index += 1) {
+      const bandHeight = 34 + index * 9;
+      const y = this.scale.height - bandHeight;
+      this.foregroundArt.fillStyle(0x06190f, 0.05 + index * 0.025);
+      this.foregroundArt.fillRect(0, y, this.scale.width, bandHeight);
+    }
+
+    this.foregroundArt.fillStyle(0xf4df6a, 0.08);
+    this.foregroundArt.fillEllipse(this.scale.width * 0.74, this.scale.height * 0.24, this.scale.width * 0.18, this.scale.height * 0.08);
   }
 
   private setActiveMenuButton(id: TitleButton["id"]): void {
@@ -640,25 +774,19 @@ export class TitleScene extends Phaser.Scene {
     this.layoutTitle();
   }
 
-  private layoutMenuSelectors(scale?: number, offsetX?: number, offsetY?: number): void {
-    const titleScale = scale ?? Math.max(this.scale.width / SOURCE_WIDTH, this.scale.height / SOURCE_HEIGHT);
-    const titleOffsetX = offsetX ?? (this.scale.width - SOURCE_WIDTH * titleScale) / 2;
-    const titleOffsetY = offsetY ?? (this.scale.height - SOURCE_HEIGHT * titleScale) / 2;
+  private layoutMenuSelectors(): void {
     const button = this.buttons.find((candidate) => candidate.id === this.activeButtonId) ?? this.buttons[0];
     if (!button) {
       return;
     }
 
-    const sidePadding = button.id === "credits" ? 48 : 54;
-    const iconScale = titleScale * (button.id === "credits" ? 0.78 : 0.86);
-    this.selectorLeft.setPosition(
-      titleOffsetX + (button.sourceX - button.selectorWidth / 2 - sidePadding) * titleScale,
-      titleOffsetY + button.sourceY * titleScale,
-    );
-    this.selectorRight.setPosition(
-      titleOffsetX + (button.sourceX + button.selectorWidth / 2 + sidePadding) * titleScale,
-      titleOffsetY + (button.sourceY + 1) * titleScale,
-    );
+    const iconScale = this.scale.height < 560 ? 0.42 : this.scale.width < 680 ? 0.58 : 0.78;
+    const sidePadding = this.scale.height < 560 ? 18 : 28;
+    const halfWidth = button.frame.width / 2;
+    this.selectorLeft.setVisible(true);
+    this.selectorRight.setVisible(true);
+    this.selectorLeft.setPosition(button.frame.x - halfWidth - sidePadding, button.frame.y);
+    this.selectorRight.setPosition(button.frame.x + halfWidth + sidePadding, button.frame.y + 1);
     this.selectorLeft.setScale(iconScale);
     this.selectorRight.setScale(iconScale);
   }

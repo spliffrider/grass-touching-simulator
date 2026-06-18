@@ -4220,6 +4220,7 @@ export class GameScene extends Phaser.Scene {
     const minVisibleY = Phaser.Math.Clamp(Math.floor((0 - radius - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
     const maxVisibleY = Phaser.Math.Clamp(Math.ceil((this.scale.height + radius - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
     this.clearBoardBackdrop();
+    this.drawBoardBackdrop(centerX, centerY, scaledStep, bounds);
     this.layoutBoardLayers();
 
     for (let gridY = minVisibleY; gridY <= maxVisibleY; gridY += 1) {
@@ -4303,6 +4304,121 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.boardBackdropGraphics.clear();
+  }
+
+  private drawBoardBackdrop(centerX: number, centerY: number, scaledStep: number, bounds: FieldBounds): void {
+    if (!this.boardBackdropGraphics) {
+      return;
+    }
+
+    const graphics = this.boardBackdropGraphics;
+    const pad = Math.max(16, 24 * this.boardScale);
+    const x = centerX - this.boardScaledWidth / 2 - pad;
+    const y = centerY - this.boardScaledHeight / 2 - pad;
+    const width = this.boardScaledWidth + pad * 2;
+    const height = this.boardScaledHeight + pad * 2;
+    const radius = Phaser.Math.Clamp(20 * this.boardScale, 10, 28);
+    const shadowOffset = Math.max(8, 14 * this.boardScale);
+
+    graphics.fillStyle(0x031008, 0.34);
+    graphics.fillRoundedRect(x + shadowOffset, y + shadowOffset, width, height, radius);
+    graphics.fillStyle(0x0a2a18, 0.5);
+    graphics.fillRoundedRect(x, y, width, height, radius);
+    graphics.fillStyle(0x184326, 0.32);
+    graphics.fillRoundedRect(x + pad * 0.35, y + pad * 0.35, width - pad * 0.7, height - pad * 0.7, Math.max(6, radius - 5));
+    graphics.lineStyle(Math.max(2, 4 * this.boardScale), 0xb7eba5, 0.32);
+    graphics.strokeRoundedRect(x, y, width, height, radius);
+    graphics.lineStyle(Math.max(1, 2 * this.boardScale), 0xffef78, 0.18);
+    graphics.strokeRoundedRect(x + pad * 0.5, y + pad * 0.5, width - pad, height - pad, Math.max(5, radius - 8));
+
+    this.drawBoardGridHint(graphics, centerX, centerY, scaledStep, bounds);
+    this.drawBoardEdgeDetails(graphics, x, y, width, height, pad);
+  }
+
+  private drawBoardGridHint(
+    graphics: Phaser.GameObjects.Graphics,
+    centerX: number,
+    centerY: number,
+    scaledStep: number,
+    bounds: FieldBounds,
+  ): void {
+    if (this.boardScale < 0.58 || bounds.width > 24 || bounds.height > 24) {
+      return;
+    }
+
+    const left = centerX - this.boardScaledWidth / 2 - (TILE_GAP * this.boardScale) / 2;
+    const top = centerY - this.boardScaledHeight / 2 - (TILE_GAP * this.boardScale) / 2;
+    const right = left + this.boardScaledWidth;
+    const bottom = top + this.boardScaledHeight;
+
+    graphics.lineStyle(1, 0xf7ffe8, 0.08);
+    for (let column = 1; column < bounds.width; column += 1) {
+      const lineX = left + column * scaledStep - (TILE_GAP * this.boardScale) / 2;
+      graphics.beginPath();
+      graphics.moveTo(lineX, top);
+      graphics.lineTo(lineX, bottom);
+      graphics.strokePath();
+    }
+
+    for (let row = 1; row < bounds.height; row += 1) {
+      const lineY = top + row * scaledStep - (TILE_GAP * this.boardScale) / 2;
+      graphics.beginPath();
+      graphics.moveTo(left, lineY);
+      graphics.lineTo(right, lineY);
+      graphics.strokePath();
+    }
+  }
+
+  private drawBoardEdgeDetails(graphics: Phaser.GameObjects.Graphics, x: number, y: number, width: number, height: number, pad: number): void {
+    const detailScale = Phaser.Math.Clamp(this.boardScale, 0.5, 1.25);
+    const accents = [
+      { color: 0xffef78, side: "top" },
+      { color: 0xffb7d5, side: "bottom" },
+      { color: 0x75e8ff, side: "left" },
+      { color: 0xb7eba5, side: "right" },
+      { color: 0xffd09a, side: "bottom" },
+      { color: 0xd7fff2, side: "top" },
+    ] as const;
+
+    accents.forEach((accent, index) => {
+      const t = (index + 1) / (accents.length + 1);
+      const wobble = Math.sin(index * 1.9) * pad * 0.22;
+      const px =
+        accent.side === "left"
+          ? x + pad * 0.32
+          : accent.side === "right"
+            ? x + width - pad * 0.32
+            : x + width * t;
+      const py =
+        accent.side === "top"
+          ? y + pad * 0.32
+          : accent.side === "bottom"
+            ? y + height - pad * 0.32
+            : y + height * t;
+
+      this.drawTinyFlower(graphics, px + wobble, py - wobble * 0.4, accent.color, detailScale);
+    });
+  }
+
+  private drawTinyFlower(graphics: Phaser.GameObjects.Graphics, x: number, y: number, color: number, scale: number): void {
+    const petalRadius = 2.8 * scale;
+    const centerRadius = 1.8 * scale;
+
+    graphics.lineStyle(Math.max(1, 1.3 * scale), 0x17491f, 0.55);
+    graphics.beginPath();
+    graphics.moveTo(x, y + centerRadius);
+    graphics.lineTo(x, y + 12 * scale);
+    graphics.strokePath();
+    graphics.fillStyle(0x76c85f, 0.72);
+    graphics.fillEllipse(x - 3.6 * scale, y + 8 * scale, 5.5 * scale, 2.8 * scale);
+    graphics.fillEllipse(x + 3.6 * scale, y + 7 * scale, 5.5 * scale, 2.8 * scale);
+    graphics.fillStyle(color, 0.82);
+    graphics.fillCircle(x - petalRadius, y, petalRadius);
+    graphics.fillCircle(x + petalRadius, y, petalRadius);
+    graphics.fillCircle(x, y - petalRadius, petalRadius);
+    graphics.fillCircle(x, y + petalRadius, petalRadius);
+    graphics.fillStyle(0xf7ffe8, 0.9);
+    graphics.fillCircle(x, y, centerRadius);
   }
 
   private needsTileView(tile: FieldTile, key: TileKey): boolean {
