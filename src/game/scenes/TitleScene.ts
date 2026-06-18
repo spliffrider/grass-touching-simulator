@@ -2,12 +2,12 @@ import Phaser from "phaser";
 import { DEFAULT_MUSIC_VOLUME, readStoredMusicVolume, writeStoredMusicVolume } from "../data/audio-settings";
 import { BUILD_LABEL } from "../data/build-info";
 import { CHARACTER_CLASSES, getCharacterClass, type CharacterClassDefinition } from "../data/character-classes";
+import { ChiptuneMusicSystem, TITLE_TRACK_ID } from "../systems/ChiptuneMusicSystem";
 import { hasSavedGame, resetSave } from "../systems/SaveSystem";
 import type { CharacterClassId } from "../types/game-state";
 
 const SOURCE_WIDTH = 1366;
 const SOURCE_HEIGHT = 768;
-const MENU_THEME_PATH = "/assets/music/epic_menu_theme_mellow.wav";
 const CREDITS_PANEL_BASE_WIDTH = 420;
 const CREDITS_PANEL_BASE_HEIGHT = 290;
 const OPTIONS_PANEL_BASE_WIDTH = 460;
@@ -87,7 +87,7 @@ export class TitleScene extends Phaser.Scene {
   private classCards: ClassCard[] = [];
   private classBackHit!: Phaser.GameObjects.Rectangle;
   private classBackText!: Phaser.GameObjects.Text;
-  private menuTheme?: HTMLAudioElement;
+  private menuTheme = new ChiptuneMusicSystem();
   private menuThemeEnabled = true;
   private menuThemeVolume = DEFAULT_MUSIC_VOLUME;
   private optionsOpen = false;
@@ -191,24 +191,9 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private startMenuThemeWhenAllowed(): void {
-    this.menuTheme = new Audio(MENU_THEME_PATH);
-    this.menuTheme.loop = true;
-    this.menuTheme.volume = this.menuThemeVolume;
-    this.menuTheme.preload = "auto";
-    this.menuTheme.setAttribute("playsinline", "true");
-    this.menuTheme.style.display = "none";
-    this.menuTheme.addEventListener("error", () => {
-      const code = this.menuTheme?.error?.code ?? "unknown";
-      this.showNotice(`Menu music could not load. Audio error ${code}.`);
-    });
-    this.menuTheme.addEventListener("playing", () => {
-      if (this.optionsOpen) {
-        this.showNotice("Music: on.");
-        this.refreshOptionsPanel();
-      }
-    });
-    document.body.appendChild(this.menuTheme);
-
+    this.menuTheme.setTrack(TITLE_TRACK_ID);
+    this.menuTheme.setComboLevel(32);
+    this.menuTheme.setVolume(this.menuThemeVolume);
     this.playMenuTheme();
   }
 
@@ -217,56 +202,31 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private playMenuTheme(): void {
-    if (!this.menuTheme || !this.menuThemeEnabled || !this.menuTheme.paused) {
+    if (!this.menuThemeEnabled || this.menuTheme.isPlaying()) {
       return;
     }
 
-    void this.menuTheme
-      .play()
-      .then(() => this.refreshOptionsPanel())
-      .catch(() => {
-        // Browsers block unprompted audio; menu interactions retry playback.
-      });
+    this.menuTheme.start(this.menuThemeVolume);
+    this.refreshOptionsPanel();
   }
 
   private stopMenuTheme(): void {
-    if (!this.menuTheme) {
-      return;
-    }
-
-    this.menuTheme.pause();
-    this.menuTheme.currentTime = 0;
-    this.menuTheme.remove();
-    this.menuTheme.src = "";
-    this.menuTheme = undefined;
+    this.menuTheme.stop();
   }
 
   private toggleMenuTheme(): void {
-    if (!this.menuTheme) {
-      this.showNotice("Music is still waking up. Try once more.");
-      return;
-    }
-
-    if (!this.menuTheme.paused) {
+    if (this.menuTheme.isPlaying()) {
       this.menuThemeEnabled = false;
-      this.menuTheme.pause();
+      this.menuTheme.stop();
       this.showNotice("Music: off.");
       this.refreshOptionsPanel();
       return;
     }
 
     this.menuThemeEnabled = true;
-    this.menuTheme.volume = this.menuThemeVolume;
-    void this.menuTheme
-      .play()
-      .then(() => {
-        this.showNotice("Music: on.");
-        this.refreshOptionsPanel();
-      })
-      .catch((error: unknown) => {
-        const message = error instanceof Error ? error.name : "blocked";
-        this.showNotice(`Music blocked by browser: ${message}. Tap Options again.`);
-      });
+    this.menuTheme.start(this.menuThemeVolume);
+    this.showNotice("Music: on.");
+    this.refreshOptionsPanel();
   }
 
   private createMenuButton(
@@ -1001,13 +961,11 @@ export class TitleScene extends Phaser.Scene {
   private setMenuThemeVolume(volume: number): void {
     this.menuThemeVolume = writeStoredMusicVolume(volume);
 
-    if (this.menuTheme) {
-      this.menuTheme.volume = this.menuThemeVolume;
-    }
+    this.menuTheme.setVolume(this.menuThemeVolume);
 
     if (this.menuThemeVolume <= 0) {
       this.menuThemeEnabled = false;
-      this.menuTheme?.pause();
+      this.menuTheme.stop();
       this.showNotice("Music: muted.");
     } else if (!this.menuThemeEnabled) {
       this.menuThemeEnabled = true;
@@ -1019,7 +977,7 @@ export class TitleScene extends Phaser.Scene {
 
   private refreshOptionsPanel(): void {
     this.volumeLabel?.setText(`Music volume: ${Math.round(this.menuThemeVolume * 100)}%`);
-    this.musicToggleText?.setText(this.menuThemeEnabled && !this.menuTheme?.paused ? "Music: On" : "Music: Off");
+    this.musicToggleText?.setText(this.menuThemeEnabled && this.menuTheme.isPlaying() ? "Music: On" : "Music: Off");
     this.layoutOptionsPanel();
   }
 

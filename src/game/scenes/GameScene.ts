@@ -62,7 +62,7 @@ import {
 import { recordAutomationAction, recordAutomationDirectiveUsed } from "../systems/AutomationProgressSystem";
 import { AutomationScheduler } from "../systems/AutomationScheduler";
 import { AudioSystem } from "../systems/AudioSystem";
-import { ChiptuneMusicSystem } from "../systems/ChiptuneMusicSystem";
+import { ChiptuneMusicSystem, TRACK_IDS } from "../systems/ChiptuneMusicSystem";
 import { ComboSystem, type ComboResult } from "../systems/ComboSystem";
 import { DropSystem, type DropFeedback } from "../systems/DropSystem";
 import { MutationSystem, type MutationEvent } from "../systems/MutationSystem";
@@ -2887,13 +2887,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private cycleTrack(direction: number): void {
-    const trackIds = ["cozy_meadow", "grasslands_groove", "dreamy_dewdrops", "constellation_climb"];
-    const currentIndex = trackIds.indexOf(this.music.getCurrentTrackId());
-    let nextIndex = (currentIndex + direction) % trackIds.length;
+    const currentIndex = Math.max(0, TRACK_IDS.indexOf(this.music.getCurrentTrackId()));
+    let nextIndex = (currentIndex + direction) % TRACK_IDS.length;
     if (nextIndex < 0) {
-      nextIndex += trackIds.length;
+      nextIndex += TRACK_IDS.length;
     }
-    const nextTrackId = trackIds[nextIndex];
+    const nextTrackId = TRACK_IDS[nextIndex];
     this.music.setTrack(nextTrackId);
     this.state.selectedTrackId = nextTrackId;
     this.saveState();

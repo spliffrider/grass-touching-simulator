@@ -25,6 +25,7 @@ type NoteName =
   | "C6";
 
 type Waveform = OscillatorType;
+type GrooveId = "meadow" | "groove" | "dreamy" | "climb" | "sprint" | "rain";
 
 interface ChordShape {
   bass: NoteName;
@@ -50,11 +51,16 @@ export interface ChiptuneTrack {
   id: string;
   name: string;
   bpm: number;
+  groove: GrooveId;
   melodyPhrases: Array<Array<NoteName | null>>;
   counterPhrases: Array<Array<NoteName | null>>;
   chords: ChordShape[];
   waveformLead: Waveform;
   waveformBass: Waveform;
+  leadGain?: number;
+  delayTime?: number;
+  delayFeedback?: number;
+  delayReturn?: number;
   useFMLead?: boolean;
   useFMBass?: boolean;
   fmRatioLead?: number;
@@ -70,9 +76,18 @@ interface ArrangementLayers {
   hats: boolean;
   counter: boolean;
   arp: boolean;
+  harmony: boolean;
   melody: boolean;
   flourishes: boolean;
   intensity: number;
+}
+
+interface BassEvent {
+  note: NoteName;
+  octaveDivisor: number;
+  offsetSteps: number;
+  durationSteps: number;
+  accent: number;
 }
 
 const NOTE_FREQUENCIES: Record<NoteName, number> = {
@@ -103,6 +118,40 @@ const NOTE_FREQUENCIES: Record<NoteName, number> = {
 };
 
 const NOISE_BUFFER_SECONDS = 0.5;
+export const TITLE_TRACK_ID = "title_garden";
+
+const TITLE_MELODY: Array<Array<NoteName | null>> = [
+  ["C5", "E5", "G5", null, "E5", "D5", "C5", null, "A4", "C5", "E5", null, "D5", "C5", "G4", null],
+  ["E5", "G5", "A5", "G5", "E5", "C5", "D5", null, "F5", "E5", "D5", "C5", "A4", null, "C5", null],
+  ["G4", "C5", "D5", "E5", "G5", null, "E5", "D5", "C5", "A4", "C5", "E5", "D5", "G4", "A4", null],
+  ["A4", "C5", "E5", "G5", "A5", "G5", "E5", null, "D5", "E5", "C5", "A4", "G4", null, "C5", null],
+  ["C5", "D5", "E5", "G5", "A5", null, "G5", "E5", "D5", "C5", "A4", "C5", "E5", "G5", "E5", null],
+  ["G5", "A5", "G5", "E5", "D5", "E5", "C5", null, "A4", "C5", "D5", "F5", "E5", "D5", "C5", null],
+  ["E5", "G5", "A5", "C6", "A5", "G5", "E5", "D5", "C5", "E5", "G5", "A5", "G5", "E5", "D5", null],
+  ["F5", "E5", "D5", "C5", "A4", "C5", "D5", null, "E5", "G5", "E5", "C5", "D5", null, "C5", null],
+];
+
+const TITLE_COUNTER: Array<Array<NoteName | null>> = [
+  [null, "G4", null, "E4", null, "G4", null, "C5", null, "E4", null, "G4", null, "E4", null, null],
+  ["C4", null, "E4", null, "G4", null, "E4", null, "A4", null, "F4", null, "D4", null, "G4", null],
+  [null, "E4", "G4", null, "C5", null, "G4", null, "E4", null, "C4", null, "D4", null, "F4", null],
+  ["F4", null, "A4", null, "C5", null, "A4", null, "G4", null, "E4", null, "C4", null, "E4", null],
+  [null, "C4", null, "G4", null, "E4", null, "C5", "A4", null, "C5", null, "E5", null, "G4", null],
+  ["E4", null, "G4", null, "A4", null, "C5", null, "F4", null, "A4", null, "D5", null, "G4", null],
+  [null, "G4", null, "C5", null, "E5", null, "G4", "C4", null, "E4", null, "A4", null, "G4", null],
+  ["A4", null, "F4", null, "D4", null, "F4", null, "C4", null, "E4", null, "G4", null, "C5", null],
+];
+
+const TITLE_CHORDS: ChordShape[] = [
+  { bass: "C3", chord: ["C4", "E4", "G4", "C5"] },
+  { bass: "G3", chord: ["G3", "B3", "D4", "G4"] },
+  { bass: "A3", chord: ["A3", "C4", "E4", "A4"] },
+  { bass: "F3", chord: ["F3", "A3", "C4", "F4"] },
+  { bass: "D3", chord: ["D3", "F3", "A3", "D4"] },
+  { bass: "A3", chord: ["A3", "C4", "E4", "A4"] },
+  { bass: "F3", chord: ["F3", "A3", "C4", "F4"] },
+  { bass: "G3", chord: ["G3", "B3", "D4", "G4"] },
+];
 
 // Track 1: Cozy Meadow
 const COZY_MELODY: Array<Array<NoteName | null>> = [
@@ -212,16 +261,94 @@ const CLIMB_CHORDS: ChordShape[] = [
   { bass: "G3", chord: ["G3", "B3", "D4", "G4"] },
 ];
 
+// Track 5: Sunlit Sprint
+const SPRINT_MELODY: Array<Array<NoteName | null>> = [
+  ["C5", null, "E5", "G5", "A5", null, "G5", "E5", "D5", null, "E5", "G5", "C6", null, "A5", null],
+  ["G4", "C5", null, "D5", "E5", "G5", null, "E5", "D5", "C5", "A4", null, "G4", null, "C5", null],
+  ["E5", null, "G5", "A5", "G5", "E5", "D5", null, "C5", "D5", "E5", null, "G5", "A5", "C6", null],
+  ["A5", "G5", "E5", null, "D5", "E5", "G5", null, "E5", "D5", "C5", "A4", "G4", null, "E4", null],
+];
+
+const SPRINT_COUNTER: Array<Array<NoteName | null>> = [
+  [null, "C4", null, "G4", null, "E4", null, "C4", null, "D4", null, "A4", null, "G4", null, null],
+  ["E4", null, "G4", null, "A4", null, "G4", null, "E4", null, "D4", null, "C4", null, null, null],
+  [null, "G4", null, "A4", null, "C5", null, "A4", null, "G4", null, "E4", null, "D4", null, null],
+  ["C4", null, "E4", null, "G4", null, "A4", null, "G4", null, "E4", null, "D4", null, "C4", null],
+];
+
+const SPRINT_CHORDS: ChordShape[] = [
+  { bass: "C3", chord: ["C4", "E4", "G4", "C5"] },
+  { bass: "D3", chord: ["D3", "F3", "A3", "D4"] },
+  { bass: "F3", chord: ["F3", "A3", "C4", "F4"] },
+  { bass: "G3", chord: ["G3", "B3", "D4", "G4"] },
+  { bass: "A2", chord: ["A3", "C4", "E4", "A4"] },
+  { bass: "F3", chord: ["F3", "A3", "C4", "F4"] },
+  { bass: "C3", chord: ["C4", "E4", "G4", "C5"] },
+  { bass: "G3", chord: ["G3", "B3", "D4", "G4"] },
+];
+
+// Track 6: Rain Barrel Run
+const RAIN_RUN_MELODY: Array<Array<NoteName | null>> = [
+  ["A4", null, "C5", null, "E5", "D5", "C5", null, "G4", null, "A4", "C5", "D5", null, "E5", null],
+  ["F4", "A4", null, "C5", "E5", null, "D5", "C5", "B4", null, "G4", "B4", "D5", null, "C5", null],
+  ["E5", null, "D5", "C5", "A4", null, "C5", "D5", "E5", null, "G5", null, "A5", "G5", "E5", null],
+  ["C5", null, "A4", null, "G4", "A4", "C5", null, "D5", "E5", "G5", null, "E5", "D5", "C5", null],
+];
+
+const RAIN_RUN_COUNTER: Array<Array<NoteName | null>> = [
+  [null, "E4", null, "A4", null, "C5", null, "A4", null, "E4", null, "G4", null, "A4", null, null],
+  ["F4", null, "A4", null, "C5", null, "A4", null, "G4", null, "B4", null, "D5", null, "B4", null],
+  [null, "C4", "E4", null, "A4", null, "E4", null, "C4", null, "E4", "G4", null, "E4", null, null],
+  ["A3", null, "C4", null, "E4", null, "G4", null, "A4", null, "G4", null, "E4", null, "C4", null],
+];
+
+const RAIN_RUN_CHORDS: ChordShape[] = [
+  { bass: "A2", chord: ["A3", "C4", "E4", "A4"] },
+  { bass: "F3", chord: ["F3", "A3", "C4", "F4"] },
+  { bass: "G3", chord: ["G3", "B3", "D4", "G4"] },
+  { bass: "E3", chord: ["E3", "G3", "B3", "E4"] },
+  { bass: "F3", chord: ["F3", "A3", "C4", "F4"] },
+  { bass: "C3", chord: ["C4", "E4", "G4", "C5"] },
+  { bass: "D3", chord: ["D3", "F3", "A3", "D4"] },
+  { bass: "G3", chord: ["G3", "B3", "D4", "G4"] },
+];
+
 export const TRACKS: Record<string, ChiptuneTrack> = {
+  [TITLE_TRACK_ID]: {
+    id: TITLE_TRACK_ID,
+    name: "Title Garden",
+    bpm: 118,
+    groove: "rain",
+    melodyPhrases: TITLE_MELODY,
+    counterPhrases: TITLE_COUNTER,
+    chords: TITLE_CHORDS,
+    waveformLead: "triangle",
+    waveformBass: "triangle",
+    leadGain: 0.68,
+    delayTime: 0.22,
+    delayFeedback: 0.17,
+    delayReturn: 0.08,
+    useFMLead: true,
+    fmRatioLead: 2.01,
+    fmIndexLead: 2.7,
+    useFMBass: true,
+    fmRatioBass: 1.5,
+    fmIndexBass: 2,
+  },
   cozy_meadow: {
     id: "cozy_meadow",
     name: "Cozy Meadow",
     bpm: 138,
+    groove: "meadow",
     melodyPhrases: COZY_MELODY,
     counterPhrases: COZY_COUNTER,
     chords: COZY_CHORDS,
     waveformLead: "square",
     waveformBass: "triangle",
+    leadGain: 0.82,
+    delayTime: 0.18,
+    delayFeedback: 0.18,
+    delayReturn: 0.09,
     useFMLead: false,
     useFMBass: false,
   },
@@ -229,11 +356,16 @@ export const TRACKS: Record<string, ChiptuneTrack> = {
     id: "grasslands_groove",
     name: "Grasslands Groove",
     bpm: 128,
+    groove: "groove",
     melodyPhrases: GROOVE_MELODY,
     counterPhrases: GROOVE_COUNTER,
     chords: GROOVE_CHORDS,
     waveformLead: "triangle",
     waveformBass: "triangle",
+    leadGain: 0.9,
+    delayTime: 0.135,
+    delayFeedback: 0.2,
+    delayReturn: 0.08,
     useFMLead: true,
     fmRatioLead: 2.01,
     fmIndexLead: 3,
@@ -245,11 +377,16 @@ export const TRACKS: Record<string, ChiptuneTrack> = {
     id: "dreamy_dewdrops",
     name: "Dreamy Dewdrops",
     bpm: 96,
+    groove: "dreamy",
     melodyPhrases: DREAMY_MELODY,
     counterPhrases: DREAMY_COUNTER,
     chords: DREAMY_CHORDS,
     waveformLead: "sine",
     waveformBass: "triangle",
+    leadGain: 0.74,
+    delayTime: 0.24,
+    delayFeedback: 0.24,
+    delayReturn: 0.13,
     useFMLead: true,
     fmRatioLead: 3.0,
     fmIndexLead: 6,
@@ -259,11 +396,16 @@ export const TRACKS: Record<string, ChiptuneTrack> = {
     id: "constellation_climb",
     name: "Constellation Climb",
     bpm: 144,
+    groove: "climb",
     melodyPhrases: CLIMB_MELODY,
     counterPhrases: CLIMB_COUNTER,
     chords: CLIMB_CHORDS,
     waveformLead: "square",
     waveformBass: "triangle",
+    leadGain: 0.92,
+    delayTime: 0.16,
+    delayFeedback: 0.18,
+    delayReturn: 0.1,
     useFMLead: true,
     fmRatioLead: 4.0,
     fmIndexLead: 1.8,
@@ -271,7 +413,58 @@ export const TRACKS: Record<string, ChiptuneTrack> = {
     fmRatioBass: 2.0,
     fmIndexBass: 2.5,
   },
+  sunlit_sprint: {
+    id: "sunlit_sprint",
+    name: "Sunlit Sprint",
+    bpm: 156,
+    groove: "sprint",
+    melodyPhrases: SPRINT_MELODY,
+    counterPhrases: SPRINT_COUNTER,
+    chords: SPRINT_CHORDS,
+    waveformLead: "square",
+    waveformBass: "sawtooth",
+    leadGain: 0.96,
+    delayTime: 0.115,
+    delayFeedback: 0.14,
+    delayReturn: 0.065,
+    useFMLead: true,
+    fmRatioLead: 2.5,
+    fmIndexLead: 2.2,
+    useFMBass: true,
+    fmRatioBass: 1.01,
+    fmIndexBass: 2.8,
+  },
+  rain_barrel_run: {
+    id: "rain_barrel_run",
+    name: "Rain Barrel Run",
+    bpm: 118,
+    groove: "rain",
+    melodyPhrases: RAIN_RUN_MELODY,
+    counterPhrases: RAIN_RUN_COUNTER,
+    chords: RAIN_RUN_CHORDS,
+    waveformLead: "triangle",
+    waveformBass: "square",
+    leadGain: 0.86,
+    delayTime: 0.21,
+    delayFeedback: 0.22,
+    delayReturn: 0.11,
+    useFMLead: true,
+    fmRatioLead: 3.01,
+    fmIndexLead: 4.2,
+    useFMBass: true,
+    fmRatioBass: 1.5,
+    fmIndexBass: 2.1,
+  },
 };
+
+export const TRACK_IDS = [
+  "cozy_meadow",
+  "grasslands_groove",
+  "dreamy_dewdrops",
+  "constellation_climb",
+  "sunlit_sprint",
+  "rain_barrel_run",
+];
 
 export class ChiptuneMusicSystem {
   private context?: AudioContext;
@@ -286,7 +479,9 @@ export class ChiptuneMusicSystem {
   private muted = false;
   private volume = 0.72;
   private stepTimer?: number;
+  private restartTimer?: number;
   private step = 0;
+  private playbackStep = 0;
   private nextStepAt = 0;
   private currentTrackId = "cozy_meadow";
   private comboLevel = 0;
@@ -298,7 +493,8 @@ export class ChiptuneMusicSystem {
     this.muted = this.volume <= 0;
 
     if (this.master && this.context) {
-      this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume * 1.5, this.context.currentTime, 0.02);
+      const trackGain = this.currentTrackId === TITLE_TRACK_ID ? 1.12 : 1.18;
+      this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume * trackGain, this.context.currentTime, 0.12);
     }
   }
 
@@ -312,8 +508,15 @@ export class ChiptuneMusicSystem {
     }
     this.currentTrackId = trackId;
     this.step = 0;
+    this.playbackStep = 0;
+    this.applyTrackMix();
     if (wasPlaying) {
-      this.start(this.volume);
+      this.restartTimer = window.setTimeout(() => {
+        this.restartTimer = undefined;
+        if (this.currentTrackId === trackId && !this.playing) {
+          this.start(this.volume);
+        }
+      }, 180);
     }
   }
 
@@ -323,6 +526,10 @@ export class ChiptuneMusicSystem {
 
   getCurrentTrackName(): string {
     return TRACKS[this.currentTrackId]?.name ?? "Unknown";
+  }
+
+  isPlaying(): boolean {
+    return this.playing;
   }
 
   setComboLevel(comboLevel: number): void {
@@ -355,7 +562,8 @@ export class ChiptuneMusicSystem {
     }
 
     this.playing = true;
-    this.nextStepAt = this.context.currentTime + 0.05;
+    this.playbackStep = 0;
+    this.nextStepAt = this.context.currentTime + 0.16;
     this.scheduleLoop();
   }
 
@@ -367,8 +575,13 @@ export class ChiptuneMusicSystem {
       this.stepTimer = undefined;
     }
 
+    if (this.restartTimer !== undefined) {
+      window.clearTimeout(this.restartTimer);
+      this.restartTimer = undefined;
+    }
+
     if (this.master && this.context) {
-      this.master.gain.setTargetAtTime(0, this.context.currentTime, 0.03);
+      this.master.gain.setTargetAtTime(0, this.context.currentTime, 0.08);
     }
   }
 
@@ -404,7 +617,21 @@ export class ChiptuneMusicSystem {
       this.master.connect(this.context.destination);
     }
 
+    this.applyTrackMix();
     this.unlocked = this.context.state === "running";
+  }
+
+  private applyTrackMix(): void {
+    if (!this.context) {
+      return;
+    }
+
+    const track = TRACKS[this.currentTrackId] ?? TRACKS.cozy_meadow;
+    const now = this.context.currentTime;
+    this.leadBus?.gain.setTargetAtTime(track.leadGain ?? 0.86, now, 0.04);
+    this.delay?.delayTime.setTargetAtTime(track.delayTime ?? 0.155, now, 0.04);
+    this.delayFeedback?.gain.setTargetAtTime(track.delayFeedback ?? 0.16, now, 0.04);
+    this.delayReturn?.gain.setTargetAtTime(track.delayReturn ?? 0.08, now, 0.04);
   }
 
   private scheduleLoop(): void {
@@ -417,22 +644,25 @@ export class ChiptuneMusicSystem {
     const stepSeconds = 60 / track.bpm / 2;
 
     while (this.nextStepAt < this.context.currentTime + lookaheadSeconds) {
-      this.scheduleStep(this.step, this.nextStepAt, stepSeconds);
+      this.scheduleStep(this.step, this.playbackStep, this.nextStepAt, stepSeconds);
       this.step = (this.step + 1) % 128;
+      this.playbackStep += 1;
       this.nextStepAt += stepSeconds;
     }
 
     this.stepTimer = window.setTimeout(() => this.scheduleLoop(), 90);
   }
 
-  private scheduleStep(songStep: number, startAt: number, stepSeconds: number): void {
+  private scheduleStep(songStep: number, playbackStep: number, startAt: number, stepSeconds: number): void {
     const track = TRACKS[this.currentTrackId] ?? TRACKS.cozy_meadow;
-    const layers = this.getArrangementLayers();
+    const layers = this.getArrangementLayers(playbackStep);
     const phraseIndex = Math.floor(songStep / 16) % track.melodyPhrases.length;
     const localStep = songStep % 16;
     const chord = track.chords[Math.floor(songStep / 8) % track.chords.length];
     const melody = track.melodyPhrases[phraseIndex][localStep];
     const counter = track.counterPhrases[phraseIndex][localStep];
+    const sectionIndex = Math.floor(songStep / 32) % 4;
+    const swungStart = startAt + this.getSwingOffset(track, localStep, stepSeconds);
     const isLift = phraseIndex >= 4 && phraseIndex <= 6;
     const isTurnaround = phraseIndex === 3 || phraseIndex === 7;
 
@@ -444,25 +674,28 @@ export class ChiptuneMusicSystem {
       this.playChord(chord, startAt, stepSeconds, isLift);
     }
 
-    if (layers.bass && songStep % 2 === 0) {
-      const walk = localStep % 8 === 6 ? chord.chord[1] : chord.bass;
-      this.playTone({
-        frequency: NOTE_FREQUENCIES[walk] / 2,
-        startAt,
-        duration: stepSeconds * 1.24,
-        volume: (songStep % 8 === 0 ? 0.062 : 0.046) * layers.intensity,
-        waveform: track.waveformBass,
-        useFM: track.useFMBass,
-        fmRatio: track.fmRatioBass,
-        fmIndex: track.fmIndexBass,
-        attack: 0.01,
-        release: 0.035,
-      });
-    } else if (layers.arp && songStep % 2 === 1) {
-      const stab = localStep % 8 === 7 ? chord.chord[1] : chord.bass;
+    if (layers.bass) {
+      for (const event of this.getBassEvents(track, chord, localStep, sectionIndex)) {
+        this.playTone({
+          frequency: NOTE_FREQUENCIES[event.note] / event.octaveDivisor,
+          startAt: swungStart + event.offsetSteps * stepSeconds,
+          duration: stepSeconds * event.durationSteps,
+          volume: (0.044 + event.accent * 0.016) * layers.intensity,
+          waveform: track.waveformBass,
+          useFM: track.useFMBass,
+          fmRatio: track.fmRatioBass,
+          fmIndex: track.fmIndexBass,
+          attack: 0.008,
+          release: 0.035,
+        });
+      }
+    }
+
+    if (layers.arp && songStep % 2 === 1) {
+      const stab = localStep % 8 === 7 ? chord.chord[(sectionIndex + 1) % chord.chord.length] : chord.bass;
       this.playTone({
         frequency: NOTE_FREQUENCIES[stab],
-        startAt: startAt + stepSeconds * 0.05,
+        startAt: swungStart + stepSeconds * 0.05,
         duration: stepSeconds * 0.38,
         volume: (isLift ? 0.024 : 0.018) * layers.intensity,
         waveform: track.waveformBass,
@@ -477,7 +710,7 @@ export class ChiptuneMusicSystem {
     if (layers.arp && isLift && (localStep === 3 || localStep === 11)) {
       this.playTone({
         frequency: NOTE_FREQUENCIES[chord.chord[2]] / 2,
-        startAt: startAt + stepSeconds * 0.34,
+        startAt: swungStart + stepSeconds * 0.34,
         duration: stepSeconds * 0.54,
         volume: 0.027 * layers.intensity,
         waveform: "square",
@@ -487,9 +720,10 @@ export class ChiptuneMusicSystem {
     }
 
     if (layers.melody && melody) {
+      this.playGraceNote(track, chord, melody, swungStart, stepSeconds, localStep, sectionIndex, layers);
       this.playTone({
         frequency: NOTE_FREQUENCIES[melody],
-        startAt,
+        startAt: swungStart,
         duration: stepSeconds * (localStep % 4 === 3 ? 1.35 : 0.86),
         volume: (isTurnaround && localStep > 10 ? 0.038 : isLift ? 0.055 : 0.048) * layers.intensity,
         waveform: track.waveformLead,
@@ -504,7 +738,7 @@ export class ChiptuneMusicSystem {
       if (layers.flourishes && isLift && localStep % 4 === 2) {
         this.playTone({
           frequency: NOTE_FREQUENCIES[melody] * 2,
-          startAt: startAt + stepSeconds * 0.03,
+          startAt: swungStart + stepSeconds * 0.03,
           duration: stepSeconds * 0.42,
           volume: 0.014 * layers.intensity,
           waveform: "triangle",
@@ -513,12 +747,30 @@ export class ChiptuneMusicSystem {
           release: 0.035,
         });
       }
+
+      if (layers.harmony && localStep % 4 !== 1) {
+        const harmonyNote = chord.chord[(localStep + phraseIndex + 1) % chord.chord.length];
+        this.playTone({
+          frequency: NOTE_FREQUENCIES[harmonyNote] * (NOTE_FREQUENCIES[harmonyNote] < NOTE_FREQUENCIES[melody] ? 2 : 1),
+          startAt: swungStart + stepSeconds * 0.04,
+          duration: stepSeconds * 0.54,
+          volume: (isLift ? 0.019 : 0.014) * layers.intensity,
+          waveform: "triangle",
+          output: this.leadBus,
+          attack: 0.014,
+          release: 0.05,
+        });
+      }
+
+      if (layers.flourishes && (localStep === 5 || localStep === 13)) {
+        this.playLeadEcho(track, melody, swungStart + stepSeconds * 0.46, stepSeconds, layers);
+      }
     }
 
     if (layers.counter && counter && songStep % 4 !== 0) {
       this.playTone({
         frequency: NOTE_FREQUENCIES[counter],
-        startAt: startAt + stepSeconds * 0.12,
+        startAt: swungStart + stepSeconds * 0.12,
         duration: stepSeconds * 0.58,
         volume: (isLift ? 0.027 : 0.022) * layers.intensity,
         waveform: "triangle",
@@ -531,13 +783,17 @@ export class ChiptuneMusicSystem {
       const arpNote = chord.chord[(songStep + phraseIndex) % chord.chord.length];
       this.playTone({
         frequency: NOTE_FREQUENCIES[arpNote] * (phraseIndex === 2 ? 2 : 1),
-        startAt: startAt + stepSeconds * 0.08,
+        startAt: swungStart + stepSeconds * 0.08,
         duration: stepSeconds * 0.36,
         volume: (isLift ? 0.023 : 0.018) * layers.intensity,
         waveform: "square",
         attack: 0.006,
         release: 0.035,
       });
+    }
+
+    if (layers.harmony && (localStep === 6 || localStep === 12)) {
+      this.playChordStab(track, chord, swungStart + stepSeconds * 0.22, stepSeconds, layers, sectionIndex);
     }
 
     if (layers.flourishes && localStep === 14 && this.currentTrackId !== "dreamy_dewdrops") {
@@ -547,18 +803,181 @@ export class ChiptuneMusicSystem {
     this.schedulePercussion(songStep, startAt, stepSeconds, isLift, isTurnaround, layers);
   }
 
-  private getArrangementLayers(): ArrangementLayers {
+  private getSwingOffset(track: ChiptuneTrack, localStep: number, stepSeconds: number): number {
+    if (localStep % 2 === 0) {
+      return 0;
+    }
+
+    switch (track.groove) {
+      case "groove":
+        return stepSeconds * 0.12;
+      case "rain":
+        return stepSeconds * 0.16;
+      case "sprint":
+        return stepSeconds * 0.05;
+      case "dreamy":
+        return stepSeconds * 0.09;
+      default:
+        return stepSeconds * 0.07;
+    }
+  }
+
+  private getBassEvents(track: ChiptuneTrack, chord: ChordShape, localStep: number, sectionIndex: number): BassEvent[] {
+    const third = chord.chord[1];
+    const fifth = chord.chord[2];
+    const top = chord.chord[3];
+
+    switch (track.groove) {
+      case "dreamy":
+        if (localStep === 0) {
+          return [{ note: chord.bass, octaveDivisor: 2, offsetSteps: 0, durationSteps: 3.2, accent: 0.7 }];
+        }
+        if (localStep === 8) {
+          return [{ note: fifth, octaveDivisor: 3, offsetSteps: 0, durationSteps: 2.4, accent: 0.35 }];
+        }
+        return [];
+      case "groove":
+        if (localStep % 8 === 0) {
+          return [
+            { note: chord.bass, octaveDivisor: 2, offsetSteps: 0, durationSteps: 1.15, accent: 1 },
+            { note: fifth, octaveDivisor: 3, offsetSteps: 1.5, durationSteps: 0.42, accent: 0.38 },
+          ];
+        }
+        if (localStep % 8 === 3 || localStep % 8 === 6) {
+          return [{ note: localStep % 8 === 3 ? third : fifth, octaveDivisor: 2, offsetSteps: 0, durationSteps: 0.72, accent: 0.45 }];
+        }
+        return [];
+      case "sprint":
+        if ([0, 2, 4, 6].includes(localStep % 8)) {
+          const notes = [chord.bass, fifth, third, sectionIndex % 2 === 0 ? top : fifth];
+          return [{ note: notes[(localStep % 8) / 2], octaveDivisor: localStep % 8 === 6 ? 2 : 2.5, offsetSteps: 0, durationSteps: 0.9, accent: localStep % 8 === 0 ? 1 : 0.52 }];
+        }
+        if (localStep % 8 === 7) {
+          return [{ note: third, octaveDivisor: 2, offsetSteps: 0.22, durationSteps: 0.36, accent: 0.25 }];
+        }
+        return [];
+      case "rain":
+        if (localStep % 8 === 0) {
+          return [{ note: chord.bass, octaveDivisor: 2, offsetSteps: 0, durationSteps: 1.45, accent: 0.85 }];
+        }
+        if (localStep % 8 === 2 || localStep % 8 === 5) {
+          return [{ note: localStep % 8 === 2 ? fifth : third, octaveDivisor: 2, offsetSteps: 0.12, durationSteps: 0.7, accent: 0.36 }];
+        }
+        return [];
+      case "climb":
+        if (localStep % 2 === 0) {
+          const notes = [chord.bass, third, fifth, top];
+          return [{ note: notes[(localStep / 2 + sectionIndex) % notes.length], octaveDivisor: localStep % 8 === 6 ? 1.7 : 2.2, offsetSteps: 0, durationSteps: 0.78, accent: localStep % 8 === 0 ? 0.82 : 0.4 }];
+        }
+        return [];
+      case "meadow":
+      default:
+        if (localStep % 8 === 0) {
+          return [{ note: chord.bass, octaveDivisor: 2, offsetSteps: 0, durationSteps: 1.55, accent: 0.82 }];
+        }
+        if (localStep % 8 === 4 || (sectionIndex >= 2 && localStep % 8 === 6)) {
+          return [{ note: localStep % 8 === 4 ? fifth : third, octaveDivisor: 2, offsetSteps: 0, durationSteps: 0.82, accent: 0.38 }];
+        }
+        return [];
+    }
+  }
+
+  private playGraceNote(
+    track: ChiptuneTrack,
+    chord: ChordShape,
+    melody: NoteName,
+    startAt: number,
+    stepSeconds: number,
+    localStep: number,
+    sectionIndex: number,
+    layers: ArrangementLayers,
+  ): void {
+    if (track.groove === "dreamy" || localStep % 4 === 0 || (track.groove !== "sprint" && sectionIndex < 2)) {
+      return;
+    }
+
+    const note = chord.chord[(localStep + sectionIndex) % chord.chord.length];
+    const frequency = NOTE_FREQUENCIES[note] < NOTE_FREQUENCIES[melody] ? NOTE_FREQUENCIES[note] * 2 : NOTE_FREQUENCIES[note];
+    this.playTone({
+      frequency,
+      startAt: Math.max(0, startAt - stepSeconds * 0.18),
+      duration: stepSeconds * 0.2,
+      volume: 0.012 * layers.intensity,
+      waveform: track.waveformLead,
+      output: this.leadBus,
+      attack: 0.003,
+      release: 0.018,
+    });
+  }
+
+  private playLeadEcho(track: ChiptuneTrack, melody: NoteName, startAt: number, stepSeconds: number, layers: ArrangementLayers): void {
+    this.playTone({
+      frequency: NOTE_FREQUENCIES[melody] / (track.groove === "sprint" ? 1 : 2),
+      startAt,
+      duration: stepSeconds * 0.36,
+      volume: 0.012 * layers.intensity,
+      waveform: track.groove === "rain" ? "sine" : "triangle",
+      output: this.leadBus,
+      attack: 0.01,
+      release: 0.05,
+    });
+  }
+
+  private playChordStab(
+    track: ChiptuneTrack,
+    chord: ChordShape,
+    startAt: number,
+    stepSeconds: number,
+    layers: ArrangementLayers,
+    sectionIndex: number,
+  ): void {
+    for (const [index, note] of chord.chord.entries()) {
+      if (index === 0 && sectionIndex % 2 === 0) {
+        continue;
+      }
+
+      this.playTone({
+        frequency: NOTE_FREQUENCIES[note],
+        startAt: startAt + index * 0.01,
+        duration: stepSeconds * 0.42,
+        volume: 0.0075 * layers.intensity,
+        waveform: track.groove === "sprint" ? "square" : "triangle",
+        attack: 0.004,
+        release: 0.045,
+      });
+    }
+  }
+
+  private getArrangementLayers(playbackStep = this.playbackStep): ArrangementLayers {
+    if (this.currentTrackId === TITLE_TRACK_ID) {
+      const introStep = playbackStep;
+      return {
+        bass: true,
+        chords: true,
+        drums: introStep >= 16,
+        hats: introStep >= 32,
+        counter: introStep >= 8,
+        arp: introStep >= 16,
+        harmony: introStep >= 24,
+        melody: true,
+        flourishes: introStep >= 48,
+        intensity: 0.72 + Math.min(introStep, 48) / 48 * 0.2,
+      };
+    }
+
     const combo = this.comboLevel;
+    const introScale = 0.72 + Math.min(playbackStep, 32) / 32 * 0.28;
     return {
       bass: true,
-      chords: combo >= 5,
-      drums: combo >= 5,
-      hats: combo >= 10,
-      counter: combo >= 10,
-      arp: combo >= 10,
-      melody: combo >= 20,
-      flourishes: combo >= 40,
-      intensity: 0.82 + Math.min(combo, 40) / 40 * 0.28,
+      chords: true,
+      drums: combo >= 3 && playbackStep >= 8,
+      hats: combo >= 7 && playbackStep >= 16,
+      counter: combo >= 6 && playbackStep >= 8,
+      arp: combo >= 8 && playbackStep >= 16,
+      harmony: combo >= 14 && playbackStep >= 24,
+      melody: true,
+      flourishes: combo >= 24 && playbackStep >= 32,
+      intensity: (0.86 + Math.min(combo, 40) / 40 * 0.3) * introScale,
     };
   }
 
@@ -640,28 +1059,41 @@ export class ChiptuneMusicSystem {
     isTurnaround: boolean,
     layers: ArrangementLayers,
   ): void {
+    const track = TRACKS[this.currentTrackId] ?? TRACKS.cozy_meadow;
     const barStep = songStep % 8;
+    const localStep = songStep % 16;
 
     if (!layers.drums) {
       return;
     }
 
-    if (this.currentTrackId === "dreamy_dewdrops") {
+    if (track.groove === "dreamy") {
       if (barStep === 0) {
-        this.playKick(startAt, 0.5 * layers.intensity); // Soft ambient kick only on beat 1
+        this.playKick(startAt, 0.46 * layers.intensity);
       }
       if (layers.hats && songStep % 4 === 2) {
-        this.playNoise(startAt + stepSeconds * 0.05, 0.03, 0.006 * layers.intensity, 4500, "highpass"); // Soft shaker hi-hat
+        this.playNoise(startAt + stepSeconds * 0.05, 0.03, 0.006 * layers.intensity, 4500, "highpass");
+      }
+      if (layers.harmony && localStep === 14) {
+        this.playNoise(startAt + stepSeconds * 0.18, 0.12, 0.012 * layers.intensity, 1800, "bandpass");
       }
       return;
     }
 
-    if (songStep % 2 === 0) {
-      this.playKick(startAt, (barStep === 0 ? 1 : 0.84) * layers.intensity);
+    if (songStep % 2 === 0 || (track.groove === "sprint" && barStep === 7)) {
+      this.playKick(startAt, (barStep === 0 ? 1 : track.groove === "sprint" ? 0.7 : 0.84) * layers.intensity);
     }
 
-    if (barStep === 2 || barStep === 6) {
+    if (barStep === 2 || barStep === 6 || (track.groove === "rain" && barStep === 5)) {
       this.playSnare(startAt + stepSeconds * 0.02, isLift);
+    }
+
+    if (track.groove === "groove" && (barStep === 3 || barStep === 7)) {
+      this.playRim(startAt + stepSeconds * 0.18, 0.42 * layers.intensity);
+    }
+
+    if (track.groove === "sprint" && (barStep === 1 || barStep === 5)) {
+      this.playRim(startAt + stepSeconds * 0.08, 0.35 * layers.intensity);
     }
 
     if (barStep === 4 || (isLift && songStep % 16 === 12)) {
@@ -670,8 +1102,21 @@ export class ChiptuneMusicSystem {
 
     if (layers.hats && songStep % 2 === 1) {
       this.playOpenHat(startAt + stepSeconds * 0.04, isLift);
+      if (track.groove === "rain") {
+        this.playNoise(startAt + stepSeconds * 0.34, 0.018, 0.0055 * layers.intensity, 6200, "highpass");
+      }
     } else if (layers.hats && barStep !== 0) {
       this.playNoise(startAt + stepSeconds * 0.06, 0.018, 0.005, 5200, "highpass");
+    }
+
+    if (layers.hats && track.groove === "sprint" && (localStep === 11 || localStep === 15)) {
+      this.playNoise(startAt + stepSeconds * 0.32, 0.018, 0.007 * layers.intensity, 7400, "highpass");
+      this.playNoise(startAt + stepSeconds * 0.56, 0.018, 0.006 * layers.intensity, 7600, "highpass");
+    }
+
+    if (layers.harmony && track.groove === "climb" && localStep === 15) {
+      this.playRim(startAt, 0.38 * layers.intensity);
+      this.playRim(startAt + stepSeconds * 0.34, 0.3 * layers.intensity);
     }
 
     if ((isLift || isTurnaround) && songStep % 16 === 15) {
@@ -782,6 +1227,18 @@ export class ChiptuneMusicSystem {
     gain.connect(this.dryBus);
     oscillator.start(startAt);
     oscillator.stop(startAt + 0.085);
+  }
+
+  private playRim(startAt: number, accent = 1): void {
+    this.playTone({
+      frequency: 820,
+      startAt,
+      duration: 0.045,
+      volume: 0.012 * accent,
+      waveform: "square",
+      attack: 0.002,
+      release: 0.026,
+    });
   }
 
   private playOpenHat(startAt: number, isLift: boolean): void {

@@ -197,29 +197,34 @@ export class AudioSystem {
 
   private playRegrow(): void {
     const now = this.now();
-    this.playNoiseSweep(0.12, 1250 + Math.random() * 350, 0.06, now);
-    this.playTone(390 + Math.random() * 40, 0.09, 0.07, "sine", now);
-    this.playTone(610 + Math.random() * 70, 0.075, 0.05, "sine", now + 0.045);
+    this.playNoiseSweep(0.15, 1040 + Math.random() * 420, 0.07, now);
+    this.playNoiseSweep(0.07, 2600 + Math.random() * 520, 0.022, now + 0.035);
+    this.playTone(330 + Math.random() * 32, 0.1, 0.058, "sine", now);
+    this.playTone(510 + Math.random() * 65, 0.08, 0.048, "triangle", now + 0.045);
+    this.playTone(760 + Math.random() * 80, 0.065, 0.028, "sine", now + 0.09);
   }
 
   private playUpgrade(): void {
     const now = this.now();
-    this.playTone(360, 0.09, 0.075, "triangle", now);
-    this.playTone(540, 0.11, 0.065, "triangle", now + 0.07);
-    this.playTone(720, 0.14, 0.06, "sine", now + 0.14);
+    this.playNoiseSweep(0.08, 1750 + Math.random() * 450, 0.035, now);
+    this.playArp([320, 420, 560, 760], now, 0.052, 0.075, "triangle");
+    this.playTone(1140, 0.08, 0.028, "sine", now + 0.18);
   }
 
   private playUnlock(): void {
     const now = this.now();
-    this.playTone(880, 0.055, 0.05, "sine", now);
-    this.playTone(1320, 0.08, 0.045, "triangle", now + 0.045);
-    this.playTone(1760, 0.1, 0.035, "sine", now + 0.095);
+    this.playNoiseSweep(0.11, 3100 + Math.random() * 700, 0.04, now);
+    this.playArp([660, 880, 1320, 1760], now, 0.044, 0.065, "sine");
+    this.playTone(440, 0.15, 0.03, "triangle", now + 0.03);
+    this.playTone(2200, 0.075, 0.018, "sine", now + 0.16);
   }
 
   private playSeed(): void {
     const now = this.now();
-    this.playTone(620 + Math.random() * 50, 0.06, 0.05, "sine", now);
+    this.playNoiseSweep(0.08, 1450 + Math.random() * 380, 0.026, now);
+    this.playTone(620 + Math.random() * 50, 0.06, 0.052, "sine", now);
     this.playTone(940 + Math.random() * 80, 0.08, 0.045, "triangle", now + 0.045);
+    this.playTone(1240 + Math.random() * 90, 0.05, 0.022, "sine", now + 0.094);
   }
 
   private playGold(): void {
@@ -254,14 +259,24 @@ export class AudioSystem {
 
   private playMilestone(): void {
     const now = this.now();
-    [320, 420, 560, 760].forEach((frequency, index) => {
-      this.playTone(frequency, 0.16, 0.052, "triangle", now + index * 0.08);
-    });
+    this.playNoiseSweep(0.16, 2600 + Math.random() * 700, 0.045, now + 0.08);
+    this.playArp([260, 330, 440, 660, 880], now, 0.065, 0.092, "triangle");
+    this.playTone(1320, 0.16, 0.032, "sine", now + 0.24);
+    this.playCoinStrike(1760, 0.14, 0.03, now + 0.3);
   }
 
   private playBlocked(): void {
     const now = this.now();
-    this.playTone(160, 0.07, 0.075, "square", now);
+    this.playTone(210, 0.045, 0.06, "square", now);
+    this.playTone(150, 0.06, 0.052, "square", now + 0.04);
+    this.playNoiseSweep(0.055, 520, 0.02, now + 0.012);
+  }
+
+  private playArp(frequencies: number[], startAt: number, step: number, volume: number, type: OscillatorType): void {
+    frequencies.forEach((frequency, index) => {
+      const accent = index === frequencies.length - 1 ? 1.08 : 1;
+      this.playTone(frequency, step * 2.2, volume * accent, type, startAt + index * step);
+    });
   }
 
   private playTone(
