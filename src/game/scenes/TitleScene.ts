@@ -370,7 +370,7 @@ export class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.creditsNames = this.add
-      .text(0, 0, "Cosmodeus\nRemy\nRobin C.\ntussukarva🇫🇮🇸🇪\n🔪⋆🎀  𝒦𝒾𝓉𝓉𝓎 𝒩💔𝒾𝓇 🎀⋆🔪", {
+      .text(0, 0, "Cosmodeus\nRemy\nRobin C.\nTuloWodash\ntussukarva🇫🇮🇸🇪\n🔪⋆🎀  𝒦𝒾𝓉𝓉𝓎 𝒩💔𝒾𝓇 🎀⋆🔪", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "22px",
         color: "#f7ffe8",

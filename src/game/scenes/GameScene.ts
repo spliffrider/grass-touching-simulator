@@ -6709,16 +6709,7 @@ export class GameScene extends Phaser.Scene {
         onComplete: () => grassGhost.destroy(),
       });
 
-      this.tweens.killTweensOf(view.base);
-      this.tweens.add({
-        targets: view.base,
-        scaleX: baseScale * 1.05,
-        scaleY: baseScale * 0.95,
-        duration: 75,
-        yoyo: true,
-        ease: "Sine.easeOut",
-        onComplete: () => this.resetBaseTilePose(view),
-      });
+      this.addTileImpactPulse(x, y, baseScale, isCrit);
     }
 
     this.emitBurst(fleckTexture, x, y - 4, isCrit ? 38 : compactEffects ? 8 : 20, isCrit ? 1.42 : 1.05, isCrit ? 0.3 : 0.42);
@@ -6735,6 +6726,30 @@ export class GameScene extends Phaser.Scene {
       this.addTouchRing(x, y);
       this.addTouchFlash(x, y);
     }
+  }
+
+  private addTileImpactPulse(x: number, y: number, baseScale: number, isCrit: boolean): void {
+    const pulse = this.add
+      .ellipse(
+        x,
+        y + 3 * baseScale,
+        TILE_SIZE * 0.72 * baseScale,
+        TILE_SIZE * 0.42 * baseScale,
+        isCrit ? 0xffef78 : 0xf7ffe8,
+        isCrit ? 0.26 : 0.16,
+      )
+      .setStrokeStyle(Math.max(1, 2 * baseScale), isCrit ? 0xffef78 : 0xb7eba5, isCrit ? 0.82 : 0.48)
+      .setDepth(31);
+
+    this.tweens.add({
+      targets: pulse,
+      scaleX: 1.2,
+      scaleY: 0.72,
+      alpha: 0,
+      duration: 140,
+      ease: "Sine.easeOut",
+      onComplete: () => pulse.destroy(),
+    });
   }
 
   private playPerfectTouchFeedback(tile: FieldTile, bonusTouches: number): void {

@@ -4,9 +4,10 @@ import { TitleScene } from "./game/scenes/TitleScene";
 import "./style.css";
 
 function getViewportSize() {
+  const root = document.documentElement;
   return {
-    width: Math.floor(window.visualViewport?.width ?? window.innerWidth),
-    height: Math.floor(window.visualViewport?.height ?? window.innerHeight),
+    width: Math.floor(root.clientWidth || window.innerWidth),
+    height: Math.floor(window.innerHeight || root.clientHeight),
   };
 }
 
@@ -31,9 +32,14 @@ const config: Phaser.Types.Core.GameConfig = {
 
 const game = new Phaser.Game(config);
 let lastViewport = initialViewport;
+let resizeQueued = false;
 
 function resizeGame(): void {
   const viewport = getViewportSize();
+  if (viewport.width === lastViewport.width && viewport.height === lastViewport.height) {
+    return;
+  }
+
   const gameElement = document.getElementById("game");
   if (gameElement) {
     gameElement.style.width = `${viewport.width}px`;
@@ -49,8 +55,20 @@ function resizeGame(): void {
   lastViewport = viewport;
 }
 
-window.addEventListener("resize", resizeGame);
-window.visualViewport?.addEventListener("resize", resizeGame);
+function queueResizeGame(): void {
+  if (resizeQueued) {
+    return;
+  }
+
+  resizeQueued = true;
+  window.requestAnimationFrame(() => {
+    resizeQueued = false;
+    resizeGame();
+  });
+}
+
+window.addEventListener("resize", queueResizeGame);
+window.visualViewport?.addEventListener("resize", queueResizeGame);
 window.addEventListener("orientationchange", () => {
   window.setTimeout(resizeGame, 120);
   window.setTimeout(resizeGame, 360);

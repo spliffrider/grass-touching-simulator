@@ -58,3 +58,9 @@ A second upgrade branch unlocked by prestige or a milestone — maybe a **"Lawn 
 ## What Would You Like to Tackle?
 
 These range from half a day of work to a full feature. Want me to help design and implement any of these? I can write the full system code, data definitions, and scene wiring following your project conventions.
+
+---
+
+## Visual Follow-Ups
+
+- Bring back the cute original start-menu background later as a cleaned or reworked asset, keeping the white title blob, translucent vertical rectangles, and baked duplicate menu artifacts from returning.
