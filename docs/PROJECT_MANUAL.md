@@ -38,6 +38,7 @@ npm run preview
 Performance reference:
 
 - `docs/PERFORMANCE_NOTES.md`: board redraw hitch postmortem, perf overlay interpretation, and rendering guardrails.
+- `docs/PERFORMANCE_HARNESS.md`: repeatable phone/tablet/desktop harness for idle, tap burst, panel, pan, zoom, and save-stringify samples.
 
 ## User Preferences
 

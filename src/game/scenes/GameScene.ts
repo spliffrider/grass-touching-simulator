@@ -89,6 +89,10 @@ const TILE_GAP = 8;
 const BOARD_Y_OFFSET = 24;
 const MIN_BOARD_ZOOM = 0.45;
 const MAX_BOARD_ZOOM = 3.2;
+const COMPACT_LARGE_FIELD_MIN_BOARD_SCALE = 1.35;
+const COMPACT_LARGE_FIELD_MAX_WIDTH = 560;
+const TABLET_LARGE_FIELD_MIN_BOARD_SCALE = 1.12;
+const TABLET_LARGE_FIELD_MAX_WIDTH = 900;
 const BOARD_PAN_THRESHOLD_PX = 18;
 const TOUCH_SHAKE_COOLDOWN_MS = 140;
 const FULL_UI_REFRESH_INTERVAL_MS = 420;
@@ -123,14 +127,28 @@ const AUTO_TOUCH_VISUAL_SAMPLE_LIMIT = 36;
 const AUTO_TOUCH_VISUAL_MIN_INTERVAL_MS = 110;
 const AUTO_TOUCH_VISUAL_MAX_INTERVAL_MS = 420;
 const AUTO_TOUCH_POP_INTERVAL_MS = 1300;
+const AUTO_TOUCH_ACTIVE_OBJECT_LIMIT = 18;
 const QUEUED_SAVE_INTERVAL_MS = 6500;
 const AUTO_SAVE_INTERVAL_MS = 20000;
 const IDLE_SAVE_TIMEOUT_MS = 2400;
 const FALLBACK_SAVE_DELAY_MS = 160;
+const BUSY_SAVE_RETRY_MS = 700;
 const QUEST_CLIPBOARD_INTERVAL_MS = 9000;
 const QUEST_CLIPBOARD_MAX_CLAIMS = 2;
 const TILE_CULL_MARGIN_PX = 96;
+const COMPACT_LARGE_FIELD_CULL_MARGIN_PX = 8;
+const TABLET_LARGE_FIELD_CULL_MARGIN_PX = 24;
 const TILE_VIEW_POOL_LIMIT = 36;
+const DIRTY_TILE_VIEW_LIMIT = 96;
+const COMMON_REDRAW_MOBILE_TILE_LIMIT = 160;
+const COMMON_REDRAW_FRAME_BUDGET_MS = 4;
+const COMMON_REDRAW_TILE_BUDGET = 22;
+const PANEL_UI_REFRESH_INTERVAL_MS = 1000;
+const WORLD_OBJECT_UI_REFRESH_INTERVAL_MS = 900;
+const MAX_ACTIVE_POP_TEXTS = 18;
+const PERF_HARNESS_IDLE_DELAY_MS = 900;
+const PERF_HARNESS_PHASE_DELAY_MS = 800;
+const PERF_HARNESS_TAP_COUNT = 14;
 
 function formatAutomationSupportUnits(support: number): string {
   return support >= 10 ? support.toFixed(0) : support.toFixed(1);
@@ -394,16 +412,68 @@ interface StressStats {
   totalTiles: number;
 }
 
+type BoardLayoutReason = "initial" | "resize" | "pan" | "zoom" | "dirty" | "field" | "ui" | "direct";
+
+interface CommonRedrawEntry {
+  key: TileKey;
+  x: number;
+  y: number;
+}
+
+interface PerfStatsSnapshot {
+  fps: number;
+  maxFrameDeltaMs: number;
+  frameSpikes: number;
+  totalTiles: number;
+  visibleTiles: number;
+  tileViews: number;
+  dirtyTiles: number;
+  redrawQueued: number;
+  displayObjects: number;
+  emitters: number;
+  activeTweens: number;
+  autoFxObjects: number;
+  layoutPasses: number;
+  redraws: number;
+  tileMode: "live" | "batch";
+  quality: number;
+  weatherQuality: number;
+  queuedSave: boolean;
+  hotspots: string;
+}
+
+type PerfHarnessPhase = "idle" | "tapBurst" | "storeOpen" | "pan" | "zoom" | "saveStringify" | "complete";
+
+interface PerfHarnessSample {
+  phase: PerfHarnessPhase;
+  elapsedMs: number;
+  stats?: PerfStatsSnapshot;
+}
+
+interface PerfHarnessResult {
+  status: "running" | "complete";
+  startedAt: number;
+  completedAt?: number;
+  samples: PerfHarnessSample[];
+}
+
 interface PerfScopeSample {
   max: number;
   total: number;
   count: number;
 }
 
+function formatPerfDuration(durationMs: number): string {
+  return durationMs >= 10 ? durationMs.toFixed(0) : durationMs.toFixed(1);
+}
+
 export class GameScene extends Phaser.Scene {
   private state!: GameState;
   private tileViews = new Map<TileKey, TileView>();
   private tileViewPool: TileView[] = [];
+  private tileKeyCache = new WeakMap<FieldTile, TileKey>();
+  private dirtyTileViewKeys = new Set<TileKey>();
+  private redrawTileViewKeys = new Set<TileKey>();
   private recentlyRegrownAt = new Map<TileKey, number>();
   private perfectTouchCues = new Map<TileKey, Phaser.GameObjects.GameObject[]>();
   private worldObjectViews = new Map<string, WorldObjectView>();
@@ -575,10 +645,17 @@ export class GameScene extends Phaser.Scene {
   private frameSpikeCount = 0;
   private layoutPassCount = 0;
   private commonLayerRedrawCount = 0;
+  private commonRedrawQueuedTiles = 0;
   private lastPerfLayoutPassCount = 0;
   private lastPerfCommonLayerRedrawCount = 0;
   private perfScopeSamples = new Map<string, PerfScopeSample>();
   private lastPerfHotspotSummary = "";
+  private pendingBoardLayout = false;
+  private pendingBoardLayoutReason: BoardLayoutReason = "direct";
+  private commonRedrawQueue: CommonRedrawEntry[] = [];
+  private lastVisibleTileKeys = new Set<TileKey>();
+  private panelUiRefreshElapsed = PANEL_UI_REFRESH_INTERVAL_MS;
+  private worldObjectUiRefreshElapsed = WORLD_OBJECT_UI_REFRESH_INTERVAL_MS;
   private lastComboBadgeBumpAt = 0;
   private effectQuality = 1;
   private lowFpsSamples = 0;
@@ -601,6 +678,7 @@ export class GameScene extends Phaser.Scene {
   private autoTouchVisualCredit = 0;
   private lastAutoTouchVisualAt = 0;
   private lastAutoTouchPopAt = 0;
+  private activeAutoTouchVisualObjects = 0;
   private comboBadgeRefreshElapsed = COMBO_BADGE_REFRESH_INTERVAL_MS;
   private lastMusicComboLevel = 0;
   private activeComboSource: ComboTouchSource = "manual";
@@ -609,6 +687,11 @@ export class GameScene extends Phaser.Scene {
   private lastHoverPointerY = Number.NaN;
   private stressMode = false;
   private perfOverlayEnabled = false;
+  private perfHarnessEnabled = false;
+  private perfHarnessRunning = false;
+  private perfHarnessStartedAt = 0;
+  private perfHarnessSamples: PerfHarnessSample[] = [];
+  private latestPerfStats?: PerfStatsSnapshot;
   private perfText?: Phaser.GameObjects.Text;
   private lastStressStats: StressStats = { visibleTiles: 0, totalTiles: 0 };
   private fieldTileCount = 0;
@@ -623,10 +706,10 @@ export class GameScene extends Phaser.Scene {
   private hoverMarker?: Phaser.GameObjects.Rectangle;
   private burstEmitters = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
   private uiBurstEmitters = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
-  private readonly handlePageHide = (): void => this.flushQueuedSave();
+  private readonly handlePageHide = (): void => this.flushQueuedSave(true);
   private readonly handleVisibilityChange = (): void => {
     if (document.visibilityState === "hidden") {
-      this.flushQueuedSave();
+      this.flushQueuedSave(true);
     }
   };
 
@@ -687,8 +770,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(data?: { newGame?: boolean; characterClassId?: CharacterClassId; stressMode?: boolean }): void {
+    this.perfHarnessEnabled = this.isPerfHarnessRequested();
     this.stressMode = data?.stressMode === true || this.isStressModeRequested();
-    this.perfOverlayEnabled = this.stressMode || this.isPerfOverlayRequested();
+    this.perfOverlayEnabled = this.stressMode || this.isPerfOverlayRequested() || this.perfHarnessEnabled;
     this.state = this.stressMode ? this.createStressState(data?.characterClassId) : data?.newGame ? resetSave(data.characterClassId) : loadGame();
     this.applyPixelTextureFilters();
     this.rebuildFieldMetrics();
@@ -728,6 +812,7 @@ export class GameScene extends Phaser.Scene {
     this.readyQuestKeys = this.getReadyQuestKeys();
     this.refreshUi();
     this.layoutTiles();
+    this.startPerfHarness();
     this.showMessage(
       this.stressMode ? "Stress mode: big field, busy systems, no save writes." : "Touch the grass. Let it regrow. Become reasonable.",
       3600,
@@ -738,7 +823,7 @@ export class GameScene extends Phaser.Scene {
       this.layoutEmeraldBackdrop();
       this.layoutSeasonVisuals();
       this.layoutWeatherVisuals();
-      this.layoutTiles();
+      this.layoutTiles("resize");
       this.layoutSkillTree();
       this.layoutQuestLog();
       this.layoutJournal();
@@ -840,7 +925,7 @@ export class GameScene extends Phaser.Scene {
 
       this.boardPanX = this.boardPanStartX + pointer.x - this.pointerPanStartX;
       this.boardPanY = this.boardPanStartY + pointer.y - this.pointerPanStartY;
-      this.layoutTiles();
+      this.requestBoardLayout("pan");
     });
 
     this.input.on("pointerup", () => {
@@ -872,6 +957,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    const updatePerfStart = this.shouldProfile() ? performance.now() : undefined;
     const now = Date.now();
     this.maxFrameDeltaMs = Math.max(this.maxFrameDeltaMs, delta);
     if (delta >= FRAME_SPIKE_MS) {
@@ -929,6 +1015,13 @@ export class GameScene extends Phaser.Scene {
     this.profileScope("systems", () => {
       this.automationScheduler.update(delta, stats);
     });
+    this.profileScope("layout:pending", () => {
+      if (this.commonTileLayerDirty) {
+        this.requestBoardLayout("dirty");
+      }
+      this.flushPendingBoardLayout();
+    });
+    this.profileScope("render:queuedCommon", () => this.processCommonRedrawQueue());
     this.journalDiscoveryRefreshElapsed += delta;
     if (this.journalDiscoveryRefreshElapsed >= JOURNAL_DISCOVERY_REFRESH_INTERVAL_MS) {
       this.journalDiscoveryRefreshElapsed = 0;
@@ -948,13 +1041,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.uiRefreshElapsed += delta;
+    this.panelUiRefreshElapsed += delta;
+    this.worldObjectUiRefreshElapsed += delta;
     if (this.uiRefreshElapsed >= FULL_UI_REFRESH_INTERVAL_MS) {
       this.uiRefreshElapsed = 0;
       this.profileScope("ui", () => {
-        if (this.commonTileLayerDirty) {
-          this.layoutTiles();
-        }
-        this.refreshUi();
+        this.refreshUi(false);
       });
     }
 
@@ -976,12 +1068,16 @@ export class GameScene extends Phaser.Scene {
       this.lastAutoSaveAt = 0;
       this.scheduleIdleSaveFlush();
     }
+
+    if (updatePerfStart !== undefined) {
+      this.recordPerfScope("frame:update", performance.now() - updatePerfStart);
+    }
   }
 
   private handleShutdown(): void {
     window.removeEventListener("pagehide", this.handlePageHide);
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
-    this.flushQueuedSave();
+    this.flushQueuedSave(true);
     this.music.stop();
     for (const emitter of this.burstEmitters.values()) {
       emitter.destroy();
@@ -997,7 +1093,7 @@ export class GameScene extends Phaser.Scene {
 
   private saveState(): void {
     if (!this.stressMode) {
-      this.profileScope("save", () => saveGame(this.state));
+      this.profileScope("save", () => saveGame(this.state, (name, callback) => this.profileScope(name, callback)));
     }
   }
 
@@ -1008,12 +1104,17 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private flushQueuedSave(): void {
-    this.cancelQueuedSaveTimers();
+  private flushQueuedSave(force = false): void {
     if (!this.saveQueued) {
       return;
     }
 
+    if (!force && this.shouldDeferSaveFlush()) {
+      this.scheduleBusySaveRetry();
+      return;
+    }
+
+    this.cancelQueuedSaveTimers();
     this.saveQueued = false;
     this.queuedSaveElapsed = 0;
     this.saveState();
@@ -1052,6 +1153,21 @@ export class GameScene extends Phaser.Scene {
     }, FALLBACK_SAVE_DELAY_MS);
   }
 
+  private shouldDeferSaveFlush(): boolean {
+    return this.isPanningBoard || this.pendingBoardLayout || this.commonRedrawQueue.length > 0;
+  }
+
+  private scheduleBusySaveRetry(): void {
+    if (this.saveDelayHandle !== undefined || this.idleSaveHandle !== undefined) {
+      return;
+    }
+
+    this.saveDelayHandle = window.setTimeout(() => {
+      this.saveDelayHandle = undefined;
+      this.scheduleIdleSaveFlush();
+    }, BUSY_SAVE_RETRY_MS);
+  }
+
   private cancelQueuedSaveTimers(): void {
     if (this.saveDelayHandle !== undefined) {
       window.clearTimeout(this.saveDelayHandle);
@@ -1086,31 +1202,31 @@ export class GameScene extends Phaser.Scene {
     scheduler.add({
       id: "automation_income",
       intervalMs: 250,
-      run: (deltaMs, stats) => this.updateAutomationIncome(deltaMs, stats),
+      run: (deltaMs, stats) => this.profileScope("sys:income", () => this.updateAutomationIncome(deltaMs, stats)),
     });
     scheduler.add({
       id: "sprinkler",
       intervalMs: 250,
       initialDelayMs: 90,
-      run: (deltaMs, stats) => this.updateSprinkler(deltaMs, stats),
+      run: (deltaMs, stats) => this.profileScope("sys:sprinkler", () => this.updateSprinkler(deltaMs, stats)),
     });
     scheduler.add({
       id: "animal_companions",
       intervalMs: 250,
       initialDelayMs: 130,
-      run: (deltaMs, stats) => this.updateAnimalCompanions(deltaMs, stats),
+      run: (deltaMs, stats) => this.profileScope("sys:companions", () => this.updateAnimalCompanions(deltaMs, stats)),
     });
     scheduler.add({
       id: "mutations",
       intervalMs: 250,
       initialDelayMs: 170,
-      run: (deltaMs) => this.updateMutations(deltaMs),
+      run: (deltaMs) => this.profileScope("sys:mutations", () => this.updateMutations(deltaMs)),
     });
     scheduler.add({
       id: "quest_clipboard",
       intervalMs: QUEST_CLIPBOARD_INTERVAL_MS,
       initialDelayMs: 2600,
-      run: () => this.updateQuestClipboard(),
+      run: () => this.profileScope("sys:questClipboard", () => this.updateQuestClipboard()),
     });
     return scheduler;
   }
@@ -1241,6 +1357,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private reserveAmbientPopText(): boolean {
+    if (this.activePopTexts.size >= this.getScaledBudget(MAX_ACTIVE_POP_TEXTS)) {
+      return false;
+    }
+
     if (!this.isAmbientFeedbackActive()) {
       return true;
     }
@@ -1294,9 +1414,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private setTextIfChanged(text: Phaser.GameObjects.Text | undefined, value: string): void {
-    if (text && text.text !== value) {
-      text.setText(value);
+    if (!text || text.text === value) {
+      return;
     }
+
+    this.profileScope("text:set", () => text.setText(value));
   }
 
   private setVisibleIfChanged(object: { visible: boolean; setVisible(value: boolean): unknown } | undefined, visible: boolean): void {
@@ -1309,10 +1431,16 @@ export class GameScene extends Phaser.Scene {
     this.knownFieldKeys = new Set(Object.keys(this.state.field) as TileKey[]);
     this.fieldTileCount = this.knownFieldKeys.size;
     this.cachedFieldBounds = getFieldBounds(this.state);
+    for (const key of this.knownFieldKeys) {
+      const tile = this.state.field[key];
+      if (tile) {
+        this.tileKeyCache.set(tile, key);
+      }
+    }
   }
 
   private registerFieldTile(tile: FieldTile): void {
-    const key = tileKey(tile.x, tile.y);
+    const key = this.getTileKey(tile);
     if (this.knownFieldKeys.has(key)) {
       return;
     }
@@ -1338,17 +1466,140 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
+  private getTileKey(tile: FieldTile): TileKey {
+    const cached = this.tileKeyCache.get(tile);
+    if (cached) {
+      return cached;
+    }
+
+    const key = tileKey(tile.x, tile.y);
+    this.tileKeyCache.set(tile, key);
+    return key;
+  }
+
   private isStressModeRequested(): boolean {
-    return new URLSearchParams(window.location.search).has("stress");
+    const params = new URLSearchParams(window.location.search);
+    return params.has("stress") || params.has("perfHarness");
   }
 
   private isPerfOverlayRequested(): boolean {
     return new URLSearchParams(window.location.search).has("perf");
   }
 
+  private isPerfHarnessRequested(): boolean {
+    return new URLSearchParams(window.location.search).has("perfHarness");
+  }
+
   private getStressTileCount(): number {
     const rawTiles = Number(new URLSearchParams(window.location.search).get("tiles") ?? "1200");
     return Phaser.Math.Clamp(Number.isFinite(rawTiles) ? Math.floor(rawTiles) : 1200, 64, 2500);
+  }
+
+  private startPerfHarness(): void {
+    if (!this.perfHarnessEnabled || this.perfHarnessRunning) {
+      return;
+    }
+
+    this.perfHarnessRunning = true;
+    this.perfHarnessStartedAt = performance.now();
+    this.perfHarnessSamples = [];
+    this.publishPerfHarnessResult("running");
+
+    this.time.delayedCall(PERF_HARNESS_IDLE_DELAY_MS, () => {
+      this.capturePerfHarnessSample("idle");
+      this.runPerfHarnessTapBurst();
+
+      this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
+        this.capturePerfHarnessSample("tapBurst");
+        this.openGoldStore();
+
+        this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
+          this.capturePerfHarnessSample("storeOpen");
+          this.closeGoldStore();
+          this.runPerfHarnessPan();
+
+          this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
+            this.capturePerfHarnessSample("pan");
+            this.runPerfHarnessZoom();
+
+            this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
+              this.capturePerfHarnessSample("zoom");
+              this.runPerfHarnessSaveStringify();
+
+              this.time.delayedCall(120, () => {
+                this.capturePerfHarnessSample("saveStringify");
+                this.resetBoardView();
+                this.requestBoardLayout("pan");
+                this.capturePerfHarnessSample("complete");
+                this.perfHarnessRunning = false;
+                this.publishPerfHarnessResult("complete");
+              });
+            });
+          });
+        });
+      });
+    });
+  }
+
+  private runPerfHarnessTapBurst(): void {
+    for (const tile of this.getPerfHarnessTouchTiles(PERF_HARNESS_TAP_COUNT)) {
+      this.handleTileClicked(tile);
+    }
+  }
+
+  private getPerfHarnessTouchTiles(count: number): FieldTile[] {
+    const visibleTiles = [...this.lastVisibleTileKeys]
+      .map((key) => this.state.field[key])
+      .filter((tile): tile is FieldTile => tile?.grassState === "grown");
+    const candidates = visibleTiles.length > 0 ? visibleTiles : getFieldTiles(this.state).filter((tile) => tile.grassState === "grown");
+    if (candidates.length <= count) {
+      return candidates;
+    }
+
+    const stride = Math.max(1, Math.floor(candidates.length / count));
+    const tiles: FieldTile[] = [];
+    for (let index = 0; index < candidates.length && tiles.length < count; index += stride) {
+      tiles.push(candidates[index]);
+    }
+
+    return tiles;
+  }
+
+  private runPerfHarnessPan(): void {
+    this.boardPanX += this.scale.width * 0.18;
+    this.boardPanY -= this.scale.height * 0.08;
+    this.requestBoardLayout("pan");
+  }
+
+  private runPerfHarnessZoom(): void {
+    this.zoomBoard(-420, this.scale.width / 2, this.scale.height * 0.58);
+  }
+
+  private runPerfHarnessSaveStringify(): void {
+    const byteCount = this.profileScope("harness:saveStringify", () => JSON.stringify(this.state).length);
+    (window as unknown as { __grassPerfHarnessSaveBytes?: number }).__grassPerfHarnessSaveBytes = byteCount;
+  }
+
+  private capturePerfHarnessSample(phase: PerfHarnessPhase): void {
+    this.refreshPerfPanel();
+    const stats = this.latestPerfStats ? { ...this.latestPerfStats } : undefined;
+    this.perfHarnessSamples.push({
+      phase,
+      elapsedMs: Math.round(performance.now() - this.perfHarnessStartedAt),
+      stats,
+    });
+    this.publishPerfHarnessResult(phase === "complete" ? "complete" : "running");
+  }
+
+  private publishPerfHarnessResult(status: PerfHarnessResult["status"]): void {
+    const result: PerfHarnessResult = {
+      status,
+      startedAt: Math.round(this.perfHarnessStartedAt),
+      completedAt: status === "complete" ? Math.round(performance.now()) : undefined,
+      samples: this.perfHarnessSamples,
+    };
+    (window as unknown as { __grassPerfHarness?: PerfHarnessResult }).__grassPerfHarness = result;
+    document.documentElement.dataset.grassPerfHarness = JSON.stringify(result);
   }
 
   private createStressState(characterClassId?: CharacterClassId): GameState {
@@ -1526,16 +1777,19 @@ export class GameScene extends Phaser.Scene {
     this.lastPerfLayoutPassCount = this.layoutPassCount;
     this.lastPerfCommonLayerRedrawCount = this.commonLayerRedrawCount;
     const hotspots = this.consumePerfHotspotSummary();
-    const stats = {
+    const stats: PerfStatsSnapshot = {
       fps,
       maxFrameDeltaMs: Math.round(this.maxFrameDeltaMs),
       frameSpikes: this.frameSpikeCount,
       totalTiles: this.lastStressStats.totalTiles,
       visibleTiles: this.lastStressStats.visibleTiles,
       tileViews: this.tileViews.size,
+      dirtyTiles: this.dirtyTileViewKeys.size,
+      redrawQueued: this.commonRedrawQueuedTiles,
       displayObjects: this.children.list.length,
       emitters: this.burstEmitters.size + this.uiBurstEmitters.size,
       activeTweens: this.getActiveTweenCount(),
+      autoFxObjects: this.activeAutoTouchVisualObjects,
       layoutPasses,
       redraws,
       tileMode: this.usesFullLiveTileViews() ? "live" : "batch",
@@ -1544,7 +1798,9 @@ export class GameScene extends Phaser.Scene {
       queuedSave: this.saveQueued,
       hotspots,
     };
+    this.latestPerfStats = stats;
     (window as unknown as { __grassStressStats?: typeof stats }).__grassStressStats = stats;
+    document.documentElement.dataset.grassPerf = JSON.stringify(stats);
     this.perfText.setText(
       [
         this.stressMode ? "STRESS" : "PERF",
@@ -1552,8 +1808,11 @@ export class GameScene extends Phaser.Scene {
         `tiles ${stats.visibleTiles}/${stats.totalTiles}`,
         `mode ${stats.tileMode}`,
         `views ${stats.tileViews}`,
+        stats.dirtyTiles > 0 ? `dirty ${stats.dirtyTiles}` : "",
+        stats.redrawQueued > 0 ? `queue ${stats.redrawQueued}` : "",
         `objects ${stats.displayObjects}`,
         `emitters ${stats.emitters}`,
+        stats.autoFxObjects > 0 ? `autoFx ${stats.autoFxObjects}` : "",
         `tw ${stats.activeTweens}`,
         `dt ${stats.maxFrameDeltaMs}`,
         `spikes ${stats.frameSpikes}`,
@@ -1571,7 +1830,15 @@ export class GameScene extends Phaser.Scene {
     return tweenManager.getTweens?.().length ?? tweenManager.getAllTweens?.().length ?? 0;
   }
 
+  private shouldProfile(): boolean {
+    return this.perfOverlayEnabled;
+  }
+
   private profileScope<T>(name: string, callback: () => T): T {
+    if (!this.shouldProfile()) {
+      return callback();
+    }
+
     const start = performance.now();
     try {
       return callback();
@@ -1581,7 +1848,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private recordPerfScope(name: string, durationMs: number): void {
-    if (!Number.isFinite(durationMs) || durationMs < 0.05) {
+    if (!this.shouldProfile() || !Number.isFinite(durationMs) || durationMs < 0.05) {
       return;
     }
 
@@ -1595,7 +1862,7 @@ export class GameScene extends Phaser.Scene {
   private consumePerfHotspotSummary(): string {
     const entries = [...this.perfScopeSamples.entries()]
       .sort(([, left], [, right]) => right.max - left.max)
-      .slice(0, 4);
+      .slice(0, 6);
     this.perfScopeSamples.clear();
 
     if (entries.length === 0) {
@@ -1603,7 +1870,9 @@ export class GameScene extends Phaser.Scene {
       return this.lastPerfHotspotSummary;
     }
 
-    this.lastPerfHotspotSummary = `hot ${entries.map(([name, sample]) => `${name} ${sample.max.toFixed(sample.max >= 10 ? 0 : 1)}`).join(" ")}`;
+    this.lastPerfHotspotSummary = `hot ${entries
+      .map(([name, sample]) => `${name} ${formatPerfDuration(sample.max)}/${formatPerfDuration(sample.total / sample.count)}x${sample.count}`)
+      .join("  ")}`;
     return this.lastPerfHotspotSummary;
   }
 
@@ -4044,7 +4313,88 @@ export class GameScene extends Phaser.Scene {
   }
 
   private renderAllTiles(): void {
-    this.layoutTiles();
+    this.layoutTiles("initial");
+  }
+
+  private requestBoardLayout(reason: BoardLayoutReason): void {
+    this.pendingBoardLayout = true;
+    this.pendingBoardLayoutReason = this.getPreferredBoardLayoutReason(this.pendingBoardLayoutReason, reason);
+  }
+
+  private getPreferredBoardLayoutReason(current: BoardLayoutReason, next: BoardLayoutReason): BoardLayoutReason {
+    const priority: Record<BoardLayoutReason, number> = {
+      direct: 0,
+      ui: 1,
+      dirty: 2,
+      pan: 3,
+      zoom: 4,
+      field: 5,
+      resize: 6,
+      initial: 7,
+    };
+    return priority[next] >= priority[current] ? next : current;
+  }
+
+  private flushPendingBoardLayout(): void {
+    if (!this.pendingBoardLayout) {
+      return;
+    }
+
+    const reason = this.pendingBoardLayoutReason;
+    this.pendingBoardLayout = false;
+    this.pendingBoardLayoutReason = "direct";
+    this.layoutTiles(reason);
+  }
+
+  private cancelCommonRedrawQueue(): void {
+    const redrawKeys = [...this.redrawTileViewKeys];
+    this.commonRedrawQueue = [];
+    this.commonRedrawQueuedTiles = 0;
+    this.redrawTileViewKeys.clear();
+    for (const key of redrawKeys) {
+      this.releaseBatchTileViewIfIdle(key);
+    }
+  }
+
+  private scheduleCommonRedraw(entries: CommonRedrawEntry[]): void {
+    this.commonRedrawQueue = entries;
+    this.commonRedrawQueuedTiles = entries.length;
+  }
+
+  private processCommonRedrawQueue(): void {
+    if (!this.commonTileLayer || this.commonRedrawQueue.length === 0) {
+      return;
+    }
+
+    const startedAt = performance.now();
+    let drawn = 0;
+    while (this.commonRedrawQueue.length > 0 && drawn < COMMON_REDRAW_TILE_BUDGET) {
+      const entry = this.commonRedrawQueue.shift();
+      if (!entry) {
+        break;
+      }
+
+      const tile = this.state.field[entry.key];
+      if (tile) {
+        this.drawCommonTile(tile, entry.x, entry.y);
+        this.dirtyTileViewKeys.delete(entry.key);
+        this.redrawTileViewKeys.delete(entry.key);
+        this.releaseBatchTileViewIfIdle(entry.key);
+      }
+
+      drawn += 1;
+      if (performance.now() - startedAt >= COMMON_REDRAW_FRAME_BUDGET_MS) {
+        break;
+      }
+    }
+
+    this.commonRedrawQueuedTiles = this.commonRedrawQueue.length;
+    if (this.commonRedrawQueue.length === 0) {
+      this.redrawTileViewKeys.clear();
+      for (const key of [...this.lastVisibleTileKeys]) {
+        this.releaseBatchTileViewIfIdle(key);
+      }
+    }
   }
 
   private zoomBoard(deltaY: number, pointerX: number, pointerY: number): void {
@@ -4068,11 +4418,11 @@ export class GameScene extends Phaser.Scene {
     const nextScale = previousScale * (this.boardZoom / previousZoom);
     this.boardPanX = pointerX - this.boardBaseCenterX - focusWorldX * nextScale;
     this.boardPanY = pointerY - this.boardBaseCenterY - focusWorldY * nextScale;
-    this.layoutTiles();
+    this.requestBoardLayout("zoom");
   }
 
   private createTileView(tile: FieldTile): void {
-    const key = tileKey(tile.x, tile.y);
+    const key = this.getTileKey(tile);
     this.registerFieldTile(tile);
     const existing = this.tileViews.get(key);
     if (existing) {
@@ -4137,6 +4487,8 @@ export class GameScene extends Phaser.Scene {
 
   private destroyTileView(key: TileKey, view: TileView): void {
     this.tweens.killTweensOf([view.base, view.grass, view.label, view.outline, view.glint]);
+    this.dirtyTileViewKeys.delete(key);
+    this.redrawTileViewKeys.delete(key);
     view.key = undefined;
     view.base.disableInteractive().setVisible(false).setAlpha(1).clearTint();
     view.grass.disableInteractive().setVisible(false).setAlpha(1).clearTint();
@@ -4163,6 +4515,8 @@ export class GameScene extends Phaser.Scene {
 
     this.tileViews.clear();
     this.tileViewPool = [];
+    this.dirtyTileViewKeys.clear();
+    this.redrawTileViewKeys.clear();
   }
 
   private destroyTileViewObjects(view: TileView): void {
@@ -4195,14 +4549,15 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private layoutTiles(): void {
-    const perfStart = performance.now();
+  private layoutTiles(reason: BoardLayoutReason = "direct"): void {
+    const perfStart = this.shouldProfile() ? performance.now() : undefined;
     try {
     const bounds = this.cachedFieldBounds;
     if (this.fieldTileCount === 0 || !bounds) {
       return;
     }
 
+    this.cancelCommonRedrawQueue();
     this.layoutPassCount += 1;
     const boardWidth = bounds.width * (TILE_SIZE + TILE_GAP);
     const boardHeight = bounds.height * (TILE_SIZE + TILE_GAP);
@@ -4210,7 +4565,7 @@ export class GameScene extends Phaser.Scene {
     this.boardAvailableWidth = Math.max(120, this.scale.width - 24);
     this.boardAvailableHeight = Math.max(120, this.scale.height - this.boardTopY - 24);
     const fitScale = Math.min(1, this.boardAvailableWidth / boardWidth, this.boardAvailableHeight / boardHeight);
-    this.boardScale = fitScale * this.boardZoom;
+    this.boardScale = Math.max(this.getMinimumBoardScale(), fitScale * this.boardZoom);
     this.boardScaledWidth = boardWidth * this.boardScale;
     this.boardScaledHeight = boardHeight * this.boardScale;
     this.boardBaseCenterX = this.scale.width / 2;
@@ -4222,79 +4577,113 @@ export class GameScene extends Phaser.Scene {
     const startX = centerX - this.boardScaledWidth / 2 + (TILE_SIZE * this.boardScale) / 2;
     const startY = centerY - this.boardScaledHeight / 2 + (TILE_SIZE * this.boardScale) / 2;
     const visibleKeys = new Set<TileKey>();
+    this.lastVisibleTileKeys.clear();
     let visibleTiles = 0;
-    const radius = (TILE_SIZE * this.boardScale) / 2 + TILE_CULL_MARGIN_PX;
+    const radius = (TILE_SIZE * this.boardScale) / 2 + this.getTileCullMargin();
     const minVisibleX = Phaser.Math.Clamp(Math.floor((0 - radius - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
     const maxVisibleX = Phaser.Math.Clamp(Math.ceil((this.scale.width + radius - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
     const minVisibleY = Phaser.Math.Clamp(Math.floor((0 - radius - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
     const maxVisibleY = Phaser.Math.Clamp(Math.ceil((this.scale.height + radius - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
-    this.clearBoardBackdrop();
-    this.drawBoardBackdrop(centerX, centerY, scaledStep, bounds);
-    this.layoutBoardLayers();
+    const visibleCandidateCount = Math.max(0, maxVisibleX - minVisibleX + 1) * Math.max(0, maxVisibleY - minVisibleY + 1);
+    const budgetCommonRedraw = this.shouldBudgetCommonRedraw(reason, visibleCandidateCount);
+    const queuedCommonRedrawEntries: CommonRedrawEntry[] = [];
+    this.profileScope("layout:backdrop", () => {
+      this.clearBoardBackdrop();
+      this.drawBoardBackdrop(centerX, centerY, scaledStep, bounds);
+      this.layoutBoardLayers();
+    });
 
-    for (let gridY = minVisibleY; gridY <= maxVisibleY; gridY += 1) {
-      for (let gridX = minVisibleX; gridX <= maxVisibleX; gridX += 1) {
-        const key = tileKey(gridX, gridY);
-        const tile = this.state.field[key];
-        if (!tile) {
-          continue;
-        }
-
-        let view = this.tileViews.get(key);
-        const x = startX + (tile.x - bounds.minX) * scaledStep;
-        const y = startY + (tile.y - bounds.minY) * scaledStep;
-
-        visibleTiles += 1;
-        if (!this.needsTileView(tile, key)) {
-          this.drawCommonTile(tile, x, y);
-          if (view) {
-            this.destroyTileView(key, view);
-          }
-          continue;
-        }
-
-        visibleKeys.add(key);
-        if (!view) {
-          this.createTileView(tile);
-          view = this.tileViews.get(key);
-          if (!view) {
+    this.profileScope("layout:tiles", () => {
+      for (let gridY = minVisibleY; gridY <= maxVisibleY; gridY += 1) {
+        for (let gridX = minVisibleX; gridX <= maxVisibleX; gridX += 1) {
+          const key = tileKey(gridX, gridY);
+          const tile = this.state.field[key];
+          if (!tile) {
             continue;
           }
+
+          let view = this.tileViews.get(key);
+          const x = startX + (tile.x - bounds.minX) * scaledStep;
+          const y = startY + (tile.y - bounds.minY) * scaledStep;
+          const commitDirtyTile = this.dirtyTileViewKeys.has(key) && !this.usesFullLiveTileViews() && !budgetCommonRedraw;
+
+          visibleTiles += 1;
+          this.lastVisibleTileKeys.add(key);
+          if (budgetCommonRedraw) {
+            this.redrawTileViewKeys.add(key);
+            queuedCommonRedrawEntries.push({ key, x, y });
+          }
+
+          if (commitDirtyTile) {
+            this.drawCommonTile(tile, x, y);
+            this.dirtyTileViewKeys.delete(key);
+          }
+
+          if (!this.needsTileView(tile, key)) {
+            if (!commitDirtyTile) {
+              this.drawCommonTile(tile, x, y);
+            }
+            if (view) {
+              this.destroyTileView(key, view);
+            }
+            continue;
+          }
+
+          visibleKeys.add(key);
+          if (!view) {
+            this.createTileView(tile);
+            view = this.tileViews.get(key);
+            if (!view) {
+              continue;
+            }
+          }
+
+          this.positionTileView(tile, view, x, y);
+          view.label.setVisible(key === this.hoveredTileKey);
         }
-
-        this.positionTileView(tile, view, x, y);
-        view.label.setVisible(tileKey(tile.x, tile.y) === this.hoveredTileKey);
       }
-    }
 
-    for (const [key, view] of this.tileViews) {
-      if (!visibleKeys.has(key)) {
-        this.destroyTileView(key, view);
+      for (const [key, view] of this.tileViews) {
+        if (!visibleKeys.has(key)) {
+          this.destroyTileView(key, view);
+        }
       }
-    }
+    });
 
     this.lastStressStats = { visibleTiles, totalTiles: this.fieldTileCount };
     this.commonTileLayerDirty = false;
+    this.dirtyTileViewKeys.clear();
+    if (budgetCommonRedraw) {
+      this.scheduleCommonRedraw(queuedCommonRedrawEntries);
+    }
 
-    this.layoutPlacedWorldObjects();
-    this.layoutWorldObjects();
+    this.profileScope("layout:objects", () => {
+      this.layoutPlacedWorldObjects();
+      this.layoutWorldObjects();
+    });
 
-    this.refreshHoverMarker();
+    this.profileScope("layout:hover", () => this.refreshHoverMarker());
     } finally {
-      this.recordPerfScope("layout", performance.now() - perfStart);
+      if (perfStart !== undefined) {
+        const duration = performance.now() - perfStart;
+        this.recordPerfScope("layout", duration);
+        this.recordPerfScope(`layout:${reason}`, duration);
+      }
     }
   }
 
   private layoutBoardLayers(): void {
     if (this.commonTileLayer) {
-      this.commonLayerRedrawCount += 1;
-      this.commonTileLayer.setPosition(0, 0);
-      if (this.commonTileLayerWidth !== this.scale.width || this.commonTileLayerHeight !== this.scale.height) {
-        this.commonTileLayer.resize(this.scale.width, this.scale.height);
-        this.commonTileLayerWidth = this.scale.width;
-        this.commonTileLayerHeight = this.scale.height;
-      }
-      this.commonTileLayer.clear();
+      this.profileScope("render:commonLayer", () => {
+        this.commonLayerRedrawCount += 1;
+        this.commonTileLayer?.setPosition(0, 0);
+        if (this.commonTileLayerWidth !== this.scale.width || this.commonTileLayerHeight !== this.scale.height) {
+          this.commonTileLayer?.resize(this.scale.width, this.scale.height);
+          this.commonTileLayerWidth = this.scale.width;
+          this.commonTileLayerHeight = this.scale.height;
+        }
+        this.commonTileLayer?.clear();
+      });
     }
 
     if (this.boardHitZone) {
@@ -4431,11 +4820,78 @@ export class GameScene extends Phaser.Scene {
   }
 
   private needsTileView(tile: FieldTile, key: TileKey): boolean {
-    return this.usesFullLiveTileViews() || this.perfectTouchCues.has(key) || key === this.hoveredTileKey;
+    return (
+      this.usesFullLiveTileViews() ||
+      this.dirtyTileViewKeys.has(key) ||
+      this.redrawTileViewKeys.has(key) ||
+      this.perfectTouchCues.has(key) ||
+      key === this.hoveredTileKey
+    );
+  }
+
+  private releaseBatchTileViewIfIdle(key: TileKey): void {
+    if (
+      this.usesFullLiveTileViews() ||
+      this.dirtyTileViewKeys.has(key) ||
+      this.redrawTileViewKeys.has(key) ||
+      this.perfectTouchCues.has(key) ||
+      key === this.hoveredTileKey
+    ) {
+      return;
+    }
+
+    const view = this.tileViews.get(key);
+    if (view) {
+      this.destroyTileView(key, view);
+    }
   }
 
   private usesFullLiveTileViews(): boolean {
     return this.fieldTileCount <= LIVE_TILE_VIEW_FIELD_LIMIT;
+  }
+
+  private shouldBudgetCommonRedraw(reason: BoardLayoutReason, visibleCandidateCount: number): boolean {
+    if (this.usesFullLiveTileViews() || !this.commonTileLayer) {
+      return false;
+    }
+
+    if (visibleCandidateCount <= 0 || visibleCandidateCount > COMMON_REDRAW_MOBILE_TILE_LIMIT) {
+      return false;
+    }
+
+    return this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH || reason === "pan" || reason === "zoom";
+  }
+
+  private getMinimumBoardScale(): number {
+    if (this.fieldTileCount <= LIVE_TILE_VIEW_FIELD_LIMIT) {
+      return 0;
+    }
+
+    if (this.scale.width < COMPACT_LARGE_FIELD_MAX_WIDTH) {
+      return COMPACT_LARGE_FIELD_MIN_BOARD_SCALE;
+    }
+
+    if (this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH) {
+      return TABLET_LARGE_FIELD_MIN_BOARD_SCALE;
+    }
+
+    return 0;
+  }
+
+  private getTileCullMargin(): number {
+    if (this.fieldTileCount <= LIVE_TILE_VIEW_FIELD_LIMIT) {
+      return TILE_CULL_MARGIN_PX;
+    }
+
+    if (this.scale.width < COMPACT_LARGE_FIELD_MAX_WIDTH) {
+      return COMPACT_LARGE_FIELD_CULL_MARGIN_PX;
+    }
+
+    if (this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH) {
+      return TABLET_LARGE_FIELD_CULL_MARGIN_PX;
+    }
+
+    return TILE_CULL_MARGIN_PX;
   }
 
   private drawCommonTile(tile: FieldTile, x: number, y: number): void {
@@ -4475,7 +4931,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getTileVisualPosition(tile: FieldTile): { x: number; y: number } | undefined {
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    const view = this.tileViews.get(this.getTileKey(tile));
     if (view) {
       return { x: view.label.x, y: view.label.y };
     }
@@ -4502,7 +4958,7 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
-  private isScreenPositionNearViewport(position: { x: number; y: number }, margin = TILE_CULL_MARGIN_PX): boolean {
+  private isScreenPositionNearViewport(position: { x: number; y: number }, margin = this.getTileCullMargin()): boolean {
     return position.x >= -margin && position.x <= this.scale.width + margin && position.y >= -margin && position.y <= this.scale.height + margin;
   }
 
@@ -5118,30 +5574,40 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.hoveredTileKey = tileKey(tile.x, tile.y);
+    this.hoveredTileKey = this.getTileKey(tile);
     this.hoveredWorldObjectId = undefined;
     this.tileInfoPanel.setVisible(false);
   }
 
   private hideTileInfo(tile: FieldTile): void {
-    if (this.hoveredTileKey === tileKey(tile.x, tile.y)) {
+    const key = this.getTileKey(tile);
+    if (this.hoveredTileKey === key) {
       this.hoveredTileKey = undefined;
       this.tileInfoPanel.setVisible(false);
       this.hideHoverMarker();
+      this.releaseBatchTileViewIfIdle(key);
     }
   }
 
   private clearTileInfo(): void {
+    const previousHoveredTileKey = this.hoveredTileKey;
     this.hoveredTileKey = undefined;
     this.hoveredWorldObjectId = undefined;
     this.tileInfoPanel.setVisible(false);
     this.hideHoverMarker();
+    if (previousHoveredTileKey) {
+      this.releaseBatchTileViewIfIdle(previousHoveredTileKey);
+    }
   }
 
   private showWorldObjectInfo(id: string): void {
+    const previousHoveredTileKey = this.hoveredTileKey;
     this.hoveredTileKey = undefined;
     this.hoveredWorldObjectId = id;
     this.hideHoverMarker();
+    if (previousHoveredTileKey) {
+      this.releaseBatchTileViewIfIdle(previousHoveredTileKey);
+    }
     this.refreshWorldObjectInfo(id);
     this.positionWorldObjectInfo(id);
     this.tileInfoPanel.setVisible(true);
@@ -5189,7 +5655,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getTilePlacementInfo(tile: FieldTile): string {
-    const key = tileKey(tile.x, tile.y);
+    const key = this.getTileKey(tile);
     const placedObjectId = getPlacedObjectAt(this.state, key);
     const nearbyLabels = this.getNearbyActivePlacedObjectIds(tile)
       .filter((objectId) => objectId !== placedObjectId)
@@ -5230,7 +5696,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private positionTileInfo(tile: FieldTile): void {
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    const view = this.tileViews.get(this.getTileKey(tile));
     const position = view ? { x: view.base.x, y: view.base.y } : this.getTileScreenPosition(tile);
     if (!position) {
       return;
@@ -5261,7 +5727,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleTileClicked(tile: FieldTile): void {
-    const perfStart = performance.now();
+    const perfStart = this.shouldProfile() ? performance.now() : undefined;
     try {
     if (this.hasBlockingOverlayOpen()) {
       return;
@@ -5272,19 +5738,19 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.createTileView(tile);
+    this.profileScope("touch:createView", () => this.createTileView(tile));
 
     if (this.hasTouchScreen()) {
       this.clearTileInfo();
     }
 
     const now = Date.now();
-    const stats = this.getCachedRuntimeStats(now);
+    const stats = this.profileScope("touch:stats", () => this.getCachedRuntimeStats(now));
     const touchedTrait = tile.trait;
     const touchedTier = getGrassTier(tile.tier);
     this.addJournalValue(this.state.journal.discoveredGrassTiers, touchedTier.id);
     this.addJournalValue(this.state.journal.discoveredTileTraits, touchedTrait);
-    const touch = touchTile(tile, this.state, stats, now);
+    const touch = this.profileScope("touch:tile", () => touchTile(tile, this.state, stats, now));
 
     if (touch.gained === 0) {
       this.popAtTile(tile, "regrowing", "#fff2b2");
@@ -5293,7 +5759,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const combo = this.recordComboTouch(tile, touch, stats, now, "manual");
+    const combo = this.profileScope("touch:combo", () => this.recordComboTouch(tile, touch, stats, now, "manual"));
     const perfectTouchBonus = this.consumePerfectTouchBonus(tile, touch.gained, now);
     if (perfectTouchBonus > 0) {
       this.state.grassTouches = addGrassTouches(this.state.grassTouches, perfectTouchBonus);
@@ -5304,39 +5770,47 @@ export class GameScene extends Phaser.Scene {
       this.state.gold += perfectGoldBonus;
       this.state.lifetimeGold += perfectGoldBonus;
     }
-    const placementSynergy = this.getPlacementSynergy(tile);
+    const placementSynergy = this.profileScope("touch:placementCalc", () => this.getPlacementSynergy(tile));
     if (placementSynergy.bonusTouches > 0) {
       this.state.grassTouches = addGrassTouches(this.state.grassTouches, placementSynergy.bonusTouches);
       this.state.lifetimeGrassTouches = addGrassTouches(this.state.lifetimeGrassTouches, placementSynergy.bonusTouches);
     }
 
-    this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
-    this.refreshTile(tile);
-    this.popAtTile(tile, this.getTouchPopText(touch), touch.isCrit ? "#ffef78" : touchedTier.id === "normal" ? "#f9ffe5" : "#dfffc8");
-    this.applyPlacementSynergyFeedback(tile, placementSynergy, now);
-    this.applyWateringCanSplash(tile, now, combo.count);
-    if (perfectTouchBonus > 0) {
-      this.playPerfectTouchFeedback(tile, perfectTouchBonus);
-      if (perfectGoldBonus > 0) {
-        this.popAtTile(tile, `golden +${perfectGoldBonus}`, "#ffef78");
-        this.emitGoldBurst(tile, perfectGoldBonus);
-        this.audio.play("gold");
+    this.profileScope("touch:visuals", () => {
+      this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
+      this.refreshTile(tile);
+      this.popAtTile(tile, this.getTouchPopText(touch), touch.isCrit ? "#ffef78" : touchedTier.id === "normal" ? "#f9ffe5" : "#dfffc8");
+      this.applyPlacementSynergyFeedback(tile, placementSynergy, now);
+      this.applyWateringCanSplash(tile, now, combo.count);
+      if (perfectTouchBonus > 0) {
+        this.playPerfectTouchFeedback(tile, perfectTouchBonus);
+        if (perfectGoldBonus > 0) {
+          this.popAtTile(tile, `golden +${perfectGoldBonus}`, "#ffef78");
+          this.emitGoldBurst(tile, perfectGoldBonus);
+          this.audio.play("gold");
+        }
       }
-    }
-    this.playComboFeedback(tile, combo);
-    this.playClassTouchFeedback(tile, touch, combo);
-    if (touch.instantRegrown) {
-      this.popAtTile(tile, "instant regrow", "#dfffc8");
-    }
-    this.drops.tryDropSeed(this.state, tile, touchedTrait, stats, this.getDropFeedback(), placementSynergy.seedChanceScale);
-    this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier.id, touch, stats, this.getDropFeedback(), placementSynergy.goldChanceScale);
-    this.applyGrassTierIdentityBonus(tile, touchedTier.id, touch, stats, now);
-    this.shakeForGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
-    this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, combo.count);
-    this.tryComboAoeTouch(tile, stats, combo.count, now);
+      this.playComboFeedback(tile, combo);
+      this.playClassTouchFeedback(tile, touch, combo);
+      if (touch.instantRegrown) {
+        this.popAtTile(tile, "instant regrow", "#dfffc8");
+      }
+    });
+    this.profileScope("touch:drops", () => {
+      this.drops.tryDropSeed(this.state, tile, touchedTrait, stats, this.getDropFeedback(), placementSynergy.seedChanceScale);
+      this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier.id, touch, stats, this.getDropFeedback(), placementSynergy.goldChanceScale);
+      this.applyGrassTierIdentityBonus(tile, touchedTier.id, touch, stats, now);
+    });
+    this.profileScope("touch:audioShake", () => {
+      this.shakeForGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
+      this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, combo.count);
+    });
+    this.profileScope("touch:aoe", () => this.tryComboAoeTouch(tile, stats, combo.count, now));
     this.queueSave();
     } finally {
-      this.recordPerfScope("touch", performance.now() - perfStart);
+      if (perfStart !== undefined) {
+        this.recordPerfScope("touch", performance.now() - perfStart);
+      }
     }
   }
 
@@ -5391,7 +5865,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const key = tileKey(tile.x, tile.y);
+    const key = this.getTileKey(tile);
     const occupiedBy = getPlacedObjectAt(this.state, key);
     if (occupiedBy && occupiedBy !== objectId) {
       this.popAtTile(tile, `${this.getWorldObjectLabel(occupiedBy)} already here`, "#fff2b2");
@@ -5678,7 +6152,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private markRecentlyRegrown(tile: FieldTile, now: number): void {
-    const key = tileKey(tile.x, tile.y);
+    const key = this.getTileKey(tile);
     this.recentlyRegrownAt.set(key, now);
     this.showPerfectTouchCue(tile, key);
   }
@@ -5687,18 +6161,14 @@ export class GameScene extends Phaser.Scene {
     for (const [key, regrownAt] of this.recentlyRegrownAt) {
       const perfectTouchWindowMs = this.getPerfectTouchWindowMs(this.state.field[key]);
       if (now - regrownAt > perfectTouchWindowMs) {
-        const hadCue = this.perfectTouchCues.has(key);
         this.recentlyRegrownAt.delete(key);
         this.destroyPerfectTouchCue(key);
-        if (hadCue) {
-          this.commonTileLayerDirty = true;
-        }
       }
     }
   }
 
   private consumePerfectTouchBonus(tile: FieldTile, baseTouches: number, now: number): number {
-    const key = tileKey(tile.x, tile.y);
+    const key = this.getTileKey(tile);
     const regrownAt = this.recentlyRegrownAt.get(key);
     this.recentlyRegrownAt.delete(key);
     this.destroyPerfectTouchCue(key);
@@ -5828,7 +6298,7 @@ export class GameScene extends Phaser.Scene {
       cue.destroy();
     }
     this.perfectTouchCues.delete(key);
-    this.commonTileLayerDirty = true;
+    this.releaseBatchTileViewIfIdle(key);
   }
 
   private destroyAllPerfectTouchCues(): void {
@@ -5859,7 +6329,7 @@ export class GameScene extends Phaser.Scene {
       if (touch.gained === 0) {
         continue;
       }
-      const key = tileKey(tile.x, tile.y);
+      const key = this.getTileKey(tile);
       this.recentlyRegrownAt.delete(key);
       this.destroyPerfectTouchCue(key);
 
@@ -5881,7 +6351,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.popAtTile(originTile, `AOE ${touchedTiles} tiles +${gainedTouches}`, "#bff4ff");
-    const view = this.tileViews.get(tileKey(originTile.x, originTile.y));
+    const view = this.tileViews.get(this.getTileKey(originTile));
     if (view) {
       this.emitBurst("dew-fleck", view.label.x, view.label.y - 6, 36, 1.25, 0.28);
     }
@@ -6071,12 +6541,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateAutomationIncome(delta: number, stats: RuntimeStats): void {
-    const result = this.automationIncome.update(delta, this.state, stats);
+    const result = this.profileScope("auto:incomeCalc", () => this.automationIncome.update(delta, this.state, stats));
     if (!result.changed) {
       return;
     }
 
-    this.runWithAmbientFeedback(() => this.queueAutomationTouchVisuals(result.gained, result.touchesPerMinute));
+    this.runWithAmbientFeedback(() =>
+      this.profileScope("auto:incomeVisuals", () => this.queueAutomationTouchVisuals(result.gained, result.touchesPerMinute)),
+    );
     this.queueSave();
   }
 
@@ -6085,7 +6557,11 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.children.list.length >= DISPLAY_OBJECT_CRITICAL_LIMIT || this.effectQuality <= MIN_EFFECT_QUALITY) {
+    if (
+      this.children.list.length >= DISPLAY_OBJECT_CRITICAL_LIMIT ||
+      this.effectQuality <= MIN_EFFECT_QUALITY ||
+      this.activeAutoTouchVisualObjects >= this.getScaledBudget(AUTO_TOUCH_ACTIVE_OBJECT_LIMIT)
+    ) {
       this.autoTouchVisualCredit = 0;
       return;
     }
@@ -6112,23 +6588,28 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const tile = this.pickAutomationTouchVisualTile();
+    const tile = this.profileScope("auto:visualPick", () => this.pickAutomationTouchVisualTile());
     if (!tile) {
       return;
     }
 
     this.autoTouchVisualCredit = Math.max(0, this.autoTouchVisualCredit - 1);
     this.lastAutoTouchVisualAt = now;
-    this.playAutomationTouchVisual(tile, now);
+    this.profileScope("auto:visualPlay", () => this.playAutomationTouchVisual(tile, now));
   }
 
   private pickAutomationTouchVisualTile(): FieldTile | undefined {
     const candidates: FieldTile[] = [];
-    const tiles = getFieldTiles(this.state);
-    const attempts = Math.min(tiles.length, AUTO_TOUCH_VISUAL_SAMPLE_LIMIT);
+    const visibleKeys = [...this.lastVisibleTileKeys];
+    const attempts = Math.min(visibleKeys.length, AUTO_TOUCH_VISUAL_SAMPLE_LIMIT);
 
     for (let index = 0; index < attempts; index += 1) {
-      const tile = tiles[Phaser.Math.Between(0, tiles.length - 1)];
+      const key = visibleKeys[Phaser.Math.Between(0, visibleKeys.length - 1)];
+      const tile = this.state.field[key];
+      if (!tile) {
+        continue;
+      }
+
       if (tile.grassState !== "grown") {
         continue;
       }
@@ -6146,7 +6627,11 @@ export class GameScene extends Phaser.Scene {
 
   private playAutomationTouchVisual(tile: FieldTile, now: number): void {
     const position = this.getTileVisualPosition(tile);
-    if (!position || !this.reserveAmbientTransientObject(2)) {
+    if (
+      !position ||
+      !this.reserveAmbientTransientObject(2) ||
+      this.activeAutoTouchVisualObjects + 2 > this.getScaledBudget(AUTO_TOUCH_ACTIVE_OBJECT_LIMIT)
+    ) {
       return;
     }
 
@@ -6154,6 +6639,7 @@ export class GameScene extends Phaser.Scene {
     const y = position.y;
     const color = this.getTierHighlightColor(tile.tier);
     const stroke = tile.tier === "normal" ? 0xbff4ff : color;
+    this.activeAutoTouchVisualObjects += 2;
     const grassGhost = this.add
       .image(x, y, this.getGrassTextureKey(tile))
       .setScale(this.boardScale * this.getGrassScale(tile))
@@ -6173,7 +6659,10 @@ export class GameScene extends Phaser.Scene {
       alpha: 0,
       duration: 250,
       ease: "Sine.easeOut",
-      onComplete: () => grassGhost.destroy(),
+      onComplete: () => {
+        this.activeAutoTouchVisualObjects = Math.max(0, this.activeAutoTouchVisualObjects - 1);
+        grassGhost.destroy();
+      },
     });
 
     this.tweens.add({
@@ -6183,7 +6672,10 @@ export class GameScene extends Phaser.Scene {
       alpha: 0,
       duration: 330,
       ease: "Sine.easeOut",
-      onComplete: () => ring.destroy(),
+      onComplete: () => {
+        this.activeAutoTouchVisualObjects = Math.max(0, this.activeAutoTouchVisualObjects - 1);
+        ring.destroy();
+      },
     });
 
     this.emitBurst(tile.trait === "dewy" ? "dew-fleck" : "grass-fleck", x, y - 6 * this.boardScale, 6, 0.45, 0.1);
@@ -6200,7 +6692,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const changed = this.runWithAmbientFeedback(() => {
-      return this.sprinkler.update(delta, this.state, stats, {
+      return this.profileScope("sprinkler:update", () => this.sprinkler.update(delta, this.state, stats, {
         refreshTile: (tile) => this.refreshTile(tile),
         popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
         playSprinklerBurst: (tile) => this.playSprinklerBurst(tile),
@@ -6212,7 +6704,7 @@ export class GameScene extends Phaser.Scene {
         recordAutomationCombo: (tile, touch, source) => this.recordAutomationComboTouch(tile, touch, stats, source),
         recordAutomationComboAction: (tile, source) => this.recordAutomationComboAction(tile, stats, source),
         playGrassTouch: (tier, trait, isCrit, comboCount) => this.audio.playGrassTouch(tier, trait, isCrit, comboCount),
-      });
+      }));
     });
 
     if (changed) {
@@ -6226,7 +6718,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const changed = this.runWithAmbientFeedback(() => {
-      return this.animalCompanions.update(delta, this.state, stats, {
+      return this.profileScope("companions:update", () => this.animalCompanions.update(delta, this.state, stats, {
         refreshTile: (tile) => this.refreshTile(tile),
         popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
         emitSeedBurst: (tile) => this.emitSeedBurst(tile),
@@ -6236,7 +6728,7 @@ export class GameScene extends Phaser.Scene {
         recordAutomationCombo: (tile, touch, source) => this.recordAutomationComboTouch(tile, touch, stats, source),
         playSound: (sound) => this.audio.play(sound),
         playGrassTouch: (tier, trait, isCrit, comboCount) => this.audio.playGrassTouch(tier, trait, isCrit, comboCount),
-      });
+      }));
     });
 
     if (changed) {
@@ -6249,7 +6741,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const event = this.mutations.update(delta, this.state);
+    const event = this.profileScope("mutations:update", () => this.mutations.update(delta, this.state));
     if (!event) {
       return;
     }
@@ -6361,7 +6853,7 @@ export class GameScene extends Phaser.Scene {
     );
     this.audio.play(combo.thresholdReached >= 15 ? "unlock" : "crit");
 
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    const view = this.tileViews.get(this.getTileKey(tile));
     if (view) {
       this.emitBurst("crit-fleck", view.label.x, view.label.y - 12, 26, 1.1 + Math.min(1, combo.thresholdReached / 40), 0.16);
     }
@@ -6433,7 +6925,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playClassTouchFeedback(tile: FieldTile, touch: TouchResult, combo: ComboResult): void {
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    const view = this.tileViews.get(this.getTileKey(tile));
     if (!view) {
       return;
     }
@@ -6728,10 +7220,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshTile(tile: FieldTile): void {
-    const key = tileKey(tile.x, tile.y);
+    const key = this.getTileKey(tile);
     const view = this.tileViews.get(key);
     if (!view) {
-      this.commonTileLayerDirty = true;
+      this.markBatchTileDirty(tile);
       return;
     }
 
@@ -6753,7 +7245,33 @@ export class GameScene extends Phaser.Scene {
     view.base.setTexture(isGrown ? "tile-dirt" : "tile-stubble");
 
     if (!this.needsTileView(tile, key)) {
+      this.markBatchTileDirty(tile);
+    }
+  }
+
+  private markBatchTileDirty(tile: FieldTile): void {
+    if (this.usesFullLiveTileViews()) {
+      return;
+    }
+
+    const key = this.getTileKey(tile);
+    if (this.dirtyTileViewKeys.has(key)) {
+      return;
+    }
+
+    if (this.dirtyTileViewKeys.size >= DIRTY_TILE_VIEW_LIMIT) {
       this.commonTileLayerDirty = true;
+      return;
+    }
+
+    const position = this.getTileScreenPosition(tile);
+    if (!position || !this.isScreenPositionNearViewport(position)) {
+      return;
+    }
+
+    this.dirtyTileViewKeys.add(key);
+    if (!this.tileViews.has(key)) {
+      this.createTileView(tile);
     }
   }
 
@@ -6801,7 +7319,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playTouchFeedback(tile: FieldTile, touchedTrait = tile.trait, isCrit = false): void {
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    const view = this.tileViews.get(this.getTileKey(tile));
     const position = this.getTileVisualPosition(tile);
     if (!position) {
       return;
@@ -6878,7 +7396,7 @@ export class GameScene extends Phaser.Scene {
 
   private playPerfectTouchFeedback(tile: FieldTile, bonusTouches: number): void {
     this.createTileView(tile);
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    const view = this.tileViews.get(this.getTileKey(tile));
     if (!view) {
       return;
     }
@@ -6909,7 +7427,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playRegrowFeedback(tile: FieldTile): void {
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    const view = this.tileViews.get(this.getTileKey(tile));
     const position = this.getTileVisualPosition(tile);
     if (!position) {
       return;
@@ -7143,7 +7661,7 @@ export class GameScene extends Phaser.Scene {
 
   private playBlockedTileFeedback(tile: FieldTile): void {
     this.createTileView(tile);
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    const view = this.tileViews.get(this.getTileKey(tile));
     if (!view) {
       return;
     }
@@ -7186,6 +7704,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private emitUiBurst(texture: string, x: number, y: number, quantity: number, color = 0xffef78): void {
+    if (this.children.list.length >= DISPLAY_OBJECT_CRITICAL_LIMIT || this.effectQuality <= MIN_EFFECT_QUALITY) {
+      return;
+    }
+
     const budgetedQuantity = Math.max(1, Math.ceil(quantity * Math.max(0.45, this.effectQuality)));
     const particles = this.getUiBurstEmitter(texture, color);
     particles.explode(budgetedQuantity, x, y);
@@ -7679,144 +8201,168 @@ export class GameScene extends Phaser.Scene {
     graphics.destroy();
   }
 
-  private refreshUi(): void {
-    const nextMilestone = MILESTONES.find((milestone) => !this.state.reachedMilestones.includes(milestone.id));
-    const nextQuest = QUESTS.find((quest) => !this.state.claimedQuestIds.includes(quest.id) && isQuestAvailable(this.state, quest));
-    const currentReadyQuestKeys = this.getReadyQuestKeys();
+  private refreshUi(forcePanels = true): void {
+    const nextMilestone = this.profileScope("ui:nextMilestone", () =>
+      MILESTONES.find((milestone) => !this.state.reachedMilestones.includes(milestone.id)),
+    );
+    const nextQuest = this.profileScope("ui:nextQuest", () =>
+      QUESTS.find((quest) => !this.state.claimedQuestIds.includes(quest.id) && isQuestAvailable(this.state, quest)),
+    );
+    const currentReadyQuestKeys = this.profileScope("ui:readyQuests", () => this.getReadyQuestKeys());
     const readyQuestCount = currentReadyQuestKeys.size;
     const nextTier = getNextGrassTier(this.state);
     const weather = this.state.seedShopPurchases.weather_jar ? getWeather(this.state.activeWeatherId) : undefined;
     const season = getSeasonForDate(new Date());
     const compact = this.scale.width < 620;
     const resourceSeparator = compact ? "\n" : " | ";
-    const stats = this.getCachedRuntimeStats();
-    const automationTouchesPerMinute = getTotalAutomationTouchesPerMinute(this.state, stats);
-    const automationUnitCount = getAutomationUnitCount(this.state);
+    const stats = this.profileScope("ui:stats", () => this.getCachedRuntimeStats());
+    const automationTouchesPerMinute = this.profileScope("calc:autoTotal", () => getTotalAutomationTouchesPerMinute(this.state, stats));
+    const automationUnitCount = this.profileScope("calc:autoUnits", () => getAutomationUnitCount(this.state));
+    const refreshPanels = forcePanels || this.panelUiRefreshElapsed >= PANEL_UI_REFRESH_INTERVAL_MS;
+    const refreshWorldObjects = forcePanels || this.worldObjectUiRefreshElapsed >= WORLD_OBJECT_UI_REFRESH_INTERVAL_MS;
+    if (refreshPanels) {
+      this.panelUiRefreshElapsed = 0;
+    }
+    if (refreshWorldObjects) {
+      this.worldObjectUiRefreshElapsed = 0;
+    }
 
     const overlayOpen = this.hasBlockingOverlayOpen();
     this.setTextIfChanged(this.titleText, "Grass Touching Simulator");
     this.setVisibleIfChanged(this.ambientSpores, !overlayOpen);
-    this.layoutSeasonVisuals();
-    this.refreshWeatherVisuals();
-    this.setTextIfChanged(
-      this.resourceText,
-      [
-        `Grass Touches: ${formatGrassTouches(this.state.grassTouches)}`,
-        `Seeds: ${Math.floor(this.state.seeds)}`,
-        `Gold: ${Math.floor(this.state.gold)}`,
-        automationTouchesPerMinute > 0 ? `Auto: ${formatGrassTouchesPerMinute(automationTouchesPerMinute)}` : "",
-        automationUnitCount > 0 ? `Systems: ${automationUnitCount}` : "",
-        `Patches: ${this.fieldTileCount}`,
-      ]
-        .filter(Boolean)
-        .join(resourceSeparator),
-    );
-    this.refreshComboBadge();
+    this.profileScope("ui:weatherVisuals", () => {
+      this.layoutSeasonVisuals();
+      this.refreshWeatherVisuals();
+    });
+    this.profileScope("ui:resourceText", () => {
+      this.setTextIfChanged(
+        this.resourceText,
+        [
+          `Grass Touches: ${formatGrassTouches(this.state.grassTouches)}`,
+          `Seeds: ${Math.floor(this.state.seeds)}`,
+          `Gold: ${Math.floor(this.state.gold)}`,
+          automationTouchesPerMinute > 0 ? `Auto: ${formatGrassTouchesPerMinute(automationTouchesPerMinute)}` : "",
+          automationUnitCount > 0 ? `Systems: ${automationUnitCount}` : "",
+          `Patches: ${this.fieldTileCount}`,
+        ]
+          .filter(Boolean)
+          .join(resourceSeparator),
+      );
+    });
+    this.profileScope("ui:combo", () => this.refreshComboBadge());
     setTextButtonText(this.questButton, readyQuestCount > 0 ? `Quests (${readyQuestCount})` : "Quests");
-    this.refreshMenuButtonAttention(currentReadyQuestKeys);
+    this.profileScope("ui:buttons", () => this.refreshMenuButtonAttention(currentReadyQuestKeys));
     this.refreshJournalAccess();
     if (this.skillTreeOpen) {
       this.setTextIfChanged(this.skillResourceText, `Available Grass Touches: ${formatGrassTouches(this.state.grassTouches)}`);
     }
-    if (this.questLogOpen) {
-      this.refreshQuestLog();
+    if (this.questLogOpen && refreshPanels) {
+      this.profileScope("ui:questLog", () => this.refreshQuestLog());
     }
-    if (this.journalOpen) {
-      this.refreshJournal();
+    if (this.journalOpen && refreshPanels) {
+      this.profileScope("ui:journal", () => this.refreshJournal());
     }
-    if (this.seedShopOpen) {
-      this.refreshSeedShop();
+    if (this.seedShopOpen && refreshPanels) {
+      this.profileScope("ui:seedShop", () => this.refreshSeedShop());
     }
-    if (this.storeOpen) {
-      this.refreshGoldStore();
+    if (this.storeOpen && refreshPanels) {
+      this.profileScope("ui:store", () => this.refreshGoldStore());
     }
-    if (this.automationOpen) {
-      this.refreshAutomationPanel();
+    if (this.automationOpen && refreshPanels) {
+      this.profileScope("ui:autoPanel", () => this.refreshAutomationPanel());
     }
-    this.syncWorldObjects();
-    this.layoutWorldObjects();
-    this.setTextIfChanged(
-      this.milestoneText,
-      [
-        nextMilestone
-          ? `Next spread: ${nextMilestone.name} at ${formatGrassTouches(nextMilestone.requiredLifetimeTouches)} lifetime touches`
-          : "All surface spreads discovered.",
-        readyQuestCount > 0
-          ? `Quest ready: ${readyQuestCount}`
-          : nextQuest
-            ? `Quest: ${nextQuest.name} - ${formatQuestProgress(nextQuest, this.state)}`
-            : "All current quests claimed.",
-        nextTier ? `Next tier: ${nextTier.name} at ${formatGrassTouches(nextTier.unlockAtLifetimeTouches)}` : "",
-        weather ? `Weather: ${weather.name}` : `Season: ${season.name}`,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    );
+    if (refreshWorldObjects) {
+      this.profileScope("ui:worldObjects", () => {
+        this.syncWorldObjects();
+        this.layoutWorldObjects();
+      });
+    }
+    this.profileScope("ui:milestoneText", () => {
+      this.setTextIfChanged(
+        this.milestoneText,
+        [
+          nextMilestone
+            ? `Next spread: ${nextMilestone.name} at ${formatGrassTouches(nextMilestone.requiredLifetimeTouches)} lifetime touches`
+            : "All surface spreads discovered.",
+          readyQuestCount > 0
+            ? `Quest ready: ${readyQuestCount}`
+            : nextQuest
+              ? `Quest: ${nextQuest.name} - ${formatQuestProgress(nextQuest, this.state)}`
+              : "All current quests claimed.",
+          nextTier ? `Next tier: ${nextTier.name} at ${formatGrassTouches(nextTier.unlockAtLifetimeTouches)}` : "",
+          weather ? `Weather: ${weather.name}` : `Season: ${season.name}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
+    });
     this.milestoneText.setPosition(26, this.layoutComboBadge());
 
-    if (this.skillTreeOpen) {
-      for (const upgrade of UPGRADES) {
-        const view = this.skillNodeViews.get(upgrade.id);
-        const level = this.state.upgrades[upgrade.id]?.level ?? 0;
-        const unlocked = canUnlockUpgrade(this.state, upgrade);
-        const maxed = level >= upgrade.maxLevel;
-        const cost = getUpgradeCost(upgrade, level);
-        const available = unlocked && !maxed && canAffordGrassTouches(this.state.grassTouches, cost);
-        const visible = this.isSkillVisible(upgrade.id);
+    if (this.skillTreeOpen && refreshPanels) {
+      this.profileScope("ui:skillTree", () => {
+        for (const upgrade of UPGRADES) {
+          const view = this.skillNodeViews.get(upgrade.id);
+          const level = this.state.upgrades[upgrade.id]?.level ?? 0;
+          const unlocked = canUnlockUpgrade(this.state, upgrade);
+          const maxed = level >= upgrade.maxLevel;
+          const cost = getUpgradeCost(upgrade, level);
+          const available = unlocked && !maxed && canAffordGrassTouches(this.state.grassTouches, cost);
+          const visible = this.isSkillVisible(upgrade.id);
 
-        if (!view) {
-          continue;
+          if (!view) {
+            continue;
+          }
+
+          view.container.setVisible(visible);
+          if (!visible) {
+            this.stopSkillHoverTremble(upgrade.id);
+            this.setReadyPulse(view.readyGlow, false);
+            view.bg.disableInteractive();
+            continue;
+          }
+          view.bg.setInteractive({ useHandCursor: true });
+
+          const selected = upgrade.id === this.selectedSkillId;
+          const stroke = selected ? 0xfff08a : available ? 0xf4df6a : level > 0 ? upgrade.tree.color : 0x506056;
+          const nodeAlpha = unlocked || level > 0 ? 1 : 0.48;
+          const frameKey = selected
+            ? SKILL_NODE_FRAME_KEYS.selected
+            : level > 0
+              ? SKILL_NODE_FRAME_KEYS.owned
+              : unlocked
+                ? SKILL_NODE_FRAME_KEYS.available
+                : SKILL_NODE_FRAME_KEYS.locked;
+          const frameSize = selected ? 74 : available ? 68 : level > 0 ? 66 : SKILL_NODE_VISUAL_SIZE;
+
+          view.container.setAlpha(nodeAlpha);
+          view.bg.setFillStyle(0xffffff, 0.001);
+          view.bg.setStrokeStyle(1, stroke, 0);
+          view.glow.setFillStyle(stroke, selected ? 0.28 : available ? 0.22 : level > 0 ? 0.14 : 0.05);
+          view.glow.setStrokeStyle(selected ? 3 : 2, stroke, selected ? 0.72 : available ? 0.48 : level > 0 ? 0.32 : 0.12);
+          this.setReadyPulse(view.readyGlow, available, 1.12, 1.16);
+          view.plate.setFillStyle(level > 0 ? 0x102f1a : unlocked ? 0x0d2617 : 0x07150e, unlocked || level > 0 ? 0.9 : 0.76);
+          view.plate.setStrokeStyle(selected ? 4 : available ? 3 : 2, stroke, selected ? 0.95 : available ? 0.82 : level > 0 ? 0.58 : 0.28);
+          view.frame.setTexture(frameKey);
+          view.frame.clearTint();
+          view.frame.setAlpha(selected ? 1 : available ? 1 : level > 0 ? 0.94 : 0.72);
+          view.frame.setDisplaySize(frameSize, frameSize);
+          view.icon.setTexture(getSkillIconKey(upgrade.id));
+          view.icon.setVisible(unlocked || level > 0);
+          view.icon.setAlpha(available || selected ? 1 : level > 0 ? 0.95 : 0.72);
+          view.icon.setTint(level > 0 || unlocked ? 0xffffff : 0x8fa08f);
+          view.lockedIcon.setVisible(!unlocked && level === 0);
+          view.lockedIcon.setColor(selected ? "#fff08a" : "#dfffc8");
+          this.setTextIfChanged(view.level, `Lv ${level}/${upgrade.maxLevel}`);
+          view.level.setColor(available || selected ? "#f4df6a" : level > 0 ? "#dfffc8" : "#7c8b82");
         }
 
-        view.container.setVisible(visible);
-        if (!visible) {
-          this.stopSkillHoverTremble(upgrade.id);
-          this.setReadyPulse(view.readyGlow, false);
-          view.bg.disableInteractive();
-          continue;
-        }
-        view.bg.setInteractive({ useHandCursor: true });
-
-        const selected = upgrade.id === this.selectedSkillId;
-        const stroke = selected ? 0xfff08a : available ? 0xf4df6a : level > 0 ? upgrade.tree.color : 0x506056;
-        const nodeAlpha = unlocked || level > 0 ? 1 : 0.48;
-        const frameKey = selected
-          ? SKILL_NODE_FRAME_KEYS.selected
-          : level > 0
-            ? SKILL_NODE_FRAME_KEYS.owned
-            : unlocked
-              ? SKILL_NODE_FRAME_KEYS.available
-              : SKILL_NODE_FRAME_KEYS.locked;
-        const frameSize = selected ? 74 : available ? 68 : level > 0 ? 66 : SKILL_NODE_VISUAL_SIZE;
-
-        view.container.setAlpha(nodeAlpha);
-        view.bg.setFillStyle(0xffffff, 0.001);
-        view.bg.setStrokeStyle(1, stroke, 0);
-        view.glow.setFillStyle(stroke, selected ? 0.28 : available ? 0.22 : level > 0 ? 0.14 : 0.05);
-        view.glow.setStrokeStyle(selected ? 3 : 2, stroke, selected ? 0.72 : available ? 0.48 : level > 0 ? 0.32 : 0.12);
-        this.setReadyPulse(view.readyGlow, available, 1.12, 1.16);
-        view.plate.setFillStyle(level > 0 ? 0x102f1a : unlocked ? 0x0d2617 : 0x07150e, unlocked || level > 0 ? 0.9 : 0.76);
-        view.plate.setStrokeStyle(selected ? 4 : available ? 3 : 2, stroke, selected ? 0.95 : available ? 0.82 : level > 0 ? 0.58 : 0.28);
-        view.frame.setTexture(frameKey);
-        view.frame.clearTint();
-        view.frame.setAlpha(selected ? 1 : available ? 1 : level > 0 ? 0.94 : 0.72);
-        view.frame.setDisplaySize(frameSize, frameSize);
-        view.icon.setTexture(getSkillIconKey(upgrade.id));
-        view.icon.setVisible(unlocked || level > 0);
-        view.icon.setAlpha(available || selected ? 1 : level > 0 ? 0.95 : 0.72);
-        view.icon.setTint(level > 0 || unlocked ? 0xffffff : 0x8fa08f);
-        view.lockedIcon.setVisible(!unlocked && level === 0);
-        view.lockedIcon.setColor(selected ? "#fff08a" : "#dfffc8");
-        this.setTextIfChanged(view.level, `Lv ${level}/${upgrade.maxLevel}`);
-        view.level.setColor(available || selected ? "#f4df6a" : level > 0 ? "#dfffc8" : "#7c8b82");
-      }
-
-      this.refreshSkillDetail();
+        this.refreshSkillDetail();
+      });
     }
   }
 
   private refreshMenuButtonAttention(currentReadyQuestKeys = this.getReadyQuestKeys()): void {
-    const readyUnlockKeys = this.getReadyUnlockKeys();
+    const readyUnlockKeys = this.profileScope("ui:readyUnlocks", () => this.getReadyUnlockKeys());
     const readyUnlockList = [...readyUnlockKeys];
     setTextButtonAttention(this.skillButton, readyUnlockList.some((key) => key.startsWith("upgrade:")));
     setTextButtonAttention(this.seedButton, readyUnlockList.some((key) => key.startsWith("seed:")));
@@ -8328,15 +8874,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshGoldStore(): void {
-    this.refreshStoreModeButtons();
+    this.profileScope("store:modeButtons", () => this.refreshStoreModeButtons());
     if (this.storeMode === "goods") {
-      this.refreshGoldItemStore();
-      this.layoutGoldStore();
+      this.profileScope("store:goods", () => this.refreshGoldItemStore());
+      this.profileScope("store:layout", () => this.layoutGoldStore());
       return;
     }
 
-    this.refreshAutomationStore();
-    this.layoutGoldStore();
+    this.profileScope("store:automation", () => this.refreshAutomationStore());
+    this.profileScope("store:layout", () => this.layoutGoldStore());
   }
 
   private refreshStoreModeButtons(): void {
@@ -8966,7 +9512,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playTileDropIn(tile: FieldTile, delay: number): void {
-    const view = this.tileViews.get(tileKey(tile.x, tile.y));
+    const view = this.tileViews.get(this.getTileKey(tile));
     if (!view) {
       return;
     }

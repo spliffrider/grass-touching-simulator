@@ -249,7 +249,8 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private isStressModeRequested(): boolean {
-    return new URLSearchParams(window.location.search).has("stress");
+    const params = new URLSearchParams(window.location.search);
+    return params.has("stress") || params.has("perfHarness");
   }
 
   private playMenuTheme(): void {

@@ -24,10 +24,15 @@ import type {
 const SAVE_KEY = "grass-touching-simulator.save.v1";
 const VALID_GRASS_TIERS = ["normal", "thick", "clover", "golden", "wildflower", "moss", "mushroom", "crystal", "frost"] as const;
 
-export function saveGame(state: GameState): void {
+type SaveProfiler = <T>(name: string, callback: () => T) => T;
+
+const runUnprofiled: SaveProfiler = (_name, callback) => callback();
+
+export function saveGame(state: GameState, profile: SaveProfiler = runUnprofiled): void {
   state.saveVersion = CURRENT_SAVE_VERSION;
   state.lastSavedAt = Date.now();
-  localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+  const serialized = profile("save:stringify", () => JSON.stringify(state));
+  profile("save:localStorage", () => localStorage.setItem(SAVE_KEY, serialized));
 }
 
 export function loadGame(): GameState {
