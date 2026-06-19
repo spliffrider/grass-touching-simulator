@@ -18,6 +18,7 @@ const OPTIONS_TRACK_BASE_WIDTH = 320;
 const OPTIONS_TRACK_BASE_HEIGHT = 12;
 const OPTIONS_HIT_BASE_WIDTH = 350;
 const OPTIONS_HIT_BASE_HEIGHT = 44;
+const GRASS_TOUCHER_CREDITS = ["Sad choupbese", "KaviaarSocialist", "Echarnus", "Overtilted"] as const;
 
 interface TitleButton {
   id: "start" | "continue" | "options" | "quit" | "credits";
@@ -375,15 +376,15 @@ export class TitleScene extends Phaser.Scene {
     this.creditsNames = this.add
       .text(0, 0, "Cosmodeus\nRemy\nRobin C.\nTuloWodash\ntussukarva🇫🇮🇸🇪\n🔪⋆🎀  𝒦𝒾𝓉𝓉𝓎 𝒩💔𝒾𝓇 🎀⋆🔪", {
         fontFamily: "Trebuchet MS, Arial",
-        fontSize: "22px",
+        fontSize: "17px",
         color: "#f7ffe8",
         stroke: "#12341c",
-        strokeThickness: 4,
+        strokeThickness: 3,
         align: "center",
-        lineSpacing: 4,
+        lineSpacing: 1,
         wordWrap: { width: 390 },
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5, 0);
     this.creditsGrassRole = this.add
       .text(0, 0, "Grass Touchers", {
         fontFamily: "Trebuchet MS, Arial",
@@ -392,17 +393,17 @@ export class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.creditsGrassName = this.add
-      .text(0, 0, "Sad choupbese\nKaviaarSocialist, Echarnus, Overtilted", {
+      .text(0, 0, GRASS_TOUCHER_CREDITS.join("\n"), {
         fontFamily: "Trebuchet MS, Arial",
-        fontSize: "20px",
+        fontSize: "17px",
         color: "#f7ffe8",
         stroke: "#12341c",
-        strokeThickness: 4,
+        strokeThickness: 3,
         align: "center",
-        lineSpacing: 2,
+        lineSpacing: 1,
         wordWrap: { width: 390 },
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5, 0);
     this.creditsBackHit = this.add
       .rectangle(0, 0, 138, 44, 0xe9ffd0, 0.98)
       .setOrigin(0.5)
@@ -799,25 +800,57 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private layoutCreditsPanel(): void {
-    const panelWidth = Math.min(520, this.scale.width - 40);
-    const panelHeight = Math.min(430, this.scale.height - 36);
+    const panelWidth = Math.min(560, this.scale.width - 28);
+    const panelHeight = Math.min(560, this.scale.height - 28);
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
+    const panelTop = centerY - panelHeight / 2;
+    const panelBottom = centerY + panelHeight / 2;
+    const compact = panelHeight < 470 || panelWidth < 460;
+    const roleFontSize = compact ? 16 : 18;
+    const textWidth = Math.max(220, panelWidth - 58);
+    const backY = panelBottom - (compact ? 34 : 38);
 
     this.resizeInteractiveBackdrop(this.creditsBackdrop);
     this.creditsPanel?.setPosition(centerX, centerY);
     this.creditsPanel?.setScale(panelWidth / CREDITS_PANEL_BASE_WIDTH, panelHeight / CREDITS_PANEL_BASE_HEIGHT);
-    this.creditsTitle?.setPosition(centerX, centerY - panelHeight / 2 + 42);
-    this.creditsDevRole?.setPosition(centerX, centerY - panelHeight / 2 + 84);
-    this.creditsDevName?.setPosition(centerX, centerY - panelHeight / 2 + 111);
-    this.creditsRole?.setPosition(centerX, centerY - panelHeight / 2 + 150);
-    this.creditsNames?.setPosition(centerX, centerY + 16);
-    this.creditsNames?.setWordWrapWidth(Math.max(220, panelWidth - 50));
-    this.creditsGrassRole?.setPosition(centerX, centerY + panelHeight / 2 - 118);
-    this.creditsGrassName?.setPosition(centerX, centerY + panelHeight / 2 - 88);
-    this.creditsGrassName?.setWordWrapWidth(Math.max(220, panelWidth - 50));
-    this.creditsBackHit?.setPosition(centerX, centerY + panelHeight / 2 - 38);
-    this.creditsBackText?.setPosition(centerX, centerY + panelHeight / 2 - 38);
+    this.creditsTitle?.setFontSize(compact ? 32 : 36);
+    this.creditsTitle?.setPosition(centerX, panelTop + (compact ? 34 : 40));
+    this.creditsDevRole?.setFontSize(roleFontSize);
+    this.creditsDevRole?.setPosition(centerX, panelTop + (compact ? 68 : 78));
+    this.creditsDevName?.setFontSize(compact ? 20 : 22);
+    this.creditsDevName?.setPosition(centerX, panelTop + (compact ? 91 : 103));
+    this.creditsRole?.setFontSize(roleFontSize);
+    this.creditsRole?.setPosition(centerX, panelTop + (compact ? 121 : 135));
+    this.creditsBackHit?.setPosition(centerX, backY);
+    this.creditsBackText?.setPosition(centerX, backY);
+
+    let nameFontSize = compact ? 15 : 17;
+    const listY = panelTop + (compact ? 141 : 158);
+    const labelGap = compact ? 18 : 22;
+    const sectionGap = compact ? 12 : 16;
+    const maxListBottom = backY - (compact ? 30 : 34);
+    const layoutCreditLists = (): number => {
+      this.creditsNames?.setFontSize(nameFontSize);
+      this.creditsNames?.setWordWrapWidth(textWidth);
+      this.creditsNames?.setPosition(centerX, listY);
+      const playtesterBottom = listY + (this.creditsNames?.displayHeight ?? 0);
+
+      this.creditsGrassRole?.setFontSize(roleFontSize);
+      this.creditsGrassRole?.setPosition(centerX, playtesterBottom + sectionGap);
+      this.creditsGrassName?.setFontSize(nameFontSize);
+      this.creditsGrassName?.setWordWrapWidth(textWidth);
+      const grassNameY = (this.creditsGrassRole?.y ?? playtesterBottom + sectionGap) + labelGap;
+      this.creditsGrassName?.setPosition(centerX, grassNameY);
+
+      return grassNameY + (this.creditsGrassName?.displayHeight ?? 0);
+    };
+
+    let listBottom = layoutCreditLists();
+    while (listBottom > maxListBottom && nameFontSize > 12) {
+      nameFontSize -= 1;
+      listBottom = layoutCreditLists();
+    }
   }
 
   private layoutOptionsPanel(): void {
