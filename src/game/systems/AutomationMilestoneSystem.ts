@@ -1,13 +1,13 @@
 import type { AutomationSystemId, GameState } from "../types/game-state";
 
 const AUTOMATION_MILESTONE_THRESHOLDS = [2, 4, 7, 11] as const;
-const AUTOMATION_INTERVAL_MULTIPLIERS = [1, 0.96, 0.91, 0.86, 0.82] as const;
+const AUTOMATION_INTERVAL_MULTIPLIERS = [1, 0.92, 0.84, 0.76, 0.68] as const;
 const AUTOMATION_SYSTEM_MILESTONES = [
-  { owned: 5, multiplier: 1.4 },
-  { owned: 10, multiplier: 2 },
-  { owned: 25, multiplier: 3.5 },
-  { owned: 50, multiplier: 6 },
-  { owned: 100, multiplier: 10 },
+  { owned: 5, multiplier: 1.6 },
+  { owned: 10, multiplier: 2.8 },
+  { owned: 25, multiplier: 6 },
+  { owned: 50, multiplier: 11 },
+  { owned: 100, multiplier: 20 },
 ] as const;
 
 export function getAutomationUnitCount(state: GameState): number {

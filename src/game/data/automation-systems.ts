@@ -20,7 +20,7 @@ export interface AutomationOutputContext {
   activePairSynergies: ActiveAutomationPairSynergy[];
 }
 
-const AUTOMATION_DERIVATIVE_SUPPORT_RATE = 0.2;
+const AUTOMATION_DERIVATIVE_SUPPORT_RATE = 0.35;
 
 export interface AutomationPairSynergyDefinition {
   id: string;
@@ -65,64 +65,64 @@ export const AUTOMATION_SYSTEMS: AutomationSystemDefinition[] = [
   {
     id: "sprinkler",
     name: "Tiny Sprinkler",
-    description: "A simple water rhythm that produces steady automatic Grass Touches.",
-    baseTouchesPerMinute: 10,
-    baseCost: 48,
-    costGrowth: 1.18,
+    description: "A simple water rhythm that starts the passive Grass Touch engine.",
+    baseTouchesPerMinute: 22,
+    baseCost: 42,
+    costGrowth: 1.15,
     isUnlocked: (state) => hasTinySprinklerStoreUnlock(state),
   },
   {
     id: "field_mouse",
     name: "Field Mouse Route",
-    description: "A tiny helper route that adds nimble automatic Grass Touches.",
-    baseTouchesPerMinute: 18,
-    baseCost: 180,
-    costGrowth: 1.2,
+    description: "A tiny helper route that makes automation noticeably faster.",
+    baseTouchesPerMinute: 46,
+    baseCost: 135,
+    costGrowth: 1.17,
     isUnlocked: (state) => state.lifetimeGrassTouches >= 120,
   },
   {
     id: "bee_hive",
     name: "Bee Hive Shift",
-    description: "A gentle pollination shift with reliable automation output.",
-    baseTouchesPerMinute: 28,
-    baseCost: 360,
-    costGrowth: 1.21,
+    description: "A pollination shift that turns passive touches into real income.",
+    baseTouchesPerMinute: 82,
+    baseCost: 275,
+    costGrowth: 1.18,
     isUnlocked: (state) => state.seedShopPurchases.field_journal === true || state.lifetimeGrassTouches >= 240,
   },
   {
     id: "earthworm",
     name: "Earthworm Crew",
-    description: "Quiet underground work that keeps the touch engine moving.",
-    baseTouchesPerMinute: 36,
-    baseCost: 560,
-    costGrowth: 1.22,
+    description: "Quiet underground work that starts pushing manual touching aside.",
+    baseTouchesPerMinute: 140,
+    baseCost: 500,
+    costGrowth: 1.19,
     isUnlocked: (state) => state.lifetimeGrassTouches >= 420,
   },
   {
     id: "chicken",
     name: "Chicken Patrol",
-    description: "A busy patrol that pecks out a healthy stream of automation.",
-    baseTouchesPerMinute: 52,
-    baseCost: 860,
-    costGrowth: 1.23,
+    description: "A busy patrol that pecks out a serious stream of automation.",
+    baseTouchesPerMinute: 230,
+    baseCost: 780,
+    costGrowth: 1.2,
     isUnlocked: (state) => state.lifetimeGrassTouches >= 700,
   },
   {
     id: "sheep",
     name: "Sheep Grazing Loop",
-    description: "Slow, broad, and dependable automatic Grass Touching.",
-    baseTouchesPerMinute: 82,
-    baseCost: 1500,
-    costGrowth: 1.24,
+    description: "Broad grazing that makes passive Grass Touches feel dominant.",
+    baseTouchesPerMinute: 360,
+    baseCost: 1250,
+    costGrowth: 1.21,
     isUnlocked: (state) => state.lifetimeGrassTouches >= 1200,
   },
   {
     id: "meadow_rabbit",
     name: "Meadow Rabbit Circuit",
-    description: "Fast late-early automation that keeps the lawn lively.",
-    baseTouchesPerMinute: 120,
-    baseCost: 2400,
-    costGrowth: 1.25,
+    description: "Fast late-early automation that turns the lawn into a running engine.",
+    baseTouchesPerMinute: 560,
+    baseCost: 1950,
+    costGrowth: 1.22,
     isUnlocked: (state) => state.lifetimeGrassTouches >= 1900,
   },
 ];
@@ -195,7 +195,7 @@ export function getActiveAutomationPairSynergies(state: GameState, stats?: Runti
     return [
       {
         definition,
-        multiplier: 1 + Math.min(0.35, pairedUnits * pairBonus),
+        multiplier: 1 + Math.min(0.6, pairedUnits * pairBonus),
       },
     ];
   });

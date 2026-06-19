@@ -28,19 +28,19 @@ export const AUTOMATION_DIRECTIVES: AutomationDirective[] = [
     id: "growth",
     name: "Growth",
     shortName: "growth",
-    description: "Trades some raw output for faster helpers, regrowth, and pollination.",
+    description: "Keeps automation productive while speeding helpers, regrowth, and pollination.",
   },
   {
     id: "harvest",
     name: "Harvest",
     shortName: "harvest",
-    description: "Slows helpers slightly while pushing higher-value touches and richer targets.",
+    description: "Pushes stronger automation output and richer helper touches.",
   },
   {
     id: "supplies",
     name: "Supplies",
     shortName: "supplies",
-    description: "Trades some touch output for better seed and gold finds from helpers.",
+    description: "Keeps automation moving while improving seed and gold finds from helpers.",
   },
   {
     id: "autopilot",
@@ -72,30 +72,30 @@ const DIRECTIVE_TUNING: Record<ResolvedAutomationDirectiveId, AutomationDirectiv
   },
   growth: {
     resolvedId: "growth",
-    touchOutputMultiplier: 0.92,
-    helperIntervalMultiplier: 0.9,
-    helperTouchMultiplier: 0.96,
+    touchOutputMultiplier: 1.05,
+    helperIntervalMultiplier: 0.86,
+    helperTouchMultiplier: 1,
     helperTouchBonus: 0,
-    growthRegrowMultiplier: 0.86,
-    supplyChanceBonus: -0.02,
+    growthRegrowMultiplier: 0.78,
+    supplyChanceBonus: -0.01,
   },
   harvest: {
     resolvedId: "harvest",
-    touchOutputMultiplier: 1.1,
-    helperIntervalMultiplier: 1.04,
-    helperTouchMultiplier: 1.08,
-    helperTouchBonus: 1,
-    growthRegrowMultiplier: 1.03,
+    touchOutputMultiplier: 1.35,
+    helperIntervalMultiplier: 1.02,
+    helperTouchMultiplier: 1.16,
+    helperTouchBonus: 2,
+    growthRegrowMultiplier: 1.02,
     supplyChanceBonus: 0,
   },
   supplies: {
     resolvedId: "supplies",
-    touchOutputMultiplier: 0.94,
+    touchOutputMultiplier: 1.02,
     helperIntervalMultiplier: 1,
-    helperTouchMultiplier: 0.98,
+    helperTouchMultiplier: 1,
     helperTouchBonus: 0,
     growthRegrowMultiplier: 1,
-    supplyChanceBonus: 0.08,
+    supplyChanceBonus: 0.12,
   },
 };
 
@@ -137,7 +137,8 @@ export function getAutomationDirectiveTuning(state: GameState): AutomationDirect
 
   return {
     ...base,
-    helperIntervalMultiplier: base.helperIntervalMultiplier * 0.98,
+    touchOutputMultiplier: base.touchOutputMultiplier * 1.1,
+    helperIntervalMultiplier: base.helperIntervalMultiplier * 0.94,
   };
 }
 

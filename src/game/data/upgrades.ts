@@ -294,42 +294,42 @@ export const UPGRADES: UpgradeDefinition[] = [
   {
     id: "sprinkler_calibration",
     name: "Sprinkler Calibration",
-    description: "Tiny Sprinklers produce 8% more automatic Grass Touches per level.",
+    description: "Tiny Sprinklers produce 12% more automatic Grass Touches per level.",
     baseCost: 260,
     costGrowth: 2.08,
     maxLevel: 5,
     prerequisiteIds: ["faster_regrowth"],
     tree: { x: 555, y: 180, icon: "spray", color: 0x7fd8f0 },
     apply: (stats, level) => {
-      boostAutomationSystems(stats, ["sprinkler"], 1 + level * 0.08);
+      boostAutomationSystems(stats, ["sprinkler"], 1 + level * 0.12);
     },
     isUnlocked: (state) => hasTinySprinklerStoreUnlock(state) || state.lifetimeGrassTouches >= 220,
   },
   {
     id: "helper_routes",
     name: "Helper Routes",
-    description: "Field Mouse Routes and Bee Hive Shifts produce 7% more automation per level.",
+    description: "Field Mouse Routes and Bee Hive Shifts produce 11% more automation per level.",
     baseCost: 520,
     costGrowth: 2.16,
     maxLevel: 5,
     prerequisiteIds: ["grass_identification"],
     tree: { x: 315, y: 390, icon: "route", color: 0xb7eba5 },
     apply: (stats, level) => {
-      boostAutomationSystems(stats, ["field_mouse", "bee_hive"], 1 + level * 0.07);
+      boostAutomationSystems(stats, ["field_mouse", "bee_hive"], 1 + level * 0.11);
     },
     isUnlocked: (state) => state.lifetimeGrassTouches >= 420,
   },
   {
     id: "grazing_logistics",
     name: "Grazing Logistics",
-    description: "Earthworm Crews, Chicken Patrols, Sheep Loops, and Rabbit Circuits produce 6% more automation per level.",
+    description: "Earthworm Crews, Chicken Patrols, Sheep Loops, and Rabbit Circuits produce 10% more automation per level.",
     baseCost: 900,
     costGrowth: 2.2,
     maxLevel: 5,
     prerequisiteIds: ["soft_meadow"],
     tree: { x: 795, y: 340, icon: "loop", color: 0xc9f27b },
     apply: (stats, level) => {
-      boostAutomationSystems(stats, ["earthworm", "chicken", "sheep", "meadow_rabbit"], 1 + level * 0.06);
+      boostAutomationSystems(stats, ["earthworm", "chicken", "sheep", "meadow_rabbit"], 1 + level * 0.1);
     },
     isUnlocked: (state) => state.lifetimeGrassTouches >= 900,
   },
@@ -337,15 +337,15 @@ export const UPGRADES: UpgradeDefinition[] = [
     id: "ecosystem_loop",
     name: "Ecosystem Loop",
     description:
-      "Each active automation system type boosts all automation by 2% per level after the first. Sprinklers and Bee Hives also amplify each other.",
+      "Each active automation system type boosts all automation by 4% per level after the first. Paired systems also amplify each other.",
     baseCost: 1600,
     costGrowth: 2.34,
     maxLevel: 4,
     prerequisiteIds: ["sprinkler_calibration", "helper_routes", "grazing_logistics"],
     tree: { x: 565, y: 410, icon: "eco", color: 0xdfffc8 },
     apply: (stats, level) => {
-      stats.automationDiversityBonus += level * 0.02;
-      stats.automationPairSynergyBonus += level * 0.01;
+      stats.automationDiversityBonus += level * 0.04;
+      stats.automationPairSynergyBonus += level * 0.02;
     },
     isUnlocked: (state) => Object.values(state.automationSystems ?? {}).some((system) => system.owned > 0) && state.lifetimeGrassTouches >= 1400,
   },

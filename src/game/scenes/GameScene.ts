@@ -3885,7 +3885,7 @@ export class GameScene extends Phaser.Scene {
 
   private getDefaultStoreStatus(): string {
     return this.storeMode === "automation"
-      ? "Buy running automation systems with Grass Touches."
+      ? "Automation is the lawn engine: stack helpers until passive touches take over."
       : "Spend gold on supplies and placeable companions.";
   }
 

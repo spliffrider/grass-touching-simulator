@@ -92,11 +92,11 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
   stats.instantRegrowChance = Math.min(0.2, stats.instantRegrowChance);
   stats.comboWindowMultiplier = Math.min(1.45, Math.max(0.75, stats.comboWindowMultiplier));
   stats.comboBonusMultiplier = Math.min(1.7, Math.max(0.5, stats.comboBonusMultiplier));
-  stats.automationGlobalMultiplier = Math.min(8, Math.max(0.1, stats.automationGlobalMultiplier));
-  stats.automationDiversityBonus = Math.min(0.12, Math.max(0, stats.automationDiversityBonus));
-  stats.automationPairSynergyBonus = Math.min(0.08, Math.max(0, stats.automationPairSynergyBonus));
+  stats.automationGlobalMultiplier = Math.min(12, Math.max(0.1, stats.automationGlobalMultiplier));
+  stats.automationDiversityBonus = Math.min(0.24, Math.max(0, stats.automationDiversityBonus));
+  stats.automationPairSynergyBonus = Math.min(0.12, Math.max(0, stats.automationPairSynergyBonus));
   for (const systemId of Object.keys(stats.automationSystemMultipliers) as Array<keyof typeof stats.automationSystemMultipliers>) {
-    stats.automationSystemMultipliers[systemId] = Math.min(8, Math.max(0.1, stats.automationSystemMultipliers[systemId]));
+    stats.automationSystemMultipliers[systemId] = Math.min(12, Math.max(0.1, stats.automationSystemMultipliers[systemId]));
   }
   stats.regrowMultiplier = Math.max(0.42, stats.regrowMultiplier);
 
