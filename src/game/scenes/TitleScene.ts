@@ -385,20 +385,22 @@ export class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.creditsGrassRole = this.add
-      .text(0, 0, "Grass Toucher", {
+      .text(0, 0, "Grass Touchers", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "20px",
         color: "#b7eba5",
       })
       .setOrigin(0.5);
     this.creditsGrassName = this.add
-      .text(0, 0, "Sad choupbese", {
+      .text(0, 0, "Sad choupbese\nKaviaarSocialist, Echarnus, Overtilted", {
         fontFamily: "Trebuchet MS, Arial",
-        fontSize: "22px",
+        fontSize: "20px",
         color: "#f7ffe8",
         stroke: "#12341c",
         strokeThickness: 4,
         align: "center",
+        lineSpacing: 2,
+        wordWrap: { width: 390 },
       })
       .setOrigin(0.5);
     this.creditsBackHit = this.add
@@ -811,10 +813,11 @@ export class TitleScene extends Phaser.Scene {
     this.creditsRole?.setPosition(centerX, centerY - panelHeight / 2 + 150);
     this.creditsNames?.setPosition(centerX, centerY + 16);
     this.creditsNames?.setWordWrapWidth(Math.max(220, panelWidth - 50));
-    this.creditsGrassRole?.setPosition(centerX, centerY + panelHeight / 2 - 110);
-    this.creditsGrassName?.setPosition(centerX, centerY + panelHeight / 2 - 82);
-    this.creditsBackHit?.setPosition(centerX, centerY + panelHeight / 2 - 44);
-    this.creditsBackText?.setPosition(centerX, centerY + panelHeight / 2 - 44);
+    this.creditsGrassRole?.setPosition(centerX, centerY + panelHeight / 2 - 118);
+    this.creditsGrassName?.setPosition(centerX, centerY + panelHeight / 2 - 88);
+    this.creditsGrassName?.setWordWrapWidth(Math.max(220, panelWidth - 50));
+    this.creditsBackHit?.setPosition(centerX, centerY + panelHeight / 2 - 38);
+    this.creditsBackText?.setPosition(centerX, centerY + panelHeight / 2 - 38);
   }
 
   private layoutOptionsPanel(): void {
