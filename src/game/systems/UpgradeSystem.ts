@@ -1,8 +1,53 @@
 import { UPGRADES } from "../data/upgrades";
 import { getCharacterClass } from "../data/character-classes";
+import { GRASS_TIERS } from "../data/grass-tiers";
 import { getSeasonForDate } from "../data/seasons";
-import { getWeather } from "../data/weather";
+import { WEATHER_TYPES, getWeather } from "../data/weather";
+import { getPrestigeProductionMultiplier } from "./PrestigeSystem";
 import type { GameState, RuntimeStats } from "../types/game-state";
+
+const JOURNAL_TRAIT_COUNT = 3;
+
+export interface JournalCollectionBonuses {
+  grassTierCount: number;
+  grassTierTotal: number;
+  traitCount: number;
+  traitTotal: number;
+  weatherCount: number;
+  weatherTotal: number;
+  rareTierMultiplierBonus: number;
+  rareTouchBonus: number;
+  seedDropBonus: number;
+  doubleTouchChanceBonus: number;
+  automationGlobalMultiplierBonus: number;
+}
+
+export function getJournalCollectionBonuses(state: GameState): JournalCollectionBonuses {
+  const active = state.seedShopPurchases.field_journal === true;
+  const grassTierTotal = GRASS_TIERS.length;
+  const weatherTotal = WEATHER_TYPES.length;
+  const grassTierCount = active ? Math.min(state.journal.discoveredGrassTiers.length, grassTierTotal) : 0;
+  const traitCount = active ? Math.min(state.journal.discoveredTileTraits.length, JOURNAL_TRAIT_COUNT) : 0;
+  const weatherCount = active ? Math.min(state.journal.seenWeatherIds.length, weatherTotal) : 0;
+  const allGrassTiers = grassTierCount >= grassTierTotal;
+  const allTraits = traitCount >= JOURNAL_TRAIT_COUNT;
+  const allWeather = weatherCount >= weatherTotal;
+  const weatherAutomationBonus = Math.min(0.18, Math.max(0, weatherCount - 1) * 0.03) + (allWeather ? 0.12 : 0);
+
+  return {
+    grassTierCount,
+    grassTierTotal,
+    traitCount,
+    traitTotal: JOURNAL_TRAIT_COUNT,
+    weatherCount,
+    weatherTotal,
+    rareTierMultiplierBonus: grassTierCount * 0.025 + (allGrassTiers ? 0.15 : 0),
+    rareTouchBonus: grassTierCount * 0.25 + (allGrassTiers ? 2 : 0),
+    seedDropBonus: traitCount * 0.004 + (allTraits ? 0.01 : 0),
+    doubleTouchChanceBonus: allTraits ? 0.02 : 0,
+    automationGlobalMultiplierBonus: weatherAutomationBonus,
+  };
+}
 
 export function getRuntimeStats(state: GameState): RuntimeStats {
   const stats: RuntimeStats = {
@@ -19,6 +64,7 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
     instantRegrowChance: 0,
     comboWindowMultiplier: 1,
     comboBonusMultiplier: 1,
+    grassTouchMultiplier: 1,
     automationGlobalMultiplier: 1,
     automationDiversityBonus: 0,
     automationPairSynergyBonus: 0,
@@ -45,6 +91,13 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
   if (state.seedShopPurchases.field_journal) {
     stats.rareTierMultiplier += 0.1;
   }
+
+  const journalBonuses = getJournalCollectionBonuses(state);
+  stats.rareTierMultiplier += journalBonuses.rareTierMultiplierBonus;
+  stats.rareTouchBonus += journalBonuses.rareTouchBonus;
+  stats.seedDropBonus += journalBonuses.seedDropBonus;
+  stats.doubleTouchChance += journalBonuses.doubleTouchChanceBonus;
+  stats.automationGlobalMultiplier *= 1 + journalBonuses.automationGlobalMultiplierBonus;
 
   if (state.seedShopPurchases.compost_bin) {
     stats.seedDropBonus += 0.018;
@@ -81,6 +134,10 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
 
   getSeasonForDate(new Date()).apply(stats);
 
+  const prestigeMultiplier = getPrestigeProductionMultiplier(state);
+  stats.grassTouchMultiplier *= prestigeMultiplier;
+  stats.automationGlobalMultiplier *= prestigeMultiplier;
+
   stats.dewChance = Math.min(0.42, stats.dewChance);
   stats.critChance = Math.min(0.28, stats.critChance);
   stats.critMultiplier = Math.min(5.5, stats.critMultiplier);
@@ -92,7 +149,8 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
   stats.instantRegrowChance = Math.min(0.2, stats.instantRegrowChance);
   stats.comboWindowMultiplier = Math.min(1.45, Math.max(0.75, stats.comboWindowMultiplier));
   stats.comboBonusMultiplier = Math.min(1.7, Math.max(0.5, stats.comboBonusMultiplier));
-  stats.automationGlobalMultiplier = Math.min(12, Math.max(0.1, stats.automationGlobalMultiplier));
+  stats.grassTouchMultiplier = Math.min(120, Math.max(0.1, stats.grassTouchMultiplier));
+  stats.automationGlobalMultiplier = Math.min(120, Math.max(0.1, stats.automationGlobalMultiplier));
   stats.automationDiversityBonus = Math.min(0.24, Math.max(0, stats.automationDiversityBonus));
   stats.automationPairSynergyBonus = Math.min(0.12, Math.max(0, stats.automationPairSynergyBonus));
   for (const systemId of Object.keys(stats.automationSystemMultipliers) as Array<keyof typeof stats.automationSystemMultipliers>) {

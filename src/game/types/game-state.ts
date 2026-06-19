@@ -27,7 +27,7 @@ export type AutomationDirectiveId = "balanced" | "growth" | "harvest" | "supplie
 
 export type AutomationSystemId = "sprinkler" | "field_mouse" | "bee_hive" | "earthworm" | "chicken" | "sheep" | "meadow_rabbit";
 
-export const CURRENT_SAVE_VERSION = 10;
+export const CURRENT_SAVE_VERSION = 11;
 
 export interface FieldTile {
   x: number;
@@ -76,6 +76,14 @@ export interface AutomationSystemState {
   owned: number;
 }
 
+export interface PrestigeState {
+  resets: number;
+  meadowMemory: number;
+  bestRunGrassTouches: GrassTouchAmount;
+  lastRunGrassTouches: GrassTouchAmount;
+  totalPrestigeGrassTouches: GrassTouchAmount;
+}
+
 export interface GameState {
   saveVersion: number;
   characterClassId: CharacterClassId;
@@ -102,6 +110,7 @@ export interface GameState {
   automationDirectiveId: AutomationDirectiveId;
   automationStats: AutomationStatsState;
   automationSystems: Record<string, AutomationSystemState>;
+  prestige: PrestigeState;
   lastSavedAt: number;
 }
 
@@ -119,6 +128,7 @@ export interface RuntimeStats {
   instantRegrowChance: number;
   comboWindowMultiplier: number;
   comboBonusMultiplier: number;
+  grassTouchMultiplier: number;
   automationGlobalMultiplier: number;
   automationDiversityBonus: number;
   automationPairSynergyBonus: number;

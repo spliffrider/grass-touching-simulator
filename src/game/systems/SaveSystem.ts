@@ -1,6 +1,7 @@
 import { MAX_FIELD_TILES, createInitialState } from "./FieldSystem";
 import { isAutomationDirectiveId } from "./AutomationDirectiveSystem";
 import { createAutomationStatsState } from "./AutomationProgressSystem";
+import { createPrestigeState } from "./PrestigeSystem";
 import { normalizeGrassTouches } from "./AmountSystem";
 import { isCharacterClassId } from "../data/character-classes";
 import { getGrassTier } from "../data/grass-tiers";
@@ -15,6 +16,7 @@ import type {
   InventoryEntry,
   JournalState,
   PlacedWorldObject,
+  PrestigeState,
   TileKey,
   TileTrait,
   UpgradeState,
@@ -100,6 +102,7 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
       : initial.automationDirectiveId,
     automationStats: readAutomationStats(saved.automationStats, initial.automationStats),
     automationSystems: readAutomationSystems(saved.automationSystems, seedShopPurchases, inventory, savedVersion),
+    prestige: readPrestigeState(saved.prestige, initial.prestige),
     lastSavedAt: readNumber(saved.lastSavedAt, initial.lastSavedAt),
   };
 }
@@ -238,6 +241,21 @@ function readAutomationSystems(
   }
 
   return systems;
+}
+
+function readPrestigeState(value: unknown, fallback: PrestigeState): PrestigeState {
+  const base = createPrestigeState();
+  if (!isRecord(value)) {
+    return fallback;
+  }
+
+  return {
+    resets: Math.max(0, Math.floor(readNumber(value.resets, base.resets))),
+    meadowMemory: Math.max(0, Math.floor(readNumber(value.meadowMemory, base.meadowMemory))),
+    bestRunGrassTouches: normalizeGrassTouches(value.bestRunGrassTouches, base.bestRunGrassTouches),
+    lastRunGrassTouches: normalizeGrassTouches(value.lastRunGrassTouches, base.lastRunGrassTouches),
+    totalPrestigeGrassTouches: normalizeGrassTouches(value.totalPrestigeGrassTouches, base.totalPrestigeGrassTouches),
+  };
 }
 
 function readGrassTierArray(value: unknown, fallback: GrassTierId[]): GrassTierId[] {

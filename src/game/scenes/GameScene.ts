@@ -10,6 +10,7 @@ import {
   getAutomationSystemPairSynergyLabel,
   getAutomationSystemTouchesPerMinute,
   getTotalAutomationTouchesPerMinute,
+  type AutomationSystemDefinition,
 } from "../data/automation-systems";
 import { DEFAULT_CHARACTER_CLASS_ID, getCharacterClass } from "../data/character-classes";
 import { GRASS_TIERS, getGrassTier, getNextGrassTier } from "../data/grass-tiers";
@@ -69,7 +70,8 @@ import { DropSystem, type DropFeedback } from "../systems/DropSystem";
 import { MutationSystem, type MutationEvent } from "../systems/MutationSystem";
 import { loadGame, resetSave, saveGame } from "../systems/SaveSystem";
 import { SprinklerSystem } from "../systems/SprinklerSystem";
-import { getRuntimeStats } from "../systems/UpgradeSystem";
+import { formatPrestigeMultiplier, formatPrestigeProgress, getNextPrestigeState, getPrestigePreview } from "../systems/PrestigeSystem";
+import { getJournalCollectionBonuses, getRuntimeStats } from "../systems/UpgradeSystem";
 import type {
   AutomationDirectiveId,
   CharacterClassId,
@@ -336,7 +338,15 @@ interface GoldStoreItemView {
 }
 
 type StoreMode = "automation" | "goods";
+type AutomationBuyMode = "single" | "boost";
 type ComboTouchSource = "manual" | "sprinkler" | "field_mouse" | "meadow_rabbit" | "sheep";
+
+interface AutomationPurchasePlan {
+  quantity: number;
+  targetOwned: number;
+  totalCost: number;
+  milestone?: { owned: number; multiplier: number };
+}
 
 interface QuestItemView {
   questId: string;
@@ -530,6 +540,7 @@ export class GameScene extends Phaser.Scene {
   private hoveredTileKey?: TileKey;
   private hoveredWorldObjectId?: string;
   private resetButton!: Phaser.GameObjects.Container;
+  private prestigeButton!: Phaser.GameObjects.Container;
   private seedRoot!: Phaser.GameObjects.Container;
   private seedBackdrop!: Phaser.GameObjects.Rectangle;
   private seedTitleText!: Phaser.GameObjects.Text;
@@ -544,6 +555,7 @@ export class GameScene extends Phaser.Scene {
   private storeStatusText!: Phaser.GameObjects.Text;
   private storeAutomationButton!: Phaser.GameObjects.Container;
   private storeGoodsButton!: Phaser.GameObjects.Container;
+  private storeAutomationBuyModeButton!: Phaser.GameObjects.Container;
   private storeBackButton!: Phaser.GameObjects.Container;
   private storeAutomationViews = new Map<string, GoldStoreItemView>();
   private storeGoldItemViews = new Map<string, GoldStoreItemView>();
@@ -588,6 +600,7 @@ export class GameScene extends Phaser.Scene {
   private seedShopScroll = 0;
   private storeScroll = 0;
   private resetArmed = false;
+  private prestigeArmed = false;
   private lastAutoSaveAt = 0;
   private sprinkler = new SprinklerSystem();
   private animalCompanions = new AnimalCompanionSystem();
@@ -604,6 +617,7 @@ export class GameScene extends Phaser.Scene {
   private seedShopOpen = false;
   private storeOpen = false;
   private storeMode: StoreMode = "automation";
+  private automationBuyMode: AutomationBuyMode = "single";
   private automationOpen = false;
   private optionsOpen = false;
   private selectedQuestFilter: QuestFilterId = "all";
@@ -2238,8 +2252,9 @@ export class GameScene extends Phaser.Scene {
     ]);
     this.skillRoot.add(this.skillDetailPanel);
 
+    this.prestigeButton = createTextButton(this, "Prestige", () => this.handlePrestigePressed(), 126, 34, 101);
     this.resetButton = createTextButton(this, "Reset", () => this.handleResetPressed(), 92, 34, 101);
-    this.skillRoot.add(this.resetButton);
+    this.skillRoot.add([this.prestigeButton, this.resetButton]);
 
     this.layoutSkillTree();
   }
@@ -2284,6 +2299,8 @@ export class GameScene extends Phaser.Scene {
     this.backButton.setPosition(this.scale.width - (shortLandscape ? 130 : 166), shortLandscape ? 20 : 42);
     this.resetButton.setScale(shortLandscape ? 0.78 : narrowPortrait ? 0.86 : 0.88);
     this.resetButton.setPosition(this.scale.width - 108, this.scale.height - (shortLandscape ? 42 : narrowPortrait ? 46 : 48));
+    this.prestigeButton.setScale(shortLandscape ? 0.78 : narrowPortrait ? 0.86 : 0.88);
+    this.prestigeButton.setPosition(this.scale.width - (shortLandscape ? 226 : narrowPortrait ? 222 : 236), this.scale.height - (shortLandscape ? 42 : narrowPortrait ? 46 : 48));
     this.skillDetailPanel.setScale(shortLandscape ? 0.72 : narrowPortrait ? 1 : 1);
     this.skillDetailPanel.setPosition(
       shortLandscape
@@ -2871,6 +2888,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
     this.storeAutomationButton = createTextButton(this, "Automation", () => this.setStoreMode("automation"), 134, 36, 109);
     this.storeGoodsButton = createTextButton(this, "Goods", () => this.setStoreMode("goods"), 104, 36, 109);
+    this.storeAutomationBuyModeButton = createTextButton(this, "Buy 1", () => this.toggleAutomationBuyMode(), 126, 36, 109);
     this.storeBackButton = createTextButton(this, "Back", () => this.closeGoldStore(), 118, 44, 109);
 
     this.storeRoot.add([
@@ -2880,6 +2898,7 @@ export class GameScene extends Phaser.Scene {
       this.storeStatusText,
       this.storeAutomationButton,
       this.storeGoodsButton,
+      this.storeAutomationBuyModeButton,
       this.storeBackButton,
     ]);
 
@@ -2988,8 +3007,11 @@ export class GameScene extends Phaser.Scene {
     this.storeStatusText.setPosition(this.scale.width / 2, compact ? 154 : 150);
     this.storeAutomationButton.setScale(compact ? 0.82 : 0.92);
     this.storeGoodsButton.setScale(compact ? 0.82 : 0.92);
+    this.storeAutomationBuyModeButton.setScale(compact ? 0.82 : 0.92);
     this.storeAutomationButton.setPosition(x, compact ? 114 : 116);
     this.storeGoodsButton.setPosition(x + (compact ? 122 : 134), compact ? 114 : 116);
+    this.storeAutomationBuyModeButton.setPosition(x + (compact ? 224 : 250), compact ? 114 : 116);
+    this.storeAutomationBuyModeButton.setVisible(this.storeMode === "automation");
     this.storeBackButton.setScale(compact ? 0.9 : 1);
     this.storeBackButton.setPosition(this.scale.width - 142, 24);
 
@@ -3773,6 +3795,7 @@ export class GameScene extends Phaser.Scene {
     this.skillTreeOpen = true;
     this.skillRoot.setVisible(true);
     this.disarmReset();
+    this.disarmPrestige();
     this.audio.play("upgrade");
     this.refreshUi();
   }
@@ -3781,6 +3804,7 @@ export class GameScene extends Phaser.Scene {
     this.skillTreeOpen = false;
     this.skillRoot.setVisible(false);
     this.disarmReset();
+    this.disarmPrestige();
     this.refreshUi();
   }
 
@@ -3883,10 +3907,42 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
   }
 
+  private toggleAutomationBuyMode(): void {
+    this.automationBuyMode = this.automationBuyMode === "single" ? "boost" : "single";
+    this.setStoreStatus(
+      this.automationBuyMode === "boost"
+        ? "Automation purchases now target the next ownership boost."
+        : "Automation purchases now buy one helper at a time.",
+    );
+    this.audio.play("upgrade");
+    this.refreshUi();
+  }
+
   private getDefaultStoreStatus(): string {
     return this.storeMode === "automation"
       ? "Automation is the lawn engine: stack helpers until passive touches take over."
       : "Spend gold on supplies and placeable companions.";
+  }
+
+  private getAutomationPurchasePlan(
+    system: AutomationSystemDefinition,
+    owned = getAutomationSystemOwned(this.state, system.id),
+  ): AutomationPurchasePlan {
+    const milestone = this.automationBuyMode === "boost" ? getNextAutomationSystemMilestone(this.state, system.id) : undefined;
+    const targetOwned = milestone ? Math.max(owned + 1, milestone.owned) : owned + 1;
+    const quantity = Math.max(1, targetOwned - owned);
+    let totalCost = 0;
+
+    for (let offset = 0; offset < quantity; offset += 1) {
+      totalCost = addGrassTouches(totalCost, getAutomationSystemCost(system, owned + offset));
+    }
+
+    return {
+      quantity,
+      targetOwned,
+      totalCost,
+      milestone,
+    };
   }
 
   private getActiveStoreItemViews(): Map<string, GoldStoreItemView> {
@@ -4005,10 +4061,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     const owned = getAutomationSystemOwned(this.state, system.id);
-    const cost = getAutomationSystemCost(system, owned);
-    if (!canAffordGrassTouches(this.state.grassTouches, cost)) {
+    const plan = this.getAutomationPurchasePlan(system, owned);
+    if (!canAffordGrassTouches(this.state.grassTouches, plan.totalCost)) {
+      const purchaseLabel =
+        this.automationBuyMode === "boost" && plan.quantity > 1
+          ? `${plan.quantity} ${system.name} units to reach the next boost`
+          : system.name;
       this.setStoreStatus(
-        `${system.name} costs ${formatGrassTouches(cost)} Grass Touches. You have ${formatGrassTouches(this.state.grassTouches)}.`,
+        `${purchaseLabel} costs ${formatGrassTouches(plan.totalCost)} Grass Touches. You have ${formatGrassTouches(this.state.grassTouches)}.`,
       );
       this.audio.play("blocked");
       this.refreshUi();
@@ -4019,9 +4079,9 @@ export class GameScene extends Phaser.Scene {
       this.state,
       getAutomationSystemTouchesPerMinute(this.state, system, this.getCachedRuntimeStats()),
     );
-    this.state.grassTouches = spendGrassTouches(this.state.grassTouches, cost);
+    this.state.grassTouches = spendGrassTouches(this.state.grassTouches, plan.totalCost);
     this.state.automationSystems ??= {};
-    this.state.automationSystems[system.id] = { owned: owned + 1 };
+    this.state.automationSystems[system.id] = { owned: plan.targetOwned };
     this.invalidateRuntimeStats();
     const nextOutput = getDirectiveAdjustedAutomationOutput(
       this.state,
@@ -4033,13 +4093,13 @@ export class GameScene extends Phaser.Scene {
     const bonusParts = [milestoneLabel, supportText].filter(Boolean);
     const statusMessage =
       system.id === "sprinkler" && owned === 0
-        ? `${system.name} running x1. Back on the field, click the sprinkler icon to place its coverage.`
-        : `${system.name} running x${owned + 1}. Output: ${formatGrassTouchesPerMinute(nextOutput)} (${formatAutomationOutputDelta(
+        ? `${system.name} running x${plan.targetOwned}. Back on the field, click the sprinkler icon to place its coverage.`
+        : `${system.name} ${plan.quantity > 1 ? `+${plan.quantity} to x${plan.targetOwned}` : `running x${plan.targetOwned}`}. Output: ${formatGrassTouchesPerMinute(nextOutput)} (${formatAutomationOutputDelta(
             previousOutput,
             nextOutput,
           )})${bonusParts.length > 0 ? ` (${bonusParts.join(", ")})` : ""}.`;
     this.setStoreStatus(statusMessage, system.id === "sprinkler" && owned === 0 ? 4600 : undefined);
-    this.audio.play(owned === 0 ? "milestone" : "upgrade");
+    this.audio.play(plan.quantity > 1 || milestoneLabel ? "milestone" : owned === 0 ? "milestone" : "upgrade");
     this.saveState();
     this.refreshUi();
     this.playGoldStoreItemSuccess(system.id);
@@ -4052,11 +4112,11 @@ export class GameScene extends Phaser.Scene {
     }
 
     const owned = getAutomationSystemOwned(this.state, system.id);
-    const nextCost = getAutomationSystemCost(system, owned);
+    const plan = this.getAutomationPurchasePlan(system, owned);
     const stats = this.getCachedRuntimeStats();
     const currentTotalOutput = getTotalAutomationTouchesPerMinute(this.state, stats);
     const output = getDirectiveAdjustedAutomationOutput(this.state, getAutomationSystemTouchesPerMinute(this.state, system, stats));
-    const previewState = getAutomationPreviewState(this.state, system.id, owned + 1);
+    const previewState = getAutomationPreviewState(this.state, system.id, plan.targetOwned);
     const previewOutputContext = getAutomationOutputContext(previewState, stats);
     const previewOutput = getDirectiveAdjustedAutomationOutput(
       previewState,
@@ -4072,16 +4132,18 @@ export class GameScene extends Phaser.Scene {
     const nextMilestoneText = nextMilestone
       ? `next boost x${formatAutomationMultiplier(nextMilestone.multiplier)} at ${nextMilestone.owned}`
       : "max boost";
+    const buyLabel =
+      plan.quantity > 1
+        ? `buy +${plan.quantity} to ${plan.targetOwned} (${formatAutomationOutputDelta(output, previewOutput)})`
+        : `buy ${formatAutomationOutputDelta(output, previewOutput)}`;
     this.setStoreStatus(
       `${system.name}: ${ownedText} | ${formatGrassTouchesPerMinute(output)} total | ${formatGrassTouchesPerMinute(
         getDirectiveAdjustedAutomationOutput(this.state, system.baseTouchesPerMinute),
-      )} base each | buy ${formatAutomationOutputDelta(output, previewOutput)} (all ${formatGrassTouchesPerMinute(
+      )} base each | ${buyLabel} (all ${formatGrassTouchesPerMinute(
         previewTotalOutput,
       )}, ${formatAutomationOutputDelta(currentTotalOutput, previewTotalOutput)}) | boost x${formatAutomationMultiplier(milestoneMultiplier)}${
         pairSynergyLabel ? ` | ${pairSynergyLabel}` : ""
-      } | ${nextMilestoneText} | Next: ${formatGrassTouches(
-        nextCost,
-      )} Grass Touches`,
+      } | ${nextMilestoneText} | Cost: ${formatGrassTouches(plan.totalCost)} Grass Touches`,
     );
   }
 
@@ -4249,9 +4311,89 @@ export class GameScene extends Phaser.Scene {
     this.playSeedShopItemSuccess(item.id);
   }
 
+  private getSkillResourceText(): string {
+    const preview = getPrestigePreview(this.state);
+    const separator = this.scale.width < 620 ? "\n" : " | ";
+    return [
+      `Available Grass Touches: ${formatGrassTouches(this.state.grassTouches)}`,
+      `Meadow Memory: ${this.state.prestige.meadowMemory} (x${formatPrestigeMultiplier(preview.currentMultiplier)})`,
+      preview.canPrestige ? `Prestige: +${preview.memoryGain}` : `Prestige: ${formatGrassTouches(preview.missingTouches)} to go`,
+    ].join(separator);
+  }
+
+  private refreshPrestigeButton(): void {
+    const preview = getPrestigePreview(this.state);
+    setTextButtonText(this.prestigeButton, this.prestigeArmed ? "Confirm" : preview.canPrestige ? `Prestige +${preview.memoryGain}` : "Prestige");
+    setTextButtonAttention(this.prestigeButton, preview.canPrestige);
+  }
+
+  private handlePrestigePressed(): void {
+    const preview = this.profileScope("prestige:preview", () => getPrestigePreview(this.state));
+    if (!preview.canPrestige) {
+      this.setSkillStatus(`${formatPrestigeProgress(preview)}. First prestige grants at least 5 Meadow Memory for a strong restart.`, 4200);
+      this.audio.play("blocked");
+      this.refreshUi();
+      return;
+    }
+
+    if (!this.prestigeArmed) {
+      this.prestigeArmed = true;
+      this.disarmReset();
+      this.refreshPrestigeButton();
+      this.setSkillStatus(
+        `Prestige for +${preview.memoryGain} Meadow Memory. Legacy x${formatPrestigeMultiplier(
+          preview.currentMultiplier,
+        )} -> x${formatPrestigeMultiplier(preview.nextMultiplier)}. Resets the run, keeps journal discoveries.`,
+        5200,
+      );
+      this.audio.play("milestone");
+      this.time.delayedCall(5200, () => this.disarmPrestige());
+      return;
+    }
+
+    this.performPrestigeReset(preview.memoryGain);
+  }
+
+  private disarmPrestige(): void {
+    this.prestigeArmed = false;
+    if (this.prestigeButton) {
+      this.refreshPrestigeButton();
+    }
+  }
+
+  private performPrestigeReset(memoryGain: number): void {
+    const previousState = this.state;
+    const previousMultiplier = getPrestigePreview(previousState).currentMultiplier;
+    const nextState = this.profileScope("prestige:state", () => {
+      const freshState = createInitialState(previousState.characterClassId);
+      freshState.prestige = getNextPrestigeState(previousState, memoryGain);
+      freshState.journal = {
+        discoveredGrassTiers: [...previousState.journal.discoveredGrassTiers],
+        discoveredTileTraits: [...previousState.journal.discoveredTileTraits],
+        seenWeatherIds: [...previousState.journal.seenWeatherIds],
+        bestComboCount: previousState.journal.bestComboCount,
+      };
+      freshState.selectedTrackId = previousState.selectedTrackId;
+      return freshState;
+    });
+    const nextMultiplier = getPrestigePreview(nextState).currentMultiplier;
+
+    this.profileScope("prestige:sceneReset", () =>
+      this.restartRunFromState(
+        nextState,
+        `Prestige complete: +${memoryGain} Meadow Memory. Legacy x${formatPrestigeMultiplier(previousMultiplier)} -> x${formatPrestigeMultiplier(
+          nextMultiplier,
+        )}.`,
+      ),
+    );
+    this.profileScope("prestige:save", () => this.saveState());
+    this.audio.play("milestone");
+  }
+
   private handleResetPressed(): void {
     if (!this.resetArmed) {
       this.resetArmed = true;
+      this.disarmPrestige();
       setTextButtonText(this.resetButton, "Confirm?");
       this.setSkillStatus("Tap Confirm? to reset your save.");
       this.audio.play("blocked");
@@ -4269,12 +4411,19 @@ export class GameScene extends Phaser.Scene {
 
   private resetPrototypeSave(): void {
     const characterClassId = this.state.characterClassId;
+    this.restartRunFromState(resetSave(characterClassId), "Fresh start. One patch. Infinite responsibility.");
+  }
+
+  private restartRunFromState(nextState: GameState, message: string): void {
     this.disarmReset();
-    this.state = resetSave(characterClassId);
+    this.disarmPrestige();
+    this.state = nextState;
+    this.invalidateRuntimeStats();
     this.rebuildFieldMetrics();
     this.automationScheduler.reset();
     this.sprinkler.reset();
     this.animalCompanions.reset();
+    this.automationIncome.reset();
     this.mutations.reset();
     this.combo.reset();
     this.activeComboSource = "manual";
@@ -4293,15 +4442,16 @@ export class GameScene extends Phaser.Scene {
     this.placedWorldObjectViews.clear();
     this.selectedPlacementObjectId = undefined;
     this.selectedSkillId = UPGRADES[0].id;
-    this.renderAllTiles();
-    this.refreshUi();
-    this.showMessage("Fresh start. One patch. Infinite responsibility.", 2600);
     this.closeSkillTree();
     this.closeQuestLog();
+    this.closeJournal();
     this.closeSeedShop();
     this.closeGoldStore();
     this.closeAutomationPanel();
     this.closeOptions();
+    this.renderAllTiles();
+    this.refreshUi();
+    this.showMessage(message, 3200);
   }
 
   private resetBoardView(): void {
@@ -8201,6 +8351,56 @@ export class GameScene extends Phaser.Scene {
     graphics.destroy();
   }
 
+  private getNextAutomationBreakthroughLine(): string {
+    let nextBoost:
+      | {
+          systemName: string;
+          targetOwned: number;
+          multiplier: number;
+          missing: number;
+        }
+      | undefined;
+
+    for (const system of AUTOMATION_SYSTEMS) {
+      const owned = getAutomationSystemOwned(this.state, system.id);
+      if (owned <= 0) {
+        continue;
+      }
+
+      const milestone = getNextAutomationSystemMilestone(this.state, system.id);
+      if (!milestone) {
+        continue;
+      }
+
+      const missing = Math.max(0, milestone.owned - owned);
+      if (!nextBoost || missing < nextBoost.missing) {
+        nextBoost = {
+          systemName: system.name,
+          targetOwned: milestone.owned,
+          multiplier: milestone.multiplier,
+          missing,
+        };
+      }
+    }
+
+    if (nextBoost) {
+      return `Next auto boost: ${nextBoost.systemName} x${formatAutomationMultiplier(nextBoost.multiplier)} at ${nextBoost.targetOwned} (${nextBoost.missing} more)`;
+    }
+
+    const startableSystem = AUTOMATION_SYSTEMS.filter((system) => system.isUnlocked(this.state))
+      .map((system) => ({
+        system,
+        cost: getAutomationSystemCost(system, getAutomationSystemOwned(this.state, system.id)),
+      }))
+      .sort((left, right) => left.cost - right.cost)[0];
+
+    if (startableSystem) {
+      return `Start automation: ${startableSystem.system.name} costs ${formatGrassTouches(startableSystem.cost)}`;
+    }
+
+    return "Next automation helper unlocks as the lawn grows.";
+  }
+
   private refreshUi(forcePanels = true): void {
     const nextMilestone = this.profileScope("ui:nextMilestone", () =>
       MILESTONES.find((milestone) => !this.state.reachedMilestones.includes(milestone.id)),
@@ -8211,8 +8411,7 @@ export class GameScene extends Phaser.Scene {
     const currentReadyQuestKeys = this.profileScope("ui:readyQuests", () => this.getReadyQuestKeys());
     const readyQuestCount = currentReadyQuestKeys.size;
     const nextTier = getNextGrassTier(this.state);
-    const weather = this.state.seedShopPurchases.weather_jar ? getWeather(this.state.activeWeatherId) : undefined;
-    const season = getSeasonForDate(new Date());
+    const nextAutomationBreakthroughLine = this.profileScope("ui:autoGoal", () => this.getNextAutomationBreakthroughLine());
     const compact = this.scale.width < 620;
     const resourceSeparator = compact ? "\n" : " | ";
     const stats = this.profileScope("ui:stats", () => this.getCachedRuntimeStats());
@@ -8254,7 +8453,8 @@ export class GameScene extends Phaser.Scene {
     this.profileScope("ui:buttons", () => this.refreshMenuButtonAttention(currentReadyQuestKeys));
     this.refreshJournalAccess();
     if (this.skillTreeOpen) {
-      this.setTextIfChanged(this.skillResourceText, `Available Grass Touches: ${formatGrassTouches(this.state.grassTouches)}`);
+      this.setTextIfChanged(this.skillResourceText, this.getSkillResourceText());
+      this.refreshPrestigeButton();
     }
     if (this.questLogOpen && refreshPanels) {
       this.profileScope("ui:questLog", () => this.refreshQuestLog());
@@ -8290,7 +8490,7 @@ export class GameScene extends Phaser.Scene {
               ? `Quest: ${nextQuest.name} - ${formatQuestProgress(nextQuest, this.state)}`
               : "All current quests claimed.",
           nextTier ? `Next tier: ${nextTier.name} at ${formatGrassTouches(nextTier.unlockAtLifetimeTouches)}` : "",
-          weather ? `Weather: ${weather.name}` : `Season: ${season.name}`,
+          nextAutomationBreakthroughLine,
         ]
           .filter(Boolean)
           .join("\n"),
@@ -8364,7 +8564,7 @@ export class GameScene extends Phaser.Scene {
   private refreshMenuButtonAttention(currentReadyQuestKeys = this.getReadyQuestKeys()): void {
     const readyUnlockKeys = this.profileScope("ui:readyUnlocks", () => this.getReadyUnlockKeys());
     const readyUnlockList = [...readyUnlockKeys];
-    setTextButtonAttention(this.skillButton, readyUnlockList.some((key) => key.startsWith("upgrade:")));
+    setTextButtonAttention(this.skillButton, readyUnlockList.some((key) => key.startsWith("upgrade:")) || getPrestigePreview(this.state).canPrestige);
     setTextButtonAttention(this.seedButton, readyUnlockList.some((key) => key.startsWith("seed:")));
     setTextButtonAttention(
       this.storeButton,
@@ -8644,10 +8844,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   private formatJournalProgressSection(): string {
+    const bonuses = getJournalCollectionBonuses(this.state);
+    const collectionBonusLines =
+      this.state.seedShopPurchases.field_journal === true
+        ? [
+            `- Specimen power: +${Math.round(bonuses.rareTierMultiplierBonus * 100)}% rare odds, +${bonuses.rareTouchBonus.toFixed(1)} rare value`,
+            `- Trait power: +${Math.round(bonuses.seedDropBonus * 1000) / 10}% seed drops${
+              bonuses.doubleTouchChanceBonus > 0 ? `, +${Math.round(bonuses.doubleTouchChanceBonus * 100)}% double touches` : ""
+            }`,
+            `- Weather power: +${Math.round(bonuses.automationGlobalMultiplierBonus * 100)}% automation`,
+          ]
+        : ["- Collection bonuses: Buy the Field Journal to turn discoveries into power."];
+
     return [
       "Progress Notes",
       `- Milestones reached: ${this.state.reachedMilestones.length}/${MILESTONES.length}`,
       `- Quests claimed: ${this.state.claimedQuestIds.length}/${this.getRelevantQuestCount()}`,
+      ...collectionBonusLines,
       `- Hybrid mutations: ${this.state.mutationEvents}`,
       `- Watered patches: ${this.state.wateredPatches}`,
       `- Best combo: ${this.state.journal.bestComboCount}`,
@@ -8888,8 +9101,8 @@ export class GameScene extends Phaser.Scene {
   private refreshStoreModeButtons(): void {
     const hasReadyAutomation = AUTOMATION_SYSTEMS.some((system) => {
       const owned = getAutomationSystemOwned(this.state, system.id);
-      const cost = getAutomationSystemCost(system, owned);
-      return system.isUnlocked(this.state) && canAffordGrassTouches(this.state.grassTouches, cost);
+      const plan = this.getAutomationPurchasePlan(system, owned);
+      return system.isUnlocked(this.state) && canAffordGrassTouches(this.state.grassTouches, plan.totalCost);
     });
     const hasReadyGoods = GOLD_STORE_ITEMS.some((item) => {
       const quantity = getInventoryQuantity(this.state, item.id);
@@ -8899,6 +9112,7 @@ export class GameScene extends Phaser.Scene {
 
     this.storeAutomationButton.setAlpha(this.storeMode === "automation" ? 1 : 0.72);
     this.storeGoodsButton.setAlpha(this.storeMode === "goods" ? 1 : 0.72);
+    setTextButtonText(this.storeAutomationBuyModeButton, this.automationBuyMode === "boost" ? "To Boost" : "Buy 1");
     setTextButtonAttention(this.storeAutomationButton, hasReadyAutomation);
     setTextButtonAttention(this.storeGoodsButton, hasReadyGoods);
   }
@@ -8926,14 +9140,14 @@ export class GameScene extends Phaser.Scene {
 
       const owned = getAutomationSystemOwned(this.state, system.id);
       const unlocked = system.isUnlocked(this.state);
-      const cost = getAutomationSystemCost(system, owned);
-      const affordable = canAffordGrassTouches(this.state.grassTouches, cost);
+      const plan = this.getAutomationPurchasePlan(system, owned);
+      const affordable = canAffordGrassTouches(this.state.grassTouches, plan.totalCost);
       const ready = unlocked && affordable;
       const output = getDirectiveAdjustedAutomationOutput(
         this.state,
         getAutomationSystemTouchesPerMinute(this.state, system, stats, automationOutputContext),
       );
-      const previewState = getAutomationPreviewState(this.state, system.id, owned + 1);
+      const previewState = getAutomationPreviewState(this.state, system.id, plan.targetOwned);
       const previewOutputContext = getAutomationOutputContext(previewState, stats);
       const previewOutput = getDirectiveAdjustedAutomationOutput(
         previewState,
@@ -8964,14 +9178,16 @@ export class GameScene extends Phaser.Scene {
         view.status.setColor("#8ea594");
       } else if (!affordable) {
         view.status.setText(
-          `Owned ${owned}${supportSuffix} | ${formatGrassTouchesPerMinute(output)} (${outputDelta}) | ${milestoneStatus} | Need ${formatGrassTouches(
-            getMissingGrassTouches(this.state.grassTouches, cost),
-          )}`,
+          `Owned ${owned}${supportSuffix} | ${formatGrassTouchesPerMinute(output)} (${outputDelta}) | ${
+            plan.quantity > 1 ? `+${plan.quantity} to boost` : milestoneStatus
+          } | Need ${formatGrassTouches(getMissingGrassTouches(this.state.grassTouches, plan.totalCost))}`,
         );
         view.status.setColor("#d6e6d0");
       } else {
         view.status.setText(
-          `Owned ${owned}${supportSuffix} | ${formatGrassTouchesPerMinute(output)} (${outputDelta}) | ${milestoneStatus} | Cost ${formatGrassTouches(cost)}`,
+          `Owned ${owned}${supportSuffix} | ${formatGrassTouchesPerMinute(output)} (${outputDelta}) | ${
+            plan.quantity > 1 ? `Buy +${plan.quantity}` : milestoneStatus
+          } | Cost ${formatGrassTouches(plan.totalCost)}`,
         );
         view.status.setColor("#f4df6a");
       }
@@ -9084,9 +9300,9 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private setSkillStatus(message: string): void {
+  private setSkillStatus(message: string, durationMs = 1800): void {
     this.skillStatusText.setText(message);
-    this.time.delayedCall(1800, () => {
+    this.time.delayedCall(durationMs, () => {
       if (this.skillTreeOpen) {
         this.skillStatusText.setText(
           this.hasTouchScreen()
@@ -9255,6 +9471,11 @@ export class GameScene extends Phaser.Scene {
         const level = this.state.upgrades[upgrade.id]?.level ?? 0;
         keys.add(`upgrade:${upgrade.id}:${level + 1}`);
       }
+    }
+
+    const prestigePreview = getPrestigePreview(this.state);
+    if (prestigePreview.canPrestige) {
+      keys.add(`prestige:${this.state.prestige.resets + 1}:${prestigePreview.memoryGain}`);
     }
 
     for (const item of SEED_SHOP_ITEMS) {

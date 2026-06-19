@@ -2,6 +2,7 @@ import { getGrassTier, pickGrassTier } from "../data/grass-tiers";
 import { DEFAULT_CHARACTER_CLASS_ID } from "../data/character-classes";
 import { addGrassTouches } from "./AmountSystem";
 import { createAutomationStatsState } from "./AutomationProgressSystem";
+import { createPrestigeState } from "./PrestigeSystem";
 import { CURRENT_SAVE_VERSION } from "../types/game-state";
 import type { CharacterClassId, FieldTile, GameState, GrassTierId, RuntimeStats, TileKey, TileTrait, TouchResult } from "../types/game-state";
 
@@ -197,6 +198,7 @@ export function createInitialState(characterClassId: CharacterClassId = DEFAULT_
     automationDirectiveId: "balanced",
     automationStats: createAutomationStatsState(),
     automationSystems: {},
+    prestige: createPrestigeState(),
     lastSavedAt: Date.now(),
   };
 }
@@ -227,7 +229,10 @@ export function touchTile(tile: FieldTile, state: GameState, stats: RuntimeStats
   const tier = getGrassTier(tile.tier);
   const rareBonus = tier.id === "normal" ? 0 : stats.rareTouchBonus;
   const doubled = Math.random() < stats.doubleTouchChance;
-  const baseGained = Math.max(1, Math.floor((tier.touchValue + stats.touchMultiplier + traitBonus + rareBonus) * (doubled ? 2 : 1)));
+  const baseGained = Math.max(
+    1,
+    Math.floor((tier.touchValue + stats.touchMultiplier + traitBonus + rareBonus) * stats.grassTouchMultiplier * (doubled ? 2 : 1)),
+  );
   const critChance = stats.critChance + (tile.trait === "lush" ? 0.025 : tile.trait === "dewy" ? 0.012 : 0);
   const isCrit = Math.random() < critChance;
   const critMultiplier = isCrit ? stats.critMultiplier : 1;
