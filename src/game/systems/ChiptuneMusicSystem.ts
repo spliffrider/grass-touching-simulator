@@ -118,6 +118,8 @@ const NOTE_FREQUENCIES: Record<NoteName, number> = {
 };
 
 const NOISE_BUFFER_SECONDS = 0.5;
+const TITLE_MASTER_GAIN = 0.88;
+const GAME_MASTER_GAIN = 0.82;
 export const TITLE_TRACK_ID = "title_garden";
 
 const TITLE_MELODY: Array<Array<NoteName | null>> = [
@@ -469,6 +471,7 @@ export const TRACK_IDS = [
 export class ChiptuneMusicSystem {
   private context?: AudioContext;
   private master?: GainNode;
+  private limiter?: DynamicsCompressorNode;
   private dryBus?: GainNode;
   private leadBus?: GainNode;
   private delay?: DelayNode;
@@ -493,8 +496,7 @@ export class ChiptuneMusicSystem {
     this.muted = this.volume <= 0;
 
     if (this.master && this.context) {
-      const trackGain = this.currentTrackId === TITLE_TRACK_ID ? 1.12 : 1.18;
-      this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume * trackGain, this.context.currentTime, 0.12);
+      this.master.gain.setTargetAtTime(this.getMasterGainTarget(), this.context.currentTime, 0.12);
     }
   }
 
@@ -534,6 +536,24 @@ export class ChiptuneMusicSystem {
 
   setComboLevel(comboLevel: number): void {
     this.comboLevel = Math.max(0, Math.floor(comboLevel));
+  }
+
+  duckForSfx(depth = 0.84, releaseSeconds = 0.18): void {
+    if (!this.context || !this.master || !this.playing || this.muted) {
+      return;
+    }
+
+    const now = this.context.currentTime;
+    const target = this.getMasterGainTarget();
+    if (target <= 0) {
+      return;
+    }
+
+    const current = Math.max(0.0001, this.master.gain.value || target);
+    this.master.gain.cancelScheduledValues(now);
+    this.master.gain.setValueAtTime(current, now);
+    this.master.gain.setTargetAtTime(target * Math.max(0.5, Math.min(1, depth)), now, 0.018);
+    this.master.gain.setTargetAtTime(target, now + releaseSeconds, 0.1);
   }
 
   start(volume = this.volume): void {
@@ -599,6 +619,7 @@ export class ChiptuneMusicSystem {
       this.delay = this.context.createDelay(0.5);
       this.delayFeedback = this.context.createGain();
       this.delayReturn = this.context.createGain();
+      this.limiter = this.context.createDynamicsCompressor();
 
       this.master.gain.value = 0;
       this.dryBus.gain.value = 1;
@@ -606,6 +627,11 @@ export class ChiptuneMusicSystem {
       this.delay.delayTime.value = 0.155;
       this.delayFeedback.gain.value = 0.16;
       this.delayReturn.gain.value = 0.08;
+      this.limiter.threshold.value = -9;
+      this.limiter.knee.value = 18;
+      this.limiter.ratio.value = 10;
+      this.limiter.attack.value = 0.004;
+      this.limiter.release.value = 0.18;
 
       this.dryBus.connect(this.master);
       this.leadBus.connect(this.dryBus);
@@ -614,10 +640,12 @@ export class ChiptuneMusicSystem {
       this.delayFeedback.connect(this.delay);
       this.delay.connect(this.delayReturn);
       this.delayReturn.connect(this.master);
-      this.master.connect(this.context.destination);
+      this.master.connect(this.limiter);
+      this.limiter.connect(this.context.destination);
     }
 
     this.applyTrackMix();
+    this.master?.gain.setTargetAtTime(this.getMasterGainTarget(), this.context.currentTime, 0.12);
     this.unlocked = this.context.state === "running";
   }
 
@@ -632,6 +660,15 @@ export class ChiptuneMusicSystem {
     this.delay?.delayTime.setTargetAtTime(track.delayTime ?? 0.155, now, 0.04);
     this.delayFeedback?.gain.setTargetAtTime(track.delayFeedback ?? 0.16, now, 0.04);
     this.delayReturn?.gain.setTargetAtTime(track.delayReturn ?? 0.08, now, 0.04);
+  }
+
+  private getMasterGainTarget(): number {
+    if (this.muted) {
+      return 0;
+    }
+
+    const trackGain = this.currentTrackId === TITLE_TRACK_ID ? TITLE_MASTER_GAIN : GAME_MASTER_GAIN;
+    return this.volume * trackGain;
   }
 
   private scheduleLoop(): void {

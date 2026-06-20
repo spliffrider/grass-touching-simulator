@@ -486,6 +486,7 @@ export class GameScene extends Phaser.Scene {
   private redrawTileViewKeys = new Set<TileKey>();
   private recentlyRegrownAt = new Map<TileKey, number>();
   private perfectTouchCues = new Map<TileKey, Phaser.GameObjects.GameObject[]>();
+  private boardTransientEffects = new Set<Phaser.GameObjects.GameObject>();
   private worldObjectViews = new Map<string, WorldObjectView>();
   private placedWorldObjectViews = new Map<string, PlacedWorldObjectView>();
   private selectedPlacementObjectId?: string;
@@ -1101,6 +1102,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.burstEmitters.clear();
     this.uiBurstEmitters.clear();
+    this.clearBoardTransientEffects();
     this.destroyPopTextPool();
     this.destroyAllTileViews();
   }
@@ -1168,6 +1170,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private shouldDeferSaveFlush(): boolean {
+    return this.isBoardLayoutBusy();
+  }
+
+  private isBoardLayoutBusy(): boolean {
     return this.isPanningBoard || this.pendingBoardLayout || this.commonRedrawQueue.length > 0;
   }
 
@@ -1209,6 +1215,13 @@ export class GameScene extends Phaser.Scene {
     this.runtimeStatsCache = getRuntimeStats(this.state);
     this.runtimeStatsCacheAt = now;
     return this.runtimeStatsCache;
+  }
+
+  private playMixedGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean, comboCount = 0): void {
+    const played = this.audio.playGrassTouch(tier, trait, isCrit, comboCount);
+    if (played) {
+      this.music.duckForSfx(isCrit ? 0.78 : comboCount >= 5 ? 0.82 : 0.86, isCrit ? 0.22 : 0.16);
+    }
   }
 
   private createAutomationScheduler(): AutomationScheduler<RuntimeStats> {
@@ -4708,6 +4721,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.cancelCommonRedrawQueue();
+    if (reason === "pan" || reason === "zoom" || reason === "resize" || reason === "field") {
+      this.clearBoardTransientEffects();
+    }
     this.layoutPassCount += 1;
     const boardWidth = bounds.width * (TILE_SIZE + TILE_GAP);
     const boardHeight = bounds.height * (TILE_SIZE + TILE_GAP);
@@ -5953,7 +5969,7 @@ export class GameScene extends Phaser.Scene {
     });
     this.profileScope("touch:audioShake", () => {
       this.shakeForGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
-      this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, combo.count);
+      this.playMixedGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, combo.count);
     });
     this.profileScope("touch:aoe", () => this.tryComboAoeTouch(tile, stats, combo.count, now));
     this.queueSave();
@@ -6493,7 +6509,7 @@ export class GameScene extends Phaser.Scene {
       }
       this.drops.tryDropSeed(this.state, tile, touchedTrait, stats, this.getDropFeedback(), 0.35);
       this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier.id, touch, stats, this.getDropFeedback(), 0.35);
-      this.audio.playGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, comboCount);
+      this.playMixedGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, comboCount);
     }
 
     if (touchedTiles === 0) {
@@ -6853,7 +6869,7 @@ export class GameScene extends Phaser.Scene {
           this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier, touch, runtimeStats, this.getDropFeedback(), chanceScale),
         recordAutomationCombo: (tile, touch, source) => this.recordAutomationComboTouch(tile, touch, stats, source),
         recordAutomationComboAction: (tile, source) => this.recordAutomationComboAction(tile, stats, source),
-        playGrassTouch: (tier, trait, isCrit, comboCount) => this.audio.playGrassTouch(tier, trait, isCrit, comboCount),
+        playGrassTouch: (tier, trait, isCrit, comboCount) => this.playMixedGrassTouch(tier, trait, isCrit, comboCount),
       }));
     });
 
@@ -6877,7 +6893,7 @@ export class GameScene extends Phaser.Scene {
         playTouchFeedback: (tile, touchedTrait, isCrit) => this.playTouchFeedback(tile, touchedTrait, isCrit),
         recordAutomationCombo: (tile, touch, source) => this.recordAutomationComboTouch(tile, touch, stats, source),
         playSound: (sound) => this.audio.play(sound),
-        playGrassTouch: (tier, trait, isCrit, comboCount) => this.audio.playGrassTouch(tier, trait, isCrit, comboCount),
+        playGrassTouch: (tier, trait, isCrit, comboCount) => this.playMixedGrassTouch(tier, trait, isCrit, comboCount),
       }));
     });
 
@@ -7480,15 +7496,17 @@ export class GameScene extends Phaser.Scene {
     const baseScale = this.boardScale;
     const fleckTexture = touchedTrait === "dewy" ? "dew-fleck" : "grass-fleck";
     const compactEffects = this.boardScale < COMPACT_TILE_EFFECT_SCALE && !isCrit;
-    const showFlourish = !compactEffects && this.reserveTouchFlourish(isCrit);
+    const showFlourish = !compactEffects && !this.isBoardLayoutBusy() && this.reserveTouchFlourish(isCrit);
 
     if (view && showFlourish) {
       this.resetBaseTilePose(view);
-      const grassGhost = this.add
-        .image(x, y, view.grass.texture.key)
-        .setScale(view.grass.scaleX, view.grass.scaleY)
-        .setAlpha(0.95)
-        .setDepth(33);
+      const grassGhost = this.trackBoardTransient(
+        this.add
+          .image(x, y, view.grass.texture.key)
+          .setScale(view.grass.scaleX, view.grass.scaleY)
+          .setAlpha(0.95)
+          .setDepth(33),
+      );
 
       this.tweens.add({
         targets: grassGhost,
@@ -7521,17 +7539,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   private addTileImpactPulse(x: number, y: number, baseScale: number, isCrit: boolean): void {
-    const pulse = this.add
-      .ellipse(
-        x,
-        y + 3 * baseScale,
-        TILE_SIZE * 0.72 * baseScale,
-        TILE_SIZE * 0.42 * baseScale,
-        isCrit ? 0xffef78 : 0xf7ffe8,
-        isCrit ? 0.26 : 0.16,
-      )
-      .setStrokeStyle(Math.max(1, 2 * baseScale), isCrit ? 0xffef78 : 0xb7eba5, isCrit ? 0.82 : 0.48)
-      .setDepth(31);
+    const pulse = this.trackBoardTransient(
+      this.add
+        .ellipse(
+          x,
+          y + 3 * baseScale,
+          TILE_SIZE * 0.72 * baseScale,
+          TILE_SIZE * 0.42 * baseScale,
+          isCrit ? 0xffef78 : 0xf7ffe8,
+          isCrit ? 0.26 : 0.16,
+        )
+        .setStrokeStyle(Math.max(1, 2 * baseScale), isCrit ? 0xffef78 : 0xb7eba5, isCrit ? 0.82 : 0.48)
+        .setDepth(31),
+    );
 
     this.tweens.add({
       targets: pulse,
@@ -8025,10 +8045,12 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const ring = this.add
-      .ellipse(x, y, TILE_SIZE * 0.82 * this.boardScale, TILE_SIZE * 0.48 * this.boardScale, 0xf7ffe8, 0.18)
-      .setStrokeStyle(4, 0xf7ffe8, 0.95)
-      .setDepth(34);
+    const ring = this.trackBoardTransient(
+      this.add
+        .ellipse(x, y, TILE_SIZE * 0.82 * this.boardScale, TILE_SIZE * 0.48 * this.boardScale, 0xf7ffe8, 0.18)
+        .setStrokeStyle(4, 0xf7ffe8, 0.95)
+        .setDepth(34),
+    );
 
     this.tweens.add({
       targets: ring,
@@ -8046,10 +8068,12 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const flash = this.add
-      .rectangle(x, y, TILE_SIZE * 0.78 * this.boardScale, TILE_SIZE * 0.78 * this.boardScale, 0xf7ffe8, 0.36)
-      .setDepth(36)
-      .setAngle(45);
+    const flash = this.trackBoardTransient(
+      this.add
+        .rectangle(x, y, TILE_SIZE * 0.78 * this.boardScale, TILE_SIZE * 0.78 * this.boardScale, 0xf7ffe8, 0.36)
+        .setDepth(36)
+        .setAngle(45),
+    );
 
     this.tweens.add({
       targets: flash,
@@ -8067,10 +8091,12 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const burst = this.add
-      .star(x, y, 7, TILE_SIZE * 0.18 * this.boardScale, TILE_SIZE * 0.72 * this.boardScale, 0xfff08a, 0.8)
-      .setStrokeStyle(3, 0xffffff, 0.95)
-      .setDepth(37);
+    const burst = this.trackBoardTransient(
+      this.add
+        .star(x, y, 7, TILE_SIZE * 0.18 * this.boardScale, TILE_SIZE * 0.72 * this.boardScale, 0xfff08a, 0.8)
+        .setStrokeStyle(3, 0xffffff, 0.95)
+        .setDepth(37),
+    );
 
     this.tweens.add({
       targets: burst,
@@ -8082,6 +8108,25 @@ export class GameScene extends Phaser.Scene {
       ease: "Sine.easeOut",
       onComplete: () => burst.destroy(),
     });
+  }
+
+  private trackBoardTransient<T extends Phaser.GameObjects.GameObject>(effect: T): T {
+    this.boardTransientEffects.add(effect);
+    effect.once("destroy", () => this.boardTransientEffects.delete(effect));
+    return effect;
+  }
+
+  private clearBoardTransientEffects(): void {
+    if (this.boardTransientEffects.size === 0) {
+      return;
+    }
+
+    const effects = [...this.boardTransientEffects];
+    this.boardTransientEffects.clear();
+    for (const effect of effects) {
+      this.tweens.killTweensOf(effect);
+      effect.destroy();
+    }
   }
 
   private addClassSlashMark(x: number, y: number): void {

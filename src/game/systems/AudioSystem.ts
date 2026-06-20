@@ -5,10 +5,13 @@ type SoundName = "touch" | "regrow" | "upgrade" | "milestone" | "blocked" | "see
 const NOISE_BUFFER_SECONDS = 0.5;
 const TOUCH_SOUND_MIN_INTERVAL_MS = 42;
 const TOUCH_SOUND_BUSY_INTERVAL_MS = 68;
+const SFX_MASTER_GAIN = 0.5;
+const TOUCH_TRANSIENT_GAIN = 0.76;
 
 export class AudioSystem {
   private context?: AudioContext;
   private master?: GainNode;
+  private limiter?: DynamicsCompressorNode;
   private unlocked = false;
   private resumePromise?: Promise<void>;
   private noiseBuffer?: AudioBuffer;
@@ -24,8 +27,15 @@ export class AudioSystem {
     if (!this.context) {
       this.context = new AudioContextCtor();
       this.master = this.context.createGain();
-      this.master.gain.value = 0.58;
-      this.master.connect(this.context.destination);
+      this.limiter = this.context.createDynamicsCompressor();
+      this.master.gain.value = SFX_MASTER_GAIN;
+      this.limiter.threshold.value = -10;
+      this.limiter.knee.value = 18;
+      this.limiter.ratio.value = 12;
+      this.limiter.attack.value = 0.003;
+      this.limiter.release.value = 0.14;
+      this.master.connect(this.limiter);
+      this.limiter.connect(this.context.destination);
     }
 
     if (this.context.state === "suspended") {
@@ -66,11 +76,11 @@ export class AudioSystem {
     this.playNow(name);
   }
 
-  playGrassTouch(tier: GrassTierId = "normal", trait: TileTrait = "normal", isCrit = false, comboCount = 0): void {
+  playGrassTouch(tier: GrassTierId = "normal", trait: TileTrait = "normal", isCrit = false, comboCount = 0): boolean {
     this.unlock();
 
     if (!this.context || !this.master) {
-      return;
+      return false;
     }
 
     if (this.context.state !== "running" || !this.unlocked) {
@@ -87,14 +97,15 @@ export class AudioSystem {
           this.playGrassTouchNow(tier, trait, isCrit, comboCount);
         }
       });
-      return;
+      return true;
     }
 
     if (!this.shouldPlayGrassTouchSound(isCrit, comboCount)) {
-      return;
+      return false;
     }
 
     this.playGrassTouchNow(tier, trait, isCrit, comboCount);
+    return true;
   }
 
   private playNow(name: SoundName): void {
@@ -158,7 +169,7 @@ export class AudioSystem {
     const traitSound = traitProfile[trait];
     const critBoost = isCrit ? 1.22 : 1;
     const comboPitch = 1 + Math.min(40, Math.max(0, comboCount)) * 0.006;
-    const volume = tierSound.volume * traitSound.volume * critBoost;
+    const volume = tierSound.volume * traitSound.volume * critBoost * TOUCH_TRANSIENT_GAIN;
 
     this.playNoiseSweep(0.18 * tierSound.duration, (tierSound.brush + traitSound.brushOffset + Math.random() * 280) * comboPitch, 0.22 * volume, now);
     this.playNoiseSweep(0.09, (tierSound.snap + traitSound.snapOffset + Math.random() * 620) * comboPitch, 0.085 * volume, now + 0.018);
