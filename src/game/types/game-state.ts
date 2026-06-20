@@ -31,7 +31,9 @@ export type TileHazardId = "cactus" | "weeds";
 
 export type DebuffId = "pricked";
 
-export const CURRENT_SAVE_VERSION = 12;
+export type JournalHazardId = TileHazardId | DebuffId | "mower";
+
+export const CURRENT_SAVE_VERSION = 13;
 
 export interface FieldTile {
   x: number;
@@ -77,7 +79,18 @@ export interface JournalState {
   discoveredGrassTiers: GrassTierId[];
   discoveredTileTraits: TileTrait[];
   seenWeatherIds: WeatherId[];
+  seenHazardIds: JournalHazardId[];
   bestComboCount: number;
+}
+
+export interface HazardStatsState {
+  cactusCleared: number;
+  weedsPulled: number;
+  weedsCleared: number;
+  prickedCount: number;
+  mowerPasses: number;
+  mowerTilesMown: number;
+  hazardsClearedByMower: number;
 }
 
 export interface AutomationStatsState {
@@ -112,6 +125,7 @@ export interface GameState {
   totalClickedPatches: number;
   wateredPatches: number;
   mutationEvents: number;
+  hazardStats: HazardStatsState;
   field: Record<TileKey, FieldTile>;
   tileHazards: Partial<Record<TileKey, TileHazardState>>;
   debuffs: Partial<Record<DebuffId, DebuffState>>;

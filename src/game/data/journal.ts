@@ -1,4 +1,4 @@
-import type { GrassTierId, TileTrait, WeatherId } from "../types/game-state";
+import type { GrassTierId, JournalHazardId, TileTrait, WeatherId } from "../types/game-state";
 
 export const JOURNAL_GRASS_NOTES: Record<GrassTierId, string> = {
   normal: "Reliable. Green. Emotionally available.",
@@ -28,6 +28,13 @@ export const JOURNAL_WEATHER_NOTES: Record<WeatherId, string> = {
   pollinator_swarm: "Friendly motion, small wings, better odds.",
   golden_hour: "The whole field briefly develops main-character lighting.",
   restless_roots: "The dirt has decided to participate.",
+};
+
+export const JOURNAL_HAZARD_NOTES: Record<JournalHazardId, string> = {
+  cactus: "A small green argument with excellent posture. Touch carefully.",
+  weeds: "Botanical bureaucracy. Pull it once, then maybe pull it again.",
+  pricked: "A short-lived reminder that not every patch wants enthusiasm.",
+  mower: "A brisk mechanical opinion about lawn height and personal space.",
 };
 
 export const JOURNAL_COMPANION_NOTES: Record<string, string> = {

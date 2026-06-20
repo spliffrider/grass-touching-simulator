@@ -14,7 +14,9 @@ import type {
   FieldTile,
   GameState,
   GrassTierId,
+  HazardStatsState,
   InventoryEntry,
+  JournalHazardId,
   JournalState,
   PlacedWorldObject,
   PrestigeState,
@@ -84,6 +86,7 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
     totalClickedPatches: readNumber(saved.totalClickedPatches, initial.totalClickedPatches),
     wateredPatches: readNumber(saved.wateredPatches, initial.wateredPatches),
     mutationEvents: readNumber(saved.mutationEvents, initial.mutationEvents),
+    hazardStats: readHazardStats(saved.hazardStats, initial.hazardStats),
     field,
     tileHazards: readTileHazards(saved.tileHazards, field),
     debuffs: readDebuffs(saved.debuffs),
@@ -233,7 +236,24 @@ function readJournal(value: unknown, fallback: JournalState): JournalState {
     discoveredGrassTiers: readGrassTierArray(value.discoveredGrassTiers, fallback.discoveredGrassTiers),
     discoveredTileTraits: readTileTraitArray(value.discoveredTileTraits, fallback.discoveredTileTraits),
     seenWeatherIds: readWeatherIdArray(value.seenWeatherIds, fallback.seenWeatherIds),
+    seenHazardIds: readJournalHazardIdArray(value.seenHazardIds, fallback.seenHazardIds),
     bestComboCount: readNumber(value.bestComboCount, fallback.bestComboCount),
+  };
+}
+
+function readHazardStats(value: unknown, fallback: HazardStatsState): HazardStatsState {
+  if (!isRecord(value)) {
+    return fallback;
+  }
+
+  return {
+    cactusCleared: readCount(value.cactusCleared, fallback.cactusCleared),
+    weedsPulled: readCount(value.weedsPulled, fallback.weedsPulled),
+    weedsCleared: readCount(value.weedsCleared, fallback.weedsCleared),
+    prickedCount: readCount(value.prickedCount, fallback.prickedCount),
+    mowerPasses: readCount(value.mowerPasses, fallback.mowerPasses),
+    mowerTilesMown: readCount(value.mowerTilesMown, fallback.mowerTilesMown),
+    hazardsClearedByMower: readCount(value.hazardsClearedByMower, fallback.hazardsClearedByMower),
   };
 }
 
@@ -338,6 +358,15 @@ function readWeatherIdArray(value: unknown, fallback: WeatherId[]): WeatherId[] 
   return unique(weatherIds.length > 0 ? weatherIds : fallback);
 }
 
+function readJournalHazardIdArray(value: unknown, fallback: JournalHazardId[]): JournalHazardId[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const hazardIds = value.filter((hazardId): hazardId is JournalHazardId => isJournalHazardId(hazardId));
+  return unique(hazardIds.length > 0 ? hazardIds : fallback);
+}
+
 function unique<T extends string>(values: T[]): T[] {
   return [...new Set(values)];
 }
@@ -346,12 +375,20 @@ function readNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+function readCount(value: unknown, fallback: number): number {
+  return Math.max(0, Math.floor(readNumber(value, fallback)));
+}
+
 function readGrassTier(value: unknown): FieldTile["tier"] {
   return isGrassTierId(value) ? value : "normal";
 }
 
 function isGrassTierId(value: unknown): value is GrassTierId {
   return typeof value === "string" && (VALID_GRASS_TIERS as readonly string[]).includes(value);
+}
+
+function isJournalHazardId(value: unknown): value is JournalHazardId {
+  return value === "cactus" || value === "weeds" || value === "pricked" || value === "mower";
 }
 
 function readTileTrait(value: unknown): FieldTile["trait"] {

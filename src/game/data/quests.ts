@@ -38,6 +38,8 @@ const countAutomationMilestoneSystems = (state: GameState, tier: number): number
   AUTOMATION_SYSTEMS.filter((system) => getAutomationSystemMilestoneTier(state, system.id) >= tier).length;
 const hasDiscoveredGrassTier = (state: GameState, tier: GrassTierId): boolean => state.journal.discoveredGrassTiers.includes(tier);
 const countDiscoveredGrassTiers = (state: GameState): number => state.journal.discoveredGrassTiers.length;
+const countHazardsHandled = (state: GameState): number =>
+  state.hazardStats.cactusCleared + state.hazardStats.weedsCleared + state.hazardStats.hazardsClearedByMower;
 const CORE_AUTOMATION_DIRECTIVES: AutomationDirectiveId[] = ["balanced", "growth", "harvest", "supplies"];
 const countUsedAutomationDirectives = (state: GameState): number =>
   CORE_AUTOMATION_DIRECTIVES.filter((directiveId) => state.automationStats.usedDirectiveIds.includes(directiveId)).length;
@@ -493,6 +495,66 @@ export const QUESTS: QuestDefinition[] = [
     prerequisiteQuestIds: ["seed_pouch_owner"],
     isComplete: (state) => state.seedShopPurchases.field_journal === true,
     getProgress: (state) => (state.seedShopPurchases.field_journal ? "Field Journal bought" : "Not bought yet"),
+  },
+  {
+    id: "hazard_cactus_first",
+    category: "Hazards",
+    name: "Careful There",
+    description: "Clear 1 cactus hazard.",
+    reward: { seeds: 4, gold: 1 },
+    prerequisiteQuestIds: ["field_journal_owner", "touch_250"],
+    isComplete: (state) => state.hazardStats.cactusCleared >= 1,
+    getProgress: (state) => `${Math.min(1, state.hazardStats.cactusCleared)}/1 cactus cleared`,
+  },
+  {
+    id: "hazard_weeds_5",
+    category: "Hazards",
+    name: "Manual Weeding",
+    description: "Pull weeds 5 times.",
+    reward: { seeds: 6, gold: 2 },
+    prerequisiteQuestIds: ["hazard_cactus_first"],
+    isComplete: (state) => state.hazardStats.weedsPulled >= 5,
+    getProgress: (state) => `${Math.min(5, state.hazardStats.weedsPulled)}/5 weed pulls`,
+  },
+  {
+    id: "garden_gloves_owner",
+    category: "Seed Shop",
+    name: "Respect The Spines",
+    description: "Buy Garden Gloves after documenting cactus trouble.",
+    reward: { seeds: 6, gold: 2 },
+    prerequisiteQuestIds: ["hazard_cactus_first"],
+    isComplete: (state) => state.seedShopPurchases.garden_gloves === true,
+    getProgress: (state) => (state.seedShopPurchases.garden_gloves ? "Garden Gloves bought" : "Not bought yet"),
+  },
+  {
+    id: "hazard_mower_first",
+    category: "Hazards",
+    name: "Mower Incident Report",
+    description: "See the robotic mower make 1 pass.",
+    reward: { seeds: 7, gold: 3 },
+    prerequisiteQuestIds: ["touch_700", "field_25"],
+    isComplete: (state) => state.hazardStats.mowerPasses >= 1,
+    getProgress: (state) => `${Math.min(1, state.hazardStats.mowerPasses)}/1 mower passes`,
+  },
+  {
+    id: "mower_boundary_owner",
+    category: "Seed Shop",
+    name: "Reasonable Boundaries",
+    description: "Buy Mower Boundary after seeing a mower pass.",
+    reward: { seeds: 8, gold: 3 },
+    prerequisiteQuestIds: ["hazard_mower_first"],
+    isComplete: (state) => state.seedShopPurchases.mower_boundary === true,
+    getProgress: (state) => (state.seedShopPurchases.mower_boundary ? "Mower Boundary bought" : "Not bought yet"),
+  },
+  {
+    id: "hazard_cleanup_12",
+    category: "Hazards",
+    name: "Groundskeeping Notes",
+    description: "Clear 12 hazards by hand or mower.",
+    reward: { seeds: 10, gold: 4 },
+    prerequisiteQuestIds: ["hazard_weeds_5", "hazard_mower_first"],
+    isComplete: (state) => countHazardsHandled(state) >= 12,
+    getProgress: (state) => `${Math.min(12, countHazardsHandled(state))}/12 hazards handled`,
   },
   {
     id: "grass_specimens_4",

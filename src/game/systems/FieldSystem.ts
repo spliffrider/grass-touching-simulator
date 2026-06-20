@@ -177,6 +177,15 @@ export function createInitialState(characterClassId: CharacterClassId = DEFAULT_
     totalClickedPatches: 0,
     wateredPatches: 0,
     mutationEvents: 0,
+    hazardStats: {
+      cactusCleared: 0,
+      weedsPulled: 0,
+      weedsCleared: 0,
+      prickedCount: 0,
+      mowerPasses: 0,
+      mowerTilesMown: 0,
+      hazardsClearedByMower: 0,
+    },
     field: {
       [tileKey(0, 0)]: createTile(0, 0, "normal", "normal"),
     },
@@ -192,6 +201,7 @@ export function createInitialState(characterClassId: CharacterClassId = DEFAULT_
       discoveredGrassTiers: ["normal"],
       discoveredTileTraits: ["normal"],
       seenWeatherIds: ["calm"],
+      seenHazardIds: [],
       bestComboCount: 0,
     },
     activeWeatherId: "calm",

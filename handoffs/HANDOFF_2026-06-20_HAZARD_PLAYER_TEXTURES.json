@@ -1,0 +1,177 @@
+{
+  "createdAt": "2026-06-20",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Player-facing hazard texture pass: journal notes, hazard quests, save-backed counters, and verification.",
+  "currentUserGoal": "Add player-facing texture for hazards after committing the deterministic hazard validation harness.",
+  "workCompletedThisSession": [
+    {
+      "summary": "Added save-backed hazard progress stats.",
+      "details": [
+        "Bumped CURRENT_SAVE_VERSION to 13.",
+        "Added GameState.hazardStats with cactus, weed, pricked, mower pass, mower tile, and mower hazard-clear counters.",
+        "Added JournalState.seenHazardIds for persistent Field Journal hazard discoveries.",
+        "Updated createInitialState and SaveSystem migration/default handling."
+      ]
+    },
+    {
+      "summary": "Added Field Journal hazard content.",
+      "details": [
+        "Added JOURNAL_HAZARD_NOTES for cactus, weeds, Pricked, and robotic mower.",
+        "Added a Hazards & Counterplay journal section with active pressure, recorded notes, run counters, and owned counterplay items.",
+        "Updated journal resource text to include Hazards 0-4 and adjusted compact/mobile layout to avoid overlap.",
+        "Hazard discoveries are preserved through prestige with other journal discoveries."
+      ]
+    },
+    {
+      "summary": "Added hazard and counterplay quest texture.",
+      "details": [
+        "Added hazard quests: Careful There, Manual Weeding, Mower Incident Report, and Groundskeeping Notes.",
+        "Added counterplay seed-shop quests: Respect The Spines and Reasonable Boundaries.",
+        "Journal quest filter now includes Hazards category alongside Field Journal specimen quests."
+      ]
+    },
+    {
+      "summary": "Wired hazard gameplay events to stats and journal discovery.",
+      "details": [
+        "Cactus touches record cactus clears, Pricked count, and journal hazard discoveries.",
+        "Weed touches record pulls and clears.",
+        "Mower pass start records mower pass discovery; mower tile effects record mown tiles and hazards cleared by mower.",
+        "The deterministic ?hazardHarness now asserts hazard stats and seenHazardIds in addition to mechanical behavior."
+      ]
+    }
+  ],
+  "filesTouched": [
+    "src/game/types/game-state.ts",
+    "src/game/systems/FieldSystem.ts",
+    "src/game/systems/SaveSystem.ts",
+    "src/game/data/journal.ts",
+    "src/game/data/quests.ts",
+    "src/game/scenes/GameScene.ts",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-06-20_HAZARD_PLAYER_TEXTURES.json"
+  ],
+  "verificationPerformed": [
+    {
+      "command": "npm run build",
+      "result": "Passed."
+    },
+    {
+      "target": "http://127.0.0.1:5173/?hazardHarness&tiles=1200",
+      "result": "Passed.",
+      "checks": [
+        "journalRecordsActiveHazards",
+        "cactusTouchHandled",
+        "cactusCleared",
+        "prickedApplied",
+        "prickedUsesGloveDuration",
+        "prickedGrassMultiplierReduced",
+        "prickedComboWindowReduced",
+        "cactusStatsRecorded",
+        "journalRecordsPricked",
+        "weedFirstPullHandled",
+        "weedStrengthReduced",
+        "weedSecondPullHandled",
+        "weedCleared",
+        "weedStatsRecorded",
+        "mowerClearsCactus",
+        "mowerClearsWeeds",
+        "mowerSetsTilesRegrowing",
+        "mowerStatsRecorded",
+        "journalRecordsMower"
+      ],
+      "finalHarnessValues": {
+        "hazardStats": {
+          "cactusCleared": 1,
+          "weedsPulled": 2,
+          "weedsCleared": 1,
+          "prickedCount": 1,
+          "mowerPasses": 0,
+          "mowerTilesMown": 2,
+          "hazardsClearedByMower": 2
+        },
+        "seenHazards": ["cactus", "weeds", "pricked", "mower"]
+      }
+    },
+    {
+      "target": "Stress-mode visual smoke",
+      "result": "Journal opened cleanly on desktop; Hazards & Counterplay section rendered readable; Journal quest filter showed hazard quests."
+    },
+    {
+      "target": "Mobile visual smoke at 390x844",
+      "result": "Journal header rendered as two resource lines without overlapping status/body text."
+    },
+    {
+      "target": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "viewport": "390x844",
+      "result": "Passed.",
+      "completeSample": {
+        "visibleTiles": 84,
+        "totalTiles": 1204,
+        "layoutPasses": 0,
+        "redraws": 0,
+        "redrawQueued": 0,
+        "maxFrameDeltaMs": 13,
+        "frameSpikes": 0,
+        "displayObjects": 281,
+        "activeTweens": 21,
+        "hotspots": "hot none"
+      }
+    },
+    {
+      "target": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "viewport": "1280x720",
+      "result": "Passed.",
+      "completeSample": {
+        "visibleTiles": 1202,
+        "totalTiles": 1202,
+        "layoutPasses": 0,
+        "redraws": 0,
+        "redrawQueued": 0,
+        "maxFrameDeltaMs": 17,
+        "frameSpikes": 0,
+        "displayObjects": 281,
+        "activeTweens": 21,
+        "hotspots": "hot none"
+      }
+    }
+  ],
+  "currentGitStatusSummary": {
+    "branch": "master",
+    "aheadOfOriginBy": 1,
+    "aheadCommit": "e3fc40c Add hazard validation harness",
+    "trackedChanges": [
+      "src/game/data/journal.ts",
+      "src/game/data/quests.ts",
+      "src/game/scenes/GameScene.ts",
+      "src/game/systems/FieldSystem.ts",
+      "src/game/systems/SaveSystem.ts",
+      "src/game/types/game-state.ts",
+      "handoffs/LATEST.json"
+    ],
+    "newSessionHandoff": "handoffs/HANDOFF_2026-06-20_HAZARD_PLAYER_TEXTURES.json",
+    "preExistingUntrackedLocalOnly": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md may appear escaped in git status",
+      "docs/artifacts/",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssuesAndCaveats": [
+    "Hazard stats are run progress and reset with prestige; seenHazardIds persist with journal discoveries.",
+    "Mower pass count increments when the animated mower event starts. The deterministic harness directly applies mower tile effects, so its mowerPasses value remains 0 while mower tile counters are validated.",
+    "The Journal filter includes Hazards quests, but seed-shop counterplay quests remain categorized under Seed Shop and appear in All/Active/Ready."
+  ],
+  "doNotRevertOrTouchWithoutUserRequest": [
+    "Do not revert e3fc40c Add hazard validation harness.",
+    "Do not delete, stage, or commit unrelated untracked docs/artifacts unless the user explicitly asks.",
+    "Do not assume handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json is committed; it remains local-only unless staged later."
+  ],
+  "recommendedNextSteps": [
+    "Commit the hazard player-facing texture pass if the user approves.",
+    "Consider adding tiny visual badges/icons in the Quest Log or Journal section later if the text-only pass feels too dense.",
+    "Push e3fc40c plus the next commit when ready."
+  ]
+}

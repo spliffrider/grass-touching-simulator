@@ -16,7 +16,7 @@ import { DEFAULT_CHARACTER_CLASS_ID, getCharacterClass } from "../data/character
 import { GRASS_TIERS, getGrassTier, getNextGrassTier } from "../data/grass-tiers";
 import { BUILD_LABEL } from "../data/build-info";
 import { GOLD_STORE_ITEMS } from "../data/gold-store";
-import { JOURNAL_COMPANION_NOTES, JOURNAL_GRASS_NOTES, JOURNAL_TRAIT_NOTES, JOURNAL_WEATHER_NOTES } from "../data/journal";
+import { JOURNAL_COMPANION_NOTES, JOURNAL_GRASS_NOTES, JOURNAL_HAZARD_NOTES, JOURNAL_TRAIT_NOTES, JOURNAL_WEATHER_NOTES } from "../data/journal";
 import { MILESTONES } from "../data/milestones";
 import { QUESTS, formatQuestProgress, formatQuestReward, isQuestAvailable, isQuestClaimable, type QuestDefinition } from "../data/quests";
 import { SEED_SHOP_ITEMS, getSeedDropChance } from "../data/seed-shop";
@@ -79,6 +79,8 @@ import type {
   FieldTile,
   GameState,
   GrassTierId,
+  HazardStatsState,
+  JournalHazardId,
   RuntimeStats,
   TileKey,
   TileTrait,
@@ -510,6 +512,8 @@ interface HazardHarnessStep {
   comboWindowRatio?: number;
   seedDelta?: number;
   tileStates?: Record<string, FieldTile["grassState"]>;
+  hazardStats?: HazardStatsState;
+  seenHazards?: JournalHazardId[];
 }
 
 interface HazardHarnessResult {
@@ -1766,6 +1770,16 @@ export class GameScene extends Phaser.Scene {
 
       this.state.tileHazards = {};
       this.state.debuffs = {};
+      this.state.hazardStats = {
+        cactusCleared: 0,
+        weedsPulled: 0,
+        weedsCleared: 0,
+        prickedCount: 0,
+        mowerPasses: 0,
+        mowerTilesMown: 0,
+        hazardsClearedByMower: 0,
+      };
+      this.state.journal.seenHazardIds = [];
       this.invalidateRuntimeStats();
 
       const now = Date.now();
@@ -1776,13 +1790,18 @@ export class GameScene extends Phaser.Scene {
       this.state.tileHazards[weedKey] = { id: "weeds", createdAt: now, expiresAt, strength: 2 };
       this.refreshTile(cactusTile);
       this.refreshTile(weedTile);
+      this.updateJournalDiscoveries();
       this.refreshUi(false);
+      checks.journalRecordsActiveHazards =
+        this.state.journal.seenHazardIds.includes("cactus") && this.state.journal.seenHazardIds.includes("weeds");
 
       const prePrickStats = this.getCachedRuntimeStats(now);
       capture("initial", {
         weedStrength: this.state.tileHazards[weedKey]?.strength,
         grassTouchMultiplier: prePrickStats.grassTouchMultiplier,
         comboWindowMultiplier: prePrickStats.comboWindowMultiplier,
+        hazardStats: { ...this.state.hazardStats },
+        seenHazards: [...this.state.journal.seenHazardIds],
       });
 
       checks.cactusTouchHandled = this.handleHazardTileClicked(cactusTile);
@@ -1793,22 +1812,35 @@ export class GameScene extends Phaser.Scene {
       checks.prickedUsesGloveDuration = this.state.seedShopPurchases.garden_gloves ? prickedRemainingMs <= 5200 : prickedRemainingMs <= 8500;
       checks.prickedGrassMultiplierReduced = postPrickStats.grassTouchMultiplier < prePrickStats.grassTouchMultiplier;
       checks.prickedComboWindowReduced = postPrickStats.comboWindowMultiplier < prePrickStats.comboWindowMultiplier;
+      checks.cactusStatsRecorded = this.state.hazardStats.cactusCleared === 1 && this.state.hazardStats.prickedCount === 1;
+      checks.journalRecordsPricked = this.state.journal.seenHazardIds.includes("pricked");
       capture("afterCactus", {
         grassTouchMultiplier: postPrickStats.grassTouchMultiplier,
         comboWindowMultiplier: postPrickStats.comboWindowMultiplier,
         grassMultiplierRatio: Number((postPrickStats.grassTouchMultiplier / prePrickStats.grassTouchMultiplier).toFixed(3)),
         comboWindowRatio: Number((postPrickStats.comboWindowMultiplier / prePrickStats.comboWindowMultiplier).toFixed(3)),
+        hazardStats: { ...this.state.hazardStats },
+        seenHazards: [...this.state.journal.seenHazardIds],
       });
 
       checks.weedFirstPullHandled = this.handleHazardTileClicked(weedTile);
       const pulledWeed = this.state.tileHazards[weedKey];
       checks.weedStrengthReduced = pulledWeed?.id === "weeds" && pulledWeed.strength === 1;
-      capture("afterWeedPull", { weedStrength: pulledWeed?.strength });
+      capture("afterWeedPull", {
+        weedStrength: pulledWeed?.strength,
+        hazardStats: { ...this.state.hazardStats },
+        seenHazards: [...this.state.journal.seenHazardIds],
+      });
 
       const seedsBeforeWeedClear = this.state.seeds;
       checks.weedSecondPullHandled = this.handleHazardTileClicked(weedTile);
       checks.weedCleared = this.state.tileHazards[weedKey] === undefined;
-      capture("afterWeedClear", { seedDelta: this.state.seeds - seedsBeforeWeedClear });
+      checks.weedStatsRecorded = this.state.hazardStats.weedsPulled === 2 && this.state.hazardStats.weedsCleared === 1;
+      capture("afterWeedClear", {
+        seedDelta: this.state.seeds - seedsBeforeWeedClear,
+        hazardStats: { ...this.state.hazardStats },
+        seenHazards: [...this.state.journal.seenHazardIds],
+      });
 
       const mowerNow = Date.now();
       const mowerExpiresAt = mowerNow + 60000;
@@ -1823,11 +1855,15 @@ export class GameScene extends Phaser.Scene {
       checks.mowerClearsCactus = this.state.tileHazards[mowerCactusKey] === undefined;
       checks.mowerClearsWeeds = this.state.tileHazards[mowerWeedKey] === undefined;
       checks.mowerSetsTilesRegrowing = mowerCactusTile.grassState === "regrowing" && mowerWeedTile.grassState === "regrowing";
+      checks.mowerStatsRecorded = this.state.hazardStats.mowerTilesMown === 2 && this.state.hazardStats.hazardsClearedByMower === 2;
+      checks.journalRecordsMower = this.state.journal.seenHazardIds.includes("mower");
       capture("afterMower", {
         tileStates: {
           [mowerCactusKey]: mowerCactusTile.grassState,
           [mowerWeedKey]: mowerWeedTile.grassState,
         },
+        hazardStats: { ...this.state.hazardStats },
+        seenHazards: [...this.state.journal.seenHazardIds],
       });
 
       capture("complete");
@@ -1869,6 +1905,15 @@ export class GameScene extends Phaser.Scene {
     state.lifetimeSeeds = 2500;
     state.gold = 2500;
     state.lifetimeGold = 2500;
+    state.hazardStats = {
+      cactusCleared: 8,
+      weedsPulled: 16,
+      weedsCleared: 9,
+      prickedCount: 7,
+      mowerPasses: 2,
+      mowerTilesMown: 18,
+      hazardsClearedByMower: 3,
+    };
     state.seedShopPurchases = Object.fromEntries(SEED_SHOP_ITEMS.map((item) => [item.id, true]));
     state.inventory = Object.fromEntries(
       GOLD_STORE_ITEMS.map((item) => [item.id, { quantity: item.maxQuantity ?? 4, kind: item.kind }]),
@@ -1883,6 +1928,7 @@ export class GameScene extends Phaser.Scene {
       discoveredGrassTiers: GRASS_TIERS.map((tier) => tier.id),
       discoveredTileTraits: ["normal", "dewy", "lush"],
       seenWeatherIds: WEATHER_TYPES.map((weather) => weather.id),
+      seenHazardIds: ["cactus", "weeds", "pricked", "mower"],
       bestComboCount: 48,
     };
 
@@ -2805,7 +2851,7 @@ export class GameScene extends Phaser.Scene {
       case "class":
         return quest.category === "Class";
       case "journal":
-        return quest.category === "Field Journal";
+        return quest.category === "Field Journal" || quest.category === "Hazards";
       case "claimed":
         return claimed;
       case "all":
@@ -2838,7 +2884,7 @@ export class GameScene extends Phaser.Scene {
         case "class":
           return "No class quests available in this list.";
         case "journal":
-          return "No Field Journal quests available in this list.";
+          return "No Field Journal or hazard quests available in this list.";
         case "claimed":
           return "No claimed quests yet.";
         case "all":
@@ -2857,7 +2903,7 @@ export class GameScene extends Phaser.Scene {
       case "class":
         return "Class mastery quests.";
       case "journal":
-        return "Field Journal specimen quests.";
+        return "Field Journal specimen and hazard quests.";
       case "claimed":
         return "Completed and claimed quests.";
       case "all":
@@ -2889,7 +2935,7 @@ export class GameScene extends Phaser.Scene {
       padding: { x: 12, y: 8 },
     });
     this.journalStatusText = this.add
-      .text(0, 0, "A living record of grass, weather, companions, and suspiciously productive habits.", {
+      .text(0, 0, "A living record of grass, weather, hazards, companions, and suspiciously productive habits.", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "16px",
         color: "#f7ffe8",
@@ -2927,7 +2973,8 @@ export class GameScene extends Phaser.Scene {
 
     const compact = this.scale.width < 620;
     const panelWidth = Math.min(680, this.scale.width - 40);
-    const startY = compact ? 154 : 162;
+    const compactResourceLines = compact && this.journalResourceText.text.includes("\n");
+    const startY = compactResourceLines ? 184 : compact ? 154 : 162;
     const availableHeight = Math.max(120, this.scale.height - startY - 26);
     const maxScroll = Math.max(0, this.journalBodyText.height - availableHeight);
     this.journalScroll = Math.min(this.journalScroll, maxScroll);
@@ -2941,7 +2988,7 @@ export class GameScene extends Phaser.Scene {
     this.journalBodyText.setWordWrapWidth(panelWidth);
     this.journalTitleText.setPosition(24, 24);
     this.journalResourceText.setPosition(26, compact ? 72 : 78);
-    this.journalStatusText.setPosition(this.scale.width / 2, compact ? 108 : 112);
+    this.journalStatusText.setPosition(this.scale.width / 2, compactResourceLines ? 134 : compact ? 108 : 112);
     this.journalBodyText.setPosition((this.scale.width - panelWidth) / 2, startY - this.journalScroll);
     this.journalBackButton.setScale(compact ? 0.9 : 1);
     this.journalBackButton.setPosition(this.scale.width - 142, 24);
@@ -4593,6 +4640,7 @@ export class GameScene extends Phaser.Scene {
         discoveredGrassTiers: [...previousState.journal.discoveredGrassTiers],
         discoveredTileTraits: [...previousState.journal.discoveredTileTraits],
         seenWeatherIds: [...previousState.journal.seenWeatherIds],
+        seenHazardIds: [...previousState.journal.seenHazardIds],
         bestComboCount: previousState.journal.bestComboCount,
       };
       freshState.selectedTrackId = previousState.selectedTrackId;
@@ -6379,8 +6427,17 @@ export class GameScene extends Phaser.Scene {
     this.invalidateRuntimeStats();
     this.refreshTile(tile);
     if (result.hazardId === "cactus") {
+      this.state.hazardStats.cactusCleared += 1;
+      this.state.hazardStats.prickedCount += 1;
+      this.addJournalValue(this.state.journal.seenHazardIds, "cactus");
+      this.addJournalValue(this.state.journal.seenHazardIds, "pricked");
       this.playCactusPrickFeedback(tile);
     } else {
+      this.state.hazardStats.weedsPulled += 1;
+      this.addJournalValue(this.state.journal.seenHazardIds, "weeds");
+      if (result.cleared) {
+        this.state.hazardStats.weedsCleared += 1;
+      }
       this.playWeedPullFeedback(tile, result.cleared);
     }
     this.popAtTile(tile, result.popText, result.color);
@@ -7395,6 +7452,10 @@ export class GameScene extends Phaser.Scene {
     this.mowerSprite = mower;
     this.audio.play("mower");
     this.showMessage("Robotic lawnmower is making a pass.", 1800);
+    this.state.hazardStats.mowerPasses += 1;
+    this.addJournalValue(this.state.journal.seenHazardIds, "mower");
+    this.refreshUi(false);
+    this.queueSave();
 
     routePositions.forEach((entry, index) => {
       const delay = Math.floor((duration * index) / Math.max(1, routePositions.length - 1));
@@ -7435,7 +7496,9 @@ export class GameScene extends Phaser.Scene {
 
     this.invalidateRuntimeStats();
     this.refreshTile(result.tile);
+    this.addJournalValue(this.state.journal.seenHazardIds, "mower");
     if (result.mown) {
+      this.state.hazardStats.mowerTilesMown += 1;
       this.popAtTile(result.tile, "mown", "#fff2b2");
       const position = this.getTileVisualPosition(result.tile);
       if (position) {
@@ -7443,9 +7506,13 @@ export class GameScene extends Phaser.Scene {
       }
     }
     if (result.removedCactus) {
+      this.state.hazardStats.hazardsClearedByMower += 1;
+      this.addJournalValue(this.state.journal.seenHazardIds, "cactus");
       this.popAtTile(result.tile, "cactus cleared", "#ffb347");
     }
     if (result.removedWeeds) {
+      this.state.hazardStats.hazardsClearedByMower += 1;
+      this.addJournalValue(this.state.journal.seenHazardIds, "weeds");
       this.popAtTile(result.tile, "weeds shredded", "#b7eba5");
     }
     this.queueSave();
@@ -9488,12 +9555,16 @@ export class GameScene extends Phaser.Scene {
     this.refreshJournalAccess();
 
     const ownedCompanions = GOLD_STORE_ITEMS.filter((item) => item.kind === "animal" && getInventoryQuantity(this.state, item.id) > 0);
+    const journalResourceParts = [
+      `Grass: ${this.state.journal.discoveredGrassTiers.length}/${GRASS_TIERS.length}`,
+      `Weather: ${this.state.journal.seenWeatherIds.length}/${WEATHER_TYPES.length}`,
+      `Hazards: ${this.state.journal.seenHazardIds.length}/4`,
+      `Companions: ${ownedCompanions.length}/${GOLD_STORE_ITEMS.filter((item) => item.kind === "animal").length}`,
+    ];
     this.journalResourceText.setText(
-      [
-        `Grass: ${this.state.journal.discoveredGrassTiers.length}/${GRASS_TIERS.length}`,
-        `Weather: ${this.state.journal.seenWeatherIds.length}/${WEATHER_TYPES.length}`,
-        `Companions: ${ownedCompanions.length}/${GOLD_STORE_ITEMS.filter((item) => item.kind === "animal").length}`,
-      ].join(" | "),
+      this.scale.width < 720
+        ? [`${journalResourceParts[0]} | ${journalResourceParts[1]}`, `${journalResourceParts[2]} | ${journalResourceParts[3]}`].join("\n")
+        : journalResourceParts.join(" | "),
     );
 
     this.journalBodyText.setText(
@@ -9501,6 +9572,7 @@ export class GameScene extends Phaser.Scene {
         this.formatJournalGrassSection(),
         this.formatJournalTraitSection(),
         this.formatJournalWeatherSection(),
+        this.formatJournalHazardSection(),
         this.formatJournalCompanionSection(),
         this.formatJournalProgressSection(),
       ].join("\n\n"),
@@ -9513,6 +9585,18 @@ export class GameScene extends Phaser.Scene {
 
     if (this.state.activeWeatherId) {
       changed = this.addJournalValue(this.state.journal.seenWeatherIds, this.state.activeWeatherId) || changed;
+    }
+
+    for (const [key, hazard] of Object.entries(this.state.tileHazards)) {
+      if (hazard && getTileHazard(this.state, key as TileKey) === hazard) {
+        changed = this.addJournalValue(this.state.journal.seenHazardIds, hazard.id) || changed;
+      }
+    }
+    if (getPrickedRemainingMs(this.state) > 0) {
+      changed = this.addJournalValue(this.state.journal.seenHazardIds, "pricked") || changed;
+    }
+    if (this.state.hazardStats.mowerPasses > 0) {
+      changed = this.addJournalValue(this.state.journal.seenHazardIds, "mower") || changed;
     }
 
     if (this.combo.getCount() > this.state.journal.bestComboCount) {
@@ -9573,6 +9657,14 @@ export class GameScene extends Phaser.Scene {
       this.showMessage(`Field Journal: ${weather.name} weather recorded.`, 2600);
       this.playJournalCelebration();
       this.audio.play("unlock");
+      return;
+    }
+
+    if (value === "cactus" || value === "weeds" || value === "pricked" || value === "mower") {
+      const label = value === "cactus" ? "Cactus" : value === "weeds" ? "Weeds" : value === "pricked" ? "Pricked" : "Robotic mower";
+      this.showMessage(`Field Journal: ${label} recorded.`, 2600);
+      this.playJournalCelebration();
+      this.audio.play("unlock");
     }
   }
 
@@ -9611,6 +9703,64 @@ export class GameScene extends Phaser.Scene {
     ].join("\n");
   }
 
+  private formatJournalHazardSection(): string {
+    const stats = this.state.hazardStats;
+    const activeStatus = getHazardStatusText(this.state) || "quiet";
+    const counterplay = [
+      this.state.seedShopPurchases.garden_gloves ? "Garden Gloves" : "",
+      this.state.seedShopPurchases.compost_bin ? "Compost Bin" : "",
+      this.state.seedShopPurchases.mower_boundary ? "Mower Boundary" : "",
+    ].filter(Boolean);
+    const entries: Array<{ id: JournalHazardId; label: string; stats: string; hidden: string }> = [
+      {
+        id: "cactus",
+        label: "Cactus",
+        stats: `${stats.cactusCleared} cleared, ${this.countActiveHazards("cactus")} active`,
+        hidden: "Reach 180 lifetime touches and keep expanding the field.",
+      },
+      {
+        id: "weeds",
+        label: "Weeds",
+        stats: `${stats.weedsPulled} pulls, ${stats.weedsCleared} cleared, ${this.countActiveHazards("weeds")} active`,
+        hidden: "Reach 360 lifetime touches and keep some grown patches around.",
+      },
+      {
+        id: "pricked",
+        label: "Pricked",
+        stats: `${stats.prickedCount} cactus pricks recorded`,
+        hidden: "A cactus will explain this eventually.",
+      },
+      {
+        id: "mower",
+        label: "Robotic mower",
+        stats: `${stats.mowerPasses} passes, ${stats.mowerTilesMown} patches mown, ${stats.hazardsClearedByMower} hazards cleared`,
+        hidden: "Reach 720 lifetime touches and a bigger field.",
+      },
+    ];
+
+    return [
+      "Hazards & Counterplay",
+      `- Current pressure: ${activeStatus}`,
+      ...entries.map((entry) =>
+        this.state.journal.seenHazardIds.includes(entry.id)
+          ? `- ${entry.label}: ${JOURNAL_HAZARD_NOTES[entry.id]} (${entry.stats})`
+          : `- Unrecorded hazard: ${entry.hidden}`,
+      ),
+      `- Counterplay owned: ${counterplay.length > 0 ? counterplay.join(", ") : "none yet"}`,
+    ].join("\n");
+  }
+
+  private countActiveHazards(hazardId: "cactus" | "weeds"): number {
+    let count = 0;
+    const now = Date.now();
+    for (const [key, hazard] of Object.entries(this.state.tileHazards)) {
+      if (hazard?.id === hazardId && getTileHazard(this.state, key as TileKey, now)) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
   private formatJournalCompanionSection(): string {
     const animals = GOLD_STORE_ITEMS.filter((item) => item.kind === "animal");
 
@@ -9645,6 +9795,8 @@ export class GameScene extends Phaser.Scene {
       ...collectionBonusLines,
       `- Hybrid mutations: ${this.state.mutationEvents}`,
       `- Watered patches: ${this.state.wateredPatches}`,
+      `- Hazards handled: ${this.state.hazardStats.cactusCleared + this.state.hazardStats.weedsCleared + this.state.hazardStats.hazardsClearedByMower}`,
+      `- Mower passes survived: ${this.state.hazardStats.mowerPasses}`,
       `- Best combo: ${this.state.journal.bestComboCount}`,
       `- Best automation streak: ${this.state.automationStats.bestAutomationComboCount}`,
     ].join("\n");
