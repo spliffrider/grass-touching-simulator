@@ -2,7 +2,13 @@ export type GrassTouchAmount = number;
 
 export const MAX_GRASS_TOUCH_AMOUNT = 1e300;
 
-const SCIENTIFIC_THRESHOLD = 1_000_000_000_000;
+const FORMAT_CACHE_LIMIT = 2048;
+
+const wholeNumberFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 0,
+});
+
+const formattedGrassTouchCache = new Map<GrassTouchAmount, string>();
 
 export function normalizeGrassTouches(value: unknown, fallback: GrassTouchAmount = 0): GrassTouchAmount {
   const numericValue = typeof value === "number" ? value : Number(value);
@@ -37,12 +43,18 @@ export function getMissingGrassTouches(current: GrassTouchAmount, cost: number):
 
 export function formatGrassTouches(value: GrassTouchAmount): string {
   const amount = normalizeGrassTouches(value);
-
-  if (amount < SCIENTIFIC_THRESHOLD) {
-    return amount.toLocaleString("en-US");
+  const cached = formattedGrassTouchCache.get(amount);
+  if (cached) {
+    return cached;
   }
 
-  return formatScientific(amount);
+  const formatted = wholeNumberFormatter.format(amount);
+  if (formattedGrassTouchCache.size >= FORMAT_CACHE_LIMIT) {
+    formattedGrassTouchCache.clear();
+  }
+  formattedGrassTouchCache.set(amount, formatted);
+
+  return formatted;
 }
 
 export function formatGrassTouchesPerMinute(value: number): string {
@@ -52,9 +64,4 @@ export function formatGrassTouchesPerMinute(value: number): string {
 
 function clampGrassTouches(value: number): GrassTouchAmount {
   return Math.min(MAX_GRASS_TOUCH_AMOUNT, Math.max(0, Math.floor(value)));
-}
-
-function formatScientific(value: number): string {
-  const [coefficient = "0", exponent = "0"] = value.toExponential(2).split("e+");
-  return `${coefficient}e${exponent}`;
 }

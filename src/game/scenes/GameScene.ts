@@ -147,6 +147,7 @@ const COMMON_REDRAW_FRAME_BUDGET_MS = 4;
 const COMMON_REDRAW_TILE_BUDGET = 22;
 const PANEL_UI_REFRESH_INTERVAL_MS = 1000;
 const WORLD_OBJECT_UI_REFRESH_INTERVAL_MS = 900;
+const HUD_GRASS_TOUCH_GROUPS_PER_LINE = 9;
 const MAX_ACTIVE_POP_TEXTS = 18;
 const PERF_HARNESS_IDLE_DELAY_MS = 900;
 const PERF_HARNESS_PHASE_DELAY_MS = 800;
@@ -173,6 +174,21 @@ function getAutomationPreviewState(state: GameState, systemId: string, owned: nu
 function formatAutomationOutputDelta(currentOutput: number, previewOutput: number): string {
   const delta = previewOutput - currentOutput;
   return delta > 0 ? `+${formatGrassTouchesPerMinute(delta)}` : "+0/min";
+}
+
+function formatHudGrassTouches(value: number): string {
+  const formatted = formatGrassTouches(value);
+  const groups = formatted.split(",");
+  if (groups.length <= HUD_GRASS_TOUCH_GROUPS_PER_LINE) {
+    return formatted;
+  }
+
+  const lines: string[] = [];
+  for (let index = 0; index < groups.length; index += HUD_GRASS_TOUCH_GROUPS_PER_LINE) {
+    lines.push(groups.slice(index, index + HUD_GRASS_TOUCH_GROUPS_PER_LINE).join(","));
+  }
+
+  return lines.join("\n");
 }
 
 function getDirectiveAdjustedAutomationOutput(state: GameState, output: number): number {
@@ -8458,7 +8474,6 @@ export class GameScene extends Phaser.Scene {
     const nextTier = getNextGrassTier(this.state);
     const nextAutomationBreakthroughLine = this.profileScope("ui:autoGoal", () => this.getNextAutomationBreakthroughLine());
     const compact = this.scale.width < 620;
-    const resourceSeparator = compact ? "\n" : " | ";
     const stats = this.profileScope("ui:stats", () => this.getCachedRuntimeStats());
     const automationTouchesPerMinute = this.profileScope("calc:autoTotal", () => getTotalAutomationTouchesPerMinute(this.state, stats));
     const automationUnitCount = this.profileScope("calc:autoUnits", () => getAutomationUnitCount(this.state));
@@ -8479,10 +8494,13 @@ export class GameScene extends Phaser.Scene {
       this.refreshWeatherVisuals();
     });
     this.profileScope("ui:resourceText", () => {
+      const grassTouches = formatHudGrassTouches(this.state.grassTouches);
+      const grassTouchLabel = compact || grassTouches.includes("\n") ? `Grass Touches:\n${grassTouches}` : `Grass Touches: ${grassTouches}`;
+      const resourceSeparator = compact || grassTouches.includes("\n") ? "\n" : " | ";
       this.setTextIfChanged(
         this.resourceText,
         [
-          `Grass Touches: ${formatGrassTouches(this.state.grassTouches)}`,
+          grassTouchLabel,
           `Seeds: ${Math.floor(this.state.seeds)}`,
           `Gold: ${Math.floor(this.state.gold)}`,
           automationTouchesPerMinute > 0 ? `Auto: ${formatGrassTouchesPerMinute(automationTouchesPerMinute)}` : "",
