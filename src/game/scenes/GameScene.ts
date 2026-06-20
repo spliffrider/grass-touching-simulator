@@ -205,6 +205,12 @@ const PERFECT_TOUCH_CUE_MIN_SCALE = 0.52;
 const COMBO_BADGE_REFRESH_INTERVAL_MS = 48;
 const HOVER_REFRESH_INTERVAL_MS = 70;
 const HOVER_MOVE_THRESHOLD_SQ = 64;
+const PERSISTENT_TOUCH_BASE_INTERVAL_MS = 230;
+const PERSISTENT_TOUCH_INTERVAL_STEP_MS = 28;
+const PERSISTENT_TOUCH_MIN_INTERVAL_MS = 135;
+const PERSISTENT_TOUCH_DRAG_GRACE_MS = 48;
+const PERSISTENT_TOUCH_MISS_INTERVAL_MS = 90;
+const PERSISTENT_TOUCH_BLOCKED_INTERVAL_MS = 320;
 const TREE_WIDTH = 880;
 const TREE_HEIGHT = 560;
 const COMBO_AOE_MIN_COUNT = 18;
@@ -736,6 +742,10 @@ export class GameScene extends Phaser.Scene {
   private commonTileLayerDirty = false;
   private boardHitZone?: Phaser.GameObjects.Zone;
   private pendingBoardTileKey?: TileKey;
+  private persistentTouchPointer?: Phaser.Input.Pointer;
+  private persistentTouchActive = false;
+  private persistentTouchNextAt = 0;
+  private persistentTouchLastTileKey?: TileKey;
   private hoverMarker?: Phaser.GameObjects.Rectangle;
   private burstEmitters = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
   private uiBurstEmitters = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
@@ -919,11 +929,13 @@ export class GameScene extends Phaser.Scene {
       this.pointerPanStartY = pointer.y;
 
       if (this.shouldTouchBoardOnPointerDown(pointer) && this.pendingBoardTileKey) {
-        const tile = this.state.field[this.pendingBoardTileKey];
+        const touchedTileKey = this.pendingBoardTileKey;
+        const tile = this.state.field[touchedTileKey];
         this.pendingBoardTileKey = undefined;
         this.isBoardPanArmed = false;
         if (tile) {
           this.handleTileClicked(tile);
+          this.startPersistentTouch(pointer, touchedTileKey);
         }
       }
     });
@@ -943,6 +955,7 @@ export class GameScene extends Phaser.Scene {
         this.isBoardPanArmed = false;
         this.isPanningBoard = true;
         this.pendingBoardTileKey = undefined;
+        this.stopPersistentTouch();
         this.boardPanStartX = this.boardPanX;
         this.boardPanStartY = this.boardPanY;
         this.pointerPanStartX = pointer.x;
@@ -972,6 +985,7 @@ export class GameScene extends Phaser.Scene {
       this.pendingBoardTileKey = undefined;
       this.isBoardPanArmed = false;
       this.isPanningBoard = false;
+      this.stopPersistentTouch();
       this.draggingMusicVolume = false;
     });
 
@@ -979,9 +993,11 @@ export class GameScene extends Phaser.Scene {
       this.pendingBoardTileKey = undefined;
       this.isBoardPanArmed = false;
       this.isPanningBoard = false;
+      this.stopPersistentTouch();
       this.draggingMusicVolume = false;
     });
 
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handlePersistentTouchPointerMove(pointer));
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleMusicVolumeDrag(pointer));
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleBoardHover(pointer));
     window.addEventListener("pagehide", this.handlePageHide);
@@ -1045,6 +1061,9 @@ export class GameScene extends Phaser.Scene {
       }
       this.pruneRecentlyRegrown(now);
     });
+    if (this.persistentTouchActive) {
+      this.profileScope("touch:persistent", () => this.updatePersistentTouch(now));
+    }
     this.profileScope("systems", () => {
       this.automationScheduler.update(delta, stats);
     });
@@ -5754,6 +5773,105 @@ export class GameScene extends Phaser.Scene {
     this.hoverMarker?.setVisible(false);
   }
 
+  private startPersistentTouch(pointer: Phaser.Input.Pointer, tileKey: TileKey): void {
+    if (!this.canUsePersistentTouch(pointer)) {
+      return;
+    }
+
+    this.persistentTouchPointer = pointer;
+    this.persistentTouchActive = true;
+    this.persistentTouchLastTileKey = tileKey;
+    this.persistentTouchNextAt = Date.now() + this.getPersistentTouchIntervalMs();
+  }
+
+  private stopPersistentTouch(): void {
+    if (!this.persistentTouchActive) {
+      return;
+    }
+
+    this.persistentTouchPointer = undefined;
+    this.persistentTouchActive = false;
+    this.persistentTouchNextAt = 0;
+    this.persistentTouchLastTileKey = undefined;
+  }
+
+  private handlePersistentTouchPointerMove(pointer: Phaser.Input.Pointer): void {
+    if (!this.persistentTouchActive || pointer !== this.persistentTouchPointer || !this.canUsePersistentTouch(pointer)) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now + PERSISTENT_TOUCH_DRAG_GRACE_MS >= this.persistentTouchNextAt) {
+      return;
+    }
+
+    const key = this.getBoardTileKeyAtPointer(pointer);
+    if (!key || key === this.persistentTouchLastTileKey) {
+      return;
+    }
+
+    this.persistentTouchNextAt = now + PERSISTENT_TOUCH_DRAG_GRACE_MS;
+  }
+
+  private updatePersistentTouch(now: number): void {
+    if (!this.persistentTouchActive) {
+      return;
+    }
+
+    const pointer = this.persistentTouchPointer;
+    if (
+      !pointer ||
+      !this.canUsePersistentTouch(pointer) ||
+      this.hasBlockingOverlayOpen() ||
+      this.selectedPlacementObjectId ||
+      this.isPanningBoard
+    ) {
+      this.stopPersistentTouch();
+      return;
+    }
+
+    if (now < this.persistentTouchNextAt) {
+      return;
+    }
+
+    if (this.isBoardLayoutBusy() || this.children.list.length >= DISPLAY_OBJECT_CRITICAL_LIMIT) {
+      this.persistentTouchNextAt = now + PERSISTENT_TOUCH_MISS_INTERVAL_MS;
+      return;
+    }
+
+    const key = this.getBoardTileKeyAtPointer(pointer);
+    if (!key) {
+      this.persistentTouchLastTileKey = undefined;
+      this.persistentTouchNextAt = now + PERSISTENT_TOUCH_MISS_INTERVAL_MS;
+      return;
+    }
+
+    const tile = this.state.field[key];
+    if (!tile) {
+      this.persistentTouchLastTileKey = undefined;
+      this.persistentTouchNextAt = now + PERSISTENT_TOUCH_MISS_INTERVAL_MS;
+      return;
+    }
+
+    this.persistentTouchLastTileKey = key;
+    if (tile.grassState !== "grown") {
+      this.persistentTouchNextAt = now + PERSISTENT_TOUCH_BLOCKED_INTERVAL_MS;
+      return;
+    }
+
+    this.handleTileClicked(tile);
+    this.persistentTouchNextAt = now + this.getPersistentTouchIntervalMs();
+  }
+
+  private canUsePersistentTouch(pointer: Phaser.Input.Pointer): boolean {
+    return this.getUpgradeLevel("persistent_touch") > 0 && this.shouldTouchBoardOnPointerDown(pointer);
+  }
+
+  private getPersistentTouchIntervalMs(): number {
+    const level = Math.max(1, this.getUpgradeLevel("persistent_touch"));
+    return Math.max(PERSISTENT_TOUCH_MIN_INTERVAL_MS, PERSISTENT_TOUCH_BASE_INTERVAL_MS - (level - 1) * PERSISTENT_TOUCH_INTERVAL_STEP_MS);
+  }
+
   private shouldTouchBoardOnPointerDown(pointer: Phaser.Input.Pointer): boolean {
     const event = pointer.event as PointerEvent | MouseEvent | undefined;
     const pointerType = event && "pointerType" in event ? event.pointerType : "";
@@ -9439,7 +9557,7 @@ export class GameScene extends Phaser.Scene {
       return "Class";
     }
 
-    if (["two_handed_technique", "mindful_contact", "barefoot_confidence", "soft_meadow"].includes(upgradeId)) {
+    if (["two_handed_technique", "persistent_touch", "mindful_contact", "barefoot_confidence", "soft_meadow"].includes(upgradeId)) {
       return "Touch";
     }
 
