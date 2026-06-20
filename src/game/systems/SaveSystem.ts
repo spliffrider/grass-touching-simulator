@@ -10,6 +10,7 @@ import type {
   CharacterClassId,
   AutomationStatsState,
   AutomationSystemState,
+  DebuffState,
   FieldTile,
   GameState,
   GrassTierId,
@@ -17,6 +18,7 @@ import type {
   JournalState,
   PlacedWorldObject,
   PrestigeState,
+  TileHazardState,
   TileKey,
   TileTrait,
   UpgradeState,
@@ -83,6 +85,8 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
     wateredPatches: readNumber(saved.wateredPatches, initial.wateredPatches),
     mutationEvents: readNumber(saved.mutationEvents, initial.mutationEvents),
     field,
+    tileHazards: readTileHazards(saved.tileHazards, field),
+    debuffs: readDebuffs(saved.debuffs),
     upgrades: readRecord<UpgradeState>(saved.upgrades),
     seedShopPurchases,
     inventory,
@@ -171,6 +175,53 @@ function readPlacedWorldObjects(value: unknown, field: Record<TileKey, FieldTile
   }
 
   return placements;
+}
+
+function readTileHazards(value: unknown, field: Record<TileKey, FieldTile>): Partial<Record<TileKey, TileHazardState>> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const hazards: Partial<Record<TileKey, TileHazardState>> = {};
+  const now = Date.now();
+
+  for (const [key, hazard] of Object.entries(value)) {
+    if (!field[key as TileKey] || !isRecord(hazard) || (hazard.id !== "cactus" && hazard.id !== "weeds")) {
+      continue;
+    }
+
+    const expiresAt = readNumber(hazard.expiresAt, 0);
+    if (expiresAt <= now) {
+      continue;
+    }
+
+    hazards[key as TileKey] = {
+      id: hazard.id,
+      createdAt: readNumber(hazard.createdAt, now),
+      expiresAt,
+      strength: hazard.id === "weeds" ? Math.max(1, Math.min(3, Math.floor(readNumber(hazard.strength, 1)))) : undefined,
+    };
+  }
+
+  return hazards;
+}
+
+function readDebuffs(value: unknown): Partial<Record<DebuffState["id"], DebuffState>> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const debuffs: Partial<Record<DebuffState["id"], DebuffState>> = {};
+  const pricked = value.pricked;
+  const now = Date.now();
+  if (isRecord(pricked) && pricked.id === "pricked") {
+    const expiresAt = readNumber(pricked.expiresAt, 0);
+    if (expiresAt > now) {
+      debuffs.pricked = { id: "pricked", expiresAt };
+    }
+  }
+
+  return debuffs;
 }
 
 function readJournal(value: unknown, fallback: JournalState): JournalState {

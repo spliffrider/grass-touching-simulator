@@ -3,6 +3,7 @@ import { getCharacterClass } from "../data/character-classes";
 import { GRASS_TIERS } from "../data/grass-tiers";
 import { getSeasonForDate } from "../data/seasons";
 import { WEATHER_TYPES, getWeather } from "../data/weather";
+import { getPrickedRemainingMs } from "./HazardSystem";
 import { getPrestigeProductionMultiplier } from "./PrestigeSystem";
 import type { GameState, RuntimeStats } from "../types/game-state";
 
@@ -121,6 +122,11 @@ export function getRuntimeStats(state: GameState): RuntimeStats {
 
   if (state.seedShopPurchases.weather_jar) {
     getWeather(state.activeWeatherId).apply(stats);
+  }
+
+  if (getPrickedRemainingMs(state) > 0) {
+    stats.grassTouchMultiplier *= 0.82;
+    stats.comboWindowMultiplier *= 0.92;
   }
 
   if (state.inventory.field_mouse?.quantity > 0) {

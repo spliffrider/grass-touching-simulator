@@ -1,6 +1,18 @@
 import type { GrassTierId, TileTrait } from "../types/game-state";
 
-type SoundName = "touch" | "regrow" | "upgrade" | "milestone" | "blocked" | "seed" | "gold" | "crit" | "unlock" | "perfect";
+type SoundName =
+  | "touch"
+  | "regrow"
+  | "upgrade"
+  | "milestone"
+  | "blocked"
+  | "seed"
+  | "gold"
+  | "crit"
+  | "unlock"
+  | "perfect"
+  | "prick"
+  | "mower";
 
 const NOISE_BUFFER_SECONDS = 0.5;
 const TOUCH_SOUND_MIN_INTERVAL_MS = 42;
@@ -144,6 +156,12 @@ export class AudioSystem {
       case "unlock":
         this.playUnlock();
         break;
+      case "prick":
+        this.playPrick();
+        break;
+      case "mower":
+        this.playMower();
+        break;
     }
   }
 
@@ -281,6 +299,20 @@ export class AudioSystem {
     this.playTone(210, 0.045, 0.06, "square", now);
     this.playTone(150, 0.06, 0.052, "square", now + 0.04);
     this.playNoiseSweep(0.055, 520, 0.02, now + 0.012);
+  }
+
+  private playPrick(): void {
+    const now = this.now();
+    this.playTone(1240, 0.035, 0.048, "square", now);
+    this.playTone(1820, 0.026, 0.032, "sawtooth", now + 0.018);
+    this.playNoiseSweep(0.045, 2600, 0.035, now);
+  }
+
+  private playMower(): void {
+    const now = this.now();
+    this.playTone(96, 0.28, 0.036, "sawtooth", now);
+    this.playTone(128, 0.22, 0.028, "square", now + 0.045);
+    this.playNoiseSweep(0.26, 420, 0.045, now);
   }
 
   private playArp(frequencies: number[], startAt: number, step: number, volume: number, type: OscillatorType): void {

@@ -67,6 +67,7 @@ import { AudioSystem } from "../systems/AudioSystem";
 import { ChiptuneMusicSystem, TRACK_IDS } from "../systems/ChiptuneMusicSystem";
 import { ComboSystem, type ComboResult } from "../systems/ComboSystem";
 import { DropSystem, type DropFeedback } from "../systems/DropSystem";
+import { HazardSystem, getHazardStatusText, getPrickedRemainingMs, getTileHazard, type MowerEvent } from "../systems/HazardSystem";
 import { MutationSystem, type MutationEvent } from "../systems/MutationSystem";
 import { loadGame, resetSave, saveGame } from "../systems/SaveSystem";
 import { SprinklerSystem } from "../systems/SprinklerSystem";
@@ -276,8 +277,10 @@ const SEED_SHOP_ICON_KEYS: Record<string, string> = {
   quest_clipboard: "item-quest-clipboard",
   weather_jar: "item-weather-jar",
   compost_bin: "item-compost-bin",
+  garden_gloves: "item-seed-pouch",
   bug_hotel: "item-bug-hotel",
   rain_barrel: "item-rain-barrel",
+  mower_boundary: "item-sprinkler-network",
   forager_trails: "item-forager-trails",
   sprinkler_timer: "item-sprinkler-timer",
   self_seeding_nozzle: "item-self-seeding-nozzle",
@@ -314,6 +317,7 @@ const WORLD_OBJECTS: Array<{ id: string; textureKey: string; label: string; kind
 interface TileView {
   base: Phaser.GameObjects.Image;
   grass: Phaser.GameObjects.Image;
+  hazard: Phaser.GameObjects.Image;
   label: Phaser.GameObjects.Text;
   outline: Phaser.GameObjects.Rectangle;
   glint: Phaser.GameObjects.Star;
@@ -633,6 +637,7 @@ export class GameScene extends Phaser.Scene {
   private automationScheduler = this.createAutomationScheduler();
   private combo = new ComboSystem();
   private drops = new DropSystem();
+  private hazards = new HazardSystem();
   private mutations = new MutationSystem();
   private audio = new AudioSystem();
   private music = new ChiptuneMusicSystem();
@@ -746,6 +751,8 @@ export class GameScene extends Phaser.Scene {
   private persistentTouchActive = false;
   private persistentTouchNextAt = 0;
   private persistentTouchLastTileKey?: TileKey;
+  private mowerSprite?: Phaser.GameObjects.Image;
+  private mowerTileEvents: Phaser.Time.TimerEvent[] = [];
   private hoverMarker?: Phaser.GameObjects.Rectangle;
   private burstEmitters = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
   private uiBurstEmitters = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
@@ -823,6 +830,7 @@ export class GameScene extends Phaser.Scene {
     this.sprinkler.reset();
     this.animalCompanions.reset();
     this.automationIncome.reset();
+    this.hazards.reset();
     this.mutations.reset();
     this.musicVolume = readStoredMusicVolume();
     this.music.setVolume(this.musicVolume);
@@ -1140,6 +1148,7 @@ export class GameScene extends Phaser.Scene {
     this.burstEmitters.clear();
     this.uiBurstEmitters.clear();
     this.clearBoardTransientEffects();
+    this.clearMowerVisuals();
     this.destroyPopTextPool();
     this.destroyAllTileViews();
   }
@@ -1285,6 +1294,12 @@ export class GameScene extends Phaser.Scene {
       intervalMs: 250,
       initialDelayMs: 170,
       run: (deltaMs) => this.profileScope("sys:mutations", () => this.updateMutations(deltaMs)),
+    });
+    scheduler.add({
+      id: "hazards",
+      intervalMs: 500,
+      initialDelayMs: 210,
+      run: (deltaMs, stats) => this.profileScope("sys:hazards", () => this.updateHazards(deltaMs, stats)),
     });
     scheduler.add({
       id: "quest_clipboard",
@@ -4474,6 +4489,7 @@ export class GameScene extends Phaser.Scene {
     this.sprinkler.reset();
     this.animalCompanions.reset();
     this.automationIncome.reset();
+    this.hazards.reset();
     this.mutations.reset();
     this.combo.reset();
     this.activeComboSource = "manual";
@@ -4481,6 +4497,7 @@ export class GameScene extends Phaser.Scene {
     this.music.setComboLevel(0);
     this.recentlyRegrownAt.clear();
     this.destroyAllPerfectTouchCues();
+    this.clearMowerVisuals();
     this.resetBoardView();
     this.destroyAllTileViews();
     this.worldObjectViews.forEach((view) => view.container.destroy());
@@ -4635,6 +4652,7 @@ export class GameScene extends Phaser.Scene {
     view.key = key;
     view.base.setVisible(true).setInteractive({ useHandCursor: true });
     view.grass.setVisible(true).setInteractive({ useHandCursor: true });
+    view.hazard.setVisible(false).setInteractive({ useHandCursor: true });
     view.outline.setVisible(false);
     view.glint.setVisible(false);
     view.label.setVisible(false);
@@ -4660,6 +4678,12 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
 
+    const hazard = this.add
+      .image(0, 0, "hazard-cactus")
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+      .setVisible(false);
+
     const glint = this.add
       .star(0, 0, 5, 3, 8, 0xfff08a, 0.9)
       .setStrokeStyle(1, 0xffffff, 0.9)
@@ -4675,23 +4699,27 @@ export class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    const view: TileView = { base, grass, label, outline, glint };
+    const view: TileView = { base, grass, hazard, label, outline, glint };
     base.on("pointerdown", () => this.handleTileViewClicked(view));
     grass.on("pointerdown", () => this.handleTileViewClicked(view));
+    hazard.on("pointerdown", () => this.handleTileViewClicked(view));
     base.on("pointerover", () => this.showTileViewInfo(view));
     grass.on("pointerover", () => this.showTileViewInfo(view));
+    hazard.on("pointerover", () => this.showTileViewInfo(view));
     base.on("pointerout", () => this.hideTileViewInfo(view));
     grass.on("pointerout", () => this.hideTileViewInfo(view));
+    hazard.on("pointerout", () => this.hideTileViewInfo(view));
     return view;
   }
 
   private destroyTileView(key: TileKey, view: TileView): void {
-    this.tweens.killTweensOf([view.base, view.grass, view.label, view.outline, view.glint]);
+    this.tweens.killTweensOf([view.base, view.grass, view.hazard, view.label, view.outline, view.glint]);
     this.dirtyTileViewKeys.delete(key);
     this.redrawTileViewKeys.delete(key);
     view.key = undefined;
     view.base.disableInteractive().setVisible(false).setAlpha(1).clearTint();
     view.grass.disableInteractive().setVisible(false).setAlpha(1).clearTint();
+    view.hazard.disableInteractive().setVisible(false).setAlpha(1).clearTint();
     view.outline.setVisible(false).setAlpha(1);
     view.glint.setVisible(false).setAlpha(1);
     view.label.setVisible(false).setAlpha(1).setText("");
@@ -4720,9 +4748,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private destroyTileViewObjects(view: TileView): void {
-    this.tweens.killTweensOf([view.base, view.grass, view.label, view.outline, view.glint]);
+    this.tweens.killTweensOf([view.base, view.grass, view.hazard, view.label, view.outline, view.glint]);
     view.base.destroy();
     view.grass.destroy();
+    view.hazard.destroy();
     view.outline.destroy();
     view.glint.destroy();
     view.label.destroy();
@@ -5129,6 +5158,14 @@ export class GameScene extends Phaser.Scene {
         originX: 0.5,
         originY: 0.5,
       });
+      const hazard = getTileHazard(this.state, this.getTileKey(tile));
+      if (hazard) {
+        this.commonTileLayer.stamp(this.getHazardTextureKey(hazard.id), undefined, x, y - 2 * this.boardScale, {
+          scale: this.boardScale * 0.96,
+          originX: 0.5,
+          originY: 0.5,
+        });
+      }
     }
   }
 
@@ -5141,11 +5178,13 @@ export class GameScene extends Phaser.Scene {
     view.base.setPosition(position.x, position.y);
     view.outline.setPosition(position.x, position.y);
     view.grass.setPosition(position.x, position.y);
+    view.hazard.setPosition(position.x, position.y - 2 * this.boardScale);
     view.glint.setPosition(position.x + 19 * this.boardScale, position.y - 20 * this.boardScale);
     view.label.setPosition(position.x, position.y);
     view.base.setScale(this.boardScale);
     view.outline.setScale(this.boardScale);
     view.grass.setScale(this.boardScale * this.getGrassScale(tile));
+    view.hazard.setScale(this.boardScale * 0.96);
     view.glint.setScale(this.boardScale);
     view.label.setScale(this.boardScale);
   }
@@ -5860,7 +5899,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.handleTileClicked(tile);
-    this.persistentTouchNextAt = now + this.getPersistentTouchIntervalMs();
+    if (this.persistentTouchActive) {
+      this.persistentTouchNextAt = now + this.getPersistentTouchIntervalMs();
+    }
   }
 
   private canUsePersistentTouch(pointer: Phaser.Input.Pointer): boolean {
@@ -5869,7 +5910,8 @@ export class GameScene extends Phaser.Scene {
 
   private getPersistentTouchIntervalMs(): number {
     const level = Math.max(1, this.getUpgradeLevel("persistent_touch"));
-    return Math.max(PERSISTENT_TOUCH_MIN_INTERVAL_MS, PERSISTENT_TOUCH_BASE_INTERVAL_MS - (level - 1) * PERSISTENT_TOUCH_INTERVAL_STEP_MS);
+    const prickPenalty = getPrickedRemainingMs(this.state) > 0 ? 55 : 0;
+    return Math.max(PERSISTENT_TOUCH_MIN_INTERVAL_MS, PERSISTENT_TOUCH_BASE_INTERVAL_MS - (level - 1) * PERSISTENT_TOUCH_INTERVAL_STEP_MS) + prickPenalty;
   }
 
   private shouldTouchBoardOnPointerDown(pointer: Phaser.Input.Pointer): boolean {
@@ -5972,11 +6014,15 @@ export class GameScene extends Phaser.Scene {
     const tierLine = `Value: ${tier.touchValue}${traitValue > 0 ? ` + ${traitValue}` : ""} before upgrades`;
     const critLine = tile.trait === "lush" ? "Better crit and seed odds" : tile.trait === "dewy" ? "Slightly better crit and seed odds" : "";
     const placementLine = this.getTilePlacementInfo(tile);
+    const hazard = getTileHazard(this.state, this.getTileKey(tile));
+    const hazardLine = hazard ? this.getHazardInfoLine(hazard) : "";
 
     this.setTextIfChanged(this.tileInfoTitle, isGrown ? tier.name : "Regrowing Patch");
     this.setTextIfChanged(
       this.tileInfoBody,
-      isGrown ? [tierLine, traitLine, critLine, placementLine].filter(Boolean).join("\n") : ["This patch is growing back.", placementLine].filter(Boolean).join("\n"),
+      isGrown
+        ? [hazardLine, tierLine, traitLine, critLine, placementLine].filter(Boolean).join("\n")
+        : ["This patch is growing back.", placementLine].filter(Boolean).join("\n"),
     );
   }
 
@@ -6084,6 +6130,10 @@ export class GameScene extends Phaser.Scene {
       this.clearTileInfo();
     }
 
+    if (this.handleHazardTileClicked(tile)) {
+      return;
+    }
+
     const now = Date.now();
     const stats = this.profileScope("touch:stats", () => this.getCachedRuntimeStats(now));
     const touchedTrait = tile.trait;
@@ -6152,6 +6202,41 @@ export class GameScene extends Phaser.Scene {
         this.recordPerfScope("touch", performance.now() - perfStart);
       }
     }
+  }
+
+  private handleHazardTileClicked(tile: FieldTile): boolean {
+    const key = this.getTileKey(tile);
+    if (!getTileHazard(this.state, key)) {
+      return false;
+    }
+
+    const now = Date.now();
+    const result = this.hazards.touchHazard(this.state, key, now);
+    if (!result) {
+      return false;
+    }
+
+    if (result.stopPersistent) {
+      this.stopPersistentTouch();
+    }
+    this.invalidateRuntimeStats();
+    this.refreshTile(tile);
+    if (result.hazardId === "cactus") {
+      this.playCactusPrickFeedback(tile);
+    } else {
+      this.playWeedPullFeedback(tile, result.cleared);
+    }
+    this.popAtTile(tile, result.popText, result.color);
+    if (result.seedReward > 0) {
+      this.state.seeds += result.seedReward;
+      this.state.lifetimeSeeds += result.seedReward;
+      this.popAtTile(tile, `+${result.seedReward} seed`, "#fff1a8");
+      this.emitSeedBurst(tile);
+    }
+    this.audio.play(result.sound);
+    this.refreshUi(false);
+    this.queueSave();
+    return true;
   }
 
   private recordComboTouch(tile: FieldTile, touch: TouchResult, stats: RuntimeStats, now: number, source: ComboTouchSource): ComboResult {
@@ -7106,6 +7191,122 @@ export class GameScene extends Phaser.Scene {
     this.queueSave();
   }
 
+  private updateHazards(delta: number, stats: RuntimeStats): void {
+    if (this.hasBlockingOverlayOpen()) {
+      return;
+    }
+
+    const changed = this.runWithAmbientFeedback(() =>
+      this.hazards.update(delta, this.state, stats, Date.now(), {
+        refreshTile: (tile) => this.refreshTile(tile),
+        popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
+        playMower: (event) => this.playMowerEvent(event),
+      }),
+    );
+
+    if (changed) {
+      this.invalidateRuntimeStats();
+      this.queueSave();
+      this.refreshUi(false);
+    }
+  }
+
+  private playMowerEvent(event: MowerEvent): void {
+    const routeTiles = event.routeKeys
+      .map((key) => this.state.field[key])
+      .filter((tile): tile is FieldTile => tile !== undefined);
+    const routePositions = routeTiles
+      .map((tile) => ({ tile, position: this.getTileScreenPosition(tile) }))
+      .filter((entry): entry is { tile: FieldTile; position: { x: number; y: number } } => entry.position !== undefined);
+
+    if (routePositions.length === 0) {
+      return;
+    }
+
+    this.clearMowerVisuals();
+    const first = routePositions[0].position;
+    const last = routePositions[routePositions.length - 1].position;
+    const duration = Phaser.Math.Clamp(routePositions.length * 220, 900, 3200);
+    const mower = this.add
+      .image(first.x, first.y - 4 * this.boardScale, "hazard-mower")
+      .setScale(Math.max(0.62, this.boardScale * 0.92))
+      .setDepth(37)
+      .setAlpha(0.95);
+    const routeDx = last.x - first.x;
+    const routeDy = last.y - first.y;
+    mower.setAngle(Math.abs(routeDx) >= Math.abs(routeDy) ? (routeDx >= 0 ? 0 : 180) : routeDy >= 0 ? 90 : -90);
+    this.mowerSprite = mower;
+    this.audio.play("mower");
+    this.showMessage("Robotic lawnmower is making a pass.", 1800);
+
+    routePositions.forEach((entry, index) => {
+      const delay = Math.floor((duration * index) / Math.max(1, routePositions.length - 1));
+      const timer = this.time.delayedCall(delay, () => this.applyMowerToTile(this.getTileKey(entry.tile)));
+      this.mowerTileEvents.push(timer);
+    });
+
+    this.tweens.add({
+      targets: mower,
+      x: last.x,
+      y: last.y - 4 * this.boardScale,
+      scaleX: mower.scaleX * 1.02,
+      scaleY: mower.scaleY * 0.98,
+      duration,
+      ease: "Sine.easeInOut",
+      onComplete: () => {
+        this.tweens.add({
+          targets: mower,
+          alpha: 0,
+          duration: 220,
+          ease: "Sine.easeOut",
+          onComplete: () => {
+            if (this.mowerSprite === mower) {
+              this.mowerSprite = undefined;
+            }
+            mower.destroy();
+          },
+        });
+      },
+    });
+  }
+
+  private applyMowerToTile(key: TileKey): void {
+    const result = this.hazards.mowTile(this.state, key, this.getCachedRuntimeStats(), Date.now());
+    if (!result) {
+      return;
+    }
+
+    this.invalidateRuntimeStats();
+    this.refreshTile(result.tile);
+    if (result.mown) {
+      this.popAtTile(result.tile, "mown", "#fff2b2");
+      const position = this.getTileVisualPosition(result.tile);
+      if (position) {
+        this.emitBurst("dust-fleck", position.x, position.y + 7 * this.boardScale, 10, 0.5, 0.22);
+      }
+    }
+    if (result.removedCactus) {
+      this.popAtTile(result.tile, "cactus cleared", "#ffb347");
+    }
+    if (result.removedWeeds) {
+      this.popAtTile(result.tile, "weeds shredded", "#b7eba5");
+    }
+    this.queueSave();
+  }
+
+  private clearMowerVisuals(): void {
+    for (const event of this.mowerTileEvents) {
+      event.remove(false);
+    }
+    this.mowerTileEvents = [];
+
+    if (this.mowerSprite) {
+      this.tweens.killTweensOf(this.mowerSprite);
+      this.mowerSprite.destroy();
+      this.mowerSprite = undefined;
+    }
+  }
+
   private playMutationEvent(event: MutationEvent): void {
     for (const tile of event.changedTiles) {
       this.refreshTile(tile);
@@ -7586,16 +7787,23 @@ export class GameScene extends Phaser.Scene {
     const grassTexture = this.getGrassTextureKey(tile);
     const rareTier = tier.id !== "normal";
     const highlightColor = this.getTierHighlightColor(tier.id);
+    const hazard = getTileHazard(this.state, key);
 
     this.setVisibleIfChanged(view.grass, isGrown);
     view.grass.setTexture(grassTexture);
     view.grass.setScale(this.boardScale * this.getGrassScale(tile));
     view.grass.setAlpha(1);
+    this.setVisibleIfChanged(view.hazard, isGrown && hazard !== undefined);
+    if (hazard) {
+      view.hazard.setTexture(this.getHazardTextureKey(hazard.id));
+    }
+    view.hazard.setScale(this.boardScale * 0.96);
+    view.hazard.setAlpha(1);
     this.setVisibleIfChanged(view.outline, isGrown && rareTier);
     view.outline.setStrokeStyle(tier.id === "golden" || tier.id === "crystal" || tier.id === "frost" ? 5 : 4, highlightColor, tier.id === "normal" ? 0 : 0.82);
     this.setVisibleIfChanged(view.glint, isGrown && rareTier);
     view.glint.setFillStyle(highlightColor, tier.id === "normal" ? 0 : 0.88);
-    this.setTextIfChanged(view.label, isGrown ? this.getTileLabel(tile, tier.label) : "...");
+    this.setTextIfChanged(view.label, isGrown ? this.getTileLabel(tile, tier.label, hazard?.id) : "...");
     view.base.setTexture(isGrown ? "tile-dirt" : "tile-stubble");
 
     if (!this.needsTileView(tile, key)) {
@@ -7667,9 +7875,22 @@ export class GameScene extends Phaser.Scene {
     return `grass-${tier}${trait}`;
   }
 
-  private getTileLabel(tile: FieldTile, tierLabel: string): string {
-    const parts = [tierLabel, tile.trait === "normal" ? "" : tile.trait].filter(Boolean);
+  private getTileLabel(tile: FieldTile, tierLabel: string, hazardId?: "cactus" | "weeds"): string {
+    const parts = [hazardId === "cactus" ? "cactus" : hazardId === "weeds" ? "weeds" : "", tierLabel, tile.trait === "normal" ? "" : tile.trait].filter(Boolean);
     return parts.join(" ");
+  }
+
+  private getHazardTextureKey(hazardId: "cactus" | "weeds"): string {
+    return hazardId === "cactus" ? "hazard-cactus" : "hazard-weeds";
+  }
+
+  private getHazardInfoLine(hazard: { id: "cactus" | "weeds"; strength?: number }): string {
+    if (hazard.id === "cactus") {
+      return "Hazard: cactus prick applies Pricked.";
+    }
+
+    const pulls = Math.max(1, hazard.strength ?? 1);
+    return `Hazard: weeds block the patch until pulled${pulls > 1 ? ` (${pulls} pulls)` : ""}.`;
   }
 
   private playTouchFeedback(tile: FieldTile, touchedTrait = tile.trait, isCrit = false): void {
@@ -8014,6 +8235,69 @@ export class GameScene extends Phaser.Scene {
       duration: 420,
       ease: "Sine.easeOut",
       onComplete: () => marks.destroy(),
+    });
+  }
+
+  private playCactusPrickFeedback(tile: FieldTile): void {
+    const position = this.getTileVisualPosition(tile);
+    if (!position) {
+      return;
+    }
+
+    const x = position.x;
+    const y = position.y - 6 * this.boardScale;
+    this.emitBurst("crit-fleck", x, y, 12, 0.7, 0.08);
+
+    if (!this.reserveAmbientTransientObject()) {
+      return;
+    }
+
+    const flash = this.add
+      .star(x, y, 8, TILE_SIZE * 0.06 * this.boardScale, TILE_SIZE * 0.32 * this.boardScale, 0xffb7d5, 0.78)
+      .setStrokeStyle(Math.max(1, 2 * this.boardScale), 0xf7ffe8, 0.9)
+      .setDepth(39);
+
+    this.tweens.add({
+      targets: flash,
+      angle: 35,
+      alpha: 0,
+      scaleX: 1.35,
+      scaleY: 1.35,
+      duration: 260,
+      ease: "Sine.easeOut",
+      onComplete: () => flash.destroy(),
+    });
+  }
+
+  private playWeedPullFeedback(tile: FieldTile, cleared: boolean): void {
+    const position = this.getTileVisualPosition(tile);
+    if (!position) {
+      return;
+    }
+
+    const x = position.x;
+    const y = position.y + 5 * this.boardScale;
+    this.emitBurst("grass-fleck", x, y, cleared ? 14 : 8, 0.55, 0.2);
+
+    if (!this.reserveAmbientTransientObject()) {
+      return;
+    }
+
+    const tug = this.add.graphics().setDepth(38);
+    const size = TILE_SIZE * this.boardScale;
+    tug.lineStyle(Math.max(2, 4 * this.boardScale), cleared ? 0xdfffc8 : 0xb7eba5, 0.9);
+    tug.lineBetween(x - size * 0.22, y + size * 0.08, x, y - size * 0.22);
+    tug.lineBetween(x + size * 0.22, y + size * 0.08, x, y - size * 0.22);
+    tug.lineStyle(Math.max(1, 2 * this.boardScale), 0xf7ffe8, 0.8);
+    tug.lineBetween(x - size * 0.12, y + size * 0.02, x + size * 0.12, y + size * 0.02);
+
+    this.tweens.add({
+      targets: tug,
+      y: tug.y - 9 * this.boardScale,
+      alpha: 0,
+      duration: 360,
+      ease: "Sine.easeOut",
+      onComplete: () => tug.destroy(),
     });
   }
 
@@ -8376,6 +8660,9 @@ export class GameScene extends Phaser.Scene {
     this.createParticleTexture("breeze-fleck", [0xf7ffe8, 0xb7eba5, 0x5cae62]);
     this.createSlashFleckTexture();
     this.createMusicNoteTexture();
+    this.createCactusTexture();
+    this.createWeedTexture();
+    this.createMowerTexture();
     this.createWeatherTextures();
   }
 
@@ -8490,6 +8777,107 @@ export class GameScene extends Phaser.Scene {
     graphics.fillStyle(colors[2], 1);
     graphics.fillRect(2, 1, 2, 3);
     graphics.generateTexture(key, 5, 5);
+    graphics.destroy();
+  }
+
+  private createCactusTexture(): void {
+    const key = "hazard-cactus";
+    if (this.textures.exists(key)) {
+      return;
+    }
+
+    const graphics = this.add.graphics();
+    graphics.fillStyle(0x000000, 0.24);
+    graphics.fillEllipse(30, 47, 26, 8);
+    graphics.fillStyle(0x245c36, 1);
+    graphics.fillRoundedRect(24, 13, 13, 34, 6);
+    graphics.fillRoundedRect(13, 25, 11, 18, 5);
+    graphics.fillRoundedRect(36, 21, 11, 21, 5);
+    graphics.fillStyle(0x39a04e, 1);
+    graphics.fillRoundedRect(27, 10, 10, 36, 5);
+    graphics.fillRoundedRect(15, 22, 10, 18, 5);
+    graphics.fillRoundedRect(36, 18, 10, 22, 5);
+    graphics.fillStyle(0x9be86b, 0.9);
+    graphics.fillRect(31, 13, 2, 29);
+    graphics.fillRect(18, 26, 2, 11);
+    graphics.fillRect(40, 22, 2, 14);
+    graphics.fillStyle(0xf7ffe8, 0.95);
+    for (const point of [
+      [26, 18],
+      [37, 18],
+      [27, 29],
+      [38, 30],
+      [23, 26],
+      [45, 24],
+      [21, 36],
+      [42, 37],
+    ]) {
+      graphics.fillRect(point[0], point[1], 2, 1);
+    }
+    graphics.fillStyle(0xffb7d5, 0.95);
+    graphics.fillRect(28, 7, 8, 4);
+    graphics.fillRect(30, 5, 4, 8);
+    graphics.generateTexture(key, TILE_SIZE, TILE_SIZE);
+    graphics.destroy();
+  }
+
+  private createMowerTexture(): void {
+    const key = "hazard-mower";
+    if (this.textures.exists(key)) {
+      return;
+    }
+
+    const graphics = this.add.graphics();
+    graphics.fillStyle(0x000000, 0.22);
+    graphics.fillEllipse(40, 48, 56, 14);
+    graphics.fillStyle(0x153524, 1);
+    graphics.fillRoundedRect(13, 20, 54, 26, 7);
+    graphics.fillStyle(0xff445c, 1);
+    graphics.fillRoundedRect(17, 15, 42, 25, 6);
+    graphics.fillStyle(0xffef78, 1);
+    graphics.fillRect(52, 20, 10, 9);
+    graphics.fillStyle(0xd7fff2, 1);
+    graphics.fillRect(22, 19, 18, 6);
+    graphics.fillStyle(0x06190f, 1);
+    graphics.fillCircle(23, 45, 8);
+    graphics.fillCircle(57, 45, 8);
+    graphics.fillStyle(0x8a6139, 1);
+    graphics.fillCircle(23, 45, 4);
+    graphics.fillCircle(57, 45, 4);
+    graphics.lineStyle(4, 0xb7eba5, 0.9);
+    graphics.lineBetween(63, 23, 76, 11);
+    graphics.lineStyle(2, 0xf7ffe8, 0.85);
+    graphics.lineBetween(62, 28, 74, 28);
+    graphics.generateTexture(key, 82, 62);
+    graphics.destroy();
+  }
+
+  private createWeedTexture(): void {
+    const key = "hazard-weeds";
+    if (this.textures.exists(key)) {
+      return;
+    }
+
+    const graphics = this.add.graphics();
+    graphics.fillStyle(0x000000, 0.18);
+    graphics.fillEllipse(29, 47, 36, 9);
+    for (const clump of [
+      { x: 16, h: 27, c: 0x286b31 },
+      { x: 24, h: 34, c: 0x3d9143 },
+      { x: 32, h: 30, c: 0x2e7f38 },
+      { x: 40, h: 25, c: 0x58ad4e },
+    ]) {
+      graphics.fillStyle(clump.c, 1);
+      graphics.fillTriangle(clump.x, 47, clump.x + 5, 47 - clump.h, clump.x + 10, 47);
+      graphics.fillStyle(0xb7eba5, 0.75);
+      graphics.fillRect(clump.x + 5, 47 - clump.h + 6, 2, clump.h - 8);
+    }
+    graphics.fillStyle(0xffd565, 0.95);
+    graphics.fillRect(26, 19, 4, 4);
+    graphics.fillRect(38, 26, 3, 3);
+    graphics.fillStyle(0xff92bd, 0.9);
+    graphics.fillRect(19, 28, 3, 3);
+    graphics.generateTexture(key, TILE_SIZE, TILE_SIZE);
     graphics.destroy();
   }
 
@@ -8669,6 +9057,7 @@ export class GameScene extends Phaser.Scene {
       const grassTouches = formatHudGrassTouches(this.state.grassTouches);
       const grassTouchLabel = compact || grassTouches.includes("\n") ? `Grass Touches:\n${grassTouches}` : `Grass Touches: ${grassTouches}`;
       const resourceSeparator = compact || grassTouches.includes("\n") ? "\n" : " | ";
+      const hazardStatus = getHazardStatusText(this.state);
       this.setTextIfChanged(
         this.resourceText,
         [
@@ -8677,6 +9066,7 @@ export class GameScene extends Phaser.Scene {
           `Gold: ${Math.floor(this.state.gold)}`,
           automationTouchesPerMinute > 0 ? `Auto: ${formatGrassTouchesPerMinute(automationTouchesPerMinute)}` : "",
           automationUnitCount > 0 ? `Systems: ${automationUnitCount}` : "",
+          hazardStatus ? `Status: ${hazardStatus}` : "",
           `Patches: ${this.fieldTileCount}`,
         ]
           .filter(Boolean)

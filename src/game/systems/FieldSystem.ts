@@ -180,6 +180,8 @@ export function createInitialState(characterClassId: CharacterClassId = DEFAULT_
     field: {
       [tileKey(0, 0)]: createTile(0, 0, "normal", "normal"),
     },
+    tileHazards: {},
+    debuffs: {},
     upgrades: {},
     seedShopPurchases: {},
     inventory: {},
@@ -239,10 +241,7 @@ export function touchTile(tile: FieldTile, state: GameState, stats: RuntimeStats
   const gained = Math.max(1, Math.floor(baseGained * critMultiplier));
   const instantRegrown = Math.random() < stats.instantRegrowChance;
 
-  tile.grassState = "regrowing";
-  tile.regrowEndsAt = now + Math.floor(tile.baseRegrowMs * stats.regrowMultiplier);
-  tile.trait = "normal";
-  getRegrowingTileKeySet(state).add(tileKey(tile.x, tile.y));
+  setTileRegrowing(tile, state, stats, now);
 
   if (instantRegrown) {
     tile.grassState = "grown";
@@ -258,6 +257,13 @@ export function touchTile(tile: FieldTile, state: GameState, stats: RuntimeStats
   state.totalClickedPatches += 1;
 
   return { gained, isCrit, critMultiplier, doubled, instantRegrown };
+}
+
+export function setTileRegrowing(tile: FieldTile, state: GameState, stats: RuntimeStats, now: number, regrowScale = 1): void {
+  tile.grassState = "regrowing";
+  tile.regrowEndsAt = now + Math.floor(tile.baseRegrowMs * stats.regrowMultiplier * regrowScale);
+  tile.trait = "normal";
+  getRegrowingTileKeySet(state).add(tileKey(tile.x, tile.y));
 }
 
 export function updateRegrowth(state: GameState, stats: RuntimeStats, now: number): FieldTile[] {

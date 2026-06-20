@@ -61,9 +61,16 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
   {
     id: "compost_bin",
     name: "Compost Bin",
-    description: "Improves seed drops and rare grass value.",
+    description: "Improves seed drops, rare grass value, and mower clipping recovery.",
     cost: 58,
     isUnlocked: (state) => state.seedShopPurchases.weather_jar === true,
+  },
+  {
+    id: "garden_gloves",
+    name: "Garden Gloves",
+    description: "Cactus pricks fade sooner, and new weeds usually take less pulling.",
+    cost: 76,
+    isUnlocked: (state) => state.seedShopPurchases.field_journal === true && state.lifetimeGrassTouches >= 360,
   },
   {
     id: "bug_hotel",
@@ -78,6 +85,13 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
     description: "Weather lasts longer and gently improves regrowth.",
     cost: 70,
     isUnlocked: (state) => state.seedShopPurchases.weather_jar === true,
+  },
+  {
+    id: "mower_boundary",
+    name: "Mower Boundary",
+    description: "Robotic lawnmowers visit less often and take shorter passes.",
+    cost: 135,
+    isUnlocked: (state) => state.seedShopPurchases.compost_bin === true && state.lifetimeGrassTouches >= 720,
   },
   {
     id: "forager_trails",

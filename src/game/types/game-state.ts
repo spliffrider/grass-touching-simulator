@@ -27,7 +27,11 @@ export type AutomationDirectiveId = "balanced" | "growth" | "harvest" | "supplie
 
 export type AutomationSystemId = "sprinkler" | "field_mouse" | "bee_hive" | "earthworm" | "chicken" | "sheep" | "meadow_rabbit";
 
-export const CURRENT_SAVE_VERSION = 11;
+export type TileHazardId = "cactus" | "weeds";
+
+export type DebuffId = "pricked";
+
+export const CURRENT_SAVE_VERSION = 12;
 
 export interface FieldTile {
   x: number;
@@ -40,6 +44,18 @@ export interface FieldTile {
   baseRegrowMs: number;
   fertility: number;
   moisture: number;
+}
+
+export interface TileHazardState {
+  id: TileHazardId;
+  createdAt: number;
+  expiresAt: number;
+  strength?: number;
+}
+
+export interface DebuffState {
+  id: DebuffId;
+  expiresAt: number;
 }
 
 export interface UpgradeState {
@@ -97,6 +113,8 @@ export interface GameState {
   wateredPatches: number;
   mutationEvents: number;
   field: Record<TileKey, FieldTile>;
+  tileHazards: Partial<Record<TileKey, TileHazardState>>;
+  debuffs: Partial<Record<DebuffId, DebuffState>>;
   upgrades: Record<string, UpgradeState>;
   seedShopPurchases: Record<string, boolean>;
   inventory: Record<string, InventoryEntry>;
