@@ -1,0 +1,129 @@
+{
+  "createdAt": "2026-06-20",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Hazard feature validation pass plus a deterministic browser harness for cactus, weeds, Pricked, and mower tile effects.",
+  "currentUserGoal": "Validate the newly pushed hazard/counterplay gameplay work, run the required build/perf checks, and identify the next high-leverage project task.",
+  "workCompletedThisSession": [
+    {
+      "summary": "Ran the start-session workflow.",
+      "details": [
+        "Read AGENTS.md.",
+        "Read handoffs/LATEST.json.",
+        "Read handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json.",
+        "Ran git status --short and identified that the latest pointer/post-push handoff were local-only."
+      ]
+    },
+    {
+      "summary": "Added a deterministic hazard validation harness.",
+      "details": [
+        "GameScene now recognizes ?hazardHarness and publishes document.documentElement.dataset.grassHazardHarness.",
+        "The harness uses stress-mode state, places known cactus/weeds on grown tiles, exercises the same scene hazard touch handler for cactus and weeds, checks Pricked runtime-stat effects, then applies mower tile effects to known hazard tiles.",
+        "TitleScene now treats ?hazardHarness like stress/perf harness URLs so it auto-enters GameScene instead of sitting on the title screen.",
+        "Normal gameplay is not affected unless the hazardHarness query parameter is present."
+      ]
+    },
+    {
+      "summary": "Performed runtime hazard smoke and perf validation.",
+      "details": [
+        "Stress-mode visual smoke at ?stress&perf&tiles=1200 showed hazards naturally spawning after about 57 seconds: HUD displayed 2 cactuses and 2 weeds, with zero frame spikes in the perf overlay.",
+        "The deterministic ?hazardHarness&tiles=1200 run passed all checks."
+      ]
+    }
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/scenes/TitleScene.ts",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-06-20_HAZARD_VALIDATION_HARNESS.json"
+  ],
+  "verificationPerformed": [
+    {
+      "command": "npm run build",
+      "result": "Passed after adding the hazard harness and TitleScene entry-point change."
+    },
+    {
+      "target": "http://127.0.0.1:5174/?hazardHarness&tiles=1200",
+      "result": "Passed. grassHazardHarness.passed was true.",
+      "checks": {
+        "cactusTouchHandled": true,
+        "cactusCleared": true,
+        "prickedApplied": true,
+        "prickedUsesGloveDuration": true,
+        "prickedGrassMultiplierReduced": true,
+        "prickedComboWindowReduced": true,
+        "weedFirstPullHandled": true,
+        "weedStrengthReduced": true,
+        "weedSecondPullHandled": true,
+        "weedCleared": true,
+        "mowerClearsCactus": true,
+        "mowerClearsWeeds": true,
+        "mowerSetsTilesRegrowing": true
+      },
+      "notableValues": [
+        "Initial status: 1 cactus | 1 weed.",
+        "After cactus: Pricked 6s | 1 weed, grassMultiplierRatio 0.82, comboWindowRatio 0.92.",
+        "After first weed pull: weedStrength 1.",
+        "After mower: mower target tiles were regrowing and hazards were cleared."
+      ]
+    },
+    {
+      "target": "http://127.0.0.1:5174/?perfHarness&tiles=1200",
+      "viewport": "1280x720",
+      "result": "Completed after the harness addition.",
+      "completeSample": {
+        "visibleTiles": 1206,
+        "layoutPasses": 0,
+        "redraws": 0,
+        "redrawQueued": 0,
+        "maxFrameDeltaMs": 17,
+        "frameSpikes": 0,
+        "displayObjects": 282,
+        "activeTweens": 21,
+        "hotspots": "hot none"
+      }
+    },
+    {
+      "target": "http://127.0.0.1:5174/?perfHarness&tiles=1200",
+      "viewport": "390x844",
+      "result": "Completed after the harness addition. Mobile/tablet culling remained active.",
+      "phaseHighlights": [
+        "idle visibleTiles 91/1200, frameSpikes 0, redrawQueued 0.",
+        "pan visibleTiles 84/1206, frameSpikes 0, redrawQueued 0.",
+        "complete visibleTiles 96/1206, maxFrameDeltaMs 26, frameSpikes 0, displayObjects 281, activeTweens 21, hotspots hot none."
+      ]
+    }
+  ],
+  "currentGitStatusSummary": {
+    "branch": "master",
+    "trackedChanges": [
+      "handoffs/LATEST.json modified to point at this handoff.",
+      "src/game/scenes/GameScene.ts modified for ?hazardHarness.",
+      "src/game/scenes/TitleScene.ts modified so ?hazardHarness starts stress-mode GameScene."
+    ],
+    "newSessionHandoff": "handoffs/HANDOFF_2026-06-20_HAZARD_VALIDATION_HARNESS.json",
+    "preExistingUntrackedLocalOnly": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md may appear escaped in git status",
+      "docs/artifacts/",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssuesAndCaveats": [
+    "The new hazard harness validates mower tile application effects, not the full animated mower route timing. The visual stress smoke still confirmed hazards can naturally spawn and render.",
+    "Port 5173 was already occupied by an existing workspace Vite server, so this session's fresh Vite server ran on 5174.",
+    "Browser console logs include old missing-method errors from intermediate Vite hot reloads while the harness patch was partially applied. The final build and final hazard harness run passed."
+  ],
+  "doNotRevertOrTouchWithoutUserRequest": [
+    "Do not revert the pushed hazard/counterplay commits.",
+    "Do not delete, stage, or commit unrelated untracked docs/artifacts unless the user explicitly asks.",
+    "Do not assume handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json is committed; it is still local-only unless the user stages it."
+  ],
+  "recommendedNextSteps": [
+    "Commit the hazard validation harness plus this handoff if the user wants the test hook kept.",
+    "Use ?hazardHarness&tiles=1200 for fast regression checks when changing hazards.",
+    "For gameplay design, the next meaningful work is to add player-facing journal/quest texture for cactus, weeds, and mower, since the mechanics now validate cleanly."
+  ]
+}

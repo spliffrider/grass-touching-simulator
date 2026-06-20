@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-20",
-  "latestHandoff": "HANDOFF_2026-06-20_HAZARDS_DOCS_HANDOFF_FOLDER.json",
+  "latestHandoff": "HANDOFF_2026-06-20_HAZARD_VALIDATION_HARNESS.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

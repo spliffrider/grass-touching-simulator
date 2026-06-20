@@ -495,6 +495,33 @@ interface PerfHarnessResult {
   samples: PerfHarnessSample[];
 }
 
+type HazardHarnessPhase = "initial" | "afterCactus" | "afterWeedPull" | "afterWeedClear" | "afterMower" | "complete";
+
+interface HazardHarnessStep {
+  phase: HazardHarnessPhase;
+  cactusCount: number;
+  weedCount: number;
+  prickedRemainingMs: number;
+  statusText: string;
+  weedStrength?: number;
+  grassTouchMultiplier?: number;
+  comboWindowMultiplier?: number;
+  grassMultiplierRatio?: number;
+  comboWindowRatio?: number;
+  seedDelta?: number;
+  tileStates?: Record<string, FieldTile["grassState"]>;
+}
+
+interface HazardHarnessResult {
+  status: "running" | "complete";
+  startedAt: number;
+  completedAt?: number;
+  passed: boolean;
+  checks: Record<string, boolean>;
+  errors: string[];
+  steps: HazardHarnessStep[];
+}
+
 interface PerfScopeSample {
   max: number;
   total: number;
@@ -732,6 +759,7 @@ export class GameScene extends Phaser.Scene {
   private stressMode = false;
   private perfOverlayEnabled = false;
   private perfHarnessEnabled = false;
+  private hazardHarnessEnabled = false;
   private perfHarnessRunning = false;
   private perfHarnessStartedAt = 0;
   private perfHarnessSamples: PerfHarnessSample[] = [];
@@ -820,6 +848,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(data?: { newGame?: boolean; characterClassId?: CharacterClassId; stressMode?: boolean }): void {
+    this.hazardHarnessEnabled = this.isHazardHarnessRequested();
     this.perfHarnessEnabled = this.isPerfHarnessRequested();
     this.stressMode = data?.stressMode === true || this.isStressModeRequested();
     this.perfOverlayEnabled = this.stressMode || this.isPerfOverlayRequested() || this.perfHarnessEnabled;
@@ -864,6 +893,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
     this.layoutTiles();
     this.startPerfHarness();
+    this.startHazardHarness();
     this.showMessage(
       this.stressMode ? "Stress mode: big field, busy systems, no save writes." : "Touch the grass. Let it regrow. Become reasonable.",
       3600,
@@ -1558,7 +1588,7 @@ export class GameScene extends Phaser.Scene {
 
   private isStressModeRequested(): boolean {
     const params = new URLSearchParams(window.location.search);
-    return params.has("stress") || params.has("perfHarness");
+    return params.has("stress") || params.has("perfHarness") || params.has("hazardHarness");
   }
 
   private isPerfOverlayRequested(): boolean {
@@ -1567,6 +1597,10 @@ export class GameScene extends Phaser.Scene {
 
   private isPerfHarnessRequested(): boolean {
     return new URLSearchParams(window.location.search).has("perfHarness");
+  }
+
+  private isHazardHarnessRequested(): boolean {
+    return new URLSearchParams(window.location.search).has("hazardHarness");
   }
 
   private getStressTileCount(): number {
@@ -1679,6 +1713,129 @@ export class GameScene extends Phaser.Scene {
     };
     (window as unknown as { __grassPerfHarness?: PerfHarnessResult }).__grassPerfHarness = result;
     document.documentElement.dataset.grassPerfHarness = JSON.stringify(result);
+  }
+
+  private startHazardHarness(): void {
+    if (!this.hazardHarnessEnabled) {
+      return;
+    }
+
+    const startedAt = performance.now();
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+    const steps: HazardHarnessStep[] = [];
+    const publish = (status: HazardHarnessResult["status"]) => {
+      const passed = status === "complete" && errors.length === 0 && Object.values(checks).every(Boolean);
+      const result: HazardHarnessResult = {
+        status,
+        startedAt: Math.round(startedAt),
+        completedAt: status === "complete" ? Math.round(performance.now()) : undefined,
+        passed,
+        checks,
+        errors,
+        steps,
+      };
+      (window as unknown as { __grassHazardHarness?: HazardHarnessResult }).__grassHazardHarness = result;
+      document.documentElement.dataset.grassHazardHarness = JSON.stringify(result);
+    };
+    const countHazards = (hazardId: "cactus" | "weeds", now = Date.now()) =>
+      Object.values(this.state.tileHazards).filter((hazard) => hazard?.id === hazardId && hazard.expiresAt > now).length;
+    const capture = (phase: HazardHarnessPhase, extra: Partial<HazardHarnessStep> = {}) => {
+      const now = Date.now();
+      steps.push({
+        phase,
+        cactusCount: countHazards("cactus", now),
+        weedCount: countHazards("weeds", now),
+        prickedRemainingMs: getPrickedRemainingMs(this.state, now),
+        statusText: getHazardStatusText(this.state, now),
+        ...extra,
+      });
+      publish("running");
+    };
+
+    publish("running");
+
+    try {
+      const grownTiles = getFieldTiles(this.state)
+        .filter((tile) => tile.grassState === "grown")
+        .sort((a, b) => Math.abs(a.x) + Math.abs(a.y) - (Math.abs(b.x) + Math.abs(b.y)) || a.y - b.y || a.x - b.x);
+      const [cactusTile, weedTile, mowerCactusTile, mowerWeedTile] = grownTiles;
+      if (!cactusTile || !weedTile || !mowerCactusTile || !mowerWeedTile) {
+        throw new Error("Hazard harness needs at least four grown tiles.");
+      }
+
+      this.state.tileHazards = {};
+      this.state.debuffs = {};
+      this.invalidateRuntimeStats();
+
+      const now = Date.now();
+      const expiresAt = now + 60000;
+      const cactusKey = this.getTileKey(cactusTile);
+      const weedKey = this.getTileKey(weedTile);
+      this.state.tileHazards[cactusKey] = { id: "cactus", createdAt: now, expiresAt };
+      this.state.tileHazards[weedKey] = { id: "weeds", createdAt: now, expiresAt, strength: 2 };
+      this.refreshTile(cactusTile);
+      this.refreshTile(weedTile);
+      this.refreshUi(false);
+
+      const prePrickStats = this.getCachedRuntimeStats(now);
+      capture("initial", {
+        weedStrength: this.state.tileHazards[weedKey]?.strength,
+        grassTouchMultiplier: prePrickStats.grassTouchMultiplier,
+        comboWindowMultiplier: prePrickStats.comboWindowMultiplier,
+      });
+
+      checks.cactusTouchHandled = this.handleHazardTileClicked(cactusTile);
+      const postPrickStats = this.getCachedRuntimeStats(Date.now());
+      const prickedRemainingMs = getPrickedRemainingMs(this.state);
+      checks.cactusCleared = this.state.tileHazards[cactusKey] === undefined;
+      checks.prickedApplied = prickedRemainingMs > 0;
+      checks.prickedUsesGloveDuration = this.state.seedShopPurchases.garden_gloves ? prickedRemainingMs <= 5200 : prickedRemainingMs <= 8500;
+      checks.prickedGrassMultiplierReduced = postPrickStats.grassTouchMultiplier < prePrickStats.grassTouchMultiplier;
+      checks.prickedComboWindowReduced = postPrickStats.comboWindowMultiplier < prePrickStats.comboWindowMultiplier;
+      capture("afterCactus", {
+        grassTouchMultiplier: postPrickStats.grassTouchMultiplier,
+        comboWindowMultiplier: postPrickStats.comboWindowMultiplier,
+        grassMultiplierRatio: Number((postPrickStats.grassTouchMultiplier / prePrickStats.grassTouchMultiplier).toFixed(3)),
+        comboWindowRatio: Number((postPrickStats.comboWindowMultiplier / prePrickStats.comboWindowMultiplier).toFixed(3)),
+      });
+
+      checks.weedFirstPullHandled = this.handleHazardTileClicked(weedTile);
+      const pulledWeed = this.state.tileHazards[weedKey];
+      checks.weedStrengthReduced = pulledWeed?.id === "weeds" && pulledWeed.strength === 1;
+      capture("afterWeedPull", { weedStrength: pulledWeed?.strength });
+
+      const seedsBeforeWeedClear = this.state.seeds;
+      checks.weedSecondPullHandled = this.handleHazardTileClicked(weedTile);
+      checks.weedCleared = this.state.tileHazards[weedKey] === undefined;
+      capture("afterWeedClear", { seedDelta: this.state.seeds - seedsBeforeWeedClear });
+
+      const mowerNow = Date.now();
+      const mowerExpiresAt = mowerNow + 60000;
+      const mowerCactusKey = this.getTileKey(mowerCactusTile);
+      const mowerWeedKey = this.getTileKey(mowerWeedTile);
+      this.state.tileHazards[mowerCactusKey] = { id: "cactus", createdAt: mowerNow, expiresAt: mowerExpiresAt };
+      this.state.tileHazards[mowerWeedKey] = { id: "weeds", createdAt: mowerNow, expiresAt: mowerExpiresAt, strength: 1 };
+      this.refreshTile(mowerCactusTile);
+      this.refreshTile(mowerWeedTile);
+      this.applyMowerToTile(mowerCactusKey);
+      this.applyMowerToTile(mowerWeedKey);
+      checks.mowerClearsCactus = this.state.tileHazards[mowerCactusKey] === undefined;
+      checks.mowerClearsWeeds = this.state.tileHazards[mowerWeedKey] === undefined;
+      checks.mowerSetsTilesRegrowing = mowerCactusTile.grassState === "regrowing" && mowerWeedTile.grassState === "regrowing";
+      capture("afterMower", {
+        tileStates: {
+          [mowerCactusKey]: mowerCactusTile.grassState,
+          [mowerWeedKey]: mowerWeedTile.grassState,
+        },
+      });
+
+      capture("complete");
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+
+    publish("complete");
   }
 
   private createStressState(characterClassId?: CharacterClassId): GameState {
