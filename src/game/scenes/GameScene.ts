@@ -4734,7 +4734,22 @@ export class GameScene extends Phaser.Scene {
     const maxVisibleX = Phaser.Math.Clamp(Math.ceil((this.scale.width + radius - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
     const minVisibleY = Phaser.Math.Clamp(Math.floor((0 - radius - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
     const maxVisibleY = Phaser.Math.Clamp(Math.ceil((this.scale.height + radius - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
-    const visibleCandidateCount = Math.max(0, maxVisibleX - minVisibleX + 1) * Math.max(0, maxVisibleY - minVisibleY + 1);
+    // Walk the occupied tiles (bounded by fieldTileCount) and keep the ones inside
+    // the visible window, rather than scanning every cell of the bounding box. A
+    // sparse or wide-span field made the old `minX..maxX` x `minY..maxY` double-loop
+    // O(span^2), which froze the board on load/resize; this keeps layout O(tiles).
+    const visibleFieldTiles: FieldTile[] = [];
+    for (const tile of Object.values(this.state.field)) {
+      if (
+        tile.x >= minVisibleX &&
+        tile.x <= maxVisibleX &&
+        tile.y >= minVisibleY &&
+        tile.y <= maxVisibleY
+      ) {
+        visibleFieldTiles.push(tile);
+      }
+    }
+    const visibleCandidateCount = visibleFieldTiles.length;
     const budgetCommonRedraw = this.shouldBudgetCommonRedraw(reason, visibleCandidateCount);
     const queuedCommonRedrawEntries: CommonRedrawEntry[] = [];
     this.profileScope("layout:backdrop", () => {
@@ -4744,53 +4759,46 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.profileScope("layout:tiles", () => {
-      for (let gridY = minVisibleY; gridY <= maxVisibleY; gridY += 1) {
-        for (let gridX = minVisibleX; gridX <= maxVisibleX; gridX += 1) {
-          const key = tileKey(gridX, gridY);
-          const tile = this.state.field[key];
-          if (!tile) {
-            continue;
-          }
+      for (const tile of visibleFieldTiles) {
+        const key = this.getTileKey(tile);
+        let view = this.tileViews.get(key);
+        const x = startX + (tile.x - bounds.minX) * scaledStep;
+        const y = startY + (tile.y - bounds.minY) * scaledStep;
+        const commitDirtyTile = this.dirtyTileViewKeys.has(key) && !this.usesFullLiveTileViews() && !budgetCommonRedraw;
 
-          let view = this.tileViews.get(key);
-          const x = startX + (tile.x - bounds.minX) * scaledStep;
-          const y = startY + (tile.y - bounds.minY) * scaledStep;
-          const commitDirtyTile = this.dirtyTileViewKeys.has(key) && !this.usesFullLiveTileViews() && !budgetCommonRedraw;
-
-          visibleTiles += 1;
-          this.lastVisibleTileKeys.add(key);
-          if (budgetCommonRedraw) {
-            this.redrawTileViewKeys.add(key);
-            queuedCommonRedrawEntries.push({ key, x, y });
-          }
-
-          if (commitDirtyTile) {
-            this.drawCommonTile(tile, x, y);
-            this.dirtyTileViewKeys.delete(key);
-          }
-
-          if (!this.needsTileView(tile, key)) {
-            if (!commitDirtyTile) {
-              this.drawCommonTile(tile, x, y);
-            }
-            if (view) {
-              this.destroyTileView(key, view);
-            }
-            continue;
-          }
-
-          visibleKeys.add(key);
-          if (!view) {
-            this.createTileView(tile);
-            view = this.tileViews.get(key);
-            if (!view) {
-              continue;
-            }
-          }
-
-          this.positionTileView(tile, view, x, y);
-          view.label.setVisible(key === this.hoveredTileKey);
+        visibleTiles += 1;
+        this.lastVisibleTileKeys.add(key);
+        if (budgetCommonRedraw) {
+          this.redrawTileViewKeys.add(key);
+          queuedCommonRedrawEntries.push({ key, x, y });
         }
+
+        if (commitDirtyTile) {
+          this.drawCommonTile(tile, x, y);
+          this.dirtyTileViewKeys.delete(key);
+        }
+
+        if (!this.needsTileView(tile, key)) {
+          if (!commitDirtyTile) {
+            this.drawCommonTile(tile, x, y);
+          }
+          if (view) {
+            this.destroyTileView(key, view);
+          }
+          continue;
+        }
+
+        visibleKeys.add(key);
+        if (!view) {
+          this.createTileView(tile);
+          view = this.tileViews.get(key);
+          if (!view) {
+            continue;
+          }
+        }
+
+        this.positionTileView(tile, view, x, y);
+        view.label.setVisible(key === this.hoveredTileKey);
       }
 
       for (const [key, view] of this.tileViews) {
