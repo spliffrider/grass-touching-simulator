@@ -2,7 +2,7 @@ import { MAX_FIELD_TILES, createInitialState } from "./FieldSystem";
 import { isAutomationDirectiveId } from "./AutomationDirectiveSystem";
 import { createAutomationStatsState } from "./AutomationProgressSystem";
 import { createPrestigeState } from "./PrestigeSystem";
-import { normalizeGrassTouches } from "./AmountSystem";
+import { MAX_GRASS_TOUCH_AMOUNT, normalizeGrassTouches } from "./AmountSystem";
 import { isCharacterClassId } from "../data/character-classes";
 import { getGrassTier } from "../data/grass-tiers";
 import { CURRENT_SAVE_VERSION } from "../types/game-state";
@@ -74,14 +74,14 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
     saveVersion: CURRENT_SAVE_VERSION,
     characterClassId: isCharacterClassId(saved.characterClassId) ? saved.characterClassId : initial.characterClassId,
     grassTouches: normalizeGrassTouches(saved.grassTouches, initial.grassTouches),
-    seeds: readNumber(saved.seeds, initial.seeds),
-    lifetimeSeeds: readNumber(saved.lifetimeSeeds, initial.lifetimeSeeds),
-    gold: readNumber(saved.gold, initial.gold),
-    lifetimeGold: readNumber(saved.lifetimeGold, initial.lifetimeGold),
+    seeds: readCount(saved.seeds, initial.seeds),
+    lifetimeSeeds: readCount(saved.lifetimeSeeds, initial.lifetimeSeeds),
+    gold: readCount(saved.gold, initial.gold),
+    lifetimeGold: readCount(saved.lifetimeGold, initial.lifetimeGold),
     lifetimeGrassTouches: normalizeGrassTouches(saved.lifetimeGrassTouches, initial.lifetimeGrassTouches),
-    totalClickedPatches: readNumber(saved.totalClickedPatches, initial.totalClickedPatches),
-    wateredPatches: readNumber(saved.wateredPatches, initial.wateredPatches),
-    mutationEvents: readNumber(saved.mutationEvents, initial.mutationEvents),
+    totalClickedPatches: readCount(saved.totalClickedPatches, initial.totalClickedPatches),
+    wateredPatches: readCount(saved.wateredPatches, initial.wateredPatches),
+    mutationEvents: readCount(saved.mutationEvents, initial.mutationEvents),
     field,
     upgrades: readRecord<UpgradeState>(saved.upgrades),
     seedShopPurchases,
@@ -293,6 +293,17 @@ function unique<T extends string>(values: T[]): T[] {
 
 function readNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+// Integer resource counters (seeds, gold, patches, ...) share the same bounds as
+// grass touches: non-negative, whole, and capped at MAX_GRASS_TOUCH_AMOUNT. The
+// plain finite check let a hand-edited or corrupted save carry negatives,
+// fractions, or values up to Number.MAX_VALUE into the economy.
+function readCount(value: unknown, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.min(MAX_GRASS_TOUCH_AMOUNT, Math.max(0, Math.floor(value)));
 }
 
 function readGrassTier(value: unknown): FieldTile["tier"] {
