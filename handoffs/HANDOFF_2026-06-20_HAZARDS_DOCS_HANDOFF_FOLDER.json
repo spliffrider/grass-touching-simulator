@@ -1,0 +1,214 @@
+{
+  "createdAt": "2026-06-20",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Context handoff before opening a new chat. Captures the current implementation, documentation, file organization, verification, and unresolved design notes.",
+  "importantConventions": [
+    "All future handoff artifacts should live in the root-level handoffs/ folder, not docs/.",
+    "AGENTS.md has been updated with the handoffs/ convention.",
+    "Performance is a first-class constraint. For performance-sensitive changes, run npm run build and use the perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200.",
+    "Do not implement offline progress unless the user explicitly asks for it. lastSavedAt is save metadata only.",
+    "Do not revert unrelated user or pre-existing untracked files."
+  ],
+  "userRequestsHandledInThisChat": [
+    {
+      "request": "Read the most recent handoff JSON in docs and plan negative game mechanics.",
+      "result": "Read docs/HANDOFF_2026-06-20_PERSISTENT_TOUCH_PERF.json before handoffs were moved. Summarized it and planned hazards/debuffs."
+    },
+    {
+      "request": "Implement negative things like cactus debuffs and a robotic lawnmower.",
+      "result": "Implemented cactus hazards, Pricked debuff, weeds, robotic mower event, hazard rendering, audio, save migration, and counterplay items."
+    },
+    {
+      "request": "Keep going.",
+      "result": "Added weeds and counterplay expansions: Garden Gloves, Mower Boundary, Compost Bin interactions, and related UI/status handling."
+    },
+    {
+      "request": "Make a detailed comprehensive explanation of the game and systems in docs.",
+      "result": "Created docs/GAME_SYSTEMS_REFERENCE.md, a 1424-line systems reference with Mermaid diagrams, formulas, tables, and coherence notes."
+    },
+    {
+      "request": "Make a separate handoff folder and put all handoff documents there; remember this for future.",
+      "result": "Created handoffs/ at project root, moved handoff-related docs/root files into it, and updated AGENTS.md with the convention."
+    },
+    {
+      "request": "Create a handoff JSON before a new chat.",
+      "result": "This file."
+    }
+  ],
+  "gameplayImplementationSummary": {
+    "newSystem": "src/game/systems/HazardSystem.ts",
+    "stateChanges": [
+      "CURRENT_SAVE_VERSION bumped to 12.",
+      "GameState now includes tileHazards and debuffs.",
+      "SaveSystem migrates/defaults hazards and debuffs."
+    ],
+    "hazards": [
+      {
+        "id": "cactus",
+        "unlock": "180 lifetime Grass Touches and at least 8 field tiles",
+        "behavior": "Spawns temporarily on grown tiles. Touching it removes the cactus, stops persistent touch, applies Pricked, and plays prick feedback.",
+        "debuff": "Pricked lasts 8500 ms normally or 5200 ms with Garden Gloves. It applies grassTouchMultiplier x0.82 and comboWindowMultiplier x0.92, and adds +55 ms to Persistent Touch interval.",
+        "cap": "1 below 70 tiles, 2 at 70+, 3 at 320+, 4 at 900+."
+      },
+      {
+        "id": "weeds",
+        "unlock": "360 lifetime Grass Touches and at least 16 field tiles",
+        "behavior": "Spawns temporarily on grown tiles and can spread to cardinal neighbors. Touching weeds pulls them instead of touching grass; strength is usually 1 or 2.",
+        "counterplay": "Garden Gloves makes new weeds usually strength 1. Compost Bin can turn cleared weeds into a seed reward.",
+        "cap": "2 below 90 tiles, 3 at 90+, 4 at 320+, 5 at 900+."
+      },
+      {
+        "id": "robotic_mower",
+        "unlock": "720 lifetime Grass Touches and at least 28 field tiles",
+        "behavior": "Creates an animated route across existing field tiles. Crossed grown tiles become regrowing/mown. It clears cactus and weeds on the route.",
+        "counterplay": "Mower Boundary increases interval by x1.35 and caps route length at 9 instead of 14. Compost Bin improves mown tile recovery with regrow scale 0.92 instead of default 1.16."
+      }
+    ],
+    "otherGameplayChanges": [
+      "FieldSystem gained setTileRegrowing helper and tracks regrowing tiles consistently.",
+      "UpgradeSystem applies Pricked debuff when computing RuntimeStats.",
+      "AudioSystem includes procedural prick and mower sounds.",
+      "GameScene renders hazard overlays for live/batch tiles, handles hazard touches before normal tile touches, animates mower movement, shows hazard HUD/status text, and creates hazard textures.",
+      "Seed Shop data includes Garden Gloves and Mower Boundary. Compost Bin text/behavior now includes mower recovery and weed compost support."
+    ]
+  },
+  "documentationSummary": {
+    "created": [
+      {
+        "path": "docs/GAME_SYSTEMS_REFERENCE.md",
+        "description": "Comprehensive systems reference for brainstorming and coherence work. Includes architecture diagrams, progression loop, update loop, GameState map, touch formulas, tile/trait/tier behavior, RuntimeStats, upgrades, shops, automation, weather, journal, quests, mutations, hazards, prestige, save/performance notes, coherence notes, and future brainstorming hooks.",
+        "verification": "1424 lines, 56832 characters, ASCII-clean, no TODO/FIXME markers."
+      }
+    ],
+    "notableCoherenceNotesAdded": [
+      "Dewy/lush trait value mismatch: UI suggests dewy/lush add direct value, but touch formula only gives lush +1 direct touch value and dewy probability bonuses.",
+      "Automation has two parallel fantasies: passive route/shift/crew systems and gold-store individual companions.",
+      "Sprinkler has three meanings: seed shop blueprint, automation-store unit, active/placeable helper. Active SprinklerSystem currently keys off Seed Shop blueprint rather than owned automation unit count.",
+      "Passive AutomationIncomeSystem may double-count actions: it calls recordAutomationAction and then recordAutomationTouch, which also records an action.",
+      "Seeds mostly unlock rules/systems while gold buys tangible consumables/companions.",
+      "Hazards could use more reward texture in future design."
+    ]
+  },
+  "handoffFolderOrganization": {
+    "createdFolder": "handoffs/",
+    "updatedInstructionFile": "AGENTS.md",
+    "movedFiles": [
+      "CODEX_HANDOFF_2026-06-09.json",
+      "CODEX_HANDOFF_2026-06-10.json",
+      "GPT_IMPLEMENTATION_HANDOFF.md",
+      "HANDOFF_2026-06-11_CLASS_FEEDBACK.json",
+      "HANDOFF_2026-06-12_GRASS_TOUCHER.json",
+      "HANDOFF_2026-06-13_AUTOMATION_DIRECTIVES.json",
+      "HANDOFF_2026-06-13_AUTOPILOT_VERCEL.json",
+      "HANDOFF_2026-06-13_GRASS_TOUCHER_CLASS_PATH.json",
+      "HANDOFF_2026-06-13_PACING_VISUAL_PUNCH.json",
+      "HANDOFF_2026-06-13_PLACEMENT_SPRINKLER.json",
+      "HANDOFF_2026-06-13_SPRINKLER_NETWORK.json",
+      "HANDOFF_2026-06-13_SPRINKLER_RADIUS_PREVIEW.json",
+      "HANDOFF_2026-06-19_TITLE_MUSIC_VISUALS.json",
+      "HANDOFF_2026-06-20_OPTIMIZATION_PRESTIGE_AUDIO.json",
+      "HANDOFF_2026-06-20_PERSISTENT_TOUCH_PERF.json",
+      "handoff.json",
+      "handoff-summary.json",
+      "handoff-summary-2026-06-04.json",
+      "handoff-summary-2026-06-07.json",
+      "handoff-summary-2026-06-07-optimization.json",
+      "handoff-summary-2026-06-09-emerald-ui.json"
+    ],
+    "gitStatusNote": "Because handoffs/ is currently untracked, Git status shows tracked docs handoff files as deleted and handoffs/ as untracked. Treat these as moves unless the user asks otherwise."
+  },
+  "verificationPerformed": [
+    {
+      "time": "After hazard/weeds/mower implementation",
+      "command": "npm run build",
+      "result": "Passed."
+    },
+    {
+      "time": "After hazard/weeds/mower implementation",
+      "target": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "Passed browser harness sample.",
+      "metrics": {
+        "visibleTiles": 1206,
+        "layoutPasses": 0,
+        "redraws": 0,
+        "redrawQueued": 0,
+        "maxFrameDeltaMs": 15,
+        "frameSpikes": 0,
+        "displayObjects": 281,
+        "activeTweens": 21,
+        "hotspots": "hot none"
+      },
+      "browserWarningsOrErrors": "None observed."
+    },
+    {
+      "time": "After docs/GAME_SYSTEMS_REFERENCE.md creation",
+      "checks": [
+        "ASCII-clean.",
+        "No TODO/FIXME markers.",
+        "No build run because it was docs-only."
+      ]
+    },
+    {
+      "time": "After moving handoffs/",
+      "checks": [
+        "No handoff-named files remain in docs/.",
+        "handoffs/ contains the expected moved handoff files.",
+        "No build run because it was file organization/docs-only."
+      ]
+    }
+  ],
+  "currentGitStatusSummary": {
+    "modified": [
+      "AGENTS.md",
+      "src/game/data/seed-shop.ts",
+      "src/game/scenes/GameScene.ts",
+      "src/game/systems/AudioSystem.ts",
+      "src/game/systems/FieldSystem.ts",
+      "src/game/systems/SaveSystem.ts",
+      "src/game/systems/UpgradeSystem.ts",
+      "src/game/types/game-state.ts"
+    ],
+    "deletedDueToMoveOrTrackedRemoval": [
+      "docs/CODEX_HANDOFF_2026-06-09.json",
+      "docs/CODEX_HANDOFF_2026-06-10.json",
+      "docs/GPT_IMPLEMENTATION_HANDOFF.md",
+      "docs/HANDOFF_2026-06-11_CLASS_FEEDBACK.json",
+      "docs/HANDOFF_2026-06-12_GRASS_TOUCHER.json",
+      "docs/HANDOFF_2026-06-13_GRASS_TOUCHER_CLASS_PATH.json",
+      "docs/HANDOFF_2026-06-13_PLACEMENT_SPRINKLER.json",
+      "docs/HANDOFF_2026-06-13_SPRINKLER_NETWORK.json",
+      "docs/HANDOFF_2026-06-13_SPRINKLER_RADIUS_PREVIEW.json",
+      "handoff-summary.json"
+    ],
+    "untrackedImportant": [
+      "docs/GAME_SYSTEMS_REFERENCE.md",
+      "handoffs/",
+      "src/game/systems/HazardSystem.ts"
+    ],
+    "untrackedPreExistingOrUnrelatedDocs": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategien/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md may appear escaped in git status depending on shell",
+      "docs/artifacts/"
+    ],
+    "note": "Run git status --short at the start of the next chat. Some moved handoff files were previously untracked, so Git will not show all of them as D/R pairs."
+  },
+  "recommendedNextChatStart": [
+    "Read AGENTS.md first.",
+    "Read this handoff from handoffs/HANDOFF_2026-06-20_HAZARDS_DOCS_HANDOFF_FOLDER.json.",
+    "Run git status --short.",
+    "If continuing gameplay work, inspect src/game/systems/HazardSystem.ts and the touched GameScene/SaveSystem/UpgradeSystem files.",
+    "If preparing a commit, decide whether to stage the handoff folder moves, docs/GAME_SYSTEMS_REFERENCE.md, hazards source changes, and AGENTS.md update together or split into logical commits.",
+    "If modifying source further, run npm run build. For anything performance-sensitive, run the perf harness."
+  ],
+  "openDesignQuestions": [
+    "Should dewy grass have direct touch value, or should UI copy frame it as crit/seed utility?",
+    "Should active SprinklerSystem require an owned Tiny Sprinkler automation unit, or is the Seed Shop blueprint intended to create active sprinkler behavior by itself?",
+    "Should passive automation income count one action or two actions per touch-producing tick?",
+    "Should cactus have a positive counterplay reward when cleared with Garden Gloves or other future items?",
+    "Should hazards get journal entries and quest chains?"
+  ],
+  "finalUserIntent": "User is about to open a new chat. They want the next chat to continue from this project state with the new handoffs/ convention remembered."
+}

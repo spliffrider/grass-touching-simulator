@@ -1,0 +1,460 @@
+{
+  "generated_at_local": "2026-06-20T01:29:15+02:00",
+  "handoff_for": "2026-06-20_later",
+  "project": "Grass Touching Simulator",
+  "workspace": "C:/Users/rafbu/OneDrive/Documenten/Grass Touching Simulator",
+  "branch": "master",
+  "mode": "continuation_memory",
+  "summary": {
+    "one_sentence": "Tonight shipped a major optimization/addiction pass live to production, then prepared an uncommitted audio mix fix for grass-click clipping that needs a human listening pass before commit/deploy.",
+    "production_is_live_at": "https://grasstouchingsimulator.com",
+    "latest_live_commit": "556ff77 Add prestige progression loop",
+    "latest_live_vercel_deployment": {
+      "id": "dpl_Gy9KYCa3j36cG49YqmpRNtwYmPdg",
+      "url": "https://grass-touching-simulator-kvcq7512p-sensitech.vercel.app",
+      "custom_domain_alias": "https://grasstouchingsimulator.com",
+      "ready_state": "READY"
+    },
+    "local_uncommitted_focus": "Audio anti-clipping candidate for background music plus grass-click SFX."
+  },
+  "user_context": {
+    "tone_and_preferences": [
+      "User is energetic, direct, and likes decisive implementation.",
+      "They explicitly asked to keep optimization permanently in mind for this project.",
+      "They want the game to become more addictive in the incremental-game sense: automation takes over, power grows visibly, collection/completion hooks matter, and prestige should feel strong.",
+      "They value quick push/deploy loops when a change is ready.",
+      "Tonight they called it a night and asked for this JSON as memory for tomorrow."
+    ],
+    "important_recent_user_feedback": [
+      "The credits screen previously had overlapping text; fixed with scrollable layout.",
+      "Automation was too slow versus manual touching; fixed with stronger automation impact and buy-to-boost controls.",
+      "NotebookLM research emphasized bumpy progression, ownership multipliers, prestige, dual limiters, and collections.",
+      "Most recent bug report: background music sounds clipped when clicking grass."
+    ]
+  },
+  "repository_state_at_handoff": {
+    "git_branch": "master",
+    "head_commit": {
+      "hash": "556ff77",
+      "message": "Add prestige progression loop",
+      "pushed": true,
+      "deployed": true
+    },
+    "recent_commits": [
+      {
+        "hash": "556ff77",
+        "message": "Add prestige progression loop"
+      },
+      {
+        "hash": "623fceb",
+        "message": "Fix credits layout overflow"
+      },
+      {
+        "hash": "310c7a9",
+        "message": "Add grass toucher credits"
+      },
+      {
+        "hash": "7c61995",
+        "message": "Make automation progression more impactful"
+      },
+      {
+        "hash": "307ec4d",
+        "message": "Add performance harness and mobile optimization guardrails"
+      },
+      {
+        "hash": "d71b8a3",
+        "message": "Add clean responsive title art"
+      }
+    ],
+    "current_uncommitted_code_changes": [
+      {
+        "path": "src/game/scenes/GameScene.ts",
+        "status": "modified",
+        "summary": "Adds playMixedGrassTouch(), routes manual, AOE, sprinkler, and companion grass-touch SFX through it, and ducks music only when AudioSystem actually plays a grass-touch sound."
+      },
+      {
+        "path": "src/game/systems/AudioSystem.ts",
+        "status": "modified",
+        "summary": "Adds SFX compressor/limiter, lowers SFX master gain from 0.58 to 0.5, lowers grass-touch transient via TOUCH_TRANSIENT_GAIN = 0.76, and makes playGrassTouch() return whether a sound was allowed through the throttle."
+      },
+      {
+        "path": "src/game/systems/ChiptuneMusicSystem.ts",
+        "status": "modified",
+        "summary": "Adds music compressor/limiter, lowers game/title master gain staging, adds duckForSfx(depth, releaseSeconds), and restores target gain after ducking."
+      }
+    ],
+    "untracked_files_to_not_accidentally_stage": [
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/HANDOFF_2026-06-13_AUTOMATION_DIRECTIVES.json",
+      "docs/HANDOFF_2026-06-13_AUTOPILOT_VERCEL.json",
+      "docs/HANDOFF_2026-06-13_PACING_VISUAL_PUNCH.json",
+      "docs/HANDOFF_2026-06-19_TITLE_MUSIC_VISUALS.json",
+      "docs/artifacts/",
+      "handoff.json",
+      "docs/HANDOFF_2026-06-20_OPTIMIZATION_PRESTIGE_AUDIO.json"
+    ]
+  },
+  "what_shipped_tonight": {
+    "performance_and_optimization_foundation": [
+      {
+        "commit": "307ec4d",
+        "title": "Add performance harness and mobile optimization guardrails",
+        "details": [
+          "Added repeatable perf harness at ?perfHarness&tiles=1200.",
+          "Added project guardrails in AGENTS.md emphasizing profiling before broad optimization.",
+          "Required comparisons include visibleTiles, layoutPasses, redraws, redrawQueued, maxFrameDeltaMs, frameSpikes, displayObjects, activeTweens, and hotspots."
+        ]
+      },
+      {
+        "title": "Optimization mindset established",
+        "details": [
+          "Every feature pass should avoid per-frame allocations and surprise layout/redraw work.",
+          "Use existing profiled UI refresh cadence for new HUD/panel info.",
+          "Avoid save serialization during active pan/layout/redraw work."
+        ]
+      }
+    ],
+    "automation_and_incremental_gameplay": [
+      {
+        "commit": "7c61995",
+        "title": "Make automation progression more impactful",
+        "details": [
+          "Automation now has stronger early impact relative to manual touches.",
+          "Automation progression became more central to the incremental-game loop."
+        ]
+      },
+      {
+        "title": "Buy-to-next-boost control",
+        "files": [
+          "src/game/scenes/GameScene.ts"
+        ],
+        "details": [
+          "Store automation tab now has Buy 1 / To Boost mode.",
+          "To Boost computes the full cost to the next automation ownership milestone and purchases the batch only if affordable.",
+          "Store rows and details preview batch cost and output delta.",
+          "Ready glow respects the current buy mode, so no misleading affordance."
+        ]
+      },
+      {
+        "title": "Next automation breakthrough HUD line",
+        "files": [
+          "src/game/scenes/GameScene.ts"
+        ],
+        "details": [
+          "Main milestone/HUD text now calls out the next automation ownership boost or the next automation start cost.",
+          "Runs inside the existing profiled refreshUi path under ui:autoGoal."
+        ]
+      }
+    ],
+    "collection_power": [
+      {
+        "title": "Field Journal collection bonuses",
+        "files": [
+          "src/game/systems/UpgradeSystem.ts",
+          "src/game/scenes/GameScene.ts"
+        ],
+        "details": [
+          "Field Journal discoveries now translate into power.",
+          "Grass-tier discoveries boost rare odds and rare touch value.",
+          "Trait discoveries boost seed drops and eventually double-touch chance.",
+          "Weather discoveries boost automation globally.",
+          "Journal Progress Notes explain these bonuses."
+        ],
+        "performance_note": "Implemented through getRuntimeStats(), which is already cached by GameScene."
+      }
+    ],
+    "prestige_loop": [
+      {
+        "commit": "556ff77",
+        "title": "Add prestige progression loop",
+        "files": [
+          "src/game/systems/PrestigeSystem.ts",
+          "src/game/types/game-state.ts",
+          "src/game/systems/FieldSystem.ts",
+          "src/game/systems/SaveSystem.ts",
+          "src/game/systems/UpgradeSystem.ts",
+          "src/game/scenes/GameScene.ts"
+        ],
+        "details": [
+          "Introduced PrestigeState with resets, meadowMemory, bestRunGrassTouches, lastRunGrassTouches, and totalPrestigeGrassTouches.",
+          "Save version bumped to 11 and migration reads missing/old prestige state safely.",
+          "Prestige unlocks at 25,000 current-run lifetime Grass Touches.",
+          "First prestige grants at least 5 Meadow Memory and roughly x2.20 production after reset.",
+          "Meadow Memory multiplier feeds manual grassTouchMultiplier and automationGlobalMultiplier through cached runtime stats.",
+          "Skill tree now has Prestige button with progress preview and two-tap confirm.",
+          "Prestige resets the run but keeps journal discoveries and selected music track.",
+          "Hard Reset remains separate."
+        ],
+        "profiling_markers": [
+          "prestige:preview",
+          "prestige:state",
+          "prestige:sceneReset",
+          "prestige:save"
+        ],
+        "verification": [
+          "cmd /c npm run build passed locally.",
+          "Production Vercel build passed.",
+          "?perfHarness&tiles=1200 passed with no frame spikes.",
+          "Stress smoke test used ?stress&tiles=1200, clicked Skills -> Prestige -> Confirm, and verified totalTiles dropped from 1200 to 1 with no console warnings/errors."
+        ]
+      }
+    ],
+    "credits_and_social": [
+      {
+        "commit": "310c7a9",
+        "title": "Add grass toucher credits",
+        "details": [
+          "Added KaviaarSocialist, Echarnus, and Overtilted as grass touchers."
+        ]
+      },
+      {
+        "commit": "623fceb",
+        "title": "Fix credits layout overflow",
+        "details": [
+          "Credits screen now uses a layout that can handle more names in the future without overlapping text.",
+          "This was in response to a screenshot showing grass toucher names overlapping the Back button and other credits."
+        ]
+      }
+    ]
+  },
+  "uncommitted_audio_fix_details": {
+    "problem_reported": "The background music sounds clipped when clicking grass.",
+    "diagnosis": [
+      "AudioSystem and ChiptuneMusicSystem each create their own Web Audio context and connect directly to context.destination.",
+      "Music master gain was hot: setVolume() used trackGain 1.18 for game tracks and 1.12 for title track.",
+      "Grass-touch SFX can create several simultaneous voices per click: noise brush, snap, low tone, high tone, optional trait ping, optional tier sparkle, optional crit accent.",
+      "Rapid clicks can stack SFX over already-loud chiptune output and cause device/browser output clipping."
+    ],
+    "implemented_candidate_fix": [
+      {
+        "file": "src/game/systems/AudioSystem.ts",
+        "changes": [
+          "Added DynamicsCompressorNode limiter after SFX master.",
+          "Set SFX_MASTER_GAIN = 0.5.",
+          "Set TOUCH_TRANSIENT_GAIN = 0.76 to lower grass-click transient level while preserving shape.",
+          "playGrassTouch() now returns boolean to indicate whether the touch sound actually passed throttling and was scheduled."
+        ]
+      },
+      {
+        "file": "src/game/systems/ChiptuneMusicSystem.ts",
+        "changes": [
+          "Added DynamicsCompressorNode limiter after music master.",
+          "Replaced hot trackGain values with TITLE_MASTER_GAIN = 0.88 and GAME_MASTER_GAIN = 0.82.",
+          "Added duckForSfx(depth, releaseSeconds), which temporarily lowers music gain during grass-touch SFX and recovers smoothly.",
+          "duckForSfx avoids work when music is not playing or muted."
+        ]
+      },
+      {
+        "file": "src/game/scenes/GameScene.ts",
+        "changes": [
+          "Added playMixedGrassTouch(tier, trait, isCrit, comboCount = 0).",
+          "Manual touch, AOE touch, sprinkler touch, and animal companion touch now route through playMixedGrassTouch().",
+          "Music ducks only if AudioSystem.playGrassTouch() returns true, so throttled/skipped SFX do not pump the music."
+        ]
+      }
+    ],
+    "candidate_fix_verification": [
+      "cmd /c npm run build passed.",
+      "git diff --check passed.",
+      "Not committed.",
+      "Not deployed.",
+      "Needs human listening test tomorrow."
+    ],
+    "tuning_guide_if_not_right": [
+      {
+        "symptom": "Click still clips/crunches the music.",
+        "first_adjustments": [
+          "Lower GAME_MASTER_GAIN in ChiptuneMusicSystem.ts from 0.82 toward 0.76.",
+          "Lower TOUCH_TRANSIENT_GAIN in AudioSystem.ts from 0.76 toward 0.68.",
+          "Increase duck depth effect by changing normal duck depth in GameScene.ts from 0.86 toward 0.82, combo duck from 0.82 toward 0.78, or crit duck from 0.78 toward 0.72."
+        ]
+      },
+      {
+        "symptom": "Grass click feels too quiet or unsatisfying.",
+        "first_adjustments": [
+          "Raise TOUCH_TRANSIENT_GAIN in AudioSystem.ts from 0.76 toward 0.84.",
+          "Raise SFX_MASTER_GAIN from 0.5 toward 0.54.",
+          "Do not remove the limiter unless absolutely necessary."
+        ]
+      },
+      {
+        "symptom": "Music feels like it pumps too much when clicking.",
+        "first_adjustments": [
+          "Raise the normal duck depth in GameScene.ts from 0.86 toward 0.9.",
+          "Shorten normal release from 0.16 toward 0.12.",
+          "Leave crit duck a bit stronger because crit SFX are louder."
+        ]
+      }
+    ],
+    "future_audio_architecture_note": "Ideal long-term fix would be a shared AudioContext/mixer with music and SFX buses feeding one master limiter. The current candidate is intentionally smaller and safer for tonight: separate context limiters plus gain staging and ducking."
+  },
+  "verification_history_from_tonight": {
+    "automation_collection_prestige_pass": [
+      {
+        "check": "cmd /c npm run build",
+        "result": "passed"
+      },
+      {
+        "check": "?perfHarness&tiles=1200 on production dist",
+        "result": "passed",
+        "highlights": [
+          "No console warnings/errors after corrected local SVG MIME serving.",
+          "No frame spikes.",
+          "Store open hotspots stayed low: ui:store about 2.4ms, store:layout about 1.3ms, store:automation about 1.1ms.",
+          "saveStringify about 0.7ms."
+        ]
+      },
+      {
+        "check": "?stress&tiles=1200 prestige smoke",
+        "result": "passed",
+        "highlights": [
+          "Started with totalTiles 1200.",
+          "Clicked Skills -> Prestige -> Confirm.",
+          "After prestige totalTiles was 1.",
+          "No console warnings/errors.",
+          "No frame spikes."
+        ]
+      }
+    ],
+    "audio_mix_candidate": [
+      {
+        "check": "cmd /c npm run build",
+        "result": "passed"
+      },
+      {
+        "check": "git diff --check",
+        "result": "passed"
+      },
+      {
+        "check": "human listening",
+        "result": "not yet done",
+        "reason": "Codex cannot hear the actual local browser audio output."
+      }
+    ]
+  },
+  "commands_that_matter": {
+    "status": "git -c safe.directory=\"C:/Users/rafbu/OneDrive/Documenten/Grass Touching Simulator\" status --short",
+    "build": "cmd /c npm run build",
+    "perf_harness_url": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+    "stress_url": "http://127.0.0.1:5173/?stress&tiles=1200",
+    "push_master": "git -c safe.directory=\"C:/Users/rafbu/OneDrive/Documenten/Grass Touching Simulator\" push origin master",
+    "deploy_prod": "cmd /c npx vercel deploy --prod --yes"
+  },
+  "approved_or_previously_used_release_flow": {
+    "stage_selective_files_only": [
+      "git -c safe.directory=\"C:/Users/rafbu/OneDrive/Documenten/Grass Touching Simulator\" add src/game/scenes/GameScene.ts src/game/systems/AudioSystem.ts src/game/systems/ChiptuneMusicSystem.ts"
+    ],
+    "commit_candidate_message": "Tame grass touch mix clipping",
+    "push": "git -c safe.directory=\"C:/Users/rafbu/OneDrive/Documenten/Grass Touching Simulator\" push origin master",
+    "deploy": "cmd /c npx vercel deploy --prod --yes"
+  },
+  "performance_guardrails": {
+    "from_AGENTS_md": [
+      "Profile before optimizing. Prefer ?perf, ?stress&perf&tiles=1200, and ?perfHarness&tiles=1200.",
+      "Treat every-frame and every-tick work as suspicious until measured.",
+      "Do not refactor hot paths blindly.",
+      "Keep ordinary tap/regrow/automation updates from forcing board layout or common-layer redraws.",
+      "Avoid expensive graphics resource operations in normal gameplay.",
+      "On large fields, preserve viewport culling and dirty-tile overlays.",
+      "Watch allocation in hot loops.",
+      "Saves should be queued/deferred during active layout, panning, or redraw work unless page is hiding/shutting down."
+    ],
+    "applies_to_audio": [
+      "Audio change is not expected to affect frame performance because it adds a few persistent Web Audio nodes and a constant-time duck call only when a throttled SFX plays.",
+      "Do not add per-frame audio analysis or waveform metering unless explicitly profiling a sound issue.",
+      "If adding audio diagnostics, gate them behind ?perf or another debug flag."
+    ]
+  },
+  "recommended_next_design_chunks_after_audio": [
+    {
+      "name": "Prestige UX and pacing polish",
+      "why": "Prestige is now functional and live, but the next addictive step is making the reset decision and post-reset acceleration feel ceremonious and legible.",
+      "ideas": [
+        "Add a prestige summary panel or stronger status line showing current run, memory gain, and next multiplier.",
+        "Add post-prestige early-run acceleration cues so players immediately feel the x2+ power.",
+        "Consider a first-prestige mini-celebration with minimal display object budget."
+      ],
+      "performance_note": "Use existing skill-tree overlay and status text; avoid always-on HUD churn."
+    },
+    {
+      "name": "Bumpy progression goals",
+      "why": "NotebookLM research emphasized slow strategic walls followed by explosive breakthroughs.",
+      "ideas": [
+        "More explicit next-breakthrough cards for automation, journal discoveries, and prestige.",
+        "Milestone ownership multipliers for all automation systems beyond current tiers.",
+        "Careful cost/production tuning so automation bursts are noticeable."
+      ],
+      "performance_note": "Keep calculations cached or inside existing refresh cadence."
+    },
+    {
+      "name": "Dual limiter concept",
+      "why": "A second bottleneck can make automation choices more strategic than pure touch generation.",
+      "ideas": [
+        "Prototype Hands Available or Carrying Capacity as a soft cap on automation conversion.",
+        "Could tie store/seed upgrades to expanding capacity.",
+        "Must not make early automation feel nerfed; introduce only after the player has enough systems."
+      ],
+      "performance_note": "Avoid per-tile resource scans; derive from owned systems/upgrades/stats."
+    },
+    {
+      "name": "Collection completion hooks",
+      "why": "Journal bonuses are live, so the next step is making completion goals visible and juicy.",
+      "ideas": [
+        "Add collection completion badges in Journal.",
+        "Add next undiscovered grass/weather/trait hint without spoiling too much.",
+        "Tie prestige memory bonus lightly to collection completion later if balance supports it."
+      ],
+      "performance_note": "Journal-only UI, refreshed at panel cadence."
+    }
+  ],
+  "known_risks_or_watch_items": [
+    {
+      "item": "Audio fix not yet heard",
+      "risk": "Numbers may reduce clipping but make clicks too soft or music duck too noticeable.",
+      "mitigation": "Human listening pass before commit/deploy."
+    },
+    {
+      "item": "Separate Web Audio contexts",
+      "risk": "Even with per-context limiters, final browser/device output sums contexts externally.",
+      "mitigation": "Current headroom/ducking should reduce summed peaks. Long-term shared mixer would be cleaner."
+    },
+    {
+      "item": "Prestige reset permanence",
+      "risk": "Players may be surprised that inventory/upgrades/automation reset but journal discoveries persist.",
+      "mitigation": "Prestige confirm text already says resets the run and keeps journal discoveries; consider clearer UI later."
+    },
+    {
+      "item": "Untracked docs",
+      "risk": "Accidental broad git add could stage old research/handoff/artifacts.",
+      "mitigation": "Always use selective git add paths."
+    }
+  ],
+  "tomorrow_checklist": [
+    {
+      "step": "Read this handoff and run git status.",
+      "done": false
+    },
+    {
+      "step": "Start local app or use existing dev workflow, then listen-test grass clicks over music.",
+      "done": false
+    },
+    {
+      "step": "Tune AudioSystem.ts / ChiptuneMusicSystem.ts only if listening says it needs it.",
+      "done": false
+    },
+    {
+      "step": "Run cmd /c npm run build after any audio tuning.",
+      "done": false
+    },
+    {
+      "step": "If approved by user, stage only the three audio files, commit, push, and deploy to Vercel.",
+      "done": false
+    },
+    {
+      "step": "Then continue with prestige UX/pacing or collection hooks.",
+      "done": false
+    }
+  ]
+}

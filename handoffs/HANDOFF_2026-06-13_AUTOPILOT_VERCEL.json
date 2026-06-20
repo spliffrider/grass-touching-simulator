@@ -1,0 +1,100 @@
+{
+  "generated_at": "2026-06-13T23:05:22.1555792+02:00",
+  "project": "Grass Touching Simulator",
+  "workspace": "C:/Users/rafbu/OneDrive/Documenten/Grass Touching Simulator",
+  "branch": "master",
+  "status": {
+    "latest_commit": "b024ed2 Add automation autopilot directive",
+    "pushed_to_git": true,
+    "production_deployed": true,
+    "live_domain_checked": {
+      "url": "https://grasstouchingsimulator.com",
+      "http_status": 200
+    },
+    "vercel": {
+      "deployment_id": "dpl_DJtjbdBtgCYQeYZoKQ5NM62todsS",
+      "production_url": "https://grass-touching-simulator-18sqaicq6-sensitech.vercel.app",
+      "custom_domain": "https://grasstouchingsimulator.com",
+      "inspector_url": "https://vercel.com/sensitech/grass-touching-simulator/DJtjbdBtgCYQeYZoKQ5NM62todsS"
+    }
+  },
+  "commits_this_session": [
+    {
+      "hash": "48f0b20",
+      "message": "Add quest clipboard automation",
+      "summary": [
+        "Removed the large grass-tile mouseover info panel.",
+        "Added Quest Clipboard as an early automation seed shop purchase.",
+        "Quest Clipboard automatically claims up to 2 ready quest rewards every 9 seconds.",
+        "Manual and automated quest claims now share applyQuestReward."
+      ]
+    },
+    {
+      "hash": "b024ed2",
+      "message": "Add automation autopilot directive",
+      "summary": [
+        "Added Auto-Pilot as a fifth automation directive.",
+        "Auto-Pilot resolves dynamically to Growth, Harvest, Supplies, or Balanced based on field state and resources.",
+        "Sprinkler and companion automation now use the resolved directive when Auto-Pilot is selected.",
+        "Automation panel and compact status show the resolved mode, for example Auto-Pilot -> Harvest.",
+        "The automation directive quest still counts only the original four core directives."
+      ]
+    }
+  ],
+  "verification": [
+    "npm run build passed locally after Auto-Pilot changes.",
+    "Browser stress-mode check passed with no console warnings.",
+    "Vercel production build passed.",
+    "https://grasstouchingsimulator.com returned HTTP 200 after deployment."
+  ],
+  "files_touched_by_committed_work": [
+    "src/game/data/quests.ts",
+    "src/game/data/seed-shop.ts",
+    "src/game/scenes/GameScene.ts",
+    "src/game/systems/AnimalCompanionSystem.ts",
+    "src/game/systems/AutomationDirectiveSystem.ts",
+    "src/game/systems/SprinklerSystem.ts",
+    "src/game/types/game-state.ts"
+  ],
+  "known_untracked_files_left_local": [
+    "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+    "docs/HANDOFF_2026-06-13_AUTOMATION_DIRECTIVES.json",
+    "docs/HANDOFF_2026-06-13_PACING_VISUAL_PUNCH.json",
+    "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+    "docs/HANDOFF_2026-06-13_AUTOPILOT_VERCEL.json"
+  ],
+  "recent_design_direction": [
+    "Keep the field less cluttered: important resources stay visible, detail text moves out of constant field view.",
+    "Automation should feel smarter and more helpful rather than only faster.",
+    "Visual polish should stay crisp and readable, with punchy effects but less intrusive UI chrome.",
+    "Pacing should remain faster than the earlier nerfed state, especially for early seeds and first automation unlocks."
+  ],
+  "next_session_brainstorm": [
+    {
+      "idea": "Automation Command Queue",
+      "why": "Give the player satisfying operational control without micromanagement.",
+      "possible_shape": "A small automation panel section that lets players queue priorities like gather seeds until 20, push growth until 80 percent grown, then harvest."
+    },
+    {
+      "idea": "Automation Skill Branch",
+      "why": "The skill tree now branches well; a dedicated automation branch could create longer-term goals.",
+      "possible_shape": "Nodes that improve Auto-Pilot decisions, Quest Clipboard claim rate, sprinkler radius, companion sync bursts, and reduced downtime."
+    },
+    {
+      "idea": "Field Events",
+      "why": "Short lived events can make the board feel alive without permanent UI clutter.",
+      "possible_shape": "Mini weather pockets, shiny patches, migrating companion trails, or a brief seed gust that Auto-Pilot can react to."
+    },
+    {
+      "idea": "Better Automation Feedback",
+      "why": "Auto-Pilot is functional now, but it could use a more readable emotional beat.",
+      "possible_shape": "A tiny mode-change pulse or short status toast when Auto-Pilot changes from Growth to Harvest, throttled so it does not spam."
+    },
+    {
+      "idea": "Late Early-Game Pacing Pass",
+      "why": "Seed gain was improved, but the next session should play the first 10 minutes and feel where friction remains.",
+      "possible_shape": "Tune costs around Seed Pouch, Sprinkler, Field Journal, Quest Clipboard, Weather Jar, and first companion."
+    }
+  ],
+  "suggested_next_step": "Start next session by playing a fresh save for 5-10 minutes, focusing on the path from Seed Pouch to Sprinkler to Quest Clipboard to first companion. Tune costs only after feeling that loop."
+}

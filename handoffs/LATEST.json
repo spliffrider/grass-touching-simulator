@@ -1,0 +1,23 @@
+{
+  "updatedAt": "2026-06-20",
+  "latestHandoff": "HANDOFF_2026-06-20_HAZARDS_DOCS_HANDOFF_FOLDER.json",
+  "workflow": {
+    "startSession": [
+      "Read AGENTS.md.",
+      "Read handoffs/LATEST.json.",
+      "Read the handoff file referenced by latestHandoff.",
+      "Run git status --short.",
+      "Continue from the newest user goal and respect dirty worktree notes."
+    ],
+    "endSession": [
+      "Create a dated handoff named handoffs/HANDOFF_YYYY-MM-DD_SHORT_TOPIC.json.",
+      "Update handoffs/LATEST.json to point at the new handoff.",
+      "Include current goal, work completed, files changed, verification, git status, known issues, next steps, and do-not-revert notes."
+    ]
+  },
+  "notes": [
+    "Use docs/ for durable architecture and design references.",
+    "Use handoffs/ for short-lived session state.",
+    "Do not duplicate long docs inside handoffs; link or reference them."
+  ]
+}

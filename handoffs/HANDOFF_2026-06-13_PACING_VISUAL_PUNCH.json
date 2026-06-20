@@ -1,0 +1,161 @@
+{
+  "handoffVersion": 1,
+  "createdAt": "2026-06-13T19:28:38+02:00",
+  "reason": "Created after the skill tree/progression/UI polish push and a follow-up correction because the game felt too visually muted and too slow.",
+  "project": {
+    "name": "Grass Touching Simulator",
+    "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+    "branch": "master",
+    "repository": "https://github.com/spliffrider/grass-touching-simulator.git",
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "stack": {
+      "engine": "Phaser 3",
+      "language": "TypeScript",
+      "bundler": "Vite",
+      "hosting": "Vercel"
+    }
+  },
+  "checkpoint": {
+    "name": "Alpha 2.0 - Skill tree rework, automation quests, visual punch correction",
+    "summary": "Added automation progression quests and stats, rebuilt the skill tree as a hidden central-root compass tree, polished shared UI, committed/pushed/deployed that checkpoint, then made an uncommitted correction to restore faster pacing and stronger visual impact.",
+    "latestCommittedGameCommit": {
+      "hash": "bc3508f",
+      "message": "Rework skill tree progression and polish UI",
+      "pushed": true,
+      "deployed": true
+    },
+    "currentUncommittedWork": {
+      "summary": "Follow-up tuning after user feedback that the game was nerfed too hard: speed early progression back up and make the skill tree more visually striking.",
+      "filesChanged": [
+        {
+          "path": "src/game/data/upgrades.ts",
+          "purpose": "Reduced global skill cost pacing multiplier/level step and lowered lifetime-touch gates for early and mid skill unlocks."
+        },
+        {
+          "path": "src/game/data/milestones.ts",
+          "purpose": "Moved field expansion milestones earlier and increased tile rewards so the board grows faster and looks busier sooner."
+        },
+        {
+          "path": "src/game/scenes/GameScene.ts",
+          "purpose": "Increased skill tree visual punch: brighter labels, stronger node glow, thicker brighter branch lines, more visible dormant buds, and a golden flash on skill reveal."
+        }
+      ],
+      "committed": false,
+      "pushed": false,
+      "deployed": false
+    }
+  },
+  "deployment": {
+    "provider": "Vercel",
+    "target": "production",
+    "latestCommittedDeployment": {
+      "deploymentId": "dpl_7LFvtkHaJq4R4SkwyCAsjK1DJN3J",
+      "deploymentUrl": "https://grass-touching-simulator-8jxbjs49x-sensitech.vercel.app",
+      "inspectorUrl": "https://vercel.com/sensitech/grass-touching-simulator/7LFvtkHaJq4R4SkwyCAsjK1DJN3J",
+      "readyState": "READY",
+      "aliased": true,
+      "liveDomain": "https://grasstouchingsimulator.com",
+      "liveDomainCheck": "HTTP 200 OK at deploy time"
+    },
+    "note": "The latest live domain currently reflects commit bc3508f. The follow-up pacing/visual punch correction is local only and still needs commit/push/deploy if approved."
+  },
+  "implementedSincePreviousHandoff": [
+    "Added AutomationProgressSystem and save version 8 automationStats for automated actions, automated Grass Touches, automation supply drops, and used directives.",
+    "Recorded automation stats from sprinkler and companion action paths without adding broad scans or offline progress.",
+    "Added 8 Automation quests and an Auto Quest Log filter.",
+    "Reworked skill tree layout from left-to-right into a central Softer Grass root with north/south/east/west branch paths.",
+    "Made unrevealed skill nodes hidden until their prerequisite path is opened.",
+    "Added dormant path hints so hidden branches are teased without exposing the full tree.",
+    "Added skill node click shake, reveal sprout animation, unlock sound cue, and reveal message.",
+    "Tuned early skill costs once, then after user feedback tuned pacing faster again locally.",
+    "Polished shared text buttons, HUD title/resource text, combo badge, modal titles, and skill tree node/readout contrast.",
+    "Committed/pushed/deployed the main automation/skill/UI checkpoint as bc3508f."
+  ],
+  "verification": {
+    "committedCheckpoint": {
+      "localBuild": {
+        "command": "npm run build",
+        "result": "passed"
+      },
+      "browserSmoke": {
+        "tool": "Codex in-app browser",
+        "result": "passed",
+        "checks": [
+          "Stress skill tree desktop view rendered without console warnings/errors.",
+          "Narrow viewport skill tree rendered coherently; only stress perf overlay overlap remains expected.",
+          "Live domain returned HTTP 200 OK after deployment."
+        ]
+      }
+    },
+    "uncommittedCorrection": {
+      "localBuild": {
+        "command": "npm run build",
+        "result": "passed"
+      },
+      "browserSmoke": {
+        "tool": "Codex in-app browser",
+        "result": "passed",
+        "checks": [
+          "Fresh-start skill tree on isolated localhost origin showed root cost around 7 touches and visible dormant branch buds.",
+          "Stress skill tree view looked brighter/punchier with no console warnings/errors.",
+          "Temporary verification server and logs were cleaned up."
+        ]
+      }
+    }
+  },
+  "currentWorktree": {
+    "statusAtHandoff": "Branch master is even with origin/master at commit bc3508f. Three gameplay tuning/visual files are modified locally and not committed. Three previous docs plus this handoff are untracked and intentionally untouched.",
+    "modifiedFiles": [
+      "src/game/data/milestones.ts",
+      "src/game/data/upgrades.ts",
+      "src/game/scenes/GameScene.ts"
+    ],
+    "untrackedFiles": [
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/HANDOFF_2026-06-13_AUTOMATION_DIRECTIVES.json",
+      "docs/Strategie\\u00ebn voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/HANDOFF_2026-06-13_PACING_VISUAL_PUNCH.json"
+    ],
+    "doNotAutoCommitWithoutUserApproval": [
+      "The two Dutch automation design docs are user-added and should stay uncommitted unless the user asks.",
+      "The previous handoff JSON and this new handoff JSON are docs metadata; commit only if the user wants handoff docs committed.",
+      "The three modified source files are the active follow-up correction and should be reviewed/playtested before committing/deploying."
+    ]
+  },
+  "designNotes": [
+    "The user explicitly said the game was nerfed too hard after the previous push: it became less visually striking and pacing felt too slow.",
+    "Bias future work toward juicy/punchy visuals and faster early progression, not conservative restraint.",
+    "The user still does not want offline progress.",
+    "Keep automation optimized and bounded; do not add broad per-frame scans.",
+    "Stress perf overlay can overlap panels in stress mode; normal play does not show that overlay."
+  ],
+  "knownCaveats": [
+    "The local uncommitted pacing/visual punch correction has not been committed, pushed, or deployed.",
+    "The faster curve needs a fresh-save playtest to ensure it feels exciting without trivializing the first session.",
+    "Skill tree is punchier, but broader game surfaces may still benefit from more asset-rich treatment later.",
+    "Vercel/Phaser bundle-size warnings remain expected."
+  ],
+  "recommendedNextSteps": [
+    {
+      "priority": 1,
+      "task": "Fresh-save playtest the uncommitted pacing correction.",
+      "details": "Check first root buy, first four branch unlocks, first field expansions, and whether the game feels exciting in minutes 1-5."
+    },
+    {
+      "priority": 2,
+      "task": "If the correction feels good, commit/push/deploy it.",
+      "details": "Likely commit message: Speed up early pacing and brighten skill tree."
+    },
+    {
+      "priority": 3,
+      "task": "Add more striking moment-to-moment board feedback.",
+      "details": "Consider bigger milestone bursts, branch-specific unlock banners, richer tile regrowth flashes, and stronger rare/crit visual treatment."
+    },
+    {
+      "priority": 4,
+      "task": "Continue visual punch pass beyond skill tree.",
+      "details": "HUD, shop rows, quest cards, Auto panel, and Journal can all become richer while staying performant."
+    }
+  ],
+  "newSessionPrompt": "We are continuing Grass Touching Simulator in C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator. Read docs/HANDOFF_2026-06-13_PACING_VISUAL_PUNCH.json first. Latest committed/pushed/deployed checkpoint is bc3508f Rework skill tree progression and polish UI, live on https://grasstouchingsimulator.com. After that commit, the user said the game was nerfed too hard: not visually striking enough and pacing too slow. There are local uncommitted changes in src/game/data/upgrades.ts, src/game/data/milestones.ts, and src/game/scenes/GameScene.ts that speed up early/mid progression and make the skill tree more visually punchy. Build and browser smoke passed locally for those uncommitted changes. Next: fresh-save playtest the correction; if it feels good, commit/push/deploy. Do not commit the two Dutch automation design docs unless asked. User does not want offline progress and cares about performance."
+}

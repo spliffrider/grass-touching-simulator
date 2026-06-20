@@ -50,3 +50,12 @@ Compare at least these fields across phases:
 - `docs/PERFORMANCE_NOTES.md`: performance postmortems and guardrails.
 - `docs/PERFORMANCE_HARNESS.md`: harness usage and exported metrics.
 - `docs/PROJECT_MANUAL.md`: project architecture and feature workflow.
+
+## Handoff Documents
+
+- Keep all handoff artifacts in `handoffs/` at the project root.
+- When reading or writing handoffs, look in `handoffs/` first instead of `docs/`.
+- At the start of a new session, read `AGENTS.md`, then `handoffs/LATEST.json`, then the latest handoff file referenced there, then run `git status --short`.
+- At the end of a substantial session, create a dated handoff named `handoffs/HANDOFF_YYYY-MM-DD_SHORT_TOPIC.json` and update `handoffs/LATEST.json`.
+- Handoffs should capture: current user goal, changes made, files touched, verification run, current git status, known issues, next recommended steps, and anything future agents should not revert.
+- Keep long-lived architecture and design reference material in `docs/`; keep short-lived session state in `handoffs/`.

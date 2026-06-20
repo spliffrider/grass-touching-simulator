@@ -4,6 +4,7 @@ dist/
 npm-debug.log*
 prototype-screenshot.png
 handoff-summary*.json
+!handoffs/handoff-summary*.json
 alternative assets/
 
 .vercel

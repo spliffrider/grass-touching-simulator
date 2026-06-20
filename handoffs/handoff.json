@@ -1,0 +1,61 @@
+{
+  "generated_at_local": "2026-06-20T01:29:15+02:00",
+  "handoff_for": "2026-06-20_later",
+  "project": "Grass Touching Simulator",
+  "workspace": "C:/Users/rafbu/OneDrive/Documenten/Grass Touching Simulator",
+  "branch": "master",
+  "canonical_handoff_file": "docs/HANDOFF_2026-06-20_OPTIMIZATION_PRESTIGE_AUDIO.json",
+  "headline": "Huge optimization/addiction pass landed: performance harness and mobile optimizations are in, automation feels stronger, credits layout is fixed, Field Journal collection bonuses and prestige are live, and an uncommitted audio anti-clipping mix fix is ready for listening tomorrow.",
+  "current_state": {
+    "live_production_commit": {
+      "hash": "556ff77",
+      "message": "Add prestige progression loop",
+      "pushed_to_origin_master": true,
+      "deployed_to_production": true
+    },
+    "production": {
+      "custom_domain": "https://grasstouchingsimulator.com",
+      "latest_vercel_url": "https://grass-touching-simulator-kvcq7512p-sensitech.vercel.app",
+      "latest_deployment_id": "dpl_Gy9KYCa3j36cG49YqmpRNtwYmPdg",
+      "ready_state": "READY",
+      "aliased_to_custom_domain": true
+    },
+    "working_tree": {
+      "important_uncommitted_code": [
+        "src/game/scenes/GameScene.ts",
+        "src/game/systems/AudioSystem.ts",
+        "src/game/systems/ChiptuneMusicSystem.ts"
+      ],
+      "uncommitted_code_summary": "Audio anti-clipping candidate: soft limiters/headroom on SFX and music, reduced grass-touch transient, and light music ducking only when a grass-touch SFX actually plays.",
+      "uncommitted_code_verification": [
+        "cmd /c npm run build passed after the audio mix changes",
+        "git diff --check passed"
+      ],
+      "untracked_non_code_to_leave_alone_unless_requested": [
+        "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+        "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+        "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+        "docs/HANDOFF_2026-06-13_AUTOMATION_DIRECTIVES.json",
+        "docs/HANDOFF_2026-06-13_AUTOPILOT_VERCEL.json",
+        "docs/HANDOFF_2026-06-13_PACING_VISUAL_PUNCH.json",
+        "docs/HANDOFF_2026-06-19_TITLE_MUSIC_VISUALS.json",
+        "docs/artifacts/",
+        "handoff.json"
+      ]
+    }
+  },
+  "tomorrow_first_moves": [
+    "Read docs/HANDOFF_2026-06-20_OPTIMIZATION_PRESTIGE_AUDIO.json.",
+    "Run git status --short and confirm only the audio mix files plus handoff files are uncommitted.",
+    "Listen-test the current local build/dev server: background music at normal and high volume, then rapid grass clicking, crits, and combo bursts.",
+    "If the audio clipping is fixed and the click still feels satisfying, commit with message like 'Tame grass touch mix clipping', push master, and deploy to Vercel production.",
+    "If the click feels too soft, first tune TOUCH_TRANSIENT_GAIN in AudioSystem.ts upward from 0.76 toward 0.84; if music still crunches, tune GAME_MASTER_GAIN in ChiptuneMusicSystem.ts down from 0.82 toward 0.76 or duck depth down from 0.86 toward 0.82.",
+    "After the audio fix is handled, next design chunk should be prestige UX/pacing polish or dual-limiter/collection goals, not broad refactors."
+  ],
+  "do_not_forget": [
+    "Performance is a first-class constraint. Use the harness and timing markers before making broad optimization claims.",
+    "The live site currently includes prestige but not the uncommitted audio anti-clipping fix.",
+    "Do not stage the unrelated research/handoff/artifact docs unless the user explicitly asks.",
+    "The user likes fast momentum and live deploys, but wants optimization kept permanently in mind for this project."
+  ]
+}

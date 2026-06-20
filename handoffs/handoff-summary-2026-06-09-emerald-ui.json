@@ -1,0 +1,101 @@
+{
+  "project": {
+    "name": "Grass Touching Simulator",
+    "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+    "stack": ["TypeScript", "Phaser 3", "Vite", "Vercel"],
+    "repository": "https://github.com/spliffrider/grass-touching-simulator.git",
+    "productionUrl": "https://grasstouchingsimulator.com/"
+  },
+  "handoff": {
+    "createdAt": "2026-06-08",
+    "createdFor": "2026-06-09 continuation",
+    "filename": "handoff-summary-2026-06-09-emerald-ui.json",
+    "readFirst": true,
+    "purpose": "Compact continuation token after Emerald UI/theme work and deployment."
+  },
+  "currentStatus": {
+    "branch": "master",
+    "worktreeAtCreation": "clean",
+    "latestCommit": {
+      "hash": "c7c9899",
+      "message": "Fix emerald background seam"
+    },
+    "previousCommit": {
+      "hash": "41a91b9",
+      "message": "Add emerald UI theme pass"
+    },
+    "deployment": {
+      "latestVercelProduction": "https://grass-touching-simulator-iy7htim2h-sensitech.vercel.app",
+      "liveDomain": "https://grasstouchingsimulator.com/",
+      "liveDomainCheck": "HTTP 200 after deployment"
+    }
+  },
+  "importantContext": {
+    "userPreference": "User likes fast implementation, will often live-test personally later, and likes concise handoff/context saving.",
+    "recentDocsRead": [
+      "docs/PROJECT_MANUAL.md",
+      "docs/animations.md",
+      "docs/EMERALD_GRASS_MAGIC_IMPLEMENTATION_GUIDE.md",
+      "docs/GPT_IMPLEMENTATION_HANDOFF.md"
+    ],
+    "assetContext": "Gemini/Antigravity generated Emerald UI assets, world object assets, shop item icons, and skill icons under public/assets.",
+    "doNotRedo": [
+      "Do not rebuild gameplay logic unless requested.",
+      "Do not revert existing animation/shop/world-object/skill-icon work.",
+      "Do not tile emerald-bg as a TileSprite; it visibly seams. Use a scaled Image instead."
+    ]
+  },
+  "sessionWorkCompleted": [
+    "Added expansion cascade and reward arc animation work in earlier session flow.",
+    "Added world object visual dock for sprinkler/hive/mouse/etc.; dock is fixed screen-space and does not scale with board zoom.",
+    "Added shop item icons and skill tree icons.",
+    "Pushed/deployed prior visual work to GitHub and Vercel.",
+    "Read Emerald Grass Magic implementation docs and confirmed assets existed.",
+    "Implemented first Emerald UI pass: title screen background, title panels, shared Emerald button sprites, game backdrop, subtle magic spores, Mystic Constellation skill tree styling, hex skill frames, and Emerald skill detail panel.",
+    "Fixed visible emerald background split by replacing TileSprite background/pattern rendering with scaled Image rendering.",
+    "Verified with npm run build, browser smoke test, and live domain HTTP 200."
+  ],
+  "keyFilesChangedRecently": {
+    "gameScene": "src/game/scenes/GameScene.ts",
+    "titleScene": "src/game/scenes/TitleScene.ts",
+    "sharedButtons": "src/game/ui/buttons.ts",
+    "globalCss": "src/style.css",
+    "emeraldAssets": [
+      "public/assets/title-screen-emerald.png",
+      "public/assets/ui/emerald-bg.png",
+      "public/assets/ui/panel-emerald.png",
+      "public/assets/ui/button-emerald-normal.png",
+      "public/assets/ui/button-emerald-hover.png",
+      "public/assets/ui/button-emerald-active.png",
+      "public/assets/ui/node-hexagon-frame.png",
+      "public/assets/ui/selector-gold.png",
+      "public/assets/effects/magic-spore.png"
+    ]
+  },
+  "knownIssuesOrWatchItems": [
+    "User noticed the background seam immediately; fixed in c7c9899, but still worth visually checking on multiple viewport sizes.",
+    "Title menu hitboxes are still tied to baked title-screen source coordinates. They looked aligned in smoke test, but if the title art changes again, retune them.",
+    "Some older docs have encoding/mojibake in headings or names. Do not use that as a reason to rewrite unrelated content.",
+    "Full NineSlice conversion for seed shop, gold store, options, tile info, weather badge, and other panels has not been done yet.",
+    "Generated selector-gold asset is loaded but not yet used for tile selection.",
+    "Emerald background is a stretched 512x512 image now. This removes seams but may look soft on ultrawide; if needed, generate a larger seamless/non-repeating background."
+  ],
+  "suggestedNextSteps": [
+    "Have user live-test current deployed build first, especially title screen, skill overlay, and game backdrop on their monitor.",
+    "If the theme direction is approved, continue with incremental panel reskins: seed shop and gold store first because they are high-visibility and already list-based.",
+    "Add selector-gold for tile selection as a focused pass, replacing or augmenting the current rectangle outline.",
+    "Consider making a larger non-repeating game backdrop asset if stretched emerald-bg feels too blurry.",
+    "After each visual slice: npm run build, browser smoke test title/start/skills/shop, then commit/push/deploy if approved."
+  ],
+  "commandsThatPassed": [
+    "npm run build",
+    "npx vercel --prod",
+    "Invoke-WebRequest https://grasstouchingsimulator.com returned HTTP 200"
+  ],
+  "tokenSavingInstructions": [
+    "Start next session by reading this JSON before broad repo scanning.",
+    "Use rg for targeted lookups.",
+    "Avoid rereading all docs unless user asks for design rationale.",
+    "For implementation, focus on one visual slice at a time and verify with build plus one browser smoke test."
+  ]
+}

@@ -1,0 +1,208 @@
+{
+  "handoffVersion": 1,
+  "createdAt": "2026-06-13T18:22:46+02:00",
+  "reason": "Created before a Codex update so a fresh session can continue without losing project context.",
+  "project": {
+    "name": "Grass Touching Simulator",
+    "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+    "branch": "master",
+    "repository": "https://github.com/spliffrider/grass-touching-simulator.git",
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "stack": {
+      "engine": "Phaser 3",
+      "language": "TypeScript",
+      "bundler": "Vite",
+      "hosting": "Vercel"
+    }
+  },
+  "checkpoint": {
+    "name": "Alpha 2.0 - Automation directives",
+    "summary": "Continued the automation arc after local companion behavior and milestone tempo bonuses. Added player-selectable automation directives so automation can be steered toward growth, harvest, or supplies without offline progress or expensive per-frame simulation.",
+    "gameCommit": {
+      "hash": "6e6b268",
+      "message": "Add automation directives"
+    },
+    "previousSessionCommits": [
+      {
+        "hash": "112bd94",
+        "message": "Add automation milestone speed bonuses"
+      },
+      {
+        "hash": "73fc9fb",
+        "message": "Focus bee hive pollination around placement"
+      },
+      {
+        "hash": "302d50c",
+        "message": "Update developer credit"
+      },
+      {
+        "hash": "69a6b6c",
+        "message": "Add automation HUD readout"
+      },
+      {
+        "hash": "fe3aa58",
+        "message": "Add forager trails upgrade"
+      },
+      {
+        "hash": "974b9bd",
+        "message": "Add local forager automation"
+      },
+      {
+        "hash": "403d716",
+        "message": "Add automation scheduler"
+      }
+    ],
+    "note": "This handoff file itself was created after the deployment commit and may be committed separately as docs-only metadata."
+  },
+  "deployment": {
+    "provider": "Vercel",
+    "target": "production",
+    "deploymentId": "dpl_D4Hfaxs8XVzMqjsm7S7aJ5MMEsvU",
+    "deploymentUrl": "https://grass-touching-simulator-hilh13g82-sensitech.vercel.app",
+    "inspectorUrl": "https://vercel.com/sensitech/grass-touching-simulator/D4Hfaxs8XVzMqjsm7S7aJ5MMEsvU",
+    "readyState": "READY",
+    "aliased": true,
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "liveDomainCheck": "HTTP 200 OK"
+  },
+  "implementedThisSession": [
+    "Added a bounded AutomationScheduler so sprinkler, companion, and mutation systems run on staggered 250 ms jobs instead of doing unnecessary per-frame work.",
+    "Made Field Mouse, Meadow Rabbit, and Bee Hive focus around their placed world-object tile instead of acting globally.",
+    "Added Forager Trails as a Seed Shop upgrade that improves Field Mouse and Meadow Rabbit action cadence/radius.",
+    "Added automation HUD status text showing active automation, boosts, tempo tier, and current directive.",
+    "Updated credits to show developer sensiburner.",
+    "Added automation milestone tempo bonuses derived from existing owned automation units. This is pure derived state; no save schema or extra loops were needed.",
+    "Added save version 7 and automationDirectiveId with migration fallback to balanced.",
+    "Added AutomationDirectiveSystem with Balanced, Growth, Harvest, and Supplies directives.",
+    "Added an Auto panel that appears once at least one automation unit exists. The panel lets the player choose a directive and saves the choice.",
+    "Growth directive biases sprinkler and companions toward regrowth, pollination, and field readiness.",
+    "Harvest directive uses bounded local/sample scoring to prefer better grown patches for automated touches.",
+    "Supplies directive nudges seed/gold-producing automation odds upward.",
+    "Kept all directive behavior action-time only: no offline progress, no pathfinding, no continuous scans."
+  ],
+  "importantFilesChanged": [
+    {
+      "path": "src/game/systems/AutomationScheduler.ts",
+      "purpose": "Staggered bounded automation job runner."
+    },
+    {
+      "path": "src/game/systems/AutomationMilestoneSystem.ts",
+      "purpose": "Derived automation unit count, tempo tier, interval multiplier, and HUD label."
+    },
+    {
+      "path": "src/game/systems/AutomationDirectiveSystem.ts",
+      "purpose": "Directive definitions, labels, descriptions, and ID validation."
+    },
+    {
+      "path": "src/game/systems/AnimalCompanionSystem.ts",
+      "purpose": "Companion automation intervals, local placement targeting, directive behavior, and bounded harvest scoring."
+    },
+    {
+      "path": "src/game/systems/SprinklerSystem.ts",
+      "purpose": "Sprinkler tempo/directive behavior, local placement targeting, growth watering, bounded harvest targeting, and supplies odds."
+    },
+    {
+      "path": "src/game/scenes/GameScene.ts",
+      "purpose": "Auto panel UI, right-side menu stack, automation HUD line, stress-state automation setup, and developer credit display."
+    },
+    {
+      "path": "src/game/types/game-state.ts",
+      "purpose": "AutomationDirectiveId type and save version 7."
+    },
+    {
+      "path": "src/game/systems/SaveSystem.ts",
+      "purpose": "Migrates old saves to balanced directive."
+    },
+    {
+      "path": "src/game/data/seed-shop.ts",
+      "purpose": "Forager Trails upgrade."
+    }
+  ],
+  "verification": {
+    "localBuild": {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    "browserSmoke": {
+      "tool": "Codex in-app browser",
+      "result": "passed",
+      "checks": [
+        "?stress&perf&tiles=120 loaded with no console warnings/errors.",
+        "Automation HUD displayed active units, boosts, tempo IV, and directive text.",
+        "Auto panel opened in stress mode and showed Balanced, Growth, Harvest, and Supplies.",
+        "Selecting Growth updated both the panel and HUD.",
+        "Narrow viewport 390x720 panel fit check passed after increasing Auto panel height.",
+        "Perf overlay remained healthy in stress mode; no runtime warnings/errors were logged."
+      ]
+    },
+    "deployment": {
+      "command": "npx vercel --prod --yes",
+      "result": "passed"
+    },
+    "liveDomain": {
+      "command": "Invoke-WebRequest -Uri https://grasstouchingsimulator.com -UseBasicParsing -TimeoutSec 20",
+      "result": "passed",
+      "statusCode": 200
+    }
+  },
+  "currentWorktree": {
+    "statusAtHandoff": "Code is committed, pushed, and deployed. Two user-added automation design docs are still untracked and intentionally untouched.",
+    "untrackedFiles": [
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieën voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/HANDOFF_2026-06-13_AUTOMATION_DIRECTIVES.json"
+    ],
+    "doNotAutoCommitWithoutUserApproval": [
+      "The two Dutch automation design docs were added by the user and should not be committed unless the user asks.",
+      "This handoff file may be committed if the user wants docs metadata committed."
+    ]
+  },
+  "designNotes": [
+    "The user explicitly does not want offline progress.",
+    "The user cares a lot about smooth performance. Keep automation bounded, tick-based, and avoid broad per-frame scans.",
+    "Automation should gradually make the game less hands-on, but still let the player steer it.",
+    "The current directive implementation intentionally uses small local scans or bounded samples only when an automation action fires.",
+    "The right-side UI stack now dynamically shows Auto once automation exists and Journal once Field Journal exists.",
+    "The stress/perf overlay can visually cover the Auto panel in narrow stress mode; normal play does not show the overlay."
+  ],
+  "knownCaveats": [
+    "Directive balance is prototype-level and should be tuned after a fresh-save playtest.",
+    "Auto panel is functional but visually plain compared with asset-rich shop/gameplay elements.",
+    "Harvest scoring is intentionally simple and bounded; it prefers value but does not simulate global optimization.",
+    "Growth directive can water regrowing tiles, which changes sprinkler behavior from only touching grown grass under that directive.",
+    "Vercel/Phaser bundle-size warnings remain expected for now."
+  ],
+  "recommendedNextSteps": [
+    {
+      "priority": 1,
+      "task": "Fresh-save playtest the automation arc.",
+      "details": "Check whether Tiny Sprinkler, animal companions, Forager Trails, tempo milestones, and directives unlock at satisfying times."
+    },
+    {
+      "priority": 2,
+      "task": "Add automation quests/achievements.",
+      "details": "Examples: own 2/4/7 automation units, trigger 50 automated touches, use each directive, or earn supplies via automation."
+    },
+    {
+      "priority": 3,
+      "task": "Add clearer automation feedback.",
+      "details": "Small panel readouts like unit count, tempo tier, current directive, and recent automated actions would help players understand why numbers move."
+    },
+    {
+      "priority": 4,
+      "task": "Tune Auto panel visuals.",
+      "details": "Consider icon/symbol treatments for Balanced, Growth, Harvest, and Supplies. Asset brief can be made later if needed."
+    },
+    {
+      "priority": 5,
+      "task": "Consider the first lightweight meta-progression layer.",
+      "details": "Not prestige yet. Maybe Toucher Rank, Lawn Reputation, or automation mastery milestones."
+    },
+    {
+      "priority": 6,
+      "task": "Keep running stress checks after automation changes.",
+      "details": "Use ?stress&perf&tiles=120 and narrow viewport checks when touching UI."
+    }
+  ],
+  "newSessionPrompt": "We are continuing Grass Touching Simulator in C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator. Read docs/HANDOFF_2026-06-13_AUTOMATION_DIRECTIVES.json first. Current branch is master. Latest shipped code commit is 6e6b268 Add automation directives, pushed to GitHub and deployed to https://grasstouchingsimulator.com. The user does not want offline progress and strongly wants automation to stay optimized and smooth. Two user-added Dutch automation design docs are untracked; read them if working on automation design, but do not commit them unless asked. Good next work: fresh-save automation playtest, automation quests/achievements, clearer automation panel readouts, or asset brief/icons for automation directives."
+}

@@ -1,0 +1,37 @@
+{
+  "createdAt": "YYYY-MM-DD",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Brief reason this handoff exists.",
+  "currentUserGoal": "What the user wants next.",
+  "importantConventions": [
+    "Read AGENTS.md first.",
+    "Read handoffs/LATEST.json, then the referenced latest handoff.",
+    "Keep future handoff artifacts in handoffs/."
+  ],
+  "workCompleted": [
+    {
+      "summary": "What changed.",
+      "files": [
+        "path/to/file"
+      ]
+    }
+  ],
+  "verificationPerformed": [
+    {
+      "commandOrCheck": "npm run build",
+      "result": "Passed, failed, or not run with reason."
+    }
+  ],
+  "currentGitStatusSummary": {
+    "modified": [],
+    "deletedDueToMoveOrTrackedRemoval": [],
+    "untrackedImportant": [],
+    "untrackedPreExistingOrUnrelated": [],
+    "note": "Any dirty worktree warnings."
+  },
+  "knownIssuesOrDesignQuestions": [],
+  "recommendedNextSteps": [],
+  "doNotRevert": [],
+  "finalUserIntent": "Short description of what the next chat should preserve."
+}

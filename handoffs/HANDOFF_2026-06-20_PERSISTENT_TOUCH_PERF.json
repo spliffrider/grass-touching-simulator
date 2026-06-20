@@ -1,0 +1,190 @@
+{
+  "generated_at_local": "2026-06-20T19:09:50+02:00",
+  "handoff_for": "new_context_window",
+  "project": "Grass Touching Simulator",
+  "workspace": "C:/Users/rafbu/OneDrive/Documenten/Grass Touching Simulator",
+  "branch": "master",
+  "mode": "continuation_memory",
+  "summary": {
+    "one_sentence": "We continued the game after the Mac mini/Codex remote setup was deferred, fixed recent performance pain around large batch fields, added full-number Grass Touch display, and shipped a new optimized Persistent Touch skill for mouse-hold touching.",
+    "current_head_commit": {
+      "hash": "d8e4ad7",
+      "message": "Add persistent touch skill"
+    },
+    "recent_commits": [
+      {
+        "hash": "d8e4ad7",
+        "message": "Add persistent touch skill"
+      },
+      {
+        "hash": "b001518",
+        "message": "Tighten batch field rendering under load"
+      },
+      {
+        "hash": "d797ef9",
+        "message": "Show grass touch totals as full numbers"
+      },
+      {
+        "hash": "51bddb3",
+        "message": "Tame grass touch mix and zoom feedback"
+      },
+      {
+        "hash": "556ff77",
+        "message": "Add prestige progression loop"
+      }
+    ],
+    "current_browser_url": "http://127.0.0.1:5173/",
+    "local_dev_server": "Responded with HTTP 200 on http://127.0.0.1:5173/ during this handoff."
+  },
+  "user_context": {
+    "current_priority": "Continue improving the game before setting up Codex remote on the Mac mini.",
+    "strong_preference": "Keep the game optimized. It has to feel fast and good, especially on phones/tablets.",
+    "recent_feedback": [
+      "Sound is good after the audio pass.",
+      "Artifacts appeared when zooming in/out while touching grasses.",
+      "Scientific notation for huge Grass Touch totals felt emotionally weak; full comma-separated numbers were preferred.",
+      "At around 237 patches/19 systems the game felt bad with DevTools open; DevTools can exaggerate Phaser performance issues, but we still profiled and optimized.",
+      "User wanted a skill called Persistent Touch that allows mouse button hold to touch tiles."
+    ],
+    "tone": "User likes decisive implementation, quick iteration, and practical performance checks rather than speculative refactors."
+  },
+  "important_project_rules": {
+    "performance_is_first_class": true,
+    "required_for_perf_sensitive_changes": [
+      "Run npm run build.",
+      "Use http://127.0.0.1:5173/?perfHarness&tiles=1200.",
+      "Read document.documentElement.dataset.grassPerfHarness.",
+      "Compare visibleTiles, layoutPasses, redraws, redrawQueued, maxFrameDeltaMs, frameSpikes, displayObjects, activeTweens, and hotspots."
+    ],
+    "guardrails": [
+      "Profile before optimizing.",
+      "Avoid hot-path allocations and every-frame work.",
+      "Do not force board layout or common-layer redraws from ordinary tap/regrow/automation updates.",
+      "Do not resize render textures except on viewport size changes.",
+      "Preserve viewport culling and dirty-tile overlays on large fields.",
+      "Defer saves during active layout, panning, or redraw work."
+    ]
+  },
+  "completed_work": [
+    {
+      "area": "Audio",
+      "commit": "51bddb3 Tame grass touch mix and zoom feedback",
+      "notes": [
+        "Added SFX/music limiter/gain staging/ducking.",
+        "Cleaned board transient touch effects during pan/zoom.",
+        "User confirmed the sound was good afterward."
+      ]
+    },
+    {
+      "area": "Huge number display",
+      "commit": "d797ef9 Show grass touch totals as full numbers",
+      "notes": [
+        "Grass Touches now use cached full comma-number formatting instead of scientific notation.",
+        "HUD wraps long values into groups to avoid overflowing narrow layouts.",
+        "This is intentionally emotional/readability focused, with caching to avoid formatting churn."
+      ]
+    },
+    {
+      "area": "Large-field rendering/performance",
+      "commit": "b001518 Tighten batch field rendering under load",
+      "notes": [
+        "Board culling and dirty tile work were tightened to actual board viewport bounds.",
+        "Automation touch visuals now back off when board rendering is busy.",
+        "Dirty tile view limits are lower on large fields/compact widths.",
+        "Previous overly aggressive quality-drop experiment was removed before commit."
+      ],
+      "verification": [
+        "npm run build passed.",
+        "Stress 237-tile page after zoom/tap: fps around 106, frameSpikes 0, maxFrameDeltaMs 8, displayObjects 186, redrawQueued 0.",
+        "Perf harness 1200 tiles: status complete, fps around 105, frameSpikes 0, maxFrameDeltaMs 14, displayObjects 245, activeTweens 21, hotspots hot none."
+      ]
+    },
+    {
+      "area": "Persistent Touch skill",
+      "commit": "d8e4ad7 Add persistent touch skill",
+      "files": [
+        "src/game/data/upgrades.ts",
+        "src/game/scenes/GameScene.ts"
+      ],
+      "design": [
+        "New skill id: persistent_touch.",
+        "Name: Persistent Touch.",
+        "Unlock path: Touch branch after Two-Handed Technique.",
+        "Cost pacing: baseCost 130, costGrowth 2.18, maxLevel 4.",
+        "Unlock requirement: 120 lifetime Grass Touches.",
+        "Uses palm_press icon asset to avoid introducing a new asset dependency.",
+        "Mouse-only for now, intentionally avoiding mobile long-press/drag conflicts."
+      ],
+      "mechanic": [
+        "First click still touches immediately.",
+        "If the skill is owned, holding left mouse button repeats touches on a cooldown.",
+        "Cooldown starts at 230ms and improves by 28ms per level, capped at 135ms minimum.",
+        "Dragging to a new tile nudges the next repeat forward by a 48ms grace without touching on every pointermove.",
+        "Stops on pointerup, pointerupoutside, panning, blocking overlays, placement mode, or if the pointer is no longer a left-mouse hold.",
+        "Skips repeat while board layout/rendering is busy or display-object pressure is critical.",
+        "Does not spam blocked feedback on regrowing tiles; it backs off for 320ms."
+      ],
+      "performance_notes": [
+        "Idle path is only a boolean check before calling the persistent update.",
+        "Pointermove path only resolves a tile while Persistent Touch is active, owned, and the next touch is far enough away to benefit from drag grace.",
+        "The actual touch continues to reuse handleTileClicked, preserving combo, drops, crits, audio, and existing save behavior."
+      ],
+      "verification": [
+        "npm run build passed.",
+        "Stress hold/drag on ?stress&perf&tiles=237: no warnings/errors, frameSpikes 0, maxFrameDeltaMs 7 after drag.",
+        "Controlled comparison: idle had 8 dirty tile views; held sweep had 34 dirty tile views with frameSpikes 0.",
+        "Required ?perfHarness&tiles=1200 completed: final frameSpikes 0, maxFrameDeltaMs 16, redrawQueued 0, displayObjects 246, activeTweens 21, hotspots hot none."
+      ]
+    }
+  ],
+  "repository_state_at_handoff": {
+    "git_branch": "master",
+    "head_commit": {
+      "hash": "d8e4ad7",
+      "message": "Add persistent touch skill"
+    },
+    "tracked_worktree_status": "clean",
+    "untracked_files_present": [
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/HANDOFF_2026-06-13_AUTOMATION_DIRECTIVES.json",
+      "docs/HANDOFF_2026-06-13_AUTOPILOT_VERCEL.json",
+      "docs/HANDOFF_2026-06-13_PACING_VISUAL_PUNCH.json",
+      "docs/HANDOFF_2026-06-19_TITLE_MUSIC_VISUALS.json",
+      "docs/HANDOFF_2026-06-20_OPTIMIZATION_PRESTIGE_AUDIO.json",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/",
+      "handoff.json"
+    ],
+    "note_about_untracked_files": "These were pre-existing artifacts/handoffs and were intentionally left untouched. This new handoff file is the only new file created for the context transition."
+  },
+  "suggested_next_steps": [
+    {
+      "priority": "high",
+      "task": "Playtest Persistent Touch in the normal save.",
+      "why": "The mechanic works and perf is clean in stress mode, but feel/pacing should be judged in the real progression curve."
+    },
+    {
+      "priority": "medium",
+      "task": "Consider a small visual affordance for Persistent Touch ownership.",
+      "why": "A subtle hold-ready cursor/marker or skill detail wording could make the new behavior discoverable without adding clutter."
+    },
+    {
+      "priority": "medium",
+      "task": "Keep investigating any remaining zoom/touch artifacts if the user can reproduce them after b001518.",
+      "why": "The known culling/dirty overlay pressure was addressed, but real saves and browser zoom/device conditions can expose edge cases."
+    },
+    {
+      "priority": "later",
+      "task": "Mac mini Codex remote setup.",
+      "why": "User explicitly said this is desired but deferred until after more game work."
+    }
+  ],
+  "quick_start_for_next_context": [
+    "Start in C:/Users/rafbu/OneDrive/Documenten/Grass Touching Simulator.",
+    "Read AGENTS.md first; performance rules are important.",
+    "Check git status before editing because many docs/handoff artifacts are untracked.",
+    "The browser should be at http://127.0.0.1:5173/ and the dev server was live during handoff.",
+    "For any performance-sensitive change, run npm run build and the 1200-tile perf harness."
+  ]
+}
