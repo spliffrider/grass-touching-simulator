@@ -142,6 +142,8 @@ const COMPACT_LARGE_FIELD_CULL_MARGIN_PX = 8;
 const TABLET_LARGE_FIELD_CULL_MARGIN_PX = 24;
 const TILE_VIEW_POOL_LIMIT = 36;
 const DIRTY_TILE_VIEW_LIMIT = 96;
+const LARGE_FIELD_DIRTY_TILE_VIEW_LIMIT = 48;
+const COMPACT_LARGE_FIELD_DIRTY_TILE_VIEW_LIMIT = 32;
 const COMMON_REDRAW_MOBILE_TILE_LIMIT = 160;
 const COMMON_REDRAW_FRAME_BUDGET_MS = 4;
 const COMMON_REDRAW_TILE_BUDGET = 22;
@@ -4762,10 +4764,11 @@ export class GameScene extends Phaser.Scene {
     this.lastVisibleTileKeys.clear();
     let visibleTiles = 0;
     const radius = (TILE_SIZE * this.boardScale) / 2 + this.getTileCullMargin();
-    const minVisibleX = Phaser.Math.Clamp(Math.floor((0 - radius - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
-    const maxVisibleX = Phaser.Math.Clamp(Math.ceil((this.scale.width + radius - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
-    const minVisibleY = Phaser.Math.Clamp(Math.floor((0 - radius - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
-    const maxVisibleY = Phaser.Math.Clamp(Math.ceil((this.scale.height + radius - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
+    const cullBounds = this.getBoardViewportBounds(radius);
+    const minVisibleX = Phaser.Math.Clamp(Math.floor((cullBounds.left - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
+    const maxVisibleX = Phaser.Math.Clamp(Math.ceil((cullBounds.right - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
+    const minVisibleY = Phaser.Math.Clamp(Math.floor((cullBounds.top - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
+    const maxVisibleY = Phaser.Math.Clamp(Math.ceil((cullBounds.bottom - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
     const visibleCandidateCount = Math.max(0, maxVisibleX - minVisibleX + 1) * Math.max(0, maxVisibleY - minVisibleY + 1);
     const budgetCommonRedraw = this.shouldBudgetCommonRedraw(reason, visibleCandidateCount);
     const queuedCommonRedrawEntries: CommonRedrawEntry[] = [];
@@ -5044,6 +5047,22 @@ export class GameScene extends Phaser.Scene {
     return this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH || reason === "pan" || reason === "zoom";
   }
 
+  private getDirtyTileViewLimit(): number {
+    if (this.usesFullLiveTileViews()) {
+      return DIRTY_TILE_VIEW_LIMIT;
+    }
+
+    if (this.fieldTileCount >= 600) {
+      return DIRTY_TILE_VIEW_LIMIT;
+    }
+
+    if (this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH) {
+      return COMPACT_LARGE_FIELD_DIRTY_TILE_VIEW_LIMIT;
+    }
+
+    return LARGE_FIELD_DIRTY_TILE_VIEW_LIMIT;
+  }
+
   private getMinimumBoardScale(): number {
     if (this.fieldTileCount <= LIVE_TILE_VIEW_FIELD_LIMIT) {
       return 0;
@@ -5141,7 +5160,28 @@ export class GameScene extends Phaser.Scene {
   }
 
   private isScreenPositionNearViewport(position: { x: number; y: number }, margin = this.getTileCullMargin()): boolean {
-    return position.x >= -margin && position.x <= this.scale.width + margin && position.y >= -margin && position.y <= this.scale.height + margin;
+    const bounds = this.getBoardViewportBounds(margin);
+    return position.x >= bounds.left && position.x <= bounds.right && position.y >= bounds.top && position.y <= bounds.bottom;
+  }
+
+  private getBoardViewportBounds(margin = 0): { left: number; right: number; top: number; bottom: number } {
+    if (this.boardScaledWidth <= 0 || this.boardScaledHeight <= 0) {
+      return {
+        left: -margin,
+        right: this.scale.width + margin,
+        top: -margin,
+        bottom: this.scale.height + margin,
+      };
+    }
+
+    const centerX = this.boardBaseCenterX + this.boardPanX;
+    const centerY = this.boardBaseCenterY + this.boardPanY;
+    return {
+      left: Math.max(-margin, centerX - this.boardScaledWidth / 2 - margin),
+      right: Math.min(this.scale.width + margin, centerX + this.boardScaledWidth / 2 + margin),
+      top: Math.max(-margin, centerY - this.boardScaledHeight / 2 - margin),
+      bottom: Math.min(this.scale.height + margin, centerY + this.boardScaledHeight / 2 + margin),
+    };
   }
 
   private syncWorldObjects(): void {
@@ -6740,6 +6780,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (
+      this.isBoardRenderBusy() ||
       this.children.list.length >= DISPLAY_OBJECT_CRITICAL_LIMIT ||
       this.effectQuality <= MIN_EFFECT_QUALITY ||
       this.activeAutoTouchVisualObjects >= this.getScaledBudget(AUTO_TOUCH_ACTIVE_OBJECT_LIMIT)
@@ -6778,6 +6819,19 @@ export class GameScene extends Phaser.Scene {
     this.autoTouchVisualCredit = Math.max(0, this.autoTouchVisualCredit - 1);
     this.lastAutoTouchVisualAt = now;
     this.profileScope("auto:visualPlay", () => this.playAutomationTouchVisual(tile, now));
+  }
+
+  private isBoardRenderBusy(): boolean {
+    if (this.isBoardLayoutBusy()) {
+      return true;
+    }
+
+    if (this.usesFullLiveTileViews()) {
+      return false;
+    }
+
+    const dirtyPressure = Math.floor(this.getDirtyTileViewLimit() * 0.75);
+    return this.commonTileLayerDirty || this.dirtyTileViewKeys.size >= Math.max(8, dirtyPressure);
   }
 
   private pickAutomationTouchVisualTile(): FieldTile | undefined {
@@ -7441,7 +7495,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.dirtyTileViewKeys.size >= DIRTY_TILE_VIEW_LIMIT) {
+    if (this.dirtyTileViewKeys.size >= this.getDirtyTileViewLimit()) {
       this.commonTileLayerDirty = true;
       return;
     }
