@@ -1,0 +1,58 @@
+{
+  "createdAt": "2026-06-21",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Record the durable daily workflow for syncing desktop work to the always-on Mac mini and resuming later.",
+  "currentUserGoal": "Work mainly on the Windows desktop when home, hand off committed work to the Mac mini before shutting down, use Codex Remote from work, then resume on the desktop by syncing back from GitHub.",
+  "workCompletedThisSession": [
+    {
+      "summary": "Added a cross-machine sync helper.",
+      "details": [
+        "Added scripts/sync-mac-mini.mjs with status, handoff, and resume modes.",
+        "The helper uses GitHub as the sync point and SSH only to make the Mac mini pull/check state.",
+        "The helper allows untracked scratch files but blocks handoff/resume if tracked files have uncommitted changes."
+      ]
+    },
+    {
+      "summary": "Documented the daily workflow.",
+      "details": [
+        "Added docs/DESKTOP_MAC_SYNC_WORKFLOW.md.",
+        "Updated AGENTS.md so future Codex sessions know to use the desktop/Mac sync workflow.",
+        "Added npm shortcuts: sync:mac:status, sync:mac:handoff, and sync:mac:resume."
+      ]
+    }
+  ],
+  "filesTouched": [
+    "AGENTS.md",
+    "package.json",
+    "scripts/sync-mac-mini.mjs",
+    "docs/DESKTOP_MAC_SYNC_WORKFLOW.md",
+    "handoffs/HANDOFF_2026-06-21_DESKTOP_MAC_SYNC_WORKFLOW.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationPerformed": [
+    {
+      "command": "npm run sync:mac:status",
+      "result": "Passed; desktop and Mac both reported HEAD 75e5ed8 before this workflow commit."
+    },
+    {
+      "command": "npm run build",
+      "result": "Passed."
+    }
+  ],
+  "knownIssuesAndCaveats": [
+    "The helper syncs committed Git state. It does not copy uncommitted edits, ignored files, browser saves, or secrets.",
+    "Use a handoff file for substantial work before switching machines.",
+    "Pre-existing unrelated untracked docs/artifacts on the Windows desktop remain local unless explicitly committed later."
+  ],
+  "doNotRevertOrTouchWithoutUserRequest": [
+    "Do not delete or rewrite the Mac mini SSH/GitHub/Vercel setup unless replacing the workflow.",
+    "Do not commit machine-local secrets, Vercel auth files, SSH private keys, node_modules, dist, or browser save data.",
+    "Do not delete unrelated local-only docs/artifacts without explicit user request."
+  ],
+  "recommendedNextSteps": [
+    "Commit and push the workflow helper and docs.",
+    "Pull the commit on the Mac mini.",
+    "Use npm run sync:mac:handoff before shutting down the desktop and npm run sync:mac:resume after booting it again."
+  ]
+}

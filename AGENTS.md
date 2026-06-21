@@ -50,6 +50,19 @@ Compare at least these fields across phases:
 - `docs/PERFORMANCE_NOTES.md`: performance postmortems and guardrails.
 - `docs/PERFORMANCE_HARNESS.md`: harness usage and exported metrics.
 - `docs/PROJECT_MANUAL.md`: project architecture and feature workflow.
+- `docs/REMOTE_MAC_MINI_SETUP.md`: SSH/GitHub/Vercel setup for the always-on Mac mini.
+- `docs/DESKTOP_MAC_SYNC_WORKFLOW.md`: daily desktop-to-Mac handoff and resume workflow.
+
+## Cross-Machine Workflow
+
+- The Windows desktop is the preferred interactive workstation when home.
+- The Mac mini is the always-on Codex Remote host for work-away sessions.
+- Sync project source through GitHub, not by SSH-copying source files.
+- Use `node scripts/sync-mac-mini.mjs status` to compare desktop and Mac state.
+- Use `node scripts/sync-mac-mini.mjs handoff` after committing/pushing desktop work before shutting down.
+- Use `node scripts/sync-mac-mini.mjs resume` after booting the desktop to pull GitHub/Mac-side work back locally.
+- Add `--build` to `handoff` or `resume` when build verification is desired.
+- Keep machine-local files such as `.vercel/`, `node_modules/`, `dist/`, browser saves, and secrets out of Git.
 
 ## Handoff Documents
 
