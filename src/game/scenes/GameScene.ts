@@ -2532,8 +2532,10 @@ export class GameScene extends Phaser.Scene {
     const narrowPortrait = this.scale.width < 500 && this.scale.height >= this.scale.width;
     const narrowDesktop = this.scale.width < 760 && !shortLandscape && !narrowPortrait;
     const sidePanel = !shortLandscape && !narrowPortrait && !narrowDesktop;
+    const detailPanelHeight = narrowPortrait ? 330 : SKILL_DETAIL_HEIGHT;
+    const detailPanelScale = shortLandscape ? 0.72 : narrowPortrait ? Math.min(0.96, (this.scale.width - 40) / SKILL_DETAIL_WIDTH) : 1;
     const reservedSideWidth = sidePanel ? 430 : 48;
-    const reservedBottomHeight = narrowPortrait || narrowDesktop ? 420 : 140;
+    const reservedBottomHeight = narrowPortrait ? Math.round(detailPanelHeight * detailPanelScale + 132) : narrowDesktop ? 420 : 140;
     const mapWidth = TREE_WIDTH * SKILL_MAP_X_SCALE;
     const mapHeight = TREE_HEIGHT * SKILL_MAP_Y_SCALE;
     const treeScale = shortLandscape
@@ -2542,7 +2544,7 @@ export class GameScene extends Phaser.Scene {
     const treeWidth = mapWidth * treeScale;
     const treeHeight = mapHeight * treeScale;
     const treeX = Math.round(shortLandscape ? 34 : sidePanel ? Math.max(64, (this.scale.width - reservedSideWidth - treeWidth) / 2) : (this.scale.width - treeWidth) / 2);
-    const treeY = Math.round(shortLandscape ? 118 : narrowPortrait || narrowDesktop ? 136 : 148);
+    const treeY = Math.round(shortLandscape ? 118 : narrowPortrait ? 166 : narrowDesktop ? 136 : 148);
 
     this.skillBackdrop.setSize(this.scale.width, this.scale.height);
     this.skillBackdropPattern?.setPosition(this.scale.width / 2, this.scale.height / 2);
@@ -2552,33 +2554,58 @@ export class GameScene extends Phaser.Scene {
     this.skillTitleText.setText(narrowPortrait ? "Skills" : "Grass Skill Tree");
     this.skillTitleText.setFontSize(shortLandscape ? 25 : narrowPortrait ? 30 : 34);
     this.skillResourceText.setFontSize(shortLandscape || narrowPortrait ? 14 : 18);
+    this.skillResourceText.setWordWrapWidth(Math.max(220, this.scale.width - 44));
     this.skillStatusText.setFontSize(shortLandscape || narrowPortrait ? 13 : 16);
     this.skillStatusText.setWordWrapWidth(Math.max(220, this.scale.width - 48));
     this.skillTitleText.setPosition(shortLandscape ? 22 : 52, shortLandscape ? 22 : 42);
-    this.skillResourceText.setPosition(shortLandscape ? 24 : 54, shortLandscape ? 58 : 82);
+    this.skillResourceText.setPosition(shortLandscape ? 24 : 54, shortLandscape ? 58 : narrowPortrait ? 78 : 82);
     this.skillStatusText.setText(
       this.hasTouchScreen() ? "Tap a skill to upgrade it. The info box shows details." : "Hover a skill to inspect it. Click a skill or Upgrade to buy.",
     );
     this.skillStatusText.setPosition(
       shortLandscape ? this.scale.width / 2 + 20 : sidePanel ? treeX + treeWidth / 2 : this.scale.width / 2,
-      shortLandscape ? 72 : 118,
+      shortLandscape ? 72 : narrowPortrait ? 132 : 118,
     );
     this.backButton.setScale(narrowPortrait ? 0.9 : 1);
     this.backButton.setPosition(this.scale.width - (shortLandscape ? 130 : 166), shortLandscape ? 20 : 42);
-    this.resetButton.setScale(shortLandscape ? 0.78 : narrowPortrait ? 0.86 : 0.88);
-    this.resetButton.setPosition(this.scale.width - 108, this.scale.height - (shortLandscape ? 42 : narrowPortrait ? 46 : 48));
-    this.prestigeButton.setScale(shortLandscape ? 0.78 : narrowPortrait ? 0.86 : 0.88);
-    this.prestigeButton.setPosition(this.scale.width - (shortLandscape ? 226 : narrowPortrait ? 222 : 236), this.scale.height - (shortLandscape ? 42 : narrowPortrait ? 46 : 48));
-    this.skillDetailPanel.setScale(shortLandscape ? 0.72 : narrowPortrait ? 1 : 1);
+    this.resetButton.setScale(shortLandscape ? 0.78 : narrowPortrait ? 0.78 : 0.88);
+    this.resetButton.setPosition(
+      narrowPortrait ? this.scale.width / 2 + 76 : this.scale.width - 108,
+      this.scale.height - (shortLandscape ? 42 : narrowPortrait ? 32 : 48),
+    );
+    this.prestigeButton.setScale(shortLandscape ? 0.78 : narrowPortrait ? 0.78 : 0.88);
+    this.prestigeButton.setPosition(
+      narrowPortrait ? this.scale.width / 2 - 58 : this.scale.width - (shortLandscape ? 226 : 236),
+      this.scale.height - (shortLandscape ? 42 : narrowPortrait ? 32 : 48),
+    );
+    this.skillDetailPanel.setScale(detailPanelScale);
     this.skillDetailPanel.setPosition(
       shortLandscape
         ? this.scale.width - 252
         : narrowPortrait || narrowDesktop
-          ? (this.scale.width - SKILL_DETAIL_WIDTH) / 2
+          ? (this.scale.width - SKILL_DETAIL_WIDTH * detailPanelScale) / 2
           : Math.max(24, this.scale.width - 410),
-      shortLandscape ? 112 : narrowPortrait ? this.scale.height - 430 : sidePanel ? 150 : this.scale.height - 420,
+      shortLandscape
+        ? 112
+        : narrowPortrait
+          ? Math.max(178, this.scale.height - detailPanelHeight * detailPanelScale - 68)
+          : sidePanel
+            ? 150
+            : this.scale.height - 420,
     );
-    this.skillDetailBg.setSize(SKILL_DETAIL_WIDTH, SKILL_DETAIL_HEIGHT);
+    this.skillDetailBg.setSize(SKILL_DETAIL_WIDTH, detailPanelHeight);
+    this.skillDetailTitle.setFontSize(narrowPortrait ? 25 : 28);
+    this.skillDetailTitle.setPosition(24, narrowPortrait ? 22 : 26);
+    this.skillDetailCategory.setFontSize(narrowPortrait ? 15 : 16);
+    this.skillDetailCategory.setPosition(24, narrowPortrait ? 54 : 60);
+    this.skillDetailBody.setFontSize(narrowPortrait ? 16 : 18);
+    this.skillDetailBody.setPosition(24, narrowPortrait ? 82 : 94);
+    this.skillDetailBody.setWordWrapWidth(SKILL_DETAIL_WIDTH - 52);
+    this.skillDetailCost.setFontSize(narrowPortrait ? 16 : 18);
+    this.skillDetailCost.setPosition(24, narrowPortrait ? 198 : 262);
+    this.skillDetailCost.setWordWrapWidth(SKILL_DETAIL_WIDTH - 52);
+    this.skillBuyButton.setScale(narrowPortrait ? 0.92 : 1);
+    this.skillBuyButton.setPosition(50, narrowPortrait ? 274 : 340);
 
     for (const label of this.skillBranchLabels) {
       const visible = label.revealedBy.some((upgradeId) => this.isSkillVisible(upgradeId));
@@ -10858,4 +10885,3 @@ function blendColor(color: number, tint: number, amount: number): number {
 
   return (red << 16) + (green << 8) + blue;
 }
-
