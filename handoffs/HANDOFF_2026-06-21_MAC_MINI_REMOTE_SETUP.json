@@ -1,0 +1,106 @@
+{
+  "createdAt": "2026-06-21",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Record Mac mini SSH, GitHub, build, and Vercel setup for future cross-machine Codex work.",
+  "currentUserGoal": "Make the always-on Mac mini usable as the primary project machine while the Windows desktop remains available for local game and browser checks.",
+  "workCompletedThisSession": [
+    {
+      "summary": "Established key-based SSH from Windows desktop to the Mac mini.",
+      "details": [
+        "Mac host reachable as mac-mini-van-raf.local and 192.168.0.250.",
+        "Installed the Windows desktop public SSH key into /Users/henry/.ssh/authorized_keys on the Mac.",
+        "Verified SSH from Windows using C:\\Users\\rafbu\\.ssh\\github_rafbu_windows.",
+        "Documented the connection pattern in docs/REMOTE_MAC_MINI_SETUP.md."
+      ]
+    },
+    {
+      "summary": "Prepared the Mac mini clone for GitHub work.",
+      "details": [
+        "Mac project path is /Users/henry/Documents/Grass Touching Simulator.",
+        "Created a dedicated Mac GitHub SSH deploy key at /Users/henry/.ssh/github_macmini_codex.",
+        "Added the public deploy key to the GitHub repo with write access.",
+        "Configured the Mac clone origin to git@github.com:spliffrider/grass-touching-simulator.git.",
+        "Verified git fetch and push dry-run from the Mac clone."
+      ]
+    },
+    {
+      "summary": "Verified Mac build tooling and captured Vercel gap.",
+      "details": [
+        "Verified node v25.9.0 and npm 11.12.1 through /opt/homebrew/bin.",
+        "Verified npm run build passes over SSH.",
+        "Verified Vercel CLI exists on the Mac.",
+        "Copied the existing Windows .vercel/project.json to the Mac clone.",
+        "Identified that the Mac Vercel login is currently rafbuelens-3610, which does not see the Sensitech team or the grass-touching-simulator Vercel project."
+      ]
+    }
+  ],
+  "filesTouched": [
+    "docs/REMOTE_MAC_MINI_SETUP.md",
+    "handoffs/HANDOFF_2026-06-21_MAC_MINI_REMOTE_SETUP.json",
+    "handoffs/LATEST.json"
+  ],
+  "remoteState": {
+    "macHost": "mac-mini-van-raf.local",
+    "macLanIpv4": "192.168.0.250",
+    "macUser": "henry",
+    "macProjectPath": "/Users/henry/Documents/Grass Touching Simulator",
+    "windowsIdentityFile": "C:\\Users\\rafbu\\.ssh\\github_rafbu_windows",
+    "macGitRemote": "git@github.com:spliffrider/grass-touching-simulator.git",
+    "macGithubDeployKeyPath": "/Users/henry/.ssh/github_macmini_codex",
+    "homebrewPathPrefix": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  },
+  "verificationPerformed": [
+    {
+      "command": "ssh -i $HOME\\.ssh\\github_rafbu_windows -o BatchMode=yes henry@192.168.0.250 \"whoami; hostname; pwd\"",
+      "result": "Passed."
+    },
+    {
+      "command": "git fetch --all --prune on the Mac clone over SSH",
+      "result": "Passed."
+    },
+    {
+      "command": "git push --dry-run origin HEAD:refs/heads/codex/mac-connectivity-check on the Mac clone",
+      "result": "Passed."
+    },
+    {
+      "command": "npm run build on the Mac clone over SSH",
+      "result": "Passed."
+    },
+    {
+      "command": "vercel whoami on the Mac over SSH",
+      "result": "Passed, but returned rafbuelens-3610, which is not the Vercel scope that owns this project."
+    }
+  ],
+  "currentGitStatusSummary": {
+    "branch": "master",
+    "statusAtHandoffCreation": "Only pre-existing untracked docs/artifacts plus this new remote setup doc and handoff are untracked before commit.",
+    "preExistingUntrackedLocalOnly": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md may appear escaped in git status",
+      "docs/artifacts/",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssuesAndCaveats": [
+    "Do not store or request the Mac password in future sessions. Use key-based SSH.",
+    "The Mac password was pasted into a chat image and should be treated as exposed; change it when convenient.",
+    "SSH non-interactive sessions on the Mac may need PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin for gh, node, npm, and vercel.",
+    "Mac Vercel CLI still needs to be logged into the account/scope that can access Sensitech and the existing grass-touching-simulator project.",
+    "The Mac has .vercel/project.json copied from Windows, but Vercel deploy/link operations should wait until the correct Vercel login is active."
+  ],
+  "doNotRevertOrTouchWithoutUserRequest": [
+    "Do not remove the Mac GitHub deploy key unless replacing the Mac remote workflow.",
+    "Do not overwrite or print /Users/henry/.ssh/github_macmini_codex.",
+    "Do not create a second Vercel project for Grass Touching Simulator unless explicitly requested.",
+    "Do not delete unrelated pre-existing local-only docs/artifacts."
+  ],
+  "recommendedNextSteps": [
+    "Log the Mac Vercel CLI into the Vercel account/scope that can access Sensitech and grass-touching-simulator.",
+    "Run vercel whoami and vercel projects ls from the Mac after relogin.",
+    "Once Vercel scope is correct, run a non-deploying project check or preview workflow from the Mac.",
+    "Commit docs/REMOTE_MAC_MINI_SETUP.md plus this handoff if the user wants this setup recorded in Git."
+  ]
+}
