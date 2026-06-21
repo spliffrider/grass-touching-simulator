@@ -62,6 +62,8 @@ Compare at least these fields across phases:
 - Use `node scripts/sync-mac-mini.mjs handoff` after committing/pushing desktop work before shutting down.
 - Use `node scripts/sync-mac-mini.mjs resume` after booting the desktop to pull GitHub/Mac-side work back locally.
 - Add `--build` to `handoff` or `resume` when build verification is desired.
+- Treat user phrases like "handoff", "handoff & sync with the mac", "sync with the mac", or "push this to the mac" as a request to commit intended changes and run the desktop-to-Mac handoff workflow in `docs/DESKTOP_MAC_SYNC_WORKFLOW.md`.
+- Treat phrases like "sync up", "sync back", "resume from mac", or "pull from mac" as a request to run the Mac-to-desktop resume workflow.
 - Keep machine-local files such as `.vercel/`, `node_modules/`, `dist/`, browser saves, and secrets out of Git.
 
 ## Handoff Documents

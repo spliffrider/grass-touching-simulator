@@ -32,6 +32,36 @@ The helper uses:
 - Mac project path: `/Users/henry/Documents/Grass Touching Simulator`
 - Windows identity: `~/.ssh/github_rafbu_windows`
 
+## Trigger Phrases
+
+When the user says any of these near the end of a desktop session:
+
+- "handoff"
+- "handoff and sync"
+- "handoff & sync with the mac"
+- "sync with the mac"
+- "push this to the mac"
+
+Treat it as a request to prepare the project for Mac mini continuation:
+
+1. Check `git status --short`.
+2. If the work was substantial, create a dated handoff in `handoffs/` and update
+   `handoffs/LATEST.json`.
+3. Stage and commit only the intended project changes.
+4. Run `npm run sync:mac:handoff` from the Windows desktop checkout.
+5. Report the commit hash, Mac pull result, and any remaining unrelated local
+   files.
+
+If the user says "sync up", "sync back", "resume from mac", or "pull from mac"
+after returning to the desktop, treat it as a request to run:
+
+```powershell
+npm run sync:mac:resume
+```
+
+If there are uncommitted tracked changes on the desktop, stop and explain what
+needs to be committed, stashed, or discarded before syncing.
+
 ## Leaving Home
 
 Before shutting down the desktop:
