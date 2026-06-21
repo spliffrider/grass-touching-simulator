@@ -18,7 +18,7 @@ const OPTIONS_TRACK_BASE_WIDTH = 320;
 const OPTIONS_TRACK_BASE_HEIGHT = 12;
 const OPTIONS_HIT_BASE_WIDTH = 350;
 const OPTIONS_HIT_BASE_HEIGHT = 44;
-const GRASS_TOUCHER_CREDITS = ["Sad choupbese", "KaviaarSocialist", "Echarnus", "Overtilted"] as const;
+const GRASS_TOUCHER_CREDITS = ["Sad choupbese", "KaviaarSocialist", "Echarnus", "Overtilted", "entry 3 test"] as const;
 
 interface TitleButton {
   id: "start" | "continue" | "options" | "quit" | "credits";
