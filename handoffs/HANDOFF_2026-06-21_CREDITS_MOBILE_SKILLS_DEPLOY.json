@@ -1,0 +1,109 @@
+{
+  "createdAt": "2026-06-21",
+  "workspace": "/Users/henry/Documents/Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Record the Codex Remote session that added a test credits entry, fixed the mobile Skills screen layout, pushed both changes to GitHub, and deployed them to Vercel production.",
+  "currentUserGoal": "Keep the live Grass Touching Simulator site updated while testing Codex Remote. The latest explicit request was to create this JSON handoff for the work completed in this session.",
+  "workCompletedThisSession": [
+    {
+      "summary": "Added a test entry to the Credits modal.",
+      "details": [
+        "Added \"entry 3 test\" to the Grass Touchers credits list in TitleScene.",
+        "Verified the Credits modal locally.",
+        "Committed as 96d9456 Add test credits entry.",
+        "Pushed to origin/master.",
+        "Deployed to Vercel production and verified the live Credits modal at https://grasstouchingsimulator.com."
+      ]
+    },
+    {
+      "summary": "Fixed the mobile portrait Skills screen layout.",
+      "details": [
+        "Investigated the user-provided mobile screenshot showing the skill detail panel overlapping the tree and bottom controls.",
+        "Changed the Skills layout so narrow portrait uses a compact detail panel, reserves bottom space, adds top text spacing, and centers Prestige/Reset controls below the detail card.",
+        "Verified locally at a 390x844 viewport against both maxed stress-state and early insufficient-funds skill states.",
+        "Committed as 25ca9bd Improve mobile skill tree layout.",
+        "Pushed to origin/master.",
+        "Deployed to Vercel production and verified the live mobile Skills screen at https://grasstouchingsimulator.com/?stress&tiles=80."
+      ]
+    },
+    {
+      "summary": "Ran a full playtest before the edits.",
+      "details": [
+        "Located the actual repo at /Users/henry/Documents/Grass Touching Simulator after the initial Codex workspace was empty.",
+        "Verified build, dev server, production preview, early-game tapping, skill buying, quest claiming, shops, options, save/continue, and the 1200-tile performance harness.",
+        "Noted that the 1200-tile stress harness completed with no frame spikes or console errors, but FPS sat in the low 40s under stress."
+      ]
+    }
+  ],
+  "filesTouched": [
+    "src/game/scenes/TitleScene.ts",
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-21_CREDITS_MOBILE_SKILLS_DEPLOY.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationPerformed": [
+    {
+      "command": "npm run build",
+      "result": "Passed after the credits change."
+    },
+    {
+      "command": "Local browser verification at http://127.0.0.1:5173/",
+      "result": "Credits modal showed \"entry 3 test\" with no browser console warnings/errors."
+    },
+    {
+      "command": "vercel deploy --prod --yes",
+      "result": "Credits deployment succeeded; production was aliased to https://grasstouchingsimulator.com."
+    },
+    {
+      "command": "Live browser verification at https://grasstouchingsimulator.com",
+      "result": "Live Credits modal showed \"entry 3 test\" with no browser console warnings/errors."
+    },
+    {
+      "command": "npm run build",
+      "result": "Passed after the mobile Skills layout fix."
+    },
+    {
+      "command": "Local browser verification at 390x844",
+      "result": "Mobile Skills screen fit correctly in stress/maxed and early insufficient-funds states; detail panel no longer covered Prestige/Reset."
+    },
+    {
+      "command": "vercel deploy --prod --yes",
+      "result": "Mobile Skills fix deployment succeeded; production was aliased to https://grasstouchingsimulator.com."
+    },
+    {
+      "command": "Live browser verification at 390x844 on https://grasstouchingsimulator.com/?stress&tiles=80",
+      "result": "Live mobile Skills screen showed the fixed compact layout with no browser console warnings/errors."
+    }
+  ],
+  "deployments": [
+    {
+      "commit": "96d9456",
+      "deploymentId": "dpl_FbamqHbhf67JVoKC2wtZXozk8AhB",
+      "productionUrl": "https://grass-touching-simulator-cd91mzwqt-sensitech.vercel.app",
+      "alias": "https://grasstouchingsimulator.com"
+    },
+    {
+      "commit": "25ca9bd",
+      "deploymentId": "dpl_EhyndkuW6j9CDgS4SeiMTqoYCAEy",
+      "productionUrl": "https://grass-touching-simulator-3tulq7n83-sensitech.vercel.app",
+      "alias": "https://grasstouchingsimulator.com"
+    }
+  ],
+  "currentGitStatusBeforeThisHandoff": "Clean and aligned with origin/master at 25ca9bd.",
+  "knownIssuesAndCaveats": [
+    "This handoff itself is currently a new local change until committed and pushed.",
+    "The mobile Skills fix was verified in the in-app browser at 390x844; the original report came from iPhone Safari, so a quick real-device refresh is still useful.",
+    "The full stress playtest earlier showed no frame spikes, but 1200-tile stress FPS hovered in the low 40s, below the PERF_LOW_FPS threshold of 48."
+  ],
+  "doNotRevertOrTouchWithoutUserRequest": [
+    "Do not remove the user-requested \"entry 3 test\" credits entry unless the user asks.",
+    "Do not revert the narrow portrait Skills layout changes; they address the mobile overlap shown in the user screenshot.",
+    "Do not delete or rewrite the Mac mini/GitHub/Vercel workflow files unless explicitly replacing that workflow.",
+    "Do not commit machine-local secrets, Vercel auth files, SSH private keys, node_modules, dist, or browser save data."
+  ],
+  "recommendedNextSteps": [
+    "Commit and push this handoff plus the LATEST.json pointer update if the user wants the handoff recorded in GitHub.",
+    "Ask the user to hard-refresh the iPhone Safari page or reopen it to confirm the live layout with real mobile browser chrome.",
+    "If more mobile polish is desired, test other panels such as Quest Log, Seed Shop, Store, and Journal at iPhone viewport sizes."
+  ]
+}
