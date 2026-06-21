@@ -67,8 +67,10 @@ Never print, copy, or commit the private key.
 ## Vercel State
 
 - Vercel CLI exists on the Mac at `/opt/homebrew/bin/vercel`.
-- The Mac was logged into Vercel as `rafbuelens-3610`, which does not have
-  access to the existing production project.
+- The Mac Vercel CLI is logged into the same Vercel account/scope used by the
+  Windows desktop:
+  - user: `spliffrider`
+  - team/scope: `sensitech`
 - The Windows desktop is logged into Vercel as `spliffrider` and can see the
   `Sensitech` team, where `grass-touching-simulator` lives.
 - The Mac clone has `.vercel/project.json` copied from Windows and pointing at:
@@ -76,18 +78,17 @@ Never print, copy, or commit the private key.
   - org id: `team_uFm3wwET7QcPCKLB9zIxJCq4`
   - project name: `grass-touching-simulator`
 
-Remaining Vercel task: log the Mac Vercel CLI into the account/scope that can
-access `Sensitech` and the existing `grass-touching-simulator` project.
+Verified from Windows over SSH:
 
 ```sh
-vercel logout
-vercel login
 vercel whoami
 vercel projects ls --scope sensitech
+vercel inspect grasstouchingsimulator.com --scope sensitech --timeout 30s
 ```
 
-Do not create a new Vercel project for Grass Touching Simulator unless the user
-explicitly asks.
+The production deployment inspected successfully and was `Ready`. Do not create
+a new Vercel project for Grass Touching Simulator unless the user explicitly
+asks.
 
 ## Security Notes
 
@@ -96,11 +97,13 @@ explicitly asks.
 - Future sessions should use SSH keys only.
 - Do not store passwords, GitHub tokens, Vercel tokens, or private keys in the
   repository or handoff files.
+- The Mac Vercel CLI auth files were copied from the Windows desktop Vercel CLI
+  config to the Mac user config. They are intentionally not stored in Git.
 
 ## Working Model
 
 - Mac mini: intended always-on primary operator for `master`, builds, pushes,
-  and eventually Vercel deploy checks.
+  and Vercel deploy checks.
 - Windows desktop: secondary local machine for running the game, visual checks,
   browser perf harnesses, and branch work.
 - Use GitHub as the source of truth.

@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-21",
-  "latestHandoff": "HANDOFF_2026-06-21_MAC_MINI_REMOTE_SETUP.json",
+  "latestHandoff": "HANDOFF_2026-06-21_MAC_MINI_VERCEL_READY.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

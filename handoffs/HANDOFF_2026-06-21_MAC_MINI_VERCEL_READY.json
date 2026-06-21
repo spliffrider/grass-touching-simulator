@@ -1,0 +1,71 @@
+{
+  "createdAt": "2026-06-21",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Record that the Mac mini Vercel CLI now has access to the production Grass Touching Simulator project.",
+  "currentUserGoal": "Finish making the always-on Mac mini ready to act as the primary machine for GitHub, builds, and Vercel checks.",
+  "workCompletedThisSession": [
+    {
+      "summary": "Transferred Vercel CLI auth from the working Windows desktop setup to the Mac mini.",
+      "details": [
+        "Located Windows Vercel CLI config under %APPDATA%\\com.vercel.cli\\Data.",
+        "Copied auth.json and config.json to /Users/henry/Library/Application Support/com.vercel.cli on the Mac over SSH.",
+        "Set Mac Vercel auth/config file permissions to 600.",
+        "Did not print or commit any Vercel token."
+      ]
+    },
+    {
+      "summary": "Verified the Mac Vercel account/scope can see production.",
+      "details": [
+        "vercel whoami on the Mac now returns spliffrider.",
+        "vercel projects ls --scope sensitech on the Mac lists grass-touching-simulator.",
+        "vercel inspect grasstouchingsimulator.com --scope sensitech --timeout 30s succeeded and reported the production deployment as Ready."
+      ]
+    },
+    {
+      "summary": "Updated durable remote setup documentation.",
+      "details": [
+        "Updated docs/REMOTE_MAC_MINI_SETUP.md to mark Vercel access ready.",
+        "Updated handoffs/LATEST.json to point at this handoff."
+      ]
+    }
+  ],
+  "filesTouched": [
+    "docs/REMOTE_MAC_MINI_SETUP.md",
+    "handoffs/HANDOFF_2026-06-21_MAC_MINI_VERCEL_READY.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationPerformed": [
+    {
+      "command": "ssh -i $HOME\\.ssh\\github_rafbu_windows -o BatchMode=yes henry@192.168.0.250 \"cd '/Users/henry/Documents/Grass Touching Simulator' && env PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin vercel whoami\"",
+      "result": "Passed; returned spliffrider."
+    },
+    {
+      "command": "vercel projects ls --scope sensitech on the Mac over SSH",
+      "result": "Passed; grass-touching-simulator was listed."
+    },
+    {
+      "command": "vercel inspect grasstouchingsimulator.com --scope sensitech --timeout 30s on the Mac over SSH",
+      "result": "Passed; production deployment was Ready."
+    }
+  ],
+  "currentGitStatusSummary": {
+    "branch": "master",
+    "statusAtHandoffCreation": "Only docs/REMOTE_MAC_MINI_SETUP.md, handoffs/LATEST.json, and this new handoff are intended changes for commit. Pre-existing untracked docs/artifacts remain unrelated."
+  },
+  "knownIssuesAndCaveats": [
+    "The attempted pre-copy backup command for the Mac Vercel config failed due shell quoting before the copy. The old Mac Vercel login was rafbuelens-3610 and can be restored later by running vercel logout/login on the Mac if needed.",
+    "Do not print, commit, or copy Vercel auth tokens into docs/handoffs.",
+    "The Mac password was pasted into a chat image earlier and should still be treated as exposed until changed."
+  ],
+  "doNotRevertOrTouchWithoutUserRequest": [
+    "Do not remove the Mac repo-only GitHub deploy key unless replacing the Mac remote workflow.",
+    "Do not delete the Mac Vercel CLI auth files unless intentionally relogging the Mac.",
+    "Do not create a second Vercel project for Grass Touching Simulator."
+  ],
+  "recommendedNextSteps": [
+    "Commit and push this documentation update, then pull it on the Mac mini.",
+    "Use the Mac mini as the always-on primary operator for future GitHub/build/Vercel checks.",
+    "Change the Mac account password when convenient because it was exposed in a chat image."
+  ]
+}
