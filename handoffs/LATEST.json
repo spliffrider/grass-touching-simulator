@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-22",
-  "latestHandoff": "HANDOFF_2026-06-22_SKILL_TREE_CONNECTOR_CLEANUP.json",
+  "latestHandoff": "HANDOFF_2026-06-22_FIELD_LIFE_VISUALS.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

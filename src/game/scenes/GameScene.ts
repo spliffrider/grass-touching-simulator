@@ -138,6 +138,14 @@ const AUTO_TOUCH_VISUAL_MIN_INTERVAL_MS = 110;
 const AUTO_TOUCH_VISUAL_MAX_INTERVAL_MS = 420;
 const AUTO_TOUCH_POP_INTERVAL_MS = 1300;
 const AUTO_TOUCH_ACTIVE_OBJECT_LIMIT = 18;
+const FIELD_LIFE_VISUAL_INTERVAL_MS = 980;
+const FIELD_LIFE_SWEEP_INTERVAL_MS = 5200;
+const FIELD_LIFE_VISUAL_MIN_VISIBLE_TILES = 16;
+const FIELD_LIFE_VISUAL_SAMPLE_LIMIT = 38;
+const FIELD_LIFE_VISUAL_MAX_SPARKS = 3;
+const FIELD_LIFE_ACTIVE_OBJECT_LIMIT = 12;
+const FIELD_LIFE_SWEEP_MIN_PATCHES = 220;
+const FIELD_LIFE_MIN_BOARD_SCALE = 0.14;
 const QUEUED_SAVE_INTERVAL_MS = 6500;
 const AUTO_SAVE_INTERVAL_MS = 20000;
 const IDLE_SAVE_TIMEOUT_MS = 2400;
@@ -471,6 +479,12 @@ interface CommonRedrawEntry {
   y: number;
 }
 
+interface FieldLifeVisualCandidate {
+  tile: FieldTile;
+  position: { x: number; y: number };
+  score: number;
+}
+
 interface PerfStatsSnapshot {
   fps: number;
   maxFrameDeltaMs: number;
@@ -486,6 +500,7 @@ interface PerfStatsSnapshot {
   emitters: number;
   activeTweens: number;
   autoFxObjects: number;
+  fieldFxObjects: number;
   layoutPasses: number;
   redraws: number;
   tileMode: "live" | "viewport" | "batch";
@@ -770,6 +785,9 @@ export class GameScene extends Phaser.Scene {
   private lastAutoTouchVisualAt = 0;
   private lastAutoTouchPopAt = 0;
   private activeAutoTouchVisualObjects = 0;
+  private fieldLifeVisualElapsed = 0;
+  private lastFieldLifeSweepAt = 0;
+  private activeFieldLifeVisualObjects = 0;
   private comboBadgeRefreshElapsed = COMBO_BADGE_REFRESH_INTERVAL_MS;
   private lastMusicComboLevel = 0;
   private activeComboSource: ComboTouchSource = "manual";
@@ -1138,6 +1156,9 @@ export class GameScene extends Phaser.Scene {
     } else {
       this.profileScope("render:queuedCommon", () => this.processCommonRedrawQueue());
     }
+
+    this.profileScope("field:life", () => this.updateFieldLifeVisuals(delta, now));
+
     this.journalDiscoveryRefreshElapsed += delta;
     if (this.journalDiscoveryRefreshElapsed >= JOURNAL_DISCOVERY_REFRESH_INTERVAL_MS) {
       this.journalDiscoveryRefreshElapsed = 0;
@@ -2116,6 +2137,7 @@ export class GameScene extends Phaser.Scene {
       emitters: this.burstEmitters.size + this.uiBurstEmitters.size,
       activeTweens: this.getActiveTweenCount(),
       autoFxObjects: this.activeAutoTouchVisualObjects,
+      fieldFxObjects: this.activeFieldLifeVisualObjects,
       layoutPasses,
       redraws,
       tileMode: this.getTileMode(),
@@ -2141,6 +2163,7 @@ export class GameScene extends Phaser.Scene {
         `objects ${stats.displayObjects}`,
         `emitters ${stats.emitters}`,
         stats.autoFxObjects > 0 ? `autoFx ${stats.autoFxObjects}` : "",
+        stats.fieldFxObjects > 0 ? `fieldFx ${stats.fieldFxObjects}` : "",
         `tw ${stats.activeTweens}`,
         `dt ${stats.maxFrameDeltaMs}`,
         `spikes ${stats.frameSpikes}`,
@@ -7569,6 +7592,237 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private updateFieldLifeVisuals(delta: number, now: number): void {
+    this.fieldLifeVisualElapsed += delta;
+    if (this.fieldLifeVisualElapsed < FIELD_LIFE_VISUAL_INTERVAL_MS) {
+      return;
+    }
+    this.fieldLifeVisualElapsed = 0;
+
+    if (
+      this.hasBlockingOverlayOpen() ||
+      this.isBoardRenderBusy() ||
+      this.lastVisibleTileKeys.size < FIELD_LIFE_VISUAL_MIN_VISIBLE_TILES ||
+      this.boardScale < FIELD_LIFE_MIN_BOARD_SCALE ||
+      this.effectQuality <= MIN_EFFECT_QUALITY ||
+      this.children.list.length >= DISPLAY_OBJECT_PRESSURE_LIMIT
+    ) {
+      return;
+    }
+
+    const objectLimit = this.getScaledBudget(FIELD_LIFE_ACTIVE_OBJECT_LIMIT);
+    if (this.activeFieldLifeVisualObjects >= objectLimit) {
+      return;
+    }
+
+    this.runWithAmbientFeedback(() => {
+      const candidates = this.pickFieldLifeVisualTiles();
+      if (candidates.length === 0) {
+        return;
+      }
+
+      const sparkBudget = this.getScaledBudget(this.effectQuality < 0.58 ? 1 : FIELD_LIFE_VISUAL_MAX_SPARKS);
+      const sparkCount = Math.min(candidates.length, sparkBudget, objectLimit - this.activeFieldLifeVisualObjects);
+      for (let index = 0; index < sparkCount; index += 1) {
+        const candidate = candidates[index];
+        if (candidate) {
+          this.playFieldLifeSpark(candidate, index);
+        }
+      }
+
+      if (now - this.lastFieldLifeSweepAt >= FIELD_LIFE_SWEEP_INTERVAL_MS) {
+        this.playFieldLifeSweep(candidates, now);
+      }
+    });
+  }
+
+  private pickFieldLifeVisualTiles(): FieldLifeVisualCandidate[] {
+    const visibleKeys = [...this.lastVisibleTileKeys];
+    if (visibleKeys.length === 0) {
+      return [];
+    }
+
+    const attempts = Math.min(visibleKeys.length, FIELD_LIFE_VISUAL_SAMPLE_LIMIT);
+    const seenKeys = new Set<TileKey>();
+    const candidates: FieldLifeVisualCandidate[] = [];
+
+    for (let index = 0; index < attempts; index += 1) {
+      const key = visibleKeys[Phaser.Math.Between(0, visibleKeys.length - 1)];
+      if (!key || seenKeys.has(key)) {
+        continue;
+      }
+      seenKeys.add(key);
+
+      const tile = this.state.field[key];
+      if (!tile || tile.grassState !== "grown" || getTileHazard(this.state, key)) {
+        continue;
+      }
+
+      const position = this.getTileVisualPosition(tile);
+      if (!position || !this.isScreenPositionNearViewport(position, TILE_CULL_MARGIN_PX)) {
+        continue;
+      }
+
+      const score = this.getFieldLifeVisualScore(tile);
+      if (score <= 0) {
+        continue;
+      }
+
+      candidates.push({ tile, position, score: score + Math.random() * 0.9 });
+    }
+
+    return candidates
+      .sort((left, right) => right.score - left.score)
+      .slice(0, Math.max(FIELD_LIFE_VISUAL_MAX_SPARKS + 2, 5));
+  }
+
+  private getFieldLifeVisualScore(tile: FieldTile): number {
+    let score = 1;
+    if (tile.tier !== "normal") {
+      score += 4;
+    }
+    if (tile.tier === "golden" || tile.tier === "crystal" || tile.tier === "frost") {
+      score += 2;
+    }
+    if (tile.trait === "dewy" || tile.trait === "lush") {
+      score += 2;
+    }
+
+    const fertility = Number.isFinite(tile.fertility) ? tile.fertility : 1;
+    const moisture = Number.isFinite(tile.moisture) ? tile.moisture : 1;
+    return score + Phaser.Math.Clamp(fertility - 1, 0, 1.2) + Phaser.Math.Clamp(moisture - 1, 0, 1.2);
+  }
+
+  private playFieldLifeSpark(candidate: FieldLifeVisualCandidate, index: number): void {
+    const { tile, position } = candidate;
+    const texture = this.getFieldLifeBurstTexture(tile);
+    const color = this.getFieldLifeVisualColor(tile);
+    const rareTier = tile.tier !== "normal";
+    const quantity = rareTier ? 6 : tile.trait === "normal" ? 3 : 4;
+    const x = position.x + Phaser.Math.Between(-9, 9) * this.boardScale;
+    const y = position.y - Phaser.Math.Between(8, 18) * this.boardScale;
+
+    this.emitBurst(texture, x, y, quantity, 0.5, 0.12);
+
+    const objectLimit = this.getScaledBudget(FIELD_LIFE_ACTIVE_OBJECT_LIMIT);
+    if (this.activeFieldLifeVisualObjects >= objectLimit || !this.reserveAmbientTransientObject()) {
+      return;
+    }
+
+    const outerRadius = Phaser.Math.Clamp(TILE_SIZE * this.boardScale * (rareTier ? 0.24 : 0.16), 5, rareTier ? 18 : 12);
+    const innerRadius = Math.max(2, outerRadius * 0.34);
+    const spark = this.trackFieldLifeVisualObject(
+      this.add
+        .star(x, y, rareTier ? 6 : 5, innerRadius, outerRadius, color, rareTier ? 0.82 : 0.58)
+        .setStrokeStyle(Math.max(1, 2 * this.boardScale), 0xf7ffe8, rareTier ? 0.82 : 0.54)
+        .setDepth(36),
+    );
+
+    this.tweens.add({
+      targets: spark,
+      angle: index % 2 === 0 ? 58 : -58,
+      scaleX: rareTier ? 1.48 : 1.32,
+      scaleY: rareTier ? 1.48 : 1.32,
+      y: y - (10 + index * 2) * this.boardScale,
+      alpha: 0,
+      duration: rareTier ? 720 : 560,
+      ease: "Sine.easeOut",
+      onComplete: () => spark.destroy(),
+    });
+  }
+
+  private playFieldLifeSweep(candidates: FieldLifeVisualCandidate[], now: number): void {
+    if (
+      this.fieldTileCount < FIELD_LIFE_SWEEP_MIN_PATCHES ||
+      this.effectQuality < 0.72 ||
+      this.boardScale < 0.18 ||
+      this.children.list.length >= DISPLAY_OBJECT_PRESSURE_LIMIT ||
+      this.activeFieldLifeVisualObjects >= this.getScaledBudget(FIELD_LIFE_ACTIVE_OBJECT_LIMIT) ||
+      !this.reserveAmbientTransientObject()
+    ) {
+      return;
+    }
+
+    const points = candidates.slice(0, 3).map((candidate) => candidate.position);
+    if (points.length === 0) {
+      return;
+    }
+
+    this.lastFieldLifeSweepAt = now;
+    const lead = candidates[0];
+    const color = lead ? this.getFieldLifeVisualColor(lead.tile) : 0xdfffc8;
+    const current = this.trackFieldLifeVisualObject(this.add.graphics().setDepth(33));
+    const lineWidth = Math.max(1, 2.5 * this.boardScale);
+    current.lineStyle(lineWidth, color, 0.42);
+
+    if (points.length >= 2) {
+      for (let index = 1; index < points.length; index += 1) {
+        const previous = points[index - 1];
+        const next = points[index];
+        current.lineBetween(previous.x, previous.y - 2 * this.boardScale, next.x, next.y - 2 * this.boardScale);
+      }
+    } else {
+      const point = points[0];
+      current.strokeCircle(point.x, point.y, TILE_SIZE * 0.42 * this.boardScale);
+    }
+
+    current.fillStyle(color, 0.12);
+    for (const point of points) {
+      current.fillCircle(point.x, point.y, Math.max(4, TILE_SIZE * 0.18 * this.boardScale));
+    }
+
+    if (lead) {
+      this.emitBurst(this.getFieldLifeBurstTexture(lead.tile), lead.position.x, lead.position.y - 12 * this.boardScale, 10, 0.62, 0.08);
+    }
+
+    this.tweens.add({
+      targets: current,
+      alpha: 0,
+      duration: 820,
+      ease: "Sine.easeOut",
+      onComplete: () => current.destroy(),
+    });
+  }
+
+  private getFieldLifeVisualColor(tile: FieldTile): number {
+    if (tile.trait === "dewy") {
+      return 0xbff4ff;
+    }
+    if (tile.trait === "lush") {
+      return 0xdfffc8;
+    }
+    return this.getTierHighlightColor(tile.tier);
+  }
+
+  private getFieldLifeBurstTexture(tile: FieldTile): string {
+    if (tile.tier === "golden") {
+      return "gold-fleck";
+    }
+    if (tile.tier === "wildflower") {
+      return "effect-pollen-fleck";
+    }
+    if (tile.tier === "mushroom") {
+      return "effect-magic-spore";
+    }
+    if (tile.tier === "crystal" || tile.tier === "frost" || tile.trait === "dewy") {
+      return "dew-fleck";
+    }
+    return "grass-fleck";
+  }
+
+  private trackFieldLifeVisualObject<T extends Phaser.GameObjects.GameObject>(effect: T): T {
+    this.activeFieldLifeVisualObjects += 1;
+    let released = false;
+    effect.once("destroy", () => {
+      if (released) {
+        return;
+      }
+      released = true;
+      this.activeFieldLifeVisualObjects = Math.max(0, this.activeFieldLifeVisualObjects - 1);
+    });
+    return this.trackBoardTransient(effect);
+  }
+
   private updateSprinkler(delta: number, stats: RuntimeStats): void {
     if (this.hasBlockingOverlayOpen()) {
       return;
@@ -7873,11 +8127,70 @@ export class GameScene extends Phaser.Scene {
     );
     this.audio.play(combo.thresholdReached >= 15 ? "unlock" : "crit");
     this.shakeForCombo(combo, automated);
+    this.playComboLandingPulse(tile, combo.thresholdReached, automated);
 
     const view = this.tileViews.get(this.getTileKey(tile));
     if (view) {
       this.emitBurst("crit-fleck", view.label.x, view.label.y - 12, 26, 1.1 + Math.min(1, combo.thresholdReached / 40), 0.16);
     }
+  }
+
+  private playComboLandingPulse(tile: FieldTile, threshold: number, automated: boolean): void {
+    if (this.children.list.length >= DISPLAY_OBJECT_CRITICAL_LIMIT || this.effectQuality <= MIN_EFFECT_QUALITY) {
+      return;
+    }
+
+    const position = this.getTileVisualPosition(tile);
+    if (!position || !this.reserveAmbientTransientObject(2)) {
+      return;
+    }
+
+    const color = automated ? 0xbff4ff : 0xffef78;
+    const stroke = automated ? 0xf7ffe8 : 0xffffff;
+    const scale = Phaser.Math.Clamp(threshold / 18, 0.8, 1.8);
+    const ring = this.trackBoardTransient(
+      this.add
+        .ellipse(position.x, position.y + 3 * this.boardScale, TILE_SIZE * 0.72 * this.boardScale, TILE_SIZE * 0.42 * this.boardScale, color, 0.16)
+        .setStrokeStyle(Math.max(2, 4 * this.boardScale), stroke, 0.82)
+        .setDepth(38),
+    );
+    const flare = this.trackBoardTransient(
+      this.add
+        .star(
+          position.x,
+          position.y - 15 * this.boardScale,
+          7,
+          TILE_SIZE * 0.09 * this.boardScale,
+          TILE_SIZE * 0.42 * this.boardScale,
+          color,
+          0.66,
+        )
+        .setStrokeStyle(Math.max(1, 2 * this.boardScale), stroke, 0.74)
+        .setDepth(39),
+    );
+
+    this.emitBurst(automated ? "dew-fleck" : "crit-fleck", position.x, position.y - 14 * this.boardScale, 14 + Math.min(16, threshold), 0.82, 0.1);
+
+    this.tweens.add({
+      targets: ring,
+      scaleX: 2.4 + scale * 0.62,
+      scaleY: 1.7 + scale * 0.36,
+      alpha: 0,
+      duration: 640,
+      ease: "Sine.easeOut",
+      onComplete: () => ring.destroy(),
+    });
+    this.tweens.add({
+      targets: flare,
+      angle: automated ? -72 : 72,
+      scaleX: 1.62 + scale * 0.2,
+      scaleY: 1.62 + scale * 0.2,
+      y: flare.y - 14 * this.boardScale,
+      alpha: 0,
+      duration: 620,
+      ease: "Sine.easeOut",
+      onComplete: () => flare.destroy(),
+    });
   }
 
   private playAutomationComboFlair(tile: FieldTile, combo: ComboResult, source: Exclude<ComboTouchSource, "manual">): void {

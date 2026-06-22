@@ -1,0 +1,69 @@
+{
+  "date": "2026-06-22",
+  "topic": "Field life visuals without regressing large-field performance",
+  "currentUserGoal": "Make late/deep-game fields feel more visually engaging while keeping the optimized large-field performance intact.",
+  "changesMade": [
+    "Added a budgeted field-life visual pass in GameScene that runs roughly once per second and only samples already-visible tile keys.",
+    "The pass favors grown rare, dewy, lush, fertile, and moist tiles, then emits tiny bursts plus a very small number of tracked transient spark objects.",
+    "Added an occasional lightweight meadow-current sweep for large fields, gated by effect quality, object pressure, board render idleness, and board scale.",
+    "Added fieldFxObjects to perf stats and the perf overlay so this new visual layer can be watched during stress tests.",
+    "Added a combo landing pulse for manual and automation threshold combos so combo hits read better on large/batch-rendered fields.",
+    "All new transient objects are tracked through board transient cleanup, so pan/zoom/layout clears them immediately."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-22_FIELD_LIFE_VISUALS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "Passed twice after edits."
+    },
+    {
+      "url": "http://127.0.0.1:5173/?stress&perf&tiles=1200",
+      "viewport": "narrow/mobile existing viewport",
+      "result": "1200 total tiles, 91 visible, viewport tile mode, 106 FPS, 0 frame spikes, fieldFxObjects 3."
+    },
+    {
+      "url": "http://127.0.0.1:5173/?stress&perf&tiles=1200",
+      "viewport": "1280x720 temporary desktop viewport",
+      "result": "1200 visible tiles, batch tile mode, 122 FPS, 0 frame spikes, fieldFxObjects 3 after lowering tiny-scale gates."
+    },
+    {
+      "url": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "Completed. visibleTiles stayed 1200 in batch phases; layoutPasses 0; redraws 0; redrawQueued drained from 32 at idle to 0; maxFrameDeltaMs max 14; frameSpikes 0; displayObjects max 502; activeTweens max 21 outside tap burst; hotspots did not show field:life as a pressure point."
+    }
+  ],
+  "currentGitStatus": {
+    "branch": "master...origin/master",
+    "trackedChanges": [
+      "M src/game/scenes/GameScene.ts",
+      "M handoffs/LATEST.json",
+      "?? handoffs/HANDOFF_2026-06-22_FIELD_LIFE_VISUALS.json"
+    ],
+    "preExistingUntrackedDoNotTouch": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieën voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssues": [
+    "The wide/batch screenshot confirms activity in perf stats, but the tiny whole-field scale still makes subtle effects inherently small. Future polish could add a slightly larger low-frequency board-level shimmer, but it should stay behind the same perf gates.",
+    "Deploy, push, and Mac sync were requested immediately after the local verification; see final assistant message for the exact commit/deploy/sync result."
+  ],
+  "nextRecommendedSteps": [
+    "Play a normal late-game save and judge whether the field feels alive enough without the perf overlay.",
+    "After deployment, play a production late-game save and judge whether the field-life layer is noticeable enough without the perf overlay.",
+    "If more drama is needed, prefer rare milestone/biome-level moments over increasing per-second ambient object counts."
+  ],
+  "doNotRevert": [
+    "Do not remove the large-field culling/batch rendering protections to add visual activity.",
+    "Do not replace the sampled visible-tile field-life pass with full-field scans or per-tile animation."
+  ]
+}
