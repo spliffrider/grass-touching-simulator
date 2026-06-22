@@ -20,6 +20,8 @@ http://127.0.0.1:5173/?perfHarness&tiles=1200
 
 - `idle`
 - `tapBurst`
+- `skillOpen`
+- `skillSelect`
 - `storeOpen`
 - `pan`
 - `zoom`

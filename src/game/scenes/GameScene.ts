@@ -482,7 +482,7 @@ interface PerfStatsSnapshot {
   hotspots: string;
 }
 
-type PerfHarnessPhase = "idle" | "tapBurst" | "storeOpen" | "pan" | "zoom" | "saveStringify" | "complete";
+type PerfHarnessPhase = "idle" | "tapBurst" | "skillOpen" | "skillSelect" | "storeOpen" | "pan" | "zoom" | "saveStringify" | "complete";
 
 interface PerfHarnessSample {
   phase: PerfHarnessPhase;
@@ -542,6 +542,7 @@ export class GameScene extends Phaser.Scene {
   private tileViewPool: TileView[] = [];
   private tileKeyCache = new WeakMap<FieldTile, TileKey>();
   private dirtyTileViewKeys = new Set<TileKey>();
+  private staleCommonTileKeys = new Set<TileKey>();
   private redrawTileViewKeys = new Set<TileKey>();
   private recentlyRegrownAt = new Map<TileKey, number>();
   private perfectTouchCues = new Map<TileKey, Phaser.GameObjects.GameObject[]>();
@@ -1111,7 +1112,9 @@ export class GameScene extends Phaser.Scene {
     });
     this.profileScope("layout:pending", () => {
       if (this.commonTileLayerDirty) {
-        this.requestBoardLayout("dirty");
+        if (!this.tryQueueDirtyCommonRedraw()) {
+          this.requestBoardLayout("dirty");
+        }
       }
       this.flushPendingBoardLayout();
     });
@@ -1628,28 +1631,39 @@ export class GameScene extends Phaser.Scene {
 
       this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
         this.capturePerfHarnessSample("tapBurst");
-        this.openGoldStore();
+        this.openSkillTree();
 
         this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
-          this.capturePerfHarnessSample("storeOpen");
-          this.closeGoldStore();
-          this.runPerfHarnessPan();
+          this.capturePerfHarnessSample("skillOpen");
+          this.runPerfHarnessSkillSelect();
 
           this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
-            this.capturePerfHarnessSample("pan");
-            this.runPerfHarnessZoom();
+            this.capturePerfHarnessSample("skillSelect");
+            this.closeSkillTree();
+            this.openGoldStore();
 
             this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
-              this.capturePerfHarnessSample("zoom");
-              this.runPerfHarnessSaveStringify();
+              this.capturePerfHarnessSample("storeOpen");
+              this.closeGoldStore();
+              this.runPerfHarnessPan();
 
-              this.time.delayedCall(120, () => {
-                this.capturePerfHarnessSample("saveStringify");
-                this.resetBoardView();
-                this.requestBoardLayout("pan");
-                this.capturePerfHarnessSample("complete");
-                this.perfHarnessRunning = false;
-                this.publishPerfHarnessResult("complete");
+              this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
+                this.capturePerfHarnessSample("pan");
+                this.runPerfHarnessZoom();
+
+                this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
+                  this.capturePerfHarnessSample("zoom");
+                  this.runPerfHarnessSaveStringify();
+
+                  this.time.delayedCall(120, () => {
+                    this.capturePerfHarnessSample("saveStringify");
+                    this.resetBoardView();
+                    this.requestBoardLayout("pan");
+                    this.capturePerfHarnessSample("complete");
+                    this.perfHarnessRunning = false;
+                    this.publishPerfHarnessResult("complete");
+                  });
+                });
               });
             });
           });
@@ -1661,6 +1675,13 @@ export class GameScene extends Phaser.Scene {
   private runPerfHarnessTapBurst(): void {
     for (const tile of this.getPerfHarnessTouchTiles(PERF_HARNESS_TAP_COUNT)) {
       this.handleTileClicked(tile);
+    }
+  }
+
+  private runPerfHarnessSkillSelect(): void {
+    const nextSkill = UPGRADES.find((upgrade) => upgrade.id !== this.selectedSkillId && this.isSkillVisible(upgrade.id));
+    if (nextSkill) {
+      this.previewSkill(nextSkill.id);
     }
   }
 
@@ -4810,6 +4831,47 @@ export class GameScene extends Phaser.Scene {
     this.commonRedrawQueuedTiles = entries.length;
   }
 
+  private tryQueueDirtyCommonRedraw(): boolean {
+    if (this.usesFullLiveTileViews() || !this.commonTileLayer) {
+      return false;
+    }
+
+    if (this.commonRedrawQueue.length > 0) {
+      return true;
+    }
+
+    const entries: CommonRedrawEntry[] = [];
+    for (const key of this.staleCommonTileKeys) {
+      const tile = this.state.field[key];
+      if (!tile) {
+        this.staleCommonTileKeys.delete(key);
+        this.dirtyTileViewKeys.delete(key);
+        this.redrawTileViewKeys.delete(key);
+        continue;
+      }
+
+      const position = this.getTileScreenPosition(tile);
+      if (!position || !this.isScreenPositionNearViewport(position)) {
+        this.staleCommonTileKeys.delete(key);
+        this.dirtyTileViewKeys.delete(key);
+        this.redrawTileViewKeys.delete(key);
+        this.releaseBatchTileViewIfIdle(key);
+        continue;
+      }
+
+      this.redrawTileViewKeys.add(key);
+      entries.push({ key, x: position.x, y: position.y });
+    }
+
+    this.commonTileLayerDirty = false;
+    if (entries.length === 0) {
+      return true;
+    }
+
+    this.scheduleCommonRedraw(entries);
+    return true;
+  }
+
   private processCommonRedrawQueue(): void {
     if (!this.commonTileLayer || this.commonRedrawQueue.length === 0) {
       return;
@@ -4826,9 +4888,14 @@ export class GameScene extends Phaser.Scene {
       const tile = this.state.field[entry.key];
       if (tile) {
         this.drawCommonTile(tile, entry.x, entry.y);
+        this.staleCommonTileKeys.delete(entry.key);
         this.dirtyTileViewKeys.delete(entry.key);
         this.redrawTileViewKeys.delete(entry.key);
         this.releaseBatchTileViewIfIdle(entry.key);
+      } else {
+        this.staleCommonTileKeys.delete(entry.key);
+        this.dirtyTileViewKeys.delete(entry.key);
+        this.redrawTileViewKeys.delete(entry.key);
       }
 
       drawn += 1;
@@ -4843,6 +4910,7 @@ export class GameScene extends Phaser.Scene {
       for (const key of [...this.lastVisibleTileKeys]) {
         this.releaseBatchTileViewIfIdle(key);
       }
+      this.commonTileLayerDirty = this.staleCommonTileKeys.size > 0;
     }
   }
 
@@ -4976,6 +5044,7 @@ export class GameScene extends Phaser.Scene {
     this.tileViews.clear();
     this.tileViewPool = [];
     this.dirtyTileViewKeys.clear();
+    this.staleCommonTileKeys.clear();
     this.redrawTileViewKeys.clear();
   }
 
@@ -5117,6 +5186,7 @@ export class GameScene extends Phaser.Scene {
 
     this.lastStressStats = { visibleTiles, totalTiles: this.fieldTileCount };
     this.commonTileLayerDirty = false;
+    this.staleCommonTileKeys.clear();
     this.dirtyTileViewKeys.clear();
     if (budgetCommonRedraw) {
       this.scheduleCommonRedraw(queuedCommonRedrawEntries);
@@ -8068,17 +8138,18 @@ export class GameScene extends Phaser.Scene {
     }
 
     const key = this.getTileKey(tile);
+    const position = this.getTileScreenPosition(tile);
+    if (!position || !this.isScreenPositionNearViewport(position)) {
+      return;
+    }
+
+    this.staleCommonTileKeys.add(key);
     if (this.dirtyTileViewKeys.has(key)) {
       return;
     }
 
     if (this.dirtyTileViewKeys.size >= this.getDirtyTileViewLimit()) {
       this.commonTileLayerDirty = true;
-      return;
-    }
-
-    const position = this.getTileScreenPosition(tile);
-    if (!position || !this.isScreenPositionNearViewport(position)) {
       return;
     }
 

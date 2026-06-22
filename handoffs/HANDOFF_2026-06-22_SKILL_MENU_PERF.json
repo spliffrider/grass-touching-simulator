@@ -1,0 +1,76 @@
+{
+  "createdAt": "2026-06-22",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Record the large-field and skill-menu performance optimization performed on the Windows desktop clone.",
+  "currentUserGoal": "Read the latest handoff, then optimize the game again because bigger fields tank performance and the skills menu feels very slow.",
+  "contextReadAtSessionStart": [
+    "AGENTS.md",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-06-22_GOTH_GIRL_BADDIE_CLASS.json",
+    "docs/PERFORMANCE_NOTES.md",
+    "docs/PERFORMANCE_HARNESS.md"
+  ],
+  "workCompletedThisSession": [
+    {
+      "summary": "Avoided full board layouts for ordinary dirty batch-tile churn.",
+      "details": [
+        "Added staleCommonTileKeys to track batch tiles whose common render-texture stamp is stale.",
+        "Changed the commonTileLayerDirty path to first queue stale tile redraws through the existing budgeted common redraw queue instead of immediately requesting layoutTiles(\"dirty\").",
+        "Kept temporary live dirty tile views capped by the existing dirtyTileViewKeys limit while still tracking over-limit stale tiles for queued render-texture commits.",
+        "Cleared stale keys after full layouts and tile-view destruction, and cleaned up missing queued tiles defensively."
+      ]
+    },
+    {
+      "summary": "Added direct skill-menu coverage to the performance harness.",
+      "details": [
+        "Added skillOpen and skillSelect phases to PerfHarnessPhase.",
+        "Updated startPerfHarness to open the skill tree, preview another visible skill, then continue through store, pan, zoom, saveStringify, and complete.",
+        "Updated docs/PERFORMANCE_HARNESS.md to list the new phases."
+      ]
+    }
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "docs/PERFORMANCE_HARNESS.md",
+    "handoffs/HANDOFF_2026-06-22_SKILL_MENU_PERF.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationPerformed": [
+    {
+      "command": "npm run build",
+      "result": "Passed twice after source edits; TypeScript and Vite production build completed successfully."
+    },
+    {
+      "command": "Browser harness before fix at http://127.0.0.1:5173/?perfHarness&tiles=2500",
+      "result": "Idle sample showed layoutPasses 2, redraws 2, maxFrameDeltaMs 17, frameSpikes 0, visibleTiles 2500, displayObjects 304, activeTweens 16, hotspots including layout/layout:dirty/layout:tiles around 108 ms."
+    },
+    {
+      "command": "Browser harness after fix at http://127.0.0.1:5173/?perfHarness&tiles=2500",
+      "result": "Complete. Idle sample showed visibleTiles 2500, layoutPasses 0, redraws 0, maxFrameDeltaMs 10, frameSpikes 0, displayObjects 256, activeTweens 10, hotspots render:queuedCommon max 4.3 ms and no layout:dirty. skillOpen showed ui:skillTree max 4.5 ms, layoutPasses 0, redraws 0."
+    },
+    {
+      "command": "Browser harness after fix at http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "Complete. skillOpen showed ui:skillTree max 4.5 ms, layoutPasses 0, redraws 0, maxFrameDeltaMs 7. skillSelect showed maxFrameDeltaMs 9, layoutPasses 0, redraws 0. complete sample showed fps 111, maxFrameDeltaMs 13, frameSpikes 0, displayObjects 282, activeTweens 21."
+    },
+    {
+      "command": "git diff --check",
+      "result": "No whitespace errors; only existing Windows LF-to-CRLF working-copy warnings for docs/PERFORMANCE_HARNESS.md and src/game/scenes/GameScene.ts."
+    }
+  ],
+  "currentGitStatusAfterThisHandoff": "Modified: src/game/scenes/GameScene.ts, docs/PERFORMANCE_HARNESS.md, handoffs/LATEST.json. Added/untracked: handoffs/HANDOFF_2026-06-22_SKILL_MENU_PERF.json. Pre-existing untracked docs/artifacts, Dutch automation docs, GAME_SYSTEMS_REFERENCE CLAUDE.md, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json remain untouched.",
+  "knownIssuesAndCaveats": [
+    "The field can still report visibleTiles equal to totalTiles on desktop when the whole large board is zoomed/fitted into the viewport; this change prevents dirty tile churn from forcing full layout/redraw passes in that state.",
+    "Initial scene creation still needs to stamp the large field once. The measured improvement is for normal gameplay dirty/regrow/touch churn and skill-menu interaction after the scene is live.",
+    "The dev server was started on http://127.0.0.1:5173 for verification."
+  ],
+  "doNotRevertOrTouchWithoutUserRequest": [
+    "Do not revert the Goth Girl Baddie class work from the previous handoff.",
+    "Do not revert unrelated pre-existing untracked docs/artifacts unless the user explicitly asks.",
+    "Keep skillOpen and skillSelect in the perf harness so future menu regressions are measured."
+  ],
+  "recommendedNextSteps": [
+    "Try the user's real save on desktop and phone/tablet with ?perf enabled to confirm the subjective skill-menu feel.",
+    "If big-field startup still feels rough, consider budgeting the initial large-field common-layer stamp or adding a loading/interstitial state around first render."
+  ]
+}
