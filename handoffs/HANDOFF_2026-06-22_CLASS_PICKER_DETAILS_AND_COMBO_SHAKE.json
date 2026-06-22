@@ -1,0 +1,72 @@
+{
+  "createdAt": "2026-06-22",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Record the follow-up class-picker responsive fix for mobile/tablet ability visibility plus combo threshold screenshake.",
+  "currentUserGoal": "Add a screenshake when landing combo thresholds, then fix tester-reported class picker issues where mobile could not see ability details and tablet/landscape graphics looked bad.",
+  "contextReadAtSessionStart": [
+    "AGENTS.md",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-06-22_MOBILE_CLASS_PICKER_RESPONSIVE.json",
+    "browser:control-in-app-browser skill"
+  ],
+  "workCompletedThisSession": [
+    {
+      "summary": "Added manual combo threshold screenshake.",
+      "details": [
+        "Added tunable combo shake constants in GameScene.",
+        "Added shakeForCombo and called it when combo.thresholdReached fires.",
+        "Skipped automated combo streaks so background automation does not shake the screen without direct player input."
+      ]
+    },
+    {
+      "summary": "Reworked compact class picker layouts.",
+      "details": [
+        "Split class picker breakpoints into phone portrait, compact landscape/tablet, and desktop.",
+        "Added a selected-class ability panel on compact layouts so passive descriptions and stat lines are visible.",
+        "Changed compact touch behavior so tapping an inactive class selects/details it first, while tapping the highlighted class starts the game.",
+        "Changed inactive compact buttons from Start to Details.",
+        "Changed tablet/landscape from one-column flattened phone rows to a two-column compact grid."
+      ]
+    }
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/scenes/TitleScene.ts",
+    "handoffs/HANDOFF_2026-06-22_CLASS_PICKER_DETAILS_AND_COMBO_SHAKE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationPerformed": [
+    {
+      "command": "npm run build",
+      "result": "Passed. TypeScript and Vite production build completed successfully."
+    },
+    {
+      "command": "Browser check at http://127.0.0.1:5173/ with viewport 320x568",
+      "result": "Passed visually. Phone portrait shows compact cards, Details buttons, selected ability description/stat panel, and Back button without overlap."
+    },
+    {
+      "command": "Browser check at http://127.0.0.1:5173/ with viewport 390x844",
+      "result": "Passed visually. Modern phone portrait shows ability content and clean spacing."
+    },
+    {
+      "command": "Browser check at http://127.0.0.1:5173/ with viewport 680x390",
+      "result": "Passed visually. Tablet/landscape uses two columns, visible ability panel, and working Details selection."
+    }
+  ],
+  "currentGitStatusAfterThisHandoff": "Modified: src/game/scenes/GameScene.ts, src/game/scenes/TitleScene.ts, and handoffs/LATEST.json. Added: handoffs/HANDOFF_2026-06-22_CLASS_PICKER_DETAILS_AND_COMBO_SHAKE.json. Pre-existing untracked Dutch automation docs, docs/artifacts, GAME_SYSTEMS_REFERENCE CLAUDE.md, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json remain untouched.",
+  "knownIssuesAndCaveats": [
+    "Combo screenshake triggers only on manual combo threshold milestones such as 6, 12, 20, 32, and 50, not on every combo touch.",
+    "Compact class picker now requires one tap to inspect an inactive class and a second tap on the highlighted class to start as it. This is intentional for touch devices where hover preview is unavailable.",
+    "This session did not change the gameplay board renderer or skill-tree performance path."
+  ],
+  "doNotRevertOrTouchWithoutUserRequest": [
+    "Do not remove the compact class ability panel unless replacing it with another tested way to show passive descriptions on touch devices.",
+    "Do not restore the one-column phone layout for tablet/landscape breakpoints.",
+    "Do not commit unrelated pre-existing untracked docs/artifacts unless the user explicitly asks."
+  ],
+  "recommendedNextSteps": [
+    "Have the Discord tester retry the live site on phone and tablet.",
+    "If tablet still looks bad, collect exact device/browser viewport dimensions and a screenshot of the specific screen."
+  ]
+}

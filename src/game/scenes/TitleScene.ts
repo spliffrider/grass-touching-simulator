@@ -91,6 +91,9 @@ export class TitleScene extends Phaser.Scene {
   private classSelectPanel!: Phaser.GameObjects.NineSlice;
   private classSelectTitle!: Phaser.GameObjects.Text;
   private classSelectSubtitle!: Phaser.GameObjects.Text;
+  private classAbilityPanel!: Phaser.GameObjects.Rectangle;
+  private classAbilityTitle!: Phaser.GameObjects.Text;
+  private classAbilityBody!: Phaser.GameObjects.Text;
   private classCards: ClassCard[] = [];
   private classBackHit!: Phaser.GameObjects.Rectangle;
   private classBackText!: Phaser.GameObjects.Text;
@@ -100,6 +103,7 @@ export class TitleScene extends Phaser.Scene {
   private optionsOpen = false;
   private creditsOpen = false;
   private classSelectOpen = false;
+  private compactClassSelect = false;
   private activeClassId: CharacterClassId = CHARACTER_CLASSES[0].id;
   private draggingVolume = false;
   private titleReady = false;
@@ -544,6 +548,35 @@ export class TitleScene extends Phaser.Scene {
 
     this.classCards = CHARACTER_CLASSES.map((characterClass) => this.createClassCard(characterClass));
 
+    this.classAbilityPanel = this.add
+      .rectangle(0, 0, 320, 92, 0x06190f, 0.84)
+      .setOrigin(0.5)
+      .setStrokeStyle(2, 0xb7eba5, 0.72)
+      .setVisible(false);
+    this.classAbilityTitle = this.add
+      .text(0, 0, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "15px",
+        color: "#ffef78",
+        stroke: "#092213",
+        strokeThickness: 3,
+        align: "center",
+      })
+      .setOrigin(0.5, 0)
+      .setVisible(false);
+    this.classAbilityBody = this.add
+      .text(0, 0, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "12px",
+        color: "#f7ffe8",
+        align: "center",
+        lineSpacing: 1,
+        wordWrap: { width: 280 },
+      })
+      .setOrigin(0.5, 0)
+      .setVisible(false);
+    this.classSelectRoot.add([this.classAbilityPanel, this.classAbilityTitle, this.classAbilityBody]);
+
     this.classBackHit = this.add
       .rectangle(0, 0, 118, 42, 0xe9ffd0, 0.98)
       .setOrigin(0.5)
@@ -631,8 +664,12 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     container.add([frame, iconBg, icon, hit, name, archetype, passive, body, button, buttonText]);
-    hit.on("pointerover", () => this.setActiveClass(characterClass.id));
-    hit.on("pointerdown", () => this.startNewGameWithClass(characterClass.id));
+    hit.on("pointerover", () => {
+      if (!this.compactClassSelect) {
+        this.setActiveClass(characterClass.id);
+      }
+    });
+    hit.on("pointerdown", () => this.handleClassCardPressed(characterClass.id));
     this.classSelectRoot.add(container);
 
     return { characterClass, container, hit, frame, iconBg, icon, name, archetype, passive, body, button, buttonText };
@@ -884,36 +921,54 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private layoutClassSelectPanel(): void {
-    const narrow = this.scale.width < 720;
+    const narrowWidth = this.scale.width < 720;
+    const lowHeight = this.scale.height < 620;
+    const phonePortrait = narrowWidth && this.scale.height >= this.scale.width * 1.18;
+    const compactPicker = phonePortrait || lowHeight || this.scale.width < 860;
+    const compactLandscape = compactPicker && !phonePortrait;
     const compact = this.scale.width < 980;
     const maxColumns = compact || this.classCards.length === 4 ? 2 : 3;
-    const columns = narrow ? 1 : Math.min(this.classCards.length, maxColumns);
+    const columns = phonePortrait ? 1 : compactPicker ? Math.min(2, this.classCards.length) : Math.min(this.classCards.length, maxColumns);
     const rows = Math.max(1, Math.ceil(this.classCards.length / columns));
-    const shortMobile = narrow && this.scale.height < 680;
-    const panelWidth = Math.min(narrow ? 390 : columns === 2 ? 800 : 1080, this.scale.width - (narrow ? 12 : 36));
-    const panelHeight = Math.min(narrow ? this.scale.height - 16 : rows > 1 ? 700 : 570, this.scale.height - (narrow ? 16 : 32));
+    const shortMobile = phonePortrait && this.scale.height < 680;
+    const panelWidth = Math.min(phonePortrait ? 390 : compactPicker ? 760 : columns === 2 ? 800 : 1080, this.scale.width - (compactPicker ? 12 : 36));
+    const panelHeight = Math.min(compactPicker ? this.scale.height - 16 : rows > 1 ? 700 : 570, this.scale.height - (compactPicker ? 16 : 32));
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
-    const columnGap = narrow ? 0 : 24;
-    const rowGap = narrow ? (shortMobile ? 8 : 10) : 20;
-    const headerHeight = narrow ? (shortMobile ? 78 : 106) : 150;
-    const footerHeight = narrow ? (shortMobile ? 54 : 64) : 60;
-    const cardsAreaHeight = Math.max(260, panelHeight - headerHeight - footerHeight);
-    const cardWidth = narrow ? Math.min(316, panelWidth - 48) : Math.min(316, (panelWidth - 72 - (columns - 1) * columnGap) / columns);
-    const cardHeight = Math.min(narrow ? (shortMobile ? 92 : 112) : rows > 1 ? 276 : 300, (cardsAreaHeight - (rows - 1) * rowGap) / rows);
-    const cardScale = narrow ? Math.min(1, cardWidth / 316, Math.max(0.84, cardHeight / 84)) : 1;
-    const cardScaleX = narrow ? cardScale : cardWidth / 316;
-    const cardScaleY = narrow ? cardScale : cardHeight / 300;
+    const columnGap = phonePortrait ? 0 : compactPicker ? 12 : 24;
+    const rowGap = phonePortrait ? (shortMobile ? 8 : 10) : compactPicker ? 8 : 20;
+    const headerHeight = phonePortrait ? (shortMobile ? 78 : 106) : compactPicker ? 58 : 150;
+    const footerHeight = phonePortrait ? (shortMobile ? 54 : 64) : compactPicker ? 42 : 60;
+    const abilityGap = compactPicker ? (phonePortrait ? 10 : 8) : 0;
+    const abilityHeight = compactPicker ? (phonePortrait ? (shortMobile ? 92 : 116) : 58) : 0;
+    const horizontalPadding = phonePortrait ? 48 : compactPicker ? 42 : 72;
+    const cardsAreaHeight = Math.max(120, panelHeight - headerHeight - footerHeight - abilityHeight - abilityGap);
+    const cardWidth = phonePortrait
+      ? Math.min(316, panelWidth - horizontalPadding)
+      : Math.min(316, (panelWidth - horizontalPadding - (columns - 1) * columnGap) / columns);
+    const cardHeightCap = phonePortrait ? (shortMobile ? 92 : 112) : compactPicker ? 84 : rows > 1 ? 276 : 300;
+    const cardHeight = Math.min(cardHeightCap, (cardsAreaHeight - (rows - 1) * rowGap) / rows);
+    const condensedCards = compactPicker;
+    const cardScale = condensedCards ? Math.min(1, cardWidth / 316, Math.max(0.74, cardHeight / 78)) : 1;
+    const cardScaleX = condensedCards ? cardScale : cardWidth / 316;
+    const cardScaleY = condensedCards ? cardScale : cardHeight / 300;
     const cardsTop = centerY - panelHeight / 2 + headerHeight;
+    const cardsBottom = cardsTop + rows * cardHeight + (rows - 1) * rowGap;
+    const abilityY = cardsBottom + abilityGap + abilityHeight / 2;
+    const abilityWidth = Math.min(panelWidth - (phonePortrait ? 42 : 52), compactLandscape ? 620 : 340);
+    const panelTop = centerY - panelHeight / 2;
+    const panelBottom = centerY + panelHeight / 2;
 
+    this.compactClassSelect = compactPicker;
     this.resizeInteractiveBackdrop(this.classSelectBackdrop);
     this.classSelectPanel?.setPosition(centerX, centerY);
     this.classSelectPanel?.setScale(panelWidth / CLASS_PANEL_BASE_WIDTH, panelHeight / CLASS_PANEL_BASE_HEIGHT);
-    this.classSelectTitle?.setPosition(centerX, centerY - panelHeight / 2 + (shortMobile ? 32 : 42));
-    this.classSelectTitle?.setFontSize(shortMobile ? 22 : narrow ? 26 : 36);
-    this.classSelectSubtitle?.setPosition(centerX, centerY - panelHeight / 2 + (shortMobile ? 62 : narrow ? 82 : 86));
-    this.classSelectSubtitle?.setFontSize(shortMobile ? 13 : narrow ? 16 : 17);
+    this.classSelectTitle?.setPosition(centerX, panelTop + (phonePortrait ? (shortMobile ? 32 : 42) : compactPicker ? 24 : 42));
+    this.classSelectTitle?.setFontSize(shortMobile ? 22 : phonePortrait ? 26 : compactPicker ? 24 : 36);
+    this.classSelectSubtitle?.setPosition(centerX, panelTop + (phonePortrait ? (shortMobile ? 62 : 82) : compactPicker ? 45 : 86));
+    this.classSelectSubtitle?.setFontSize(shortMobile ? 13 : phonePortrait ? 16 : compactPicker ? 12 : 17);
     this.classSelectSubtitle?.setWordWrapWidth(Math.max(240, panelWidth - 76));
+    this.refreshClassCards();
 
     this.classCards.forEach((card, index) => {
       const row = Math.floor(index / columns);
@@ -924,11 +979,27 @@ export class TitleScene extends Phaser.Scene {
       const cardY = cardsTop + row * (cardHeight + rowGap) + cardHeight / 2;
       card.container.setPosition(cardX, cardY);
       card.container.setScale(cardScaleX, cardScaleY);
-      this.layoutClassCard(card, narrow, compact, cardHeight / Math.max(0.001, cardScaleY));
+      this.layoutClassCard(card, condensedCards, compact, cardHeight / Math.max(0.001, cardScaleY));
     });
 
-    this.classBackHit?.setPosition(centerX, centerY + panelHeight / 2 - (shortMobile ? 27 : 38));
-    this.classBackText?.setPosition(centerX, centerY + panelHeight / 2 - (shortMobile ? 27 : 38));
+    this.classAbilityPanel.setVisible(compactPicker);
+    this.classAbilityTitle.setVisible(compactPicker);
+    this.classAbilityBody.setVisible(compactPicker);
+    if (compactPicker) {
+      this.classAbilityPanel.setPosition(centerX, abilityY).setSize(abilityWidth, abilityHeight);
+      this.classAbilityTitle
+        .setPosition(centerX, abilityY - abilityHeight / 2 + (compactLandscape ? 5 : 7))
+        .setFontSize(compactLandscape ? 13 : 14)
+        .setWordWrapWidth(abilityWidth - 20);
+      this.classAbilityBody
+        .setPosition(centerX, abilityY - abilityHeight / 2 + (compactLandscape ? 22 : 27))
+        .setFontSize(compactLandscape ? 10 : shortMobile ? 11 : 12)
+        .setLineSpacing(compactLandscape ? -2 : 0)
+        .setWordWrapWidth(abilityWidth - 20);
+    }
+
+    this.classBackHit?.setPosition(centerX, panelBottom - (shortMobile ? 27 : compactPicker ? 21 : 38));
+    this.classBackText?.setPosition(centerX, panelBottom - (shortMobile ? 27 : compactPicker ? 21 : 38));
   }
 
   private layoutClassCard(card: ClassCard, narrow: boolean, compact: boolean, cardBaseHeight: number): void {
@@ -1069,14 +1140,30 @@ export class TitleScene extends Phaser.Scene {
     this.refreshClassCards();
   }
 
+  private handleClassCardPressed(id: CharacterClassId): void {
+    if (this.compactClassSelect && this.activeClassId !== id) {
+      this.setActiveClass(id);
+      return;
+    }
+
+    this.startNewGameWithClass(id);
+  }
+
+  private refreshClassAbilitySummary(): void {
+    const characterClass = getCharacterClass(this.activeClassId);
+    this.classAbilityTitle?.setText(characterClass.passiveName);
+    this.classAbilityBody?.setText(`${characterClass.passiveDescription}\n${characterClass.statLines.join(" | ")}`);
+  }
+
   private refreshClassCards(): void {
+    this.refreshClassAbilitySummary();
     for (const card of this.classCards) {
       const active = card.characterClass.id === this.activeClassId;
       card.frame.setFillStyle(active ? 0x123d23 : 0x0b2a18, active ? 0.98 : 0.92);
       card.frame.setStrokeStyle(active ? 4 : 3, active ? 0xffef78 : 0xb7eba5, active ? 0.98 : 0.72);
       card.button.setFillStyle(active ? 0xffef78 : 0xe9ffd0, 0.98);
       card.button.setStrokeStyle(3, active ? 0xf4df6a : 0x2d6f36);
-      card.buttonText.setText(active ? "Start as This" : "Start");
+      card.buttonText.setText(active ? "Start as This" : this.compactClassSelect ? "Details" : "Start");
       card.buttonText.setColor("#183d20");
       card.name.setColor(active ? "#ffef78" : "#f7ffe8");
       card.passive.setColor(active ? "#fff2b2" : "#ffef78");

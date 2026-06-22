@@ -100,6 +100,11 @@ const TABLET_LARGE_FIELD_MIN_BOARD_SCALE = 1.12;
 const TABLET_LARGE_FIELD_MAX_WIDTH = 900;
 const BOARD_PAN_THRESHOLD_PX = 18;
 const TOUCH_SHAKE_COOLDOWN_MS = 140;
+const COMBO_SHAKE_BASE_DURATION_MS = 118;
+const COMBO_SHAKE_DURATION_PER_COUNT_MS = 3.2;
+const COMBO_SHAKE_BASE_INTENSITY = 0.00175;
+const COMBO_SHAKE_INTENSITY_PER_COUNT = 0.00005;
+const COMBO_SHAKE_MAX_INTENSITY = 0.00425;
 const FULL_UI_REFRESH_INTERVAL_MS = 420;
 const READY_STATE_REFRESH_INTERVAL_MS = 520;
 const RUNTIME_STATS_CACHE_MS = 250;
@@ -7749,6 +7754,17 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.shake(duration, intensity);
   }
 
+  private shakeForCombo(combo: ComboResult, automated: boolean): void {
+    if (automated || !combo.thresholdReached) {
+      return;
+    }
+
+    const threshold = combo.thresholdReached;
+    const duration = Math.round(COMBO_SHAKE_BASE_DURATION_MS + Math.min(170, threshold * COMBO_SHAKE_DURATION_PER_COUNT_MS));
+    const intensity = Math.min(COMBO_SHAKE_MAX_INTENSITY, COMBO_SHAKE_BASE_INTENSITY + threshold * COMBO_SHAKE_INTENSITY_PER_COUNT);
+    this.cameras.main.shake(duration, intensity);
+  }
+
   private getTouchPopText(touch: TouchResult): string {
     const effects = [touch.doubled ? "2x" : "", touch.isCrit ? `CRIT x${touch.critMultiplier.toFixed(1)}` : ""].filter(Boolean);
     return [`+${touch.gained}`, ...effects].join(" ");
@@ -7783,6 +7799,7 @@ export class GameScene extends Phaser.Scene {
       1600,
     );
     this.audio.play(combo.thresholdReached >= 15 ? "unlock" : "crit");
+    this.shakeForCombo(combo, automated);
 
     const view = this.tileViews.get(this.getTileKey(tile));
     if (view) {
