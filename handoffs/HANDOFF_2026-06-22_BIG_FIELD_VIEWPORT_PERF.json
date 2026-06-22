@@ -1,0 +1,93 @@
+{
+  "createdAt": "2026-06-22",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Record the big-field performance investigation and fix for slow skill/menu interactions.",
+  "currentUserGoal": "Deeply research why large playing fields still tank performance, especially when opening the skill menu, then fix it.",
+  "contextReadAtSessionStart": [
+    "AGENTS.md",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-06-22_SKILL_MENU_PERF.json",
+    "docs/PERFORMANCE_NOTES.md",
+    "docs/PERFORMANCE_HARNESS.md"
+  ],
+  "workCompletedThisSession": [
+    {
+      "summary": "Instrumented the perf overlay and harness with render-texture redraw counters.",
+      "details": [
+        "Added staleTiles and commonStamps to PerfStatsSnapshot and the perf overlay.",
+        "Added tileMode \"viewport\" so future samples can distinguish compact live-viewport mode from full live mode and batch mode.",
+        "Counted common RenderTexture stamp operations in drawCommonTile."
+      ]
+    },
+    {
+      "summary": "Stopped compact large fields from using the expensive common redraw queue during pan, zoom, and menu flows.",
+      "details": [
+        "Added viewport live tile mode for large fields on compact/tablet widths.",
+        "Updated dirty tile, culling, and tile-view release logic so compact large fields keep only visible live tile views instead of creating transient views and stamping them back into the common render texture.",
+        "Disabled budgeted common-layer redraw work for viewport live mode."
+      ]
+    },
+    {
+      "summary": "Reduced desktop batch redraw interference with menus.",
+      "details": [
+        "Lowered common redraw per-frame budgets from 4 ms / 22 tiles to 1.6 ms / 8 tiles.",
+        "Deferred common redraw queue scheduling and processing while blocking overlays are open, so skill/store/quest/journal/automation/options panels do not compete with background tile stamping.",
+        "Replaced Array.shift() queue draining with an index cursor to avoid repeated large-array reshuffles."
+      ]
+    },
+    {
+      "summary": "Updated durable performance docs.",
+      "details": [
+        "docs/PERFORMANCE_HARNESS.md now lists tileViews, tileMode, staleTiles, and commonStamps as fields to compare.",
+        "docs/PERFORMANCE_NOTES.md documents the compact viewport live-view fix and the overlay redraw-defer guardrail."
+      ]
+    }
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "docs/PERFORMANCE_HARNESS.md",
+    "docs/PERFORMANCE_NOTES.md",
+    "handoffs/HANDOFF_2026-06-22_BIG_FIELD_VIEWPORT_PERF.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationPerformed": [
+    {
+      "command": "npm run build",
+      "result": "Passed. TypeScript and Vite production build completed successfully."
+    },
+    {
+      "command": "Browser matrix before the final overlay-defer patch",
+      "result": "Desktop 2500 still had render:queuedCommon around 4.6-6.6 ms during skillOpen/storeOpen, while phone 2500 in viewport mode had commonStamps 0, redrawQueued 0, maxFrameDeltaMs 7-10 in menu phases, and no frameSpikes."
+    },
+    {
+      "command": "Browser harness after viewport live mode and overlay redraw deferral at http://127.0.0.1:5173/?perfHarness&tiles=2500",
+      "result": "Desktop 2500: skillOpen commonStamps 0, redrawQueued held rather than stamped, maxFrameDeltaMs 8, frameSpikes 0; storeOpen commonStamps 0; post samples maxFrameDeltaMs 7. Phone 2500: tileMode viewport, visibleTiles 84-96, commonStamps 0, redrawQueued 0, frameSpikes 0; post samples maxFrameDeltaMs 7."
+    },
+    {
+      "command": "Required browser harness at http://127.0.0.1:5173/?perfHarness&tiles=1200 on desktop viewport 1365x900",
+      "result": "Complete. skillOpen visibleTiles 1202, redrawQueued 0, commonStamps 0, layoutPasses 0, redraws 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 280, activeTweens 12. Post sample maxFrameDeltaMs 7, frameSpikes 0."
+    },
+    {
+      "command": "Required browser harness at http://127.0.0.1:5173/?perfHarness&tiles=1200 on compact viewport 390x844",
+      "result": "Complete. tileMode viewport, visibleTiles 91-104, tileViews 91-104, redrawQueued 0, commonStamps 0, layoutPasses 0, redraws 0, skillOpen maxFrameDeltaMs 7, frameSpikes 0. Post sample maxFrameDeltaMs 8, frameSpikes 0."
+    }
+  ],
+  "currentGitStatusAfterThisHandoff": "Modified: src/game/scenes/GameScene.ts, docs/PERFORMANCE_HARNESS.md, docs/PERFORMANCE_NOTES.md, handoffs/LATEST.json. Added/untracked: handoffs/HANDOFF_2026-06-22_BIG_FIELD_VIEWPORT_PERF.json. Pre-existing untracked docs/artifacts, Dutch automation docs, GAME_SYSTEMS_REFERENCE CLAUDE.md, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json remain untouched.",
+  "knownIssuesAndCaveats": [
+    "Desktop can still have visibleTiles equal to totalTiles when the entire large board fits in the viewport; that path remains batch mode but menu overlays no longer share frames with queued common-layer stamping.",
+    "The skill tree itself costs a few milliseconds to refresh, usually around 4-7 ms in harness samples. The large-field-specific slowdown was the common redraw queue competing with it.",
+    "The initial scene startup can still drain common redraw work for large desktop fields, but it is budgeted and no frameSpikes were recorded in the final harness runs.",
+    "The dev server was already running on http://127.0.0.1:5173 during verification."
+  ],
+  "doNotRevertOrTouchWithoutUserRequest": [
+    "Do not revert the previous stale common tile key optimization from HANDOFF_2026-06-22_SKILL_MENU_PERF.json.",
+    "Do not revert unrelated pre-existing untracked docs/artifacts unless the user explicitly asks.",
+    "Keep the new perf counters; they directly exposed the render-texture queue as the hidden menu slowdown.",
+    "Keep compact large fields in viewport live tile mode unless future profiling shows a better path."
+  ],
+  "recommendedNextSteps": [
+    "Try the user's real save with ?perf enabled and open/close Skills several times on the actual large field.",
+    "If the skill panel itself becomes the next bottleneck independent of field size, add a node-state cache to skip unchanged skill-node visual updates."
+  ]
+}

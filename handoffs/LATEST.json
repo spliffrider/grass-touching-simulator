@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-22",
-  "latestHandoff": "HANDOFF_2026-06-22_SKILL_MENU_PERF.json",
+  "latestHandoff": "HANDOFF_2026-06-22_BIG_FIELD_VIEWPORT_PERF.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

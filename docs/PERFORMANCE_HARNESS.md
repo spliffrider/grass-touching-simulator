@@ -45,9 +45,13 @@ document.documentElement.dataset.grassPerf
 Useful fields to compare across phone, tablet, and desktop runs:
 
 - `visibleTiles`
+- `tileViews`
+- `tileMode`
 - `layoutPasses`
 - `redraws`
 - `redrawQueued`
+- `staleTiles`
+- `commonStamps`
 - `maxFrameDeltaMs`
 - `frameSpikes`
 - `displayObjects`

@@ -148,8 +148,8 @@ const DIRTY_TILE_VIEW_LIMIT = 96;
 const LARGE_FIELD_DIRTY_TILE_VIEW_LIMIT = 48;
 const COMPACT_LARGE_FIELD_DIRTY_TILE_VIEW_LIMIT = 32;
 const COMMON_REDRAW_MOBILE_TILE_LIMIT = 160;
-const COMMON_REDRAW_FRAME_BUDGET_MS = 4;
-const COMMON_REDRAW_TILE_BUDGET = 22;
+const COMMON_REDRAW_FRAME_BUDGET_MS = 1.6;
+const COMMON_REDRAW_TILE_BUDGET = 8;
 const PANEL_UI_REFRESH_INTERVAL_MS = 1000;
 const WORLD_OBJECT_UI_REFRESH_INTERVAL_MS = 900;
 const HUD_GRASS_TOUCH_GROUPS_PER_LINE = 9;
@@ -468,14 +468,16 @@ interface PerfStatsSnapshot {
   visibleTiles: number;
   tileViews: number;
   dirtyTiles: number;
+  staleTiles: number;
   redrawQueued: number;
+  commonStamps: number;
   displayObjects: number;
   emitters: number;
   activeTweens: number;
   autoFxObjects: number;
   layoutPasses: number;
   redraws: number;
-  tileMode: "live" | "batch";
+  tileMode: "live" | "viewport" | "batch";
   quality: number;
   weatherQuality: number;
   queuedSave: boolean;
@@ -544,6 +546,7 @@ export class GameScene extends Phaser.Scene {
   private dirtyTileViewKeys = new Set<TileKey>();
   private staleCommonTileKeys = new Set<TileKey>();
   private redrawTileViewKeys = new Set<TileKey>();
+  private commonStampOpsSinceLastPerf = 0;
   private recentlyRegrownAt = new Map<TileKey, number>();
   private perfectTouchCues = new Map<TileKey, Phaser.GameObjects.GameObject[]>();
   private boardTransientEffects = new Set<Phaser.GameObjects.GameObject>();
@@ -729,6 +732,7 @@ export class GameScene extends Phaser.Scene {
   private pendingBoardLayout = false;
   private pendingBoardLayoutReason: BoardLayoutReason = "direct";
   private commonRedrawQueue: CommonRedrawEntry[] = [];
+  private commonRedrawQueueIndex = 0;
   private lastVisibleTileKeys = new Set<TileKey>();
   private panelUiRefreshElapsed = PANEL_UI_REFRESH_INTERVAL_MS;
   private worldObjectUiRefreshElapsed = WORLD_OBJECT_UI_REFRESH_INTERVAL_MS;
@@ -1111,14 +1115,18 @@ export class GameScene extends Phaser.Scene {
       this.automationScheduler.update(delta, stats);
     });
     this.profileScope("layout:pending", () => {
-      if (this.commonTileLayerDirty) {
+      if (this.commonTileLayerDirty && !this.shouldDeferCommonRedrawWork()) {
         if (!this.tryQueueDirtyCommonRedraw()) {
           this.requestBoardLayout("dirty");
         }
       }
       this.flushPendingBoardLayout();
     });
-    this.profileScope("render:queuedCommon", () => this.processCommonRedrawQueue());
+    if (this.shouldDeferCommonRedrawWork()) {
+      this.commonRedrawQueuedTiles = Math.max(0, this.commonRedrawQueue.length - this.commonRedrawQueueIndex);
+    } else {
+      this.profileScope("render:queuedCommon", () => this.processCommonRedrawQueue());
+    }
     this.journalDiscoveryRefreshElapsed += delta;
     if (this.journalDiscoveryRefreshElapsed >= JOURNAL_DISCOVERY_REFRESH_INTERVAL_MS) {
       this.journalDiscoveryRefreshElapsed = 0;
@@ -2077,8 +2085,10 @@ export class GameScene extends Phaser.Scene {
     const fps = Math.round(this.game.loop.actualFps);
     const layoutPasses = this.layoutPassCount - this.lastPerfLayoutPassCount;
     const redraws = this.commonLayerRedrawCount - this.lastPerfCommonLayerRedrawCount;
+    const commonStamps = this.commonStampOpsSinceLastPerf;
     this.lastPerfLayoutPassCount = this.layoutPassCount;
     this.lastPerfCommonLayerRedrawCount = this.commonLayerRedrawCount;
+    this.commonStampOpsSinceLastPerf = 0;
     const hotspots = this.consumePerfHotspotSummary();
     const stats: PerfStatsSnapshot = {
       fps,
@@ -2088,14 +2098,16 @@ export class GameScene extends Phaser.Scene {
       visibleTiles: this.lastStressStats.visibleTiles,
       tileViews: this.tileViews.size,
       dirtyTiles: this.dirtyTileViewKeys.size,
+      staleTiles: this.staleCommonTileKeys.size,
       redrawQueued: this.commonRedrawQueuedTiles,
+      commonStamps,
       displayObjects: this.children.list.length,
       emitters: this.burstEmitters.size + this.uiBurstEmitters.size,
       activeTweens: this.getActiveTweenCount(),
       autoFxObjects: this.activeAutoTouchVisualObjects,
       layoutPasses,
       redraws,
-      tileMode: this.usesFullLiveTileViews() ? "live" : "batch",
+      tileMode: this.getTileMode(),
       quality: Number(this.effectQuality.toFixed(2)),
       weatherQuality: Number(this.weatherParticleQuality.toFixed(2)),
       queuedSave: this.saveQueued,
@@ -2112,7 +2124,9 @@ export class GameScene extends Phaser.Scene {
         `mode ${stats.tileMode}`,
         `views ${stats.tileViews}`,
         stats.dirtyTiles > 0 ? `dirty ${stats.dirtyTiles}` : "",
+        stats.staleTiles > 0 ? `stale ${stats.staleTiles}` : "",
         stats.redrawQueued > 0 ? `queue ${stats.redrawQueued}` : "",
+        stats.commonStamps > 0 ? `stamps ${stats.commonStamps}` : "",
         `objects ${stats.displayObjects}`,
         `emitters ${stats.emitters}`,
         stats.autoFxObjects > 0 ? `autoFx ${stats.autoFxObjects}` : "",
@@ -4819,6 +4833,7 @@ export class GameScene extends Phaser.Scene {
   private cancelCommonRedrawQueue(): void {
     const redrawKeys = [...this.redrawTileViewKeys];
     this.commonRedrawQueue = [];
+    this.commonRedrawQueueIndex = 0;
     this.commonRedrawQueuedTiles = 0;
     this.redrawTileViewKeys.clear();
     for (const key of redrawKeys) {
@@ -4828,11 +4843,12 @@ export class GameScene extends Phaser.Scene {
 
   private scheduleCommonRedraw(entries: CommonRedrawEntry[]): void {
     this.commonRedrawQueue = entries;
+    this.commonRedrawQueueIndex = 0;
     this.commonRedrawQueuedTiles = entries.length;
   }
 
   private tryQueueDirtyCommonRedraw(): boolean {
-    if (this.usesFullLiveTileViews() || !this.commonTileLayer) {
+    if (this.usesLiveTileViews() || !this.commonTileLayer) {
       return false;
     }
 
@@ -4872,15 +4888,27 @@ export class GameScene extends Phaser.Scene {
     return true;
   }
 
+  private shouldDeferCommonRedrawWork(): boolean {
+    return this.hasBlockingOverlayOpen();
+  }
+
   private processCommonRedrawQueue(): void {
-    if (!this.commonTileLayer || this.commonRedrawQueue.length === 0) {
+    if (
+      !this.commonTileLayer ||
+      this.commonRedrawQueue.length === 0 ||
+      this.commonRedrawQueueIndex >= this.commonRedrawQueue.length
+    ) {
+      this.commonRedrawQueue = [];
+      this.commonRedrawQueueIndex = 0;
+      this.commonRedrawQueuedTiles = 0;
       return;
     }
 
     const startedAt = performance.now();
     let drawn = 0;
-    while (this.commonRedrawQueue.length > 0 && drawn < COMMON_REDRAW_TILE_BUDGET) {
-      const entry = this.commonRedrawQueue.shift();
+    while (this.commonRedrawQueueIndex < this.commonRedrawQueue.length && drawn < COMMON_REDRAW_TILE_BUDGET) {
+      const entry = this.commonRedrawQueue[this.commonRedrawQueueIndex];
+      this.commonRedrawQueueIndex += 1;
       if (!entry) {
         break;
       }
@@ -4904,8 +4932,11 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    this.commonRedrawQueuedTiles = this.commonRedrawQueue.length;
-    if (this.commonRedrawQueue.length === 0) {
+    this.commonRedrawQueuedTiles = Math.max(0, this.commonRedrawQueue.length - this.commonRedrawQueueIndex);
+    if (this.commonRedrawQueueIndex >= this.commonRedrawQueue.length) {
+      this.commonRedrawQueue = [];
+      this.commonRedrawQueueIndex = 0;
+      this.commonRedrawQueuedTiles = 0;
       this.redrawTileViewKeys.clear();
       for (const key of [...this.lastVisibleTileKeys]) {
         this.releaseBatchTileViewIfIdle(key);
@@ -5356,7 +5387,7 @@ export class GameScene extends Phaser.Scene {
 
   private needsTileView(tile: FieldTile, key: TileKey): boolean {
     return (
-      this.usesFullLiveTileViews() ||
+      this.usesLiveTileViews() ||
       this.dirtyTileViewKeys.has(key) ||
       this.redrawTileViewKeys.has(key) ||
       this.perfectTouchCues.has(key) ||
@@ -5366,7 +5397,7 @@ export class GameScene extends Phaser.Scene {
 
   private releaseBatchTileViewIfIdle(key: TileKey): void {
     if (
-      this.usesFullLiveTileViews() ||
+      this.usesLiveTileViews() ||
       this.dirtyTileViewKeys.has(key) ||
       this.redrawTileViewKeys.has(key) ||
       this.perfectTouchCues.has(key) ||
@@ -5385,8 +5416,20 @@ export class GameScene extends Phaser.Scene {
     return this.fieldTileCount <= LIVE_TILE_VIEW_FIELD_LIMIT;
   }
 
+  private usesViewportLiveTileViews(): boolean {
+    return !this.usesFullLiveTileViews() && this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH;
+  }
+
+  private usesLiveTileViews(): boolean {
+    return this.usesFullLiveTileViews() || this.usesViewportLiveTileViews();
+  }
+
+  private getTileMode(): PerfStatsSnapshot["tileMode"] {
+    return this.usesFullLiveTileViews() ? "live" : this.usesViewportLiveTileViews() ? "viewport" : "batch";
+  }
+
   private shouldBudgetCommonRedraw(reason: BoardLayoutReason, visibleCandidateCount: number): boolean {
-    if (this.usesFullLiveTileViews() || !this.commonTileLayer) {
+    if (this.usesLiveTileViews() || !this.commonTileLayer) {
       return false;
     }
 
@@ -5398,7 +5441,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getDirtyTileViewLimit(): number {
-    if (this.usesFullLiveTileViews()) {
+    if (this.usesLiveTileViews()) {
       return DIRTY_TILE_VIEW_LIMIT;
     }
 
@@ -5453,6 +5496,7 @@ export class GameScene extends Phaser.Scene {
     const baseTexture = tile.grassState === "grown" ? "tile-dirt" : "tile-stubble";
     const stampConfig = { scale: this.boardScale, originX: 0.5, originY: 0.5 };
     this.commonTileLayer.stamp(baseTexture, undefined, x, y, stampConfig);
+    this.commonStampOpsSinceLastPerf += 1;
 
     if (tile.grassState === "grown") {
       this.commonTileLayer.stamp(this.getGrassTextureKey(tile), undefined, x, y, {
@@ -5460,6 +5504,7 @@ export class GameScene extends Phaser.Scene {
         originX: 0.5,
         originY: 0.5,
       });
+      this.commonStampOpsSinceLastPerf += 1;
       const hazard = getTileHazard(this.state, this.getTileKey(tile));
       if (hazard) {
         this.commonTileLayer.stamp(this.getHazardTextureKey(hazard.id), undefined, x, y - 2 * this.boardScale, {
@@ -5467,6 +5512,7 @@ export class GameScene extends Phaser.Scene {
           originX: 0.5,
           originY: 0.5,
         });
+        this.commonStampOpsSinceLastPerf += 1;
       }
     }
   }
@@ -8140,6 +8186,13 @@ export class GameScene extends Phaser.Scene {
     const key = this.getTileKey(tile);
     const position = this.getTileScreenPosition(tile);
     if (!position || !this.isScreenPositionNearViewport(position)) {
+      return;
+    }
+
+    if (this.usesViewportLiveTileViews()) {
+      if (!this.tileViews.has(key)) {
+        this.createTileView(tile);
+      }
       return;
     }
 

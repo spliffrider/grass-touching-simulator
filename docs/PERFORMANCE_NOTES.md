@@ -63,10 +63,15 @@ The tile view pool also stopped running hidden infinite glint tweens on every po
 
 Do not call `RenderTexture.resize(...)` during ordinary board redraws. Resize only when the viewport changes.
 
+On compact large fields, avoid mixing viewport culling with common-layer redraw stamping. If only 80-120 tiles are visible, live viewport tile views are cheaper than creating temporary views and stamping them back into the common render texture during pan, zoom, or menu interactions.
+
+When a blocking overlay is open, defer common-layer redraw queue work. Skill, store, quest, journal, automation, and options panels should not compete with background tile stamping in the same frame. Let queued board catch-up resume after the overlay closes.
+
 Before blaming browser limits, check the perf overlay:
 
 - If `dt` and `spikes` are high while object/tween/emitter counts are low, suspect a layout, render texture, save, or browser rendering bottleneck.
 - If `layout X/Y` is active and `hot layout` is high, inspect board redraw and tile positioning code first.
+- If `queue`, `stale`, or `stamps` are high while opening a menu, inspect common redraw scheduling before optimizing the menu itself.
 - If `hot ...` scopes are low but `dt` is high, suspect work outside the profiled update scopes, such as GPU work, browser painting, garbage collection, or Phaser internals.
 - If `tw` climbs steadily, look for forgotten infinite tweens or pooled objects that still animate while hidden.
 - If `objects` climbs steadily while visible activity does not, inspect pooling and destruction paths.
@@ -99,6 +104,9 @@ Important fields:
 - `dt`: max frame delta seen in the recent sample.
 - `spikes`: frame spikes above the threshold.
 - `layout X/Y`: layout passes and common layer redraws since the last overlay refresh.
+- `queue`: common-layer redraw entries waiting to be stamped.
+- `stale`: tile keys known to be stale in the common layer.
+- `stamps`: common-layer render texture stamp operations during the last sample.
 - `fx`: current effect quality scalar.
 - `hot ...`: slowest profiled update scopes during the sample window.
 
