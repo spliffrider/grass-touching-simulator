@@ -1,0 +1,65 @@
+{
+  "createdAt": "2026-06-22",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Record the mobile class-picker responsive layout fix after a Discord tester reported the game was still not responsive on phone.",
+  "currentUserGoal": "Fix the mobile responsiveness problem shown in the Discord screenshot, then commit, push, deploy to Vercel, and sync the Mac mini.",
+  "contextReadAtSessionStart": [
+    "AGENTS.md",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-06-22_SKILL_TREE_LOCAL_REFRESH.json",
+    "browser:control-in-app-browser skill"
+  ],
+  "workCompletedThisSession": [
+    {
+      "summary": "Made the first-run class picker use a dedicated compact phone layout.",
+      "details": [
+        "Reduced narrow-screen panel margins and header/footer spacing so all four class cards plus Back fit inside short phone viewports.",
+        "Changed phone card layout to a row-style composition with icon on the left, class text in the middle, and the Start button on the right.",
+        "Hid long body/stat copy on phone cards to prevent text from colliding with Start buttons.",
+        "Restored class body visibility when the layout returns to non-phone widths so resize/rotation does not leave desktop cards missing details."
+      ]
+    }
+  ],
+  "filesTouched": [
+    "src/game/scenes/TitleScene.ts",
+    "handoffs/HANDOFF_2026-06-22_MOBILE_CLASS_PICKER_RESPONSIVE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationPerformed": [
+    {
+      "command": "npm run build",
+      "result": "Passed. TypeScript and Vite production build completed successfully."
+    },
+    {
+      "command": "Browser check at http://127.0.0.1:5173/ with viewport 360x640",
+      "result": "Passed visually. Title screen and class picker fit; class card text and Start buttons no longer overlap."
+    },
+    {
+      "command": "Browser check at http://127.0.0.1:5173/ with viewport 320x568",
+      "result": "Passed visually. Tight Android-style viewport fits all four class cards and Back button without overlapping class text or buttons."
+    },
+    {
+      "command": "Browser check at http://127.0.0.1:5173/ with viewport 390x844",
+      "result": "Passed visually. Modern phone portrait layout has clean spacing and tappable Start/Back buttons."
+    },
+    {
+      "command": "git diff --check",
+      "result": "No whitespace errors; only expected LF-to-CRLF working-copy warning on Windows."
+    }
+  ],
+  "currentGitStatusAfterThisHandoff": "Modified: src/game/scenes/TitleScene.ts and handoffs/LATEST.json. Added: handoffs/HANDOFF_2026-06-22_MOBILE_CLASS_PICKER_RESPONSIVE.json. Pre-existing untracked Dutch automation docs, docs/artifacts, GAME_SYSTEMS_REFERENCE CLAUDE.md, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json remain untouched.",
+  "knownIssuesAndCaveats": [
+    "This fix addresses the mobile first-run class picker responsiveness shown by the tester screenshot. It does not change the big-field gameplay renderer or skill-menu performance path.",
+    "Phone class cards intentionally omit long body/stat text; the compact card keeps the class name, archetype, passive, icon, and Start button visible."
+  ],
+  "doNotRevertOrTouchWithoutUserRequest": [
+    "Do not revert the compact phone class-picker layout unless replacing it with another tested mobile layout.",
+    "Do not commit unrelated pre-existing untracked docs/artifacts unless the user explicitly asks.",
+    "Do not revert the big-field and skill-tree performance work recorded in earlier 2026-06-22 handoffs."
+  ],
+  "recommendedNextSteps": [
+    "Have the Discord tester retry the live site on mobile after deployment.",
+    "If they still report responsiveness problems, get the exact device/browser and whether the issue is on the title/class picker, gameplay HUD, skill menu, or another modal."
+  ]
+}
