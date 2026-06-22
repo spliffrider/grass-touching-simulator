@@ -48,6 +48,22 @@ export const CHARACTER_CLASSES: CharacterClassDefinition[] = [
     },
   },
   {
+    id: "goth_girl_baddie",
+    name: "Goth Girl Baddie",
+    archetype: "Occult / Crit Economy",
+    iconKey: "class-goth-girl-baddie",
+    iconPath: "/assets/ui/classes/goth-girl-baddie.png",
+    passiveName: "Moonlit Main Character",
+    passiveDescription: "Rare grass notices her first. Gold appears slightly more often, and crits cut a little deeper.",
+    flavor: "Will touch grass, but the grass will be assessed.",
+    statLines: ["+0.8% crit chance", "+0.6% gold drop chance", "+8% rare grass odds"],
+    apply: (stats) => {
+      stats.critChance += 0.008;
+      stats.goldDropBonus += 0.006;
+      stats.rareTierMultiplier += 0.08;
+    },
+  },
+  {
     id: "bard_de_wever",
     name: "Bard De Wever",
     archetype: "Bard / Combo Support",
@@ -70,5 +86,5 @@ export function getCharacterClass(id: CharacterClassId | undefined): CharacterCl
 }
 
 export function isCharacterClassId(value: unknown): value is CharacterClassId {
-  return value === "grass_toucher" || value === "femboy_slim" || value === "bard_de_wever";
+  return value === "grass_toucher" || value === "femboy_slim" || value === "goth_girl_baddie" || value === "bard_de_wever";
 }

@@ -886,7 +886,8 @@ export class TitleScene extends Phaser.Scene {
   private layoutClassSelectPanel(): void {
     const narrow = this.scale.width < 720;
     const compact = this.scale.width < 980;
-    const columns = narrow ? 1 : Math.min(this.classCards.length, compact ? 2 : 3);
+    const maxColumns = compact || this.classCards.length === 4 ? 2 : 3;
+    const columns = narrow ? 1 : Math.min(this.classCards.length, maxColumns);
     const rows = Math.max(1, Math.ceil(this.classCards.length / columns));
     const panelWidth = Math.min(narrow ? 370 : columns === 2 ? 800 : 1080, this.scale.width - (narrow ? 20 : 36));
     const panelHeight = Math.min(narrow ? 820 : rows > 1 ? 700 : 570, this.scale.height - (narrow ? 24 : 32));

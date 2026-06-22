@@ -46,7 +46,13 @@ const countUsedAutomationDirectives = (state: GameState): number =>
 const hasUsedAutomationDirective = (state: GameState, directiveId: AutomationDirectiveId): boolean =>
   state.automationStats.usedDirectiveIds.includes(directiveId);
 const getClassName = (classId: CharacterClassId): string =>
-  classId === "grass_toucher" ? "Grass Toucher" : classId === "femboy_slim" ? "Femboy Slim" : "Bard De Wever";
+  classId === "grass_toucher"
+    ? "Grass Toucher"
+    : classId === "femboy_slim"
+      ? "Femboy Slim"
+      : classId === "goth_girl_baddie"
+        ? "Goth Girl Baddie"
+        : "Bard De Wever";
 
 export const QUESTS: QuestDefinition[] = [
   {
@@ -809,6 +815,28 @@ export const QUESTS: QuestDefinition[] = [
     prerequisiteQuestIds: ["femboy_slay_footwork_1", "touch_1500"],
     isComplete: (state) => getUpgradeLevel(state, "perfect_pose") >= 3,
     getProgress: (state) => `${Math.min(3, getUpgradeLevel(state, "perfect_pose"))}/3 Perfect Pose`,
+  },
+  {
+    id: "goth_black_nail_polish_1",
+    category: "Class",
+    name: "Moonlit Manicure",
+    description: "As Goth Girl Baddie, buy 1 level of Black Nail Polish.",
+    reward: { seeds: 5, gold: 2 },
+    classId: "goth_girl_baddie",
+    prerequisiteQuestIds: ["upgrade_20", "crit_path_started"],
+    isComplete: (state) => getUpgradeLevel(state, "black_nail_polish") >= 1,
+    getProgress: (state) => `${Math.min(1, getUpgradeLevel(state, "black_nail_polish"))}/1 Black Nail Polish`,
+  },
+  {
+    id: "goth_graveyard_shift_3",
+    category: "Class",
+    name: "After Dark",
+    description: "As Goth Girl Baddie, max out Graveyard Shift.",
+    reward: { seeds: 8, gold: 4 },
+    classId: "goth_girl_baddie",
+    prerequisiteQuestIds: ["goth_black_nail_polish_1", "touch_1500"],
+    isComplete: (state) => getUpgradeLevel(state, "graveyard_shift") >= 3,
+    getProgress: (state) => `${Math.min(3, getUpgradeLevel(state, "graveyard_shift"))}/3 Graveyard Shift`,
   },
   {
     id: "bard_steady_tempo_1",

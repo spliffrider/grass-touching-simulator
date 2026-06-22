@@ -9955,7 +9955,9 @@ export class GameScene extends Phaser.Scene {
         ? 0xff7ea8
         : this.state.characterClassId === "grass_toucher"
           ? 0x9be86b
-          : 0xbff4ff
+          : this.state.characterClassId === "goth_girl_baddie"
+            ? 0xb78cff
+            : 0xbff4ff
       : 0xf4df6a;
     const popText = classClaim ? "mastered" : "claimed";
     const x = view.container.x + view.bg.width / 2;
@@ -10279,7 +10281,18 @@ export class GameScene extends Phaser.Scene {
       return "Root";
     }
 
-    if (["honest_work", "patient_observation", "slay_footwork", "perfect_pose", "steady_tempo", "encore_circle"].includes(upgradeId)) {
+    if (
+      [
+        "honest_work",
+        "patient_observation",
+        "slay_footwork",
+        "perfect_pose",
+        "black_nail_polish",
+        "graveyard_shift",
+        "steady_tempo",
+        "encore_circle",
+      ].includes(upgradeId)
+    ) {
       return "Class";
     }
 

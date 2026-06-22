@@ -1,0 +1,72 @@
+{
+  "createdAt": "2026-06-22",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Record the Goth Girl Baddie class asset cleanup and gameplay wiring performed on the Windows desktop clone.",
+  "currentUserGoal": "Add Goth Girl Baddie as a selectable character class using the new transparent pixel-art portrait, with class skills and quest support.",
+  "workCompletedThisSession": [
+    {
+      "summary": "Created and saved the Goth Girl Baddie class portrait asset.",
+      "details": [
+        "Generated a pixel-art Goth Girl Baddie portrait from the user-provided source.",
+        "Reworked the asset with a chroma-key background and local alpha removal so it matches the transparent class portrait style.",
+        "Saved the final 128x128 transparent PNG at public/assets/ui/classes/goth-girl-baddie.png."
+      ]
+    },
+    {
+      "summary": "Wired Goth Girl Baddie into the class and progression systems.",
+      "details": [
+        "Added the goth_girl_baddie CharacterClassId and save validation support.",
+        "Added the Goth Girl Baddie class definition with the class-goth-girl-baddie icon key and portrait path.",
+        "Added the Moonlit Main Character passive: crit chance, gold drop chance, and rare grass odds.",
+        "Added class-only skills Black Nail Polish and Graveyard Shift using existing skill icon assets as placeholders.",
+        "Added class quest entries for buying Black Nail Polish and maxing Graveyard Shift.",
+        "Updated class quest coloring and skill branch categorization for the new skills.",
+        "Adjusted the class selection panel to lay out exactly four classes as a 2x2 grid on non-narrow screens."
+      ]
+    }
+  ],
+  "filesTouched": [
+    "public/assets/ui/classes/goth-girl-baddie.png",
+    "src/game/types/game-state.ts",
+    "src/game/data/character-classes.ts",
+    "src/game/data/upgrades.ts",
+    "src/game/data/quests.ts",
+    "src/game/scenes/GameScene.ts",
+    "src/game/scenes/TitleScene.ts",
+    "handoffs/HANDOFF_2026-06-22_GOTH_GIRL_BADDIE_CLASS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationPerformed": [
+    {
+      "command": "npm run build",
+      "result": "Passed; TypeScript and Vite production build completed successfully."
+    },
+    {
+      "command": "git diff --check",
+      "result": "Passed with only existing Windows LF-to-CRLF working-copy warnings."
+    },
+    {
+      "command": "Browser check at http://127.0.0.1:5173/ and http://localhost:5173/",
+      "result": "Passed; the title class picker showed a 2x2 layout, the Goth Girl Baddie portrait rendered, the shortened archetype label fit, clicking the Goth card started the game scene, and browser console logs showed no warnings or errors."
+    },
+    {
+      "command": "Image metadata check",
+      "result": "Passed; goth-girl-baddie.png is 128x128 with transparent corners."
+    }
+  ],
+  "currentGitStatusAfterThisHandoff": "Modified: src/game/types/game-state.ts, src/game/data/character-classes.ts, src/game/data/upgrades.ts, src/game/data/quests.ts, src/game/scenes/GameScene.ts, src/game/scenes/TitleScene.ts, handoffs/LATEST.json. Added/untracked: public/assets/ui/classes/goth-girl-baddie.png and this handoff file. Pre-existing untracked docs/artifacts and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json remain untouched.",
+  "knownIssuesAndCaveats": [
+    "Black Nail Polish and Graveyard Shift currently reuse existing skill icon artwork through iconAsset placeholders; bespoke nail/moon icons can be generated later.",
+    "The browser check used a local dev server and temporary in-app browser origins; one test click started a fresh test run in the browser session, but no source files were affected.",
+    "No performance harness was run because this was data/UI wiring rather than a performance-sensitive gameplay loop change."
+  ],
+  "doNotRevertOrTouchWithoutUserRequest": [
+    "Do not remove public/assets/ui/classes/goth-girl-baddie.png; it is the transparent final class portrait.",
+    "Do not revert the unrelated pre-existing untracked docs/artifacts unless the user explicitly asks."
+  ],
+  "recommendedNextSteps": [
+    "Optionally generate bespoke skill icons for Black Nail Polish and Graveyard Shift.",
+    "Play a short new Goth Girl Baddie run and tune passive/skill numbers if her early economy feels too gold-heavy or too slow."
+  ]
+}

@@ -514,6 +514,40 @@ export const UPGRADES: UpgradeDefinition[] = [
     isUnlocked: (state) => isClassUpgradeUnlocked(state, "femboy_slim", 1400),
   },
   {
+    id: "black_nail_polish",
+    name: "Black Nail Polish",
+    description: "Goth Girl Baddie only. Critical touches happen more often and hit harder.",
+    baseCost: 850,
+    costGrowth: 2.25,
+    maxLevel: 4,
+    classId: "goth_girl_baddie",
+    prerequisiteIds: ["lucky_clover", "grass_identification"],
+    iconAsset: "dramatic_touch",
+    tree: { x: 505, y: 555, icon: "nail", color: 0xb78cff },
+    apply: (stats, level) => {
+      stats.critChance += level * 0.007;
+      stats.critMultiplier += level * 0.15;
+    },
+    isUnlocked: (state) => isClassUpgradeUnlocked(state, "goth_girl_baddie", 900),
+  },
+  {
+    id: "graveyard_shift",
+    name: "Graveyard Shift",
+    description: "Goth Girl Baddie only. Rare grass appears more often, and touched patches sometimes return immediately.",
+    baseCost: 1500,
+    costGrowth: 2.35,
+    maxLevel: 3,
+    classId: "goth_girl_baddie",
+    prerequisiteIds: ["black_nail_polish"],
+    iconAsset: "morning_mist",
+    tree: { x: 725, y: 555, icon: "moon", color: 0x9d8cff },
+    apply: (stats, level) => {
+      stats.rareTierMultiplier += level * 0.1;
+      stats.instantRegrowChance += level * 0.01;
+    },
+    isUnlocked: (state) => isClassUpgradeUnlocked(state, "goth_girl_baddie", 1400),
+  },
+  {
     id: "steady_tempo",
     name: "Steady Tempo",
     description: "Bard De Wever only. Combos stay alive longer and pay out better.",
