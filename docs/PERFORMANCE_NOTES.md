@@ -67,11 +67,14 @@ On compact large fields, avoid mixing viewport culling with common-layer redraw 
 
 When a blocking overlay is open, defer common-layer redraw queue work. Skill, store, quest, journal, automation, and options panels should not compete with background tile stamping in the same frame. Let queued board catch-up resume after the overlay closes.
 
+Skill-tree hover and selection should stay local to the skill UI. Do not call the full HUD refresh path from `previewSkill`; repeated pointerover events can otherwise refresh resources, milestones, button attention, weather visuals, and all skill nodes before the player even clicks.
+
 Before blaming browser limits, check the perf overlay:
 
 - If `dt` and `spikes` are high while object/tween/emitter counts are low, suspect a layout, render texture, save, or browser rendering bottleneck.
 - If `layout X/Y` is active and `hot layout` is high, inspect board redraw and tile positioning code first.
 - If `queue`, `stale`, or `stamps` are high while opening a menu, inspect common redraw scheduling before optimizing the menu itself.
+- If `ui:skillTree` or `text:set` spikes while hovering skills, inspect node render-state caching and avoid setting Phaser text/graphics properties that have not changed.
 - If `hot ...` scopes are low but `dt` is high, suspect work outside the profiled update scopes, such as GPU work, browser painting, garbage collection, or Phaser internals.
 - If `tw` climbs steadily, look for forgotten infinite tweens or pooled objects that still animate while hidden.
 - If `objects` climbs steadily while visible activity does not, inspect pooling and destruction paths.

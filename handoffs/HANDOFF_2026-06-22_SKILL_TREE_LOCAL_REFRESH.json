@@ -1,0 +1,79 @@
+{
+  "createdAt": "2026-06-22",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Record the follow-up skill tree interaction performance fix after the user reported the deployed build still felt very slow.",
+  "currentUserGoal": "The live build still feels very slow; determine whether the game can be fixed or needs a different runtime/architecture, and ship another improvement quickly.",
+  "contextReadAtSessionStart": [
+    "AGENTS.md",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-06-22_BIG_FIELD_VIEWPORT_PERF.json",
+    "browser:control-in-app-browser skill",
+    "docs/PERFORMANCE_NOTES.md",
+    "docs/PERFORMANCE_HARNESS.md"
+  ],
+  "workCompletedThisSession": [
+    {
+      "summary": "Reduced skill hover/select work.",
+      "details": [
+        "Changed previewSkill so hovering or selecting a visible skill no longer calls the full refreshUi path when the skill tree is open.",
+        "Added refreshSkillTree as a focused skill-tree-only refresh path.",
+        "Added per-node renderKey caching so unchanged skill nodes skip Phaser visual property updates.",
+        "Converted skill detail text updates to setTextIfChanged so unchanged text does not rebuild."
+      ]
+    },
+    {
+      "summary": "Avoided redundant text button enabled-state work.",
+      "details": [
+        "Updated setTextButtonEnabled to return early when the requested enabled state already matches the current state."
+      ]
+    },
+    {
+      "summary": "Updated performance notes.",
+      "details": [
+        "Recorded that skill preview/hover should stay local to the skill UI and should not refresh the whole HUD.",
+        "Added a guardrail for ui:skillTree/text:set spikes during skill hover."
+      ]
+    }
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/ui/buttons.ts",
+    "docs/PERFORMANCE_NOTES.md",
+    "handoffs/HANDOFF_2026-06-22_SKILL_TREE_LOCAL_REFRESH.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationPerformed": [
+    {
+      "command": "npm run build",
+      "result": "Passed. TypeScript and Vite production build completed successfully."
+    },
+    {
+      "command": "Browser harness at http://127.0.0.1:5173/?perfHarness&tiles=344 with desktop viewport 1726x1189",
+      "result": "Complete. skillOpen maxFrameDeltaMs 9, frameSpikes 0, commonStamps 0, redrawQueued 0. skillOpen hotspots no longer included ui:skillTree; text:set was about 0.1 ms. skillSelect maxFrameDeltaMs 9, frameSpikes 0."
+    },
+    {
+      "command": "Required browser harness at http://127.0.0.1:5173/?perfHarness&tiles=1200 with desktop viewport 1365x900",
+      "result": "Complete. skillOpen maxFrameDeltaMs 7, frameSpikes 0, commonStamps 0, redrawQueued 0. skillSelect maxFrameDeltaMs 8, frameSpikes 0."
+    },
+    {
+      "command": "git diff --check",
+      "result": "No whitespace errors; only expected LF-to-CRLF working-copy warnings on Windows."
+    }
+  ],
+  "currentGitStatusAfterThisHandoff": "Modified: src/game/scenes/GameScene.ts, src/game/ui/buttons.ts, docs/PERFORMANCE_NOTES.md, handoffs/LATEST.json. Added/untracked: handoffs/HANDOFF_2026-06-22_SKILL_TREE_LOCAL_REFRESH.json. Pre-existing untracked docs/artifacts, Dutch automation docs, GAME_SYSTEMS_REFERENCE CLAUDE.md, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json remain untouched.",
+  "knownIssuesAndCaveats": [
+    "The user's subjective report still needs live validation on their real browser/save. The synthetic harness now covers a 344-tile screenshot-like desktop case, but it may still miss device/browser-specific GPU or compositor cost.",
+    "If the game still feels slow after this patch, the next likely architecture move is caching the skill tree into static layers or moving the board renderer toward chunked canvas/render-texture layers rather than relying on many Phaser display objects and Graphics/Text updates.",
+    "Rust/WASM is not expected to fix Phaser/WebGL display-object or browser compositor bottlenecks unless profiling proves a pure CPU simulation path is dominant."
+  ],
+  "doNotRevertOrTouchWithoutUserRequest": [
+    "Do not revert the compact viewport live-tile mode or common redraw overlay deferral from HANDOFF_2026-06-22_BIG_FIELD_VIEWPORT_PERF.json.",
+    "Keep previewSkill on a local refresh path; repeated hover should not refresh the whole HUD.",
+    "Do not commit unrelated pre-existing untracked docs/artifacts unless the user explicitly asks."
+  ],
+  "recommendedNextSteps": [
+    "Have the user test the live build on their real save with ?perf enabled and report the overlay line while Skills feels slow.",
+    "If slowness persists, implement a deeper renderer change: cache the skill tree static visuals and/or chunk the board renderer so large fields do not depend on per-tile Phaser display-object churn."
+  ]
+}

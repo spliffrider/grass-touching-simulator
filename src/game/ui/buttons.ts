@@ -87,6 +87,10 @@ export function setTextButtonEnabled(button: Phaser.GameObjects.Container, enabl
   const bg = button.getData("bg") as TextButtonBg | undefined;
   const label = button.getData("label") as Phaser.GameObjects.Text | undefined;
 
+  if (button.getData("enabled") === enabled) {
+    return;
+  }
+
   button.setData("enabled", enabled);
   setButtonTexture(bg, "button-emerald-normal");
 

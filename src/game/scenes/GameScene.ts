@@ -337,6 +337,7 @@ interface SkillNodeView {
   icon: Phaser.GameObjects.Image;
   lockedIcon: Phaser.GameObjects.Text;
   level: Phaser.GameObjects.Text;
+  renderKey?: string;
   hoverTrembleTween?: Phaser.Tweens.Tween;
   hoverGlowTween?: Phaser.Tweens.Tween;
 }
@@ -4035,8 +4036,16 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    if (this.selectedSkillId === upgradeId) {
+      return;
+    }
+
     this.selectedSkillId = upgradeId;
-    this.refreshUi();
+    if (this.skillTreeOpen) {
+      this.profileScope("ui:skillTree", () => this.refreshSkillTree());
+    } else {
+      this.refreshUi();
+    }
   }
 
   private startSkillHoverTremble(upgradeId: string): void {
@@ -9499,66 +9508,75 @@ export class GameScene extends Phaser.Scene {
     this.milestoneText.setPosition(26, this.layoutComboBadge());
 
     if (this.skillTreeOpen && refreshPanels) {
-      this.profileScope("ui:skillTree", () => {
-        for (const upgrade of UPGRADES) {
-          const view = this.skillNodeViews.get(upgrade.id);
-          const level = this.state.upgrades[upgrade.id]?.level ?? 0;
-          const unlocked = canUnlockUpgrade(this.state, upgrade);
-          const maxed = level >= upgrade.maxLevel;
-          const cost = getUpgradeCost(upgrade, level);
-          const available = unlocked && !maxed && canAffordGrassTouches(this.state.grassTouches, cost);
-          const visible = this.isSkillVisible(upgrade.id);
-
-          if (!view) {
-            continue;
-          }
-
-          view.container.setVisible(visible);
-          if (!visible) {
-            this.stopSkillHoverTremble(upgrade.id);
-            this.setReadyPulse(view.readyGlow, false);
-            view.bg.disableInteractive();
-            continue;
-          }
-          view.bg.setInteractive({ useHandCursor: true });
-
-          const selected = upgrade.id === this.selectedSkillId;
-          const stroke = selected ? 0xfff08a : available ? 0xf4df6a : level > 0 ? upgrade.tree.color : 0x506056;
-          const nodeAlpha = unlocked || level > 0 ? 1 : 0.48;
-          const frameKey = selected
-            ? SKILL_NODE_FRAME_KEYS.selected
-            : level > 0
-              ? SKILL_NODE_FRAME_KEYS.owned
-              : unlocked
-                ? SKILL_NODE_FRAME_KEYS.available
-                : SKILL_NODE_FRAME_KEYS.locked;
-          const frameSize = selected ? 74 : available ? 68 : level > 0 ? 66 : SKILL_NODE_VISUAL_SIZE;
-
-          view.container.setAlpha(nodeAlpha);
-          view.bg.setFillStyle(0xffffff, 0.001);
-          view.bg.setStrokeStyle(1, stroke, 0);
-          view.glow.setFillStyle(stroke, selected ? 0.28 : available ? 0.22 : level > 0 ? 0.14 : 0.05);
-          view.glow.setStrokeStyle(selected ? 3 : 2, stroke, selected ? 0.72 : available ? 0.48 : level > 0 ? 0.32 : 0.12);
-          this.setReadyPulse(view.readyGlow, available, 1.12, 1.16);
-          view.plate.setFillStyle(level > 0 ? 0x102f1a : unlocked ? 0x0d2617 : 0x07150e, unlocked || level > 0 ? 0.9 : 0.76);
-          view.plate.setStrokeStyle(selected ? 4 : available ? 3 : 2, stroke, selected ? 0.95 : available ? 0.82 : level > 0 ? 0.58 : 0.28);
-          view.frame.setTexture(frameKey);
-          view.frame.clearTint();
-          view.frame.setAlpha(selected ? 1 : available ? 1 : level > 0 ? 0.94 : 0.72);
-          view.frame.setDisplaySize(frameSize, frameSize);
-          view.icon.setTexture(getSkillIconKey(upgrade.id));
-          view.icon.setVisible(unlocked || level > 0);
-          view.icon.setAlpha(available || selected ? 1 : level > 0 ? 0.95 : 0.72);
-          view.icon.setTint(level > 0 || unlocked ? 0xffffff : 0x8fa08f);
-          view.lockedIcon.setVisible(!unlocked && level === 0);
-          view.lockedIcon.setColor(selected ? "#fff08a" : "#dfffc8");
-          this.setTextIfChanged(view.level, `Lv ${level}/${upgrade.maxLevel}`);
-          view.level.setColor(available || selected ? "#f4df6a" : level > 0 ? "#dfffc8" : "#7c8b82");
-        }
-
-        this.refreshSkillDetail();
-      });
+      this.profileScope("ui:skillTree", () => this.refreshSkillTree());
     }
+  }
+
+  private refreshSkillTree(): void {
+    for (const upgrade of UPGRADES) {
+      const view = this.skillNodeViews.get(upgrade.id);
+      if (!view) {
+        continue;
+      }
+
+      const level = this.state.upgrades[upgrade.id]?.level ?? 0;
+      const unlocked = canUnlockUpgrade(this.state, upgrade);
+      const maxed = level >= upgrade.maxLevel;
+      const cost = getUpgradeCost(upgrade, level);
+      const available = unlocked && !maxed && canAffordGrassTouches(this.state.grassTouches, cost);
+      const visible = this.isSkillVisible(upgrade.id);
+      const selected = upgrade.id === this.selectedSkillId;
+      const renderKey = [visible, selected, level, unlocked, available, maxed].join("|");
+
+      if (view.renderKey === renderKey) {
+        continue;
+      }
+
+      view.renderKey = renderKey;
+      this.setVisibleIfChanged(view.container, visible);
+      if (!visible) {
+        this.stopSkillHoverTremble(upgrade.id);
+        this.setReadyPulse(view.readyGlow, false);
+        view.bg.disableInteractive();
+        continue;
+      }
+
+      view.bg.setInteractive({ useHandCursor: true });
+
+      const stroke = selected ? 0xfff08a : available ? 0xf4df6a : level > 0 ? upgrade.tree.color : 0x506056;
+      const nodeAlpha = unlocked || level > 0 ? 1 : 0.48;
+      const frameKey = selected
+        ? SKILL_NODE_FRAME_KEYS.selected
+        : level > 0
+          ? SKILL_NODE_FRAME_KEYS.owned
+          : unlocked
+            ? SKILL_NODE_FRAME_KEYS.available
+            : SKILL_NODE_FRAME_KEYS.locked;
+      const frameSize = selected ? 74 : available ? 68 : level > 0 ? 66 : SKILL_NODE_VISUAL_SIZE;
+
+      view.container.setAlpha(nodeAlpha);
+      view.bg.setFillStyle(0xffffff, 0.001);
+      view.bg.setStrokeStyle(1, stroke, 0);
+      view.glow.setFillStyle(stroke, selected ? 0.28 : available ? 0.22 : level > 0 ? 0.14 : 0.05);
+      view.glow.setStrokeStyle(selected ? 3 : 2, stroke, selected ? 0.72 : available ? 0.48 : level > 0 ? 0.32 : 0.12);
+      this.setReadyPulse(view.readyGlow, available, 1.12, 1.16);
+      view.plate.setFillStyle(level > 0 ? 0x102f1a : unlocked ? 0x0d2617 : 0x07150e, unlocked || level > 0 ? 0.9 : 0.76);
+      view.plate.setStrokeStyle(selected ? 4 : available ? 3 : 2, stroke, selected ? 0.95 : available ? 0.82 : level > 0 ? 0.58 : 0.28);
+      view.frame.setTexture(frameKey);
+      view.frame.clearTint();
+      view.frame.setAlpha(selected ? 1 : available ? 1 : level > 0 ? 0.94 : 0.72);
+      view.frame.setDisplaySize(frameSize, frameSize);
+      view.icon.setTexture(getSkillIconKey(upgrade.id));
+      this.setVisibleIfChanged(view.icon, unlocked || level > 0);
+      view.icon.setAlpha(available || selected ? 1 : level > 0 ? 0.95 : 0.72);
+      view.icon.setTint(level > 0 || unlocked ? 0xffffff : 0x8fa08f);
+      this.setVisibleIfChanged(view.lockedIcon, !unlocked && level === 0);
+      view.lockedIcon.setColor(selected ? "#fff08a" : "#dfffc8");
+      this.setTextIfChanged(view.level, `Lv ${level}/${upgrade.maxLevel}`);
+      view.level.setColor(available || selected ? "#f4df6a" : level > 0 ? "#dfffc8" : "#7c8b82");
+    }
+
+    this.refreshSkillDetail();
   }
 
   private refreshMenuButtonAttention(currentReadyQuestKeys = this.getReadyQuestKeys()): void {
@@ -10347,29 +10365,30 @@ export class GameScene extends Phaser.Scene {
       .filter((id) => (this.state.upgrades[id]?.level ?? 0) === 0)
       .map((id) => UPGRADES.find((candidate) => candidate.id === id)?.name ?? id);
 
-    this.skillDetailTitle.setText(upgrade.name);
-    this.skillDetailCategory.setText(`${this.getUpgradeBranch(upgrade.id)} branch`);
-    this.skillDetailBody.setText(`${upgrade.description}\n\nLevel ${level}/${upgrade.maxLevel}`);
+    this.setTextIfChanged(this.skillDetailTitle, upgrade.name);
+    this.setTextIfChanged(this.skillDetailCategory, `${this.getUpgradeBranch(upgrade.id)} branch`);
+    this.setTextIfChanged(this.skillDetailBody, `${upgrade.description}\n\nLevel ${level}/${upgrade.maxLevel}`);
 
     if (maxed) {
-      this.skillDetailCost.setText("Fully unlocked.");
+      this.setTextIfChanged(this.skillDetailCost, "Fully unlocked.");
       setTextButtonText(this.skillBuyButton, "Maxed");
       setTextButtonEnabled(this.skillBuyButton, false);
     } else if (missingPrerequisites.length > 0) {
-      this.skillDetailCost.setText(`Requires: ${missingPrerequisites.join(", ")}`);
+      this.setTextIfChanged(this.skillDetailCost, `Requires: ${missingPrerequisites.join(", ")}`);
       setTextButtonText(this.skillBuyButton, "Locked");
       setTextButtonEnabled(this.skillBuyButton, false);
     } else if (upgrade.classId !== undefined && upgrade.classId !== this.state.characterClassId) {
-      this.skillDetailCost.setText(`Only ${getCharacterClass(upgrade.classId).name} can unlock this.`);
+      this.setTextIfChanged(this.skillDetailCost, `Only ${getCharacterClass(upgrade.classId).name} can unlock this.`);
       setTextButtonText(this.skillBuyButton, "Locked");
       setTextButtonEnabled(this.skillBuyButton, false);
     } else if (!upgrade.isUnlocked(this.state)) {
-      this.skillDetailCost.setText("Keep touching grass to reveal this.");
+      this.setTextIfChanged(this.skillDetailCost, "Keep touching grass to reveal this.");
       setTextButtonText(this.skillBuyButton, "Locked");
       setTextButtonEnabled(this.skillBuyButton, false);
     } else if (!canAffordGrassTouches(this.state.grassTouches, cost)) {
       const missing = getMissingGrassTouches(this.state.grassTouches, cost);
-      this.skillDetailCost.setText(
+      this.setTextIfChanged(
+        this.skillDetailCost,
         `Cost to Upgrade: ${formatGrassTouches(cost)} Grass Touches\nYou have: ${formatGrassTouches(
           this.state.grassTouches,
         )}\nNeed: ${formatGrassTouches(missing)} more`,
@@ -10377,7 +10396,8 @@ export class GameScene extends Phaser.Scene {
       setTextButtonText(this.skillBuyButton, `Need ${formatGrassTouches(missing)}`);
       setTextButtonEnabled(this.skillBuyButton, false);
     } else {
-      this.skillDetailCost.setText(
+      this.setTextIfChanged(
+        this.skillDetailCost,
         `Cost to Upgrade: ${formatGrassTouches(cost)} Grass Touches\nYou have: ${formatGrassTouches(
           this.state.grassTouches,
         )}\nReady to upgrade`,
