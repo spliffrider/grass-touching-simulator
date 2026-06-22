@@ -8,3 +8,17 @@ handoff-summary*.json
 alternative assets/
 
 .vercel
+
+# Local secrets and machine credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+.npmrc
+.netrc
+.aws/
+.ssh/
+*.pem
+*.key
+*.p12
+*.pfx

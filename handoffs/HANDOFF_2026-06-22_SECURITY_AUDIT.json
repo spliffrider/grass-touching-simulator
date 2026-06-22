@@ -1,0 +1,67 @@
+{
+  "createdAt": "2026-06-22",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Record the Git secret-leak audit and ignore-file hardening performed on the Windows desktop clone.",
+  "currentUserGoal": "Audit the Git repository for leaked secrets and make sure common local secret files are not easy to commit accidentally.",
+  "workCompletedThisSession": [
+    {
+      "summary": "Audited Git remotes, local config, current files, untracked addable files, and reachable Git history for secret leaks.",
+      "details": [
+        "Verified origin uses the clean HTTPS GitHub URL without embedded credentials.",
+        "Fetched origin and confirmed HEAD matches origin/master at d96ac8f52bc7fa7705a65239397abc8967ecaad4.",
+        "Scanned tracked current files, untracked addable files, selected ignored local deployment files, and 521 text blobs from reachable Git history with redacted secret detectors.",
+        "No literal secret values, private key blocks, credentialed URLs, GitHub/OpenAI/AWS/Google/Stripe/Slack/npm/JWT-style tokens, or plausible generic secret assignments were found."
+      ]
+    },
+    {
+      "summary": "Hardened .gitignore against future local-secret commits.",
+      "details": [
+        "Added ignore rules for .env files, .npmrc, .netrc, .aws/, .ssh/, and common private key bundle extensions.",
+        "Kept .env.example and .env.*.example available for safe template files."
+      ]
+    }
+  ],
+  "filesTouched": [
+    ".gitignore",
+    "handoffs/HANDOFF_2026-06-22_SECURITY_AUDIT.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationPerformed": [
+    {
+      "command": "git fetch --prune origin",
+      "result": "Passed; no new remote changes were fetched."
+    },
+    {
+      "command": "Redacted local secret scanner over current tracked files, untracked addable files, ignored local deployment metadata, and reachable Git history",
+      "result": "Passed; no findings."
+    },
+    {
+      "command": "git check-ignore -v .env .env.local .npmrc .netrc .aws/config .ssh/id_ed25519 test.pem test.key test.p12 test.pfx .vercel/project.json",
+      "result": "Passed; all tested local-secret and deployment paths are ignored."
+    },
+    {
+      "command": "git ls-files | rg sensitive filename patterns",
+      "result": "Passed; no tracked files matched the new local-secret filename patterns."
+    },
+    {
+      "command": "git diff --check",
+      "result": "Passed; Git emitted the existing Windows LF-to-CRLF working-copy warning for .gitignore."
+    }
+  ],
+  "currentGitStatusAfterThisHandoff": "Modified: .gitignore and handoffs/LATEST.json. Added: handoffs/HANDOFF_2026-06-22_SECURITY_AUDIT.json. Pre-existing untracked files remain in docs/ and handoffs/ from before this audit.",
+  "knownIssuesAndCaveats": [
+    "The GitHub repository is public, so operational details already committed in docs/handoffs are externally visible even when they are not secret values.",
+    "A prior tracked handoff states that the Mac account password was exposed in a chat image. Rotate that password if it has not already been changed.",
+    "No external gitleaks/trufflehog binary was installed in this environment; the audit used a local redacted scanner with common high-signal detectors."
+  ],
+  "doNotRevertOrTouchWithoutUserRequest": [
+    "Do not remove the new .gitignore local-secret guardrails unless replacing them with stronger secret hygiene.",
+    "Do not commit local .vercel auth material, SSH private keys, .env files, .npmrc, .netrc, .aws/, node_modules, dist, or browser save data."
+  ],
+  "recommendedNextSteps": [
+    "Rotate the Mac account password if the previously noted exposure has not been handled.",
+    "Consider enabling GitHub push protection or an equivalent secret-scanning check in CI for defense in depth.",
+    "Optionally run gitleaks or trufflehog in a separate environment for a second scanner opinion before the next public push."
+  ]
+}

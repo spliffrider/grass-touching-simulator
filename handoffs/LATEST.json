@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-21",
-  "latestHandoff": "HANDOFF_2026-06-21_CREDITS_MOBILE_SKILLS_DEPLOY.json",
+  "updatedAt": "2026-06-22",
+  "latestHandoff": "HANDOFF_2026-06-22_SECURITY_AUDIT.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",
