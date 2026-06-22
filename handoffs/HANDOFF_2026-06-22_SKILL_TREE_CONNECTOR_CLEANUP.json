@@ -1,0 +1,56 @@
+{
+  "createdAt": "2026-06-22",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Record the skill tree visual cleanup before pushing, deploying to Vercel, and syncing the Mac mini.",
+  "currentUserGoal": "Make the skill screen cleaner because connector lines overlap and make the screen confusing; then push, deploy online, and sync with the Mac.",
+  "contextReadAtSessionStart": [
+    "AGENTS.md",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-06-22_CLASS_PICKER_DETAILS_AND_COMBO_SHAKE.json"
+  ],
+  "workCompletedThisSession": [
+    {
+      "summary": "Cleaned up skill tree connector rendering.",
+      "details": [
+        "Replaced direct center-to-center connector lines with routed elbow connectors.",
+        "Trimmed connectors before node centers so lines do not run through skill icons.",
+        "Reduced visual weight of already-owned background paths.",
+        "Reserved bright gold/highlighted paths for selected or actionable connections.",
+        "Reduced hidden/future path hint intensity."
+      ]
+    }
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-22_SKILL_TREE_CONNECTOR_CLEANUP.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationPerformed": [
+    {
+      "command": "npm run build",
+      "result": "Passed. TypeScript and Vite production build completed successfully."
+    },
+    {
+      "command": "git diff --check",
+      "result": "No whitespace errors; only expected LF-to-CRLF working-copy warning on Windows."
+    },
+    {
+      "command": "Browser check at http://127.0.0.1:5173/?stress&perf&tiles=1200",
+      "result": "Passed visually on desktop and phone-sized viewports. Fully unlocked stress-mode skill tree is calmer and connector lines no longer run through node centers."
+    }
+  ],
+  "currentGitStatusAfterThisHandoff": "Modified: src/game/scenes/GameScene.ts and handoffs/LATEST.json. Added: handoffs/HANDOFF_2026-06-22_SKILL_TREE_CONNECTOR_CLEANUP.json. Pre-existing untracked docs, docs/artifacts, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json remain untouched.",
+  "knownIssuesAndCaveats": [
+    "This is a visual cleanup only; it does not change skill unlock requirements, costs, or upgrade effects.",
+    "The stress-mode tree is still dense because all skills are unlocked at once, but connector emphasis is now lower and paths are routed around node centers."
+  ],
+  "doNotRevertOrTouchWithoutUserRequest": [
+    "Do not restore the old center-to-center skill connector rendering unless replacing it with a clearer tested design.",
+    "Do not commit unrelated pre-existing untracked docs/artifacts/audio files unless the user explicitly asks."
+  ],
+  "recommendedNextSteps": [
+    "Have the user test the deployed skill screen on their real save.",
+    "If the skill screen still feels confusing, consider grouping branches more explicitly with branch tabs, branch legends, or filtering to selected branch paths."
+  ]
+}

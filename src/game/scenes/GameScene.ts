@@ -347,6 +347,11 @@ interface SkillNodeView {
   hoverGlowTween?: Phaser.Tweens.Tween;
 }
 
+interface SkillRoutePoint {
+  x: number;
+  y: number;
+}
+
 interface SeedShopItemView {
   itemId: string;
   container: Phaser.GameObjects.Container;
@@ -3946,6 +3951,7 @@ export class GameScene extends Phaser.Scene {
 
     this.drawDormantSkillHints(treeScale, treeX, treeY);
 
+    let routeIndex = 0;
     for (const upgrade of UPGRADES) {
       if (!this.isSkillVisible(upgrade.id)) {
         continue;
@@ -3971,42 +3977,99 @@ export class GameScene extends Phaser.Scene {
         const upgradeLevel = this.state.upgrades[upgrade.id]?.level ?? 0;
         const active = prerequisiteLevel > 0 && upgradeLevel > 0;
         const available = prerequisiteLevel > 0 && canUnlockUpgrade(this.state, upgrade);
-        const selectedConnection = upgrade.id === this.selectedSkillId || prerequisite.id === this.selectedSkillId;
+        const selectedConnection = upgrade.id === this.selectedSkillId;
 
-        const color = active ? 0xfff06a : available ? 0xdfff74 : selectedConnection ? 0xf4df6a : 0x6f9473;
-        const alpha = active || available || selectedConnection ? 1 : 0.46;
-        const width = Math.max(2.6, 3.2 * treeScale);
+        const highlighted = available || selectedConnection;
+        const color = selectedConnection ? 0xf4df6a : available ? 0xdfff74 : active ? 0x78b278 : 0x6f9473;
+        const alpha = highlighted ? 0.92 : active ? 0.26 : 0.12;
+        const width = highlighted ? Math.max(2.2, 2.9 * treeScale) : active ? Math.max(1.1, 1.5 * treeScale) : Math.max(1, 1.2 * treeScale);
         const start = this.getSkillTreePoint(prerequisite, treeScale, treeX, treeY);
         const end = this.getSkillTreePoint(upgrade, treeScale, treeX, treeY);
 
-        this.skillLineGraphics.lineStyle(width + 11 * treeScale, color, alpha * 0.24);
-        this.skillLineGraphics.beginPath();
-        this.skillLineGraphics.moveTo(start.x, start.y);
-        this.skillLineGraphics.lineTo(end.x, end.y);
-        this.skillLineGraphics.strokePath();
-
-        this.skillLineGraphics.lineStyle(width + 2 * treeScale, 0x06190f, Math.min(0.62, alpha * 0.58));
-        this.skillLineGraphics.beginPath();
-        this.skillLineGraphics.moveTo(start.x, start.y);
-        this.skillLineGraphics.lineTo(end.x, end.y);
-        this.skillLineGraphics.strokePath();
-
-        this.skillLineGraphics.lineStyle(width, color, Math.min(1, alpha + 0.12));
-        this.skillLineGraphics.beginPath();
-        this.skillLineGraphics.moveTo(start.x, start.y);
-        this.skillLineGraphics.lineTo(end.x, end.y);
-        this.skillLineGraphics.strokePath();
-
-        if (active || available || selectedConnection) {
-          this.skillLineGraphics.fillStyle(color, Math.min(0.95, alpha + 0.12));
-          this.skillLineGraphics.fillCircle(start.x, start.y, Math.max(3, 4.2 * treeScale));
-          this.skillLineGraphics.fillCircle(end.x, end.y, Math.max(3, 4.2 * treeScale));
-        }
+        this.drawSkillConnector(start, end, treeScale, color, alpha, width, routeIndex, highlighted);
+        routeIndex += 1;
       }
     }
   }
 
+  private getSkillConnectorPoints(start: SkillRoutePoint, end: SkillRoutePoint, treeScale: number, routeIndex: number): SkillRoutePoint[] {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    const straightThreshold = Math.max(22, 42 * treeScale);
+
+    if (absDx < straightThreshold || absDy < straightThreshold) {
+      return [start, end];
+    }
+
+    const laneOffset = ((routeIndex % 5) - 2) * Math.max(3, 5 * treeScale);
+    if (absDx >= absDy) {
+      const midX = start.x + dx * 0.55 + laneOffset;
+      return [start, { x: midX, y: start.y }, { x: midX, y: end.y }, end];
+    }
+
+    const midY = start.y + dy * 0.55 + laneOffset;
+    return [start, { x: start.x, y: midY }, { x: end.x, y: midY }, end];
+  }
+
+  private trimSkillConnectorPoints(points: SkillRoutePoint[], treeScale: number): SkillRoutePoint[] {
+    if (points.length < 2) {
+      return points;
+    }
+
+    const trimmed = points.map((point) => ({ ...point }));
+    const trimDistance = Math.max(16, 28 * treeScale);
+    const trimStart = (fromIndex: number, towardIndex: number): void => {
+      const from = trimmed[fromIndex];
+      const toward = trimmed[towardIndex];
+      const dx = toward.x - from.x;
+      const dy = toward.y - from.y;
+      const distance = Math.max(1, Math.hypot(dx, dy));
+      const trim = Math.min(trimDistance, distance * 0.42);
+      from.x += (dx / distance) * trim;
+      from.y += (dy / distance) * trim;
+    };
+
+    trimStart(0, 1);
+    trimStart(trimmed.length - 1, trimmed.length - 2);
+    return trimmed;
+  }
+
+  private strokeSkillConnector(points: SkillRoutePoint[], width: number, color: number, alpha: number): void {
+    if (points.length < 2 || alpha <= 0) {
+      return;
+    }
+
+    this.skillLineGraphics.lineStyle(width, color, alpha);
+    this.skillLineGraphics.beginPath();
+    this.skillLineGraphics.moveTo(points[0].x, points[0].y);
+    for (let index = 1; index < points.length; index += 1) {
+      this.skillLineGraphics.lineTo(points[index].x, points[index].y);
+    }
+    this.skillLineGraphics.strokePath();
+  }
+
+  private drawSkillConnector(
+    start: SkillRoutePoint,
+    end: SkillRoutePoint,
+    treeScale: number,
+    color: number,
+    alpha: number,
+    width: number,
+    routeIndex: number,
+    highlighted: boolean,
+  ): void {
+    const points = this.trimSkillConnectorPoints(this.getSkillConnectorPoints(start, end, treeScale, routeIndex), treeScale);
+    if (highlighted) {
+      this.strokeSkillConnector(points, width + Math.max(4, 5.5 * treeScale), color, alpha * 0.16);
+    }
+    this.strokeSkillConnector(points, width + Math.max(1.3, 2 * treeScale), 0x06190f, highlighted ? 0.48 : 0.24);
+    this.strokeSkillConnector(points, width, color, alpha);
+  }
+
   private drawDormantSkillHints(treeScale: number, treeX: number, treeY: number): void {
+    let routeIndex = 0;
     for (const upgrade of UPGRADES) {
       if (this.isSkillVisible(upgrade.id)) {
         continue;
@@ -4019,13 +4082,22 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
 
+      const prerequisiteLevel = this.state.upgrades[primaryPrerequisite.id]?.level ?? 0;
+      const selectedConnection = this.selectedSkillId === primaryPrerequisite.id;
       const end = this.getSkillTreePoint(upgrade, treeScale, treeX, treeY);
       const start = this.getSkillTreePoint(primaryPrerequisite, treeScale, treeX, treeY);
-      this.skillLineGraphics.lineStyle(Math.max(1.2, 2.1 * treeScale), 0xdfff74, 0.3);
-      this.skillLineGraphics.beginPath();
-      this.skillLineGraphics.moveTo(start.x, start.y);
-      this.skillLineGraphics.lineTo(end.x, end.y);
-      this.skillLineGraphics.strokePath();
+      if (prerequisiteLevel > 0 || selectedConnection) {
+        this.drawSkillConnector(
+          start,
+          end,
+          treeScale,
+          0xdfff74,
+          selectedConnection ? 0.3 : 0.18,
+          Math.max(1.1, 1.6 * treeScale),
+          routeIndex,
+          selectedConnection,
+        );
+      }
 
       this.skillLineGraphics.fillStyle(0x183d20, 0.74);
       this.skillLineGraphics.fillCircle(end.x, end.y, Math.max(9, 15 * treeScale));
@@ -4033,6 +4105,7 @@ export class GameScene extends Phaser.Scene {
       this.skillLineGraphics.strokeCircle(end.x, end.y, Math.max(9, 15 * treeScale));
       this.skillLineGraphics.fillStyle(0xf4df6a, 0.42);
       this.skillLineGraphics.fillCircle(end.x, end.y, Math.max(2.4, 4 * treeScale));
+      routeIndex += 1;
     }
   }
 
