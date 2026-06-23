@@ -1,0 +1,71 @@
+{
+  "date": "2026-06-23",
+  "topic": "Batch redraw optimization check",
+  "currentUserGoal": "Investigate slowdown when the field reaches the screenshot-sized midgame state and optimize the specific trigger path causing hitches.",
+  "changesMade": [
+    "Profiled the existing perf harness at 237 and 1200 stress tiles before changing code.",
+    "Added adaptive batch redraw pressure limits in GameScene so medium and large batch-mode fields schedule smaller dirty-tile redraw bursts once effect quality, object pressure, viewport size, or recent frame spikes indicate pressure.",
+    "Reduced common render texture stamping per frame under pressure from 8 tiles / 1.6ms to 4 tiles / 0.9ms.",
+    "Reduced dirty live tile view buildup under pressure from the normal batch limits to 24 desktop tiles or 16 compact/tablet tiles."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-23_BATCH_REDRAW_OPTIMIZATION.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "method": "Pre-patch clean trigger watch, local Chrome, http://127.0.0.1:5173/?stress&perf&tiles=237, 1726x1195, 60 seconds",
+      "result": "Detected the target burst: maxFrameDeltaMs 38, frameSpikes 7, maxStale 45, maxStamps 62, max displayObjects 343."
+    },
+    {
+      "command": "npm run build",
+      "result": "Passed."
+    },
+    {
+      "method": "Post-patch clean trigger watch, local Chrome, http://127.0.0.1:5173/?stress&perf&tiles=237, 1726x1195, 60 seconds",
+      "result": "Improved the target path: maxFrameDeltaMs 33, frameSpikes 0, maxStale 24, maxStamps 47, max displayObjects 271."
+    },
+    {
+      "method": "Post-patch perf harness, local Chrome, http://127.0.0.1:5173/?perfHarness&tiles=237, 1726x1195",
+      "result": "Completed. No frame spikes; layoutPasses 0, redraws 0, redrawQueued 0 in all captured phases; visibleTiles 237 then 224 after zoom."
+    },
+    {
+      "method": "Post-patch perf harness, local Chrome, http://127.0.0.1:5173/?perfHarness&tiles=1200, 1726x1195",
+      "result": "Completed. No frame spikes; visibleTiles 1200 then 945 after zoom. Idle phase intentionally spread common redraw work, with redrawQueued 192 and commonStamps 252, then queue cleared by tapBurst."
+    },
+    {
+      "method": "Post-patch mobile perf harness, local Chrome, http://127.0.0.1:5173/?perfHarness&tiles=1200, 390x844",
+      "result": "Completed. No frame spikes; viewport culling held visibleTiles near 91-96; redrawQueued 0 and commonStamps 0 across phases."
+    }
+  ],
+  "currentGitStatusBeforeHandoffUpdate": {
+    "trackedChanges": [
+      "M AGENTS.md",
+      "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md",
+      "M src/game/scenes/GameScene.ts"
+    ],
+    "preExistingUntrackedDoNotTouch": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssues": [
+    "At 1200 desktop stress tiles, the adaptive budget can leave common redraw queue work visible in the idle harness sample. This is intentional spreading rather than a stuck queue; it cleared by the next harness phase.",
+    "The in-app browser screenshot API timed out in this thread, so profiling used the local Chrome executable through Playwright after the in-app harness check failed to publish the dataset."
+  ],
+  "nextRecommendedSteps": [
+    "Play-test the real save around 220-300 patches and watch the perf overlay during sprinkler, companion, mutation, and hazard bursts.",
+    "If hitches persist on an actual phone or tablet, profile the companion/sprinkler visual path next; the common redraw burst is now smaller, but world action effects can still add transient display objects."
+  ],
+  "doNotRevert": [
+    "Do not restore the old fixed 8-tile common redraw budget without rerunning the 237-tile trigger watch.",
+    "Do not treat the unrelated dirty files in AGENTS.md, docs/, or the older handoff as part of this performance change."
+  ]
+}

@@ -160,9 +160,13 @@ const TILE_VIEW_POOL_LIMIT = 36;
 const DIRTY_TILE_VIEW_LIMIT = 96;
 const LARGE_FIELD_DIRTY_TILE_VIEW_LIMIT = 48;
 const COMPACT_LARGE_FIELD_DIRTY_TILE_VIEW_LIMIT = 32;
+const PRESSURE_DIRTY_TILE_VIEW_LIMIT = 24;
+const COMPACT_PRESSURE_DIRTY_TILE_VIEW_LIMIT = 16;
 const COMMON_REDRAW_MOBILE_TILE_LIMIT = 160;
 const COMMON_REDRAW_FRAME_BUDGET_MS = 1.6;
 const COMMON_REDRAW_TILE_BUDGET = 8;
+const PRESSURE_COMMON_REDRAW_FRAME_BUDGET_MS = 0.9;
+const PRESSURE_COMMON_REDRAW_TILE_BUDGET = 4;
 const PANEL_UI_REFRESH_INTERVAL_MS = 1000;
 const WORLD_OBJECT_UI_REFRESH_INTERVAL_MS = 900;
 const HUD_GRASS_TOUCH_GROUPS_PER_LINE = 9;
@@ -5057,8 +5061,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     const startedAt = performance.now();
+    const tileBudget = this.getCommonRedrawTileBudget();
+    const frameBudgetMs = this.getCommonRedrawFrameBudgetMs();
     let drawn = 0;
-    while (this.commonRedrawQueueIndex < this.commonRedrawQueue.length && drawn < COMMON_REDRAW_TILE_BUDGET) {
+    while (this.commonRedrawQueueIndex < this.commonRedrawQueue.length && drawn < tileBudget) {
       const entry = this.commonRedrawQueue[this.commonRedrawQueueIndex];
       this.commonRedrawQueueIndex += 1;
       if (!entry) {
@@ -5079,7 +5085,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       drawn += 1;
-      if (performance.now() - startedAt >= COMMON_REDRAW_FRAME_BUDGET_MS) {
+      if (performance.now() - startedAt >= frameBudgetMs) {
         break;
       }
     }
@@ -5602,6 +5608,10 @@ export class GameScene extends Phaser.Scene {
       return DIRTY_TILE_VIEW_LIMIT;
     }
 
+    if (this.shouldThrottleBatchRedraw()) {
+      return this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH ? COMPACT_PRESSURE_DIRTY_TILE_VIEW_LIMIT : PRESSURE_DIRTY_TILE_VIEW_LIMIT;
+    }
+
     if (this.fieldTileCount >= 600) {
       return DIRTY_TILE_VIEW_LIMIT;
     }
@@ -5611,6 +5621,24 @@ export class GameScene extends Phaser.Scene {
     }
 
     return LARGE_FIELD_DIRTY_TILE_VIEW_LIMIT;
+  }
+
+  private shouldThrottleBatchRedraw(): boolean {
+    return (
+      !this.usesLiveTileViews() &&
+      (this.effectQuality <= 0.58 ||
+        this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH ||
+        this.children.list.length >= DISPLAY_OBJECT_PRESSURE_LIMIT ||
+        this.frameSpikeCount > 0)
+    );
+  }
+
+  private getCommonRedrawTileBudget(): number {
+    return this.shouldThrottleBatchRedraw() ? PRESSURE_COMMON_REDRAW_TILE_BUDGET : COMMON_REDRAW_TILE_BUDGET;
+  }
+
+  private getCommonRedrawFrameBudgetMs(): number {
+    return this.shouldThrottleBatchRedraw() ? PRESSURE_COMMON_REDRAW_FRAME_BUDGET_MS : COMMON_REDRAW_FRAME_BUDGET_MS;
   }
 
   private getMinimumBoardScale(): number {
