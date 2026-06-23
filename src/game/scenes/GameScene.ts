@@ -985,6 +985,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, gameObjects: Phaser.GameObjects.GameObject[]) => {
+      this.audio.unlock();
       this.music.start(this.musicVolume);
 
       if (this.hasBlockingOverlayOpen()) {
