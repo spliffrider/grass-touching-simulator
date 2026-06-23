@@ -2306,30 +2306,52 @@ export class GameScene extends Phaser.Scene {
 
   private layoutHeader(): void {
     const compact = this.scale.width < 760;
-    const headerWidth = Math.max(220, Math.min(620, this.scale.width - 180));
+    const mobilePortrait = this.isMobilePortrait();
+    const headerWidth = mobilePortrait ? Math.max(174, this.scale.width - 122) : Math.max(220, Math.min(620, this.scale.width - 180));
 
-    this.titleText.setFontSize(compact ? 22 : 30);
+    this.titleText.setFontSize(mobilePortrait ? 20 : compact ? 22 : 30);
     this.titleText.setWordWrapWidth(headerWidth);
-    this.buildLabelText.setFontSize(compact ? 12 : 13);
+    this.buildLabelText.setFontSize(mobilePortrait ? 10 : compact ? 12 : 13);
     this.buildLabelText.setWordWrapWidth(headerWidth);
-    this.resourceText.setFontSize(compact ? 15 : 18);
+    this.resourceText.setFontSize(mobilePortrait ? 13 : compact ? 15 : 18);
     this.resourceText.setWordWrapWidth(headerWidth);
-    this.comboBadgeText.setFontSize(compact ? 14 : 16);
-    this.milestoneText.setFontSize(compact ? 13 : 16);
-    this.milestoneText.setWordWrapWidth(headerWidth);
+    this.comboBadgeText.setFontSize(mobilePortrait ? 12 : compact ? 14 : 16);
+    this.milestoneText.setFontSize(mobilePortrait ? 12 : compact ? 13 : 16);
+    this.milestoneText.setWordWrapWidth(mobilePortrait ? Math.max(240, this.scale.width - 36) : headerWidth);
 
-    this.titleText.setPosition(24, compact ? 18 : 18);
-    this.buildLabelText.setPosition(26, this.titleText.y + this.titleText.height + 1);
-    this.resourceText.setPosition(26, this.buildLabelText.y + this.buildLabelText.height + 8);
-    this.milestoneText.setPosition(26, this.layoutComboBadge());
+    this.titleText.setPosition(mobilePortrait ? 18 : 24, mobilePortrait ? 16 : 18);
+    this.buildLabelText.setPosition(mobilePortrait ? 20 : 26, this.titleText.y + this.titleText.height);
+    this.resourceText.setPosition(mobilePortrait ? 20 : 26, this.buildLabelText.y + this.buildLabelText.height + (mobilePortrait ? 6 : 8));
+    this.milestoneText.setPosition(mobilePortrait ? 20 : 26, this.layoutComboBadge());
     this.layoutMenuButtons();
     this.layoutSeasonVisuals();
     this.layoutWeatherVisuals();
   }
 
+  private isMobilePortrait(): boolean {
+    return this.scale.width < 520 && this.scale.height >= this.scale.width * 1.12;
+  }
+
+  private getMobileMenuBottom(): number {
+    if (!this.isMobilePortrait()) {
+      return 0;
+    }
+
+    const visibleButtonCount =
+      4 +
+      (getAutomationUnitCount(this.state) > 0 ? 1 : 0) +
+      (this.state.seedShopPurchases.field_journal === true ? 1 : 0) +
+      1;
+
+    return 18 + Math.max(0, visibleButtonCount - 1) * 39 + 44 * 0.74;
+  }
+
   private layoutMenuButtons(): void {
-    const buttonX = this.scale.width - 142;
-    let buttonY = 24;
+    const mobilePortrait = this.isMobilePortrait();
+    const buttonScale = mobilePortrait ? 0.74 : 1;
+    const buttonX = mobilePortrait ? this.scale.width - 102 : this.scale.width - 142;
+    let buttonY = mobilePortrait ? 18 : 24;
+    const buttonStep = mobilePortrait ? 39 : 52;
     const visibleButtons = [
       this.skillButton,
       this.questButton,
@@ -2344,21 +2366,27 @@ export class GameScene extends Phaser.Scene {
     this.journalButton.setVisible(this.state.seedShopPurchases.field_journal === true);
 
     for (const button of visibleButtons) {
+      button.setScale(buttonScale);
       button.setPosition(buttonX, buttonY);
-      buttonY += 52;
+      buttonY += buttonStep;
     }
   }
 
   private layoutComboBadge(): number {
     const compact = this.scale.width < 760;
-    const badgeWidth = compact ? 166 : 194;
-    const badgeHeight = compact ? 36 : 40;
+    const mobilePortrait = this.isMobilePortrait();
+    const badgeWidth = mobilePortrait ? 136 : compact ? 166 : 194;
+    const badgeHeight = mobilePortrait ? 28 : compact ? 36 : 40;
     const resourceBottom = this.resourceText.y + this.resourceText.height;
     const rightUiLeft = this.scale.width - 156;
     const fitsRight = !compact && this.resourceText.x + this.resourceText.width + badgeWidth + 22 < rightUiLeft;
 
     this.comboBadgeBg.setSize(badgeWidth, badgeHeight);
-    this.comboBadgeMeter.setPosition(12, compact ? 10 : 12);
+    this.comboBadgeMeter.setPosition(12, mobilePortrait ? 7 : compact ? 10 : 12);
+
+    if (mobilePortrait && !this.comboBadge.visible) {
+      return resourceBottom + 10;
+    }
 
     if (fitsRight) {
       this.comboBadge.setPosition(this.resourceText.x + this.resourceText.width + 12, this.resourceText.y + this.resourceText.height / 2);
@@ -2366,7 +2394,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.comboBadge.setPosition(26, resourceBottom + 24);
-    return resourceBottom + badgeHeight + 20;
+    return resourceBottom + badgeHeight + (mobilePortrait ? 14 : 20);
   }
 
   private layoutSeasonVisuals(): void {
@@ -5248,11 +5276,16 @@ export class GameScene extends Phaser.Scene {
     this.layoutPassCount += 1;
     const boardWidth = bounds.width * (TILE_SIZE + TILE_GAP);
     const boardHeight = bounds.height * (TILE_SIZE + TILE_GAP);
-    this.boardTopY = Math.max(142, this.milestoneText.y + this.milestoneText.height + 24);
-    this.boardAvailableWidth = Math.max(120, this.scale.width - 24);
-    this.boardAvailableHeight = Math.max(120, this.scale.height - this.boardTopY - 24);
+    const mobilePortrait = this.isMobilePortrait();
+    const mobileDockSafeBottom = mobilePortrait && this.getActiveWorldObjects().length > 0 ? 76 : 28;
+    this.boardTopY = mobilePortrait
+      ? Math.max(176, this.getMobileMenuBottom() + 8, this.milestoneText.y + this.milestoneText.height + 12)
+      : Math.max(142, this.milestoneText.y + this.milestoneText.height + 24);
+    this.boardAvailableWidth = Math.max(120, this.scale.width - (mobilePortrait ? 14 : 24));
+    this.boardAvailableHeight = Math.max(120, this.scale.height - this.boardTopY - mobileDockSafeBottom);
     const fitScale = Math.min(1, this.boardAvailableWidth / boardWidth, this.boardAvailableHeight / boardHeight);
-    this.boardScale = Math.max(this.getMinimumBoardScale(), fitScale * this.boardZoom);
+    const mobileBoardZoom = mobilePortrait ? 1.22 : 1;
+    this.boardScale = Math.max(this.getMinimumBoardScale(), fitScale * this.boardZoom * mobileBoardZoom);
     this.boardScaledWidth = boardWidth * this.boardScale;
     this.boardScaledHeight = boardHeight * this.boardScale;
     this.boardBaseCenterX = this.scale.width / 2;
@@ -5884,15 +5917,16 @@ export class GameScene extends Phaser.Scene {
     }
 
     const activeObjects = this.getActiveWorldObjects();
-    const dockScale = this.scale.width < 620 ? 0.68 : 0.76;
-    const horizontal = this.scale.height < 560 || this.scale.width < 620 || activeObjects.length >= 5;
+    const mobilePortrait = this.isMobilePortrait();
+    const dockScale = mobilePortrait ? 0.46 : this.scale.width < 620 ? 0.68 : 0.76;
+    const horizontal = mobilePortrait || this.scale.height < 560 || this.scale.width < 620 || activeObjects.length >= 5;
     const spacing = horizontal ? 78 * dockScale : 98 * dockScale;
     const dockX = Phaser.Math.Clamp(48, 34, Math.max(34, this.scale.width - 44));
     const dockTop = Math.max(this.boardTopY + 44, this.milestoneText.y + this.milestoneText.height + 34);
     const maxDockY = this.scale.height - 50 * dockScale;
     const neededHeight = Math.max(0, (activeObjects.length - 1) * spacing);
     const verticalStartY = Phaser.Math.Clamp(dockTop, this.boardTopY + 34, Math.max(this.boardTopY + 34, maxDockY - neededHeight));
-    const horizontalY = Phaser.Math.Clamp(this.scale.height - 54 * dockScale, this.boardTopY + 42, this.scale.height - 38);
+    const horizontalY = mobilePortrait ? this.scale.height - 22 : Phaser.Math.Clamp(this.scale.height - 54 * dockScale, this.boardTopY + 42, this.scale.height - 38);
     const horizontalStartX = Math.max(42 * dockScale, (this.scale.width - (activeObjects.length - 1) * spacing) / 2);
 
     activeObjects.forEach((object, index) => {
@@ -5911,7 +5945,7 @@ export class GameScene extends Phaser.Scene {
       view.label.setText(
         this.hoveredWorldObjectId === object.id ? this.getWorldObjectLabel(object.id) : this.getWorldObjectDockLabel(object.id, object.quantity),
       );
-      view.label.setVisible(view.label.text.length > 0);
+      view.label.setVisible(view.label.text.length > 0 && (!mobilePortrait || this.selectedPlacementObjectId === object.id));
       view.label.setFontSize(dockScale < 0.7 ? 11 : 12);
     });
 
@@ -9834,6 +9868,7 @@ export class GameScene extends Phaser.Scene {
     const nextTier = getNextGrassTier(this.state);
     const nextAutomationBreakthroughLine = this.profileScope("ui:autoGoal", () => this.getNextAutomationBreakthroughLine());
     const compact = this.scale.width < 620;
+    const mobilePortrait = this.isMobilePortrait();
     const stats = this.profileScope("ui:stats", () => this.getCachedRuntimeStats());
     const automationTouchesPerMinute = this.profileScope("calc:autoTotal", () => getTotalAutomationTouchesPerMinute(this.state, stats));
     const automationUnitCount = this.profileScope("calc:autoUnits", () => getAutomationUnitCount(this.state));
@@ -9855,9 +9890,29 @@ export class GameScene extends Phaser.Scene {
     });
     this.profileScope("ui:resourceText", () => {
       const grassTouches = formatHudGrassTouches(this.state.grassTouches);
-      const grassTouchLabel = compact || grassTouches.includes("\n") ? `Grass Touches:\n${grassTouches}` : `Grass Touches: ${grassTouches}`;
+      const grassTouchLabel = mobilePortrait
+        ? `Grass ${grassTouches}`
+        : compact || grassTouches.includes("\n")
+          ? `Grass Touches:\n${grassTouches}`
+          : `Grass Touches: ${grassTouches}`;
       const resourceSeparator = compact || grassTouches.includes("\n") ? "\n" : " | ";
       const hazardStatus = getHazardStatusText(this.state);
+      if (mobilePortrait) {
+        this.setTextIfChanged(
+          this.resourceText,
+          [
+            `${grassTouchLabel} | Seeds ${Math.floor(this.state.seeds)} | Gold ${Math.floor(this.state.gold)}`,
+            automationTouchesPerMinute > 0
+              ? `Auto ${formatGrassTouchesPerMinute(automationTouchesPerMinute)} | Patches ${this.fieldTileCount}`
+              : `Patches ${this.fieldTileCount}`,
+            hazardStatus ? `Hazards: ${hazardStatus}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        );
+        return;
+      }
+
       this.setTextIfChanged(
         this.resourceText,
         [
@@ -9874,7 +9929,12 @@ export class GameScene extends Phaser.Scene {
       );
     });
     this.profileScope("ui:combo", () => this.refreshComboBadge());
-    setTextButtonText(this.questButton, readyQuestCount > 0 ? `Quests (${readyQuestCount})` : "Quests");
+    setTextButtonText(this.skillButton, mobilePortrait ? "Skill" : "Skills");
+    setTextButtonText(this.questButton, readyQuestCount > 0 ? (mobilePortrait ? `Quest ${readyQuestCount}` : `Quests (${readyQuestCount})`) : "Quests");
+    setTextButtonText(this.seedButton, mobilePortrait ? "Seed" : "Seeds");
+    setTextButtonText(this.storeButton, mobilePortrait ? "Shop" : "Store");
+    setTextButtonText(this.autoButton, mobilePortrait ? "Auto" : "Auto");
+    setTextButtonText(this.optionsButton, mobilePortrait ? "Opts" : "Options");
     this.profileScope("ui:buttons", () => this.refreshMenuButtonAttention(currentReadyQuestKeys));
     this.refreshJournalAccess();
     if (this.skillTreeOpen) {
@@ -9903,6 +9963,19 @@ export class GameScene extends Phaser.Scene {
       });
     }
     this.profileScope("ui:milestoneText", () => {
+      if (mobilePortrait) {
+        const mobileObjective =
+          readyQuestCount > 0
+            ? `Quest ready: ${readyQuestCount}`
+            : nextMilestone
+              ? `Next spread: ${nextMilestone.name} at ${formatGrassTouches(nextMilestone.requiredLifetimeTouches)}`
+              : nextTier
+                ? `Next tier: ${nextTier.name} at ${formatGrassTouches(nextTier.unlockAtLifetimeTouches)}`
+                : nextAutomationBreakthroughLine;
+        this.setTextIfChanged(this.milestoneText, mobileObjective);
+        return;
+      }
+
       this.setTextIfChanged(
         this.milestoneText,
         [
@@ -11371,6 +11444,13 @@ export class GameScene extends Phaser.Scene {
 
   private getRewardArcTarget(kind: "seed" | "gold"): { x: number; y: number } {
     const bounds = this.resourceText.getBounds();
+
+    if (this.isMobilePortrait()) {
+      return {
+        x: bounds.x + bounds.width * (kind === "seed" ? 0.58 : 0.82),
+        y: bounds.y + Math.max(14, bounds.height * 0.23),
+      };
+    }
 
     if (this.scale.width < 620) {
       const lineHeight = Math.max(18, bounds.height / (this.getAutomationStatusLine() ? 6 : 5));
