@@ -2601,19 +2601,26 @@ export class GameScene extends Phaser.Scene {
     const narrowPortrait = this.scale.width < 500 && this.scale.height >= this.scale.width;
     const narrowDesktop = this.scale.width < 760 && !shortLandscape && !narrowPortrait;
     const sidePanel = !shortLandscape && !narrowPortrait && !narrowDesktop;
-    const detailPanelHeight = narrowPortrait ? 330 : SKILL_DETAIL_HEIGHT;
+    const detailPanelHeight = narrowPortrait ? Math.round(Math.max(236, Math.min(330, this.scale.height * 0.34))) : SKILL_DETAIL_HEIGHT;
     const detailPanelScale = shortLandscape ? 0.72 : narrowPortrait ? Math.min(0.96, (this.scale.width - 40) / SKILL_DETAIL_WIDTH) : 1;
+    const detailPanelRenderedHeight = detailPanelHeight * detailPanelScale;
+    const portraitPanelBottomGap = this.scale.height < 700 ? 50 : 68;
+    const portraitPanelY = narrowPortrait ? Math.max(196, this.scale.height - detailPanelRenderedHeight - portraitPanelBottomGap) : 0;
+    const portraitTreeY = narrowPortrait ? (this.scale.height < 700 ? 146 : 166) : 0;
+    const portraitMapMaxHeight = narrowPortrait ? Math.max(150, portraitPanelY - portraitTreeY - 18) : 0;
     const reservedSideWidth = sidePanel ? 430 : 48;
     const reservedBottomHeight = narrowPortrait ? Math.round(detailPanelHeight * detailPanelScale + 132) : narrowDesktop ? 420 : 140;
     const mapWidth = TREE_WIDTH * SKILL_MAP_X_SCALE;
     const mapHeight = TREE_HEIGHT * SKILL_MAP_Y_SCALE;
     const treeScale = shortLandscape
       ? Math.max(0.38, Math.min(0.7, (this.scale.width - 310) / mapWidth, (this.scale.height - 126) / mapHeight))
-      : Math.min(SKILL_MAP_FOCUS_SCALE, (this.scale.width - reservedSideWidth) / mapWidth, (this.scale.height - reservedBottomHeight) / mapHeight);
+      : narrowPortrait
+        ? Math.min(SKILL_MAP_FOCUS_SCALE, (this.scale.width - reservedSideWidth) / mapWidth, portraitMapMaxHeight / (mapHeight + 56))
+        : Math.min(SKILL_MAP_FOCUS_SCALE, (this.scale.width - reservedSideWidth) / mapWidth, (this.scale.height - reservedBottomHeight) / mapHeight);
     const treeWidth = mapWidth * treeScale;
     const treeHeight = mapHeight * treeScale;
     const treeX = Math.round(shortLandscape ? 34 : sidePanel ? Math.max(64, (this.scale.width - reservedSideWidth - treeWidth) / 2) : (this.scale.width - treeWidth) / 2);
-    const treeY = Math.round(shortLandscape ? 118 : narrowPortrait ? 166 : narrowDesktop ? 136 : 148);
+    const treeY = Math.round(shortLandscape ? 118 : narrowPortrait ? portraitTreeY : narrowDesktop ? 136 : 148);
 
     this.skillBackdrop.setSize(this.scale.width, this.scale.height);
     this.skillBackdropPattern?.setPosition(this.scale.width / 2, this.scale.height / 2);
@@ -2657,24 +2664,30 @@ export class GameScene extends Phaser.Scene {
       shortLandscape
         ? 112
         : narrowPortrait
-          ? Math.max(178, this.scale.height - detailPanelHeight * detailPanelScale - 68)
+          ? portraitPanelY
           : sidePanel
             ? 150
             : this.scale.height - 420,
     );
     this.skillDetailBg.setSize(SKILL_DETAIL_WIDTH, detailPanelHeight);
-    this.skillDetailTitle.setFontSize(narrowPortrait ? 25 : 28);
-    this.skillDetailTitle.setPosition(24, narrowPortrait ? 22 : 26);
-    this.skillDetailCategory.setFontSize(narrowPortrait ? 15 : 16);
-    this.skillDetailCategory.setPosition(24, narrowPortrait ? 54 : 60);
-    this.skillDetailBody.setFontSize(narrowPortrait ? 16 : 18);
-    this.skillDetailBody.setPosition(24, narrowPortrait ? 82 : 94);
+    const compactPortraitDetail = narrowPortrait && detailPanelHeight < 300;
+    const densePortraitDetail = narrowPortrait && detailPanelHeight < 260;
+    this.skillDetailTitle.setFontSize(densePortraitDetail ? 21 : compactPortraitDetail ? 23 : narrowPortrait ? 25 : 28);
+    this.skillDetailTitle.setPosition(24, densePortraitDetail ? 16 : compactPortraitDetail ? 18 : narrowPortrait ? 22 : 26);
+    this.skillDetailCategory.setFontSize(densePortraitDetail ? 13 : narrowPortrait ? 15 : 16);
+    this.skillDetailCategory.setPosition(24, densePortraitDetail ? 44 : compactPortraitDetail ? 50 : narrowPortrait ? 54 : 60);
+    this.skillDetailBody.setFontSize(densePortraitDetail ? 13 : compactPortraitDetail ? 14 : narrowPortrait ? 16 : 18);
+    this.skillDetailBody.setPosition(24, densePortraitDetail ? 66 : compactPortraitDetail ? 76 : narrowPortrait ? 82 : 94);
     this.skillDetailBody.setWordWrapWidth(SKILL_DETAIL_WIDTH - 52);
-    this.skillDetailCost.setFontSize(narrowPortrait ? 16 : 18);
-    this.skillDetailCost.setPosition(24, narrowPortrait ? 198 : 262);
+    this.skillDetailCost.setFontSize(densePortraitDetail ? 13 : compactPortraitDetail ? 14 : narrowPortrait ? 16 : 18);
+    this.skillDetailCost.setPosition(24, densePortraitDetail ? 126 : compactPortraitDetail ? 152 : narrowPortrait ? 198 : 262);
     this.skillDetailCost.setWordWrapWidth(SKILL_DETAIL_WIDTH - 52);
-    this.skillBuyButton.setScale(narrowPortrait ? 0.92 : 1);
-    this.skillBuyButton.setPosition(50, narrowPortrait ? 274 : 340);
+    const buyButtonScale = densePortraitDetail ? 0.74 : compactPortraitDetail ? 0.82 : narrowPortrait ? 0.92 : 1;
+    this.skillBuyButton.setScale(buyButtonScale);
+    this.skillBuyButton.setPosition(
+      narrowPortrait ? (SKILL_DETAIL_WIDTH - 260 * buyButtonScale) / 2 : 50,
+      densePortraitDetail ? detailPanelHeight - 46 : compactPortraitDetail ? detailPanelHeight - 52 : narrowPortrait ? 274 : 340,
+    );
 
     for (const label of this.skillBranchLabels) {
       const visible = label.revealedBy.some((upgradeId) => this.isSkillVisible(upgradeId));
