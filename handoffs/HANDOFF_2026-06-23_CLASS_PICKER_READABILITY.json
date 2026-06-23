@@ -1,0 +1,83 @@
+{
+  "date": "2026-06-23",
+  "topic": "Class picker readability pass",
+  "currentUserGoal": "Fix hard-to-read text on the class select screen and do a quick readability pass on the rest of the visible UI.",
+  "changesMade": [
+    "Improved class select text rendering by using higher-resolution Phaser text textures for the class picker text objects.",
+    "Increased contrast for class picker subtitles, card metadata, passive summaries, descriptions, compact ability text, and buttons.",
+    "Stopped the two-row class picker from vertically crushing full description cards in screenshot-sized desktop/tablet layouts.",
+    "Changed short landscape class picker layouts to use the existing compact details panel rather than compressed full cards.",
+    "Reset full-card word wrapping after resizing back from compact layouts so long class names and passive names do not remain wrapped.",
+    "Tightened three-stat class card body copy spacing so descriptions and stat lines do not collide with the Start buttons."
+  ],
+  "filesTouched": [
+    "src/game/scenes/TitleScene.ts",
+    "handoffs/HANDOFF_2026-06-23_CLASS_PICKER_READABILITY.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "Passed after the initial readability patch."
+    },
+    {
+      "command": "npm run build",
+      "result": "Passed after the follow-up overlap/wrap fix."
+    },
+    {
+      "method": "Browser visual check via local Chrome against http://127.0.0.1:5173/",
+      "viewports": [
+        "918x854 class picker",
+        "1280x720 class picker",
+        "390x844 class picker"
+      ],
+      "result": "Passed visually. The screenshot-sized layout now shows full 2x2 cards without vertical text squashing or button overlap; short landscape and phone layouts use compact cards plus a readable details panel."
+    },
+    {
+      "method": "Browser visual readability sweep via local Chrome against http://127.0.0.1:5173/",
+      "screens": [
+        "desktop HUD",
+        "phone HUD",
+        "skill tree",
+        "quest log",
+        "seed shop",
+        "store",
+        "options"
+      ],
+      "result": "No console warnings/errors. Main HUD, skill tree, quest log, store, and options read cleanly. Disabled seed/store copy is intentionally muted but still legible in the checked desktop view."
+    },
+    {
+      "command": "rg -n 'fontSize: \"(10|11|12)px\"|setFontSize\\((10|11|12)\\b|height < 40 \\? \"14px\"' src\\game\\scenes src\\game\\ui",
+      "result": "Only one literal 10px call remains, on the hidden body placeholder for compact class cards."
+    }
+  ],
+  "currentGitStatusBeforeHandoffUpdate": {
+    "trackedChanges": [
+      "M AGENTS.md",
+      "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md",
+      "M src/game/scenes/TitleScene.ts"
+    ],
+    "preExistingUntrackedDoNotTouch": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssues": [
+    "The in-app browser screenshot API timed out after viewport overrides during this session, so the visual screenshots were captured with the runtime Playwright library using the locally installed Chrome executable.",
+    "Disabled shop/store item text remains deliberately lower contrast. It passed the quick visual check, but a dedicated accessibility pass could tune disabled-state contrast more formally."
+  ],
+  "nextRecommendedSteps": [
+    "Play the class picker once on an actual phone/tablet browser and judge whether the compact details panel feels large enough under touch.",
+    "If doing a broader UI accessibility pass later, start with disabled shop/store item contrast and small status labels rather than the main HUD or class picker."
+  ],
+  "doNotRevert": [
+    "Do not bring back vertical scaling for full class cards in two-row desktop/tablet layouts.",
+    "Do not remove the compact class ability details panel unless replacing it with another tested touch-friendly way to inspect passives."
+  ]
+}

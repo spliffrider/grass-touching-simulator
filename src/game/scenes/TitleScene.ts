@@ -14,6 +14,9 @@ const OPTIONS_PANEL_BASE_WIDTH = 460;
 const OPTIONS_PANEL_BASE_HEIGHT = 220;
 const CLASS_PANEL_BASE_WIDTH = 1060;
 const CLASS_PANEL_BASE_HEIGHT = 560;
+const CLASS_CARD_BASE_WIDTH = 316;
+const CLASS_CARD_BASE_HEIGHT = 300;
+const CLASS_TEXT_RESOLUTION = 2;
 const OPTIONS_TRACK_BASE_WIDTH = 320;
 const OPTIONS_TRACK_BASE_HEIGHT = 12;
 const OPTIONS_HIT_BASE_WIDTH = 350;
@@ -533,14 +536,18 @@ export class TitleScene extends Phaser.Scene {
         color: "#f7ffe8",
         stroke: "#092213",
         strokeThickness: 5,
+        resolution: CLASS_TEXT_RESOLUTION,
       })
       .setOrigin(0.5);
     this.classSelectSubtitle = this.add
       .text(0, 0, "This starts a new save. Pick the passive you want to grow around.", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "17px",
-        color: "#b7eba5",
+        color: "#dfffc8",
+        stroke: "#092213",
+        strokeThickness: 3,
         align: "center",
+        resolution: CLASS_TEXT_RESOLUTION,
       })
       .setOrigin(0.5);
 
@@ -561,17 +568,21 @@ export class TitleScene extends Phaser.Scene {
         stroke: "#092213",
         strokeThickness: 3,
         align: "center",
+        resolution: CLASS_TEXT_RESOLUTION,
       })
       .setOrigin(0.5, 0)
       .setVisible(false);
     this.classAbilityBody = this.add
       .text(0, 0, "", {
         fontFamily: "Trebuchet MS, Arial",
-        fontSize: "12px",
-        color: "#f7ffe8",
+        fontSize: "13px",
+        color: "#fffef6",
+        stroke: "#06190f",
+        strokeThickness: 2,
         align: "center",
-        lineSpacing: 1,
+        lineSpacing: 2,
         wordWrap: { width: 280 },
+        resolution: CLASS_TEXT_RESOLUTION,
       })
       .setOrigin(0.5, 0)
       .setVisible(false);
@@ -587,6 +598,7 @@ export class TitleScene extends Phaser.Scene {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "18px",
         color: "#183d20",
+        resolution: CLASS_TEXT_RESOLUTION,
       })
       .setOrigin(0.5);
 
@@ -598,11 +610,11 @@ export class TitleScene extends Phaser.Scene {
   private createClassCard(characterClass: CharacterClassDefinition): ClassCard {
     const container = this.add.container(0, 0);
     const hit = this.add
-      .rectangle(0, 0, 316, 300, 0xffffff, 0.001)
+      .rectangle(0, 0, CLASS_CARD_BASE_WIDTH, CLASS_CARD_BASE_HEIGHT, 0xffffff, 0.001)
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
     const frame = this.add
-      .rectangle(0, 0, 316, 300, 0x0b2a18, 0.92)
+      .rectangle(0, 0, CLASS_CARD_BASE_WIDTH, CLASS_CARD_BASE_HEIGHT, 0x071f12, 0.96)
       .setOrigin(0.5)
       .setStrokeStyle(3, 0xb7eba5, 0.72);
     const hasIcon = Boolean(characterClass.iconKey);
@@ -623,13 +635,17 @@ export class TitleScene extends Phaser.Scene {
         color: "#f7ffe8",
         stroke: "#092213",
         strokeThickness: 5,
+        resolution: CLASS_TEXT_RESOLUTION,
       })
       .setOrigin(0.5);
     const archetype = this.add
       .text(textX, -96, characterClass.archetype, {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "16px",
-        color: "#b7eba5",
+        color: "#dfffc8",
+        stroke: "#092213",
+        strokeThickness: 2,
+        resolution: CLASS_TEXT_RESOLUTION,
       })
       .setOrigin(0.5);
     const passive = this.add
@@ -639,16 +655,20 @@ export class TitleScene extends Phaser.Scene {
         color: "#ffef78",
         stroke: "#092213",
         strokeThickness: 3,
+        resolution: CLASS_TEXT_RESOLUTION,
       })
       .setOrigin(0.5);
     const body = this.add
-      .text(0, -40, [characterClass.passiveDescription, "", ...characterClass.statLines].join("\n"), {
+      .text(0, -40, this.getClassCardBodyText(characterClass), {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "14px",
-        color: "#f7ffe8",
+        color: "#fffef6",
+        stroke: "#06190f",
+        strokeThickness: 2,
         align: "center",
         lineSpacing: 2,
-        wordWrap: { width: 266 },
+        wordWrap: { width: 280 },
+        resolution: CLASS_TEXT_RESOLUTION,
       })
       .setOrigin(0.5, 0);
     const button = this.add
@@ -660,6 +680,7 @@ export class TitleScene extends Phaser.Scene {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "18px",
         color: "#183d20",
+        resolution: CLASS_TEXT_RESOLUTION,
       })
       .setOrigin(0.5);
 
@@ -922,36 +943,39 @@ export class TitleScene extends Phaser.Scene {
 
   private layoutClassSelectPanel(): void {
     const narrowWidth = this.scale.width < 720;
-    const lowHeight = this.scale.height < 620;
     const phonePortrait = narrowWidth && this.scale.height >= this.scale.width * 1.18;
-    const compactPicker = phonePortrait || lowHeight || this.scale.width < 860;
+    const preferredColumns = phonePortrait ? 1 : Math.min(this.classCards.length, this.scale.width < 980 || this.classCards.length === 4 ? 2 : 3);
+    const preferredRows = Math.max(1, Math.ceil(this.classCards.length / preferredColumns));
+    const needsTwoReadableRows = preferredRows > 1 && !phonePortrait;
+    const compactPicker = phonePortrait || this.scale.width < 860 || this.scale.height < 620 || (needsTwoReadableRows && this.scale.height < 812);
     const compactLandscape = compactPicker && !phonePortrait;
     const compact = this.scale.width < 980;
     const maxColumns = compact || this.classCards.length === 4 ? 2 : 3;
     const columns = phonePortrait ? 1 : compactPicker ? Math.min(2, this.classCards.length) : Math.min(this.classCards.length, maxColumns);
     const rows = Math.max(1, Math.ceil(this.classCards.length / columns));
     const shortMobile = phonePortrait && this.scale.height < 680;
-    const panelWidth = Math.min(phonePortrait ? 390 : compactPicker ? 760 : columns === 2 ? 800 : 1080, this.scale.width - (compactPicker ? 12 : 36));
-    const panelHeight = Math.min(compactPicker ? this.scale.height - 16 : rows > 1 ? 700 : 570, this.scale.height - (compactPicker ? 16 : 32));
+    const fullCardPanelHeight = rows > 1 ? 820 : 570;
+    const panelWidth = Math.min(phonePortrait ? 390 : compactPicker ? 760 : columns === 2 ? 850 : 1080, this.scale.width - (compactPicker ? 12 : 36));
+    const panelHeight = Math.min(compactPicker ? this.scale.height - 16 : fullCardPanelHeight, this.scale.height - (compactPicker ? 16 : 32));
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
     const columnGap = phonePortrait ? 0 : compactPicker ? 12 : 24;
-    const rowGap = phonePortrait ? (shortMobile ? 8 : 10) : compactPicker ? 8 : 20;
-    const headerHeight = phonePortrait ? (shortMobile ? 78 : 106) : compactPicker ? 58 : 150;
-    const footerHeight = phonePortrait ? (shortMobile ? 54 : 64) : compactPicker ? 42 : 60;
+    const rowGap = phonePortrait ? (shortMobile ? 8 : 10) : compactPicker ? 8 : rows > 1 ? 16 : 20;
+    const headerHeight = phonePortrait ? (shortMobile ? 78 : 106) : compactPicker ? 58 : rows > 1 ? 116 : 150;
+    const footerHeight = phonePortrait ? (shortMobile ? 54 : 64) : compactPicker ? 42 : rows > 1 ? 54 : 60;
     const abilityGap = compactPicker ? (phonePortrait ? 10 : 8) : 0;
-    const abilityHeight = compactPicker ? (phonePortrait ? (shortMobile ? 92 : 116) : 58) : 0;
+    const abilityHeight = compactPicker ? (phonePortrait ? (shortMobile ? 96 : 124) : 70) : 0;
     const horizontalPadding = phonePortrait ? 48 : compactPicker ? 42 : 72;
     const cardsAreaHeight = Math.max(120, panelHeight - headerHeight - footerHeight - abilityHeight - abilityGap);
     const cardWidth = phonePortrait
-      ? Math.min(316, panelWidth - horizontalPadding)
-      : Math.min(316, (panelWidth - horizontalPadding - (columns - 1) * columnGap) / columns);
-    const cardHeightCap = phonePortrait ? (shortMobile ? 92 : 112) : compactPicker ? 84 : rows > 1 ? 276 : 300;
+      ? Math.min(CLASS_CARD_BASE_WIDTH, panelWidth - horizontalPadding)
+      : Math.min(CLASS_CARD_BASE_WIDTH, (panelWidth - horizontalPadding - (columns - 1) * columnGap) / columns);
+    const cardHeightCap = phonePortrait ? (shortMobile ? 92 : 112) : compactPicker ? 84 : CLASS_CARD_BASE_HEIGHT;
     const cardHeight = Math.min(cardHeightCap, (cardsAreaHeight - (rows - 1) * rowGap) / rows);
     const condensedCards = compactPicker;
-    const cardScale = condensedCards ? Math.min(1, cardWidth / 316, Math.max(0.74, cardHeight / 78)) : 1;
-    const cardScaleX = condensedCards ? cardScale : cardWidth / 316;
-    const cardScaleY = condensedCards ? cardScale : cardHeight / 300;
+    const cardScale = condensedCards ? Math.min(1, cardWidth / CLASS_CARD_BASE_WIDTH, Math.max(0.74, cardHeight / 78)) : 1;
+    const cardScaleX = condensedCards ? cardScale : cardWidth / CLASS_CARD_BASE_WIDTH;
+    const cardScaleY = condensedCards ? cardScale : cardHeight / CLASS_CARD_BASE_HEIGHT;
     const cardsTop = centerY - panelHeight / 2 + headerHeight;
     const cardsBottom = cardsTop + rows * cardHeight + (rows - 1) * rowGap;
     const abilityY = cardsBottom + abilityGap + abilityHeight / 2;
@@ -993,8 +1017,8 @@ export class TitleScene extends Phaser.Scene {
         .setWordWrapWidth(abilityWidth - 20);
       this.classAbilityBody
         .setPosition(centerX, abilityY - abilityHeight / 2 + (compactLandscape ? 22 : 27))
-        .setFontSize(compactLandscape ? 10 : shortMobile ? 11 : 12)
-        .setLineSpacing(compactLandscape ? -2 : 0)
+        .setFontSize(compactLandscape ? 11 : shortMobile ? 12 : 13)
+        .setLineSpacing(compactLandscape ? 0 : 1)
         .setWordWrapWidth(abilityWidth - 20);
     }
 
@@ -1008,19 +1032,21 @@ export class TitleScene extends Phaser.Scene {
       const iconX = hasIcon ? -104 : 0;
       const textX = hasIcon ? 32 : 0;
 
-      card.frame.setSize(316, 300);
-      card.hit.setSize(316, 300);
+      card.frame.setSize(CLASS_CARD_BASE_WIDTH, CLASS_CARD_BASE_HEIGHT);
+      card.hit.setSize(CLASS_CARD_BASE_WIDTH, CLASS_CARD_BASE_HEIGHT);
       card.iconBg.setPosition(iconX, -100).setScale(1);
       card.icon.setPosition(iconX, -100).setDisplaySize(78, 78);
-      card.name.setPosition(textX, -126).setFontSize(compact ? 24 : hasIcon ? 25 : 28);
-      card.archetype.setPosition(textX, -96).setFontSize(compact ? 15 : 16);
-      card.passive.setPosition(textX, -66).setFontSize(hasIcon ? 17 : 19);
+      card.name.setPosition(textX, -126).setWordWrapWidth(0);
+      card.archetype.setPosition(textX, -96).setFontSize(compact ? 15 : 16).setWordWrapWidth(0);
+      card.passive.setPosition(textX, -66).setWordWrapWidth(0);
+      this.fitTextToWidth(card.name, hasIcon ? 238 : 286, compact ? 24 : hasIcon ? 25 : 28, 20);
+      this.fitTextToWidth(card.passive, hasIcon ? 238 : 286, hasIcon ? 17 : 19, 14);
       card.body
         .setVisible(true)
         .setPosition(0, -40)
-        .setText([card.characterClass.passiveDescription, "", ...card.characterClass.statLines].join("\n"))
+        .setText(this.getClassCardBodyText(card.characterClass))
         .setFontSize(14)
-        .setWordWrapWidth(compact ? 260 : 266)
+        .setWordWrapWidth(compact ? 274 : 280)
         .setLineSpacing(2);
       card.button.setPosition(0, 130).setSize(188, 38);
       card.buttonText.setPosition(0, 130).setFontSize(18);
@@ -1030,8 +1056,8 @@ export class TitleScene extends Phaser.Scene {
     const top = -cardBaseHeight / 2;
     const shortCard = cardBaseHeight < 96;
 
-    card.frame.setSize(316, cardBaseHeight);
-    card.hit.setSize(316, cardBaseHeight);
+    card.frame.setSize(CLASS_CARD_BASE_WIDTH, cardBaseHeight);
+    card.hit.setSize(CLASS_CARD_BASE_WIDTH, cardBaseHeight);
     card.iconBg.setPosition(-116, top + cardBaseHeight / 2).setScale(shortCard ? 0.54 : 0.62);
     card.icon.setPosition(-116, top + cardBaseHeight / 2).setDisplaySize(shortCard ? 44 : 52, shortCard ? 44 : 52);
     card.name.setPosition(4, top + (shortCard ? 15 : 18)).setFontSize(shortCard ? 17 : 19).setWordWrapWidth(166);
@@ -1046,6 +1072,11 @@ export class TitleScene extends Phaser.Scene {
       .setLineSpacing(0);
     card.button.setPosition(94, cardBaseHeight / 2 - (shortCard ? 17 : 19)).setSize(shortCard ? 106 : 116, shortCard ? 24 : 28);
     card.buttonText.setPosition(94, cardBaseHeight / 2 - (shortCard ? 17 : 19)).setFontSize(shortCard ? 13 : 14);
+  }
+
+  private getClassCardBodyText(characterClass: CharacterClassDefinition): string {
+    const statSeparator = characterClass.statLines.length > 2 ? "\n" : "\n\n";
+    return `${characterClass.passiveDescription}${statSeparator}${characterClass.statLines.join("\n")}`;
   }
 
   private resizeInteractiveBackdrop(backdrop: Phaser.GameObjects.Rectangle | undefined): void {
