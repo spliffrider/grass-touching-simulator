@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-23",
-  "latestHandoff": "HANDOFF_2026-06-23_BATCH_REDRAW_OPTIMIZATION.json",
+  "updatedAt": "2026-06-24",
+  "latestHandoff": "HANDOFF_2026-06-24_HUD_TRIGGER_FEED_UI_PASS.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

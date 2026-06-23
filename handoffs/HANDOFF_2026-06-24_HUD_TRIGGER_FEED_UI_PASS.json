@@ -1,0 +1,98 @@
+{
+  "updatedAt": "2026-06-24",
+  "topic": "HUD trigger feed UI pass",
+  "currentUserGoal": "Make the live game UI closer to the polished mockup: readable top stat chips, a visible trigger feed, and a phone-friendly command dock.",
+  "changesMade": [
+    "Replaced the old single-line resource HUD display with compact stat chips for touches, seeds, gold, auto income, and ready quests.",
+    "Added a Trigger Feed panel that logs automation, hazards, weather, quest, shop, mutation, mower, and spread events.",
+    "Added a compact mobile Trigger Feed layout with fewer rows so the feed appears on phone screens without taking over the field.",
+    "Moved the mobile command menu into a bottom dock and made the world-object placement dock sit above it.",
+    "Kept old resourceText hidden as a fallback object while the new chip HUD owns the visible display.",
+    "Added compact number formatting for very large HUD values so stress-mode values do not overflow the chips."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "docs/artifacts/ui-hud-trigger-feed-2026-06-24/desktop-918x854.png",
+    "docs/artifacts/ui-hud-trigger-feed-2026-06-24/mobile-390x844.png",
+    "handoffs/HANDOFF_2026-06-24_HUD_TRIGGER_FEED_UI_PASS.json",
+    "handoffs/LATEST.json"
+  ],
+  "screenshotArtifacts": [
+    {
+      "label": "Desktop stress UI reference",
+      "path": "docs/artifacts/ui-hud-trigger-feed-2026-06-24/desktop-918x854.png"
+    },
+    {
+      "label": "Mobile stress UI reference",
+      "path": "docs/artifacts/ui-hud-trigger-feed-2026-06-24/mobile-390x844.png"
+    }
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "check": "Playwright screenshot pass via local Chrome",
+      "result": "passed",
+      "details": "Captured desktop 918x854 and mobile 390x844 stress views. Confirmed stat chips, trigger feed, and mobile dock render. Confirmed world-object dock no longer overlaps the bottom command dock."
+    },
+    {
+      "url": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "passed",
+      "desktopSummary": {
+        "samples": 9,
+        "finalVisibleTiles": 1026,
+        "finalLayoutPasses": 0,
+        "finalRedraws": 0,
+        "finalRedrawQueued": 0,
+        "finalMaxFrameDeltaMs": 10,
+        "finalFrameSpikes": 0,
+        "finalDisplayObjects": 284,
+        "finalActiveTweens": 21,
+        "finalTileMode": "batch"
+      },
+      "mobileSummary": {
+        "samples": 9,
+        "finalVisibleTiles": 96,
+        "finalLayoutPasses": 0,
+        "finalRedraws": 0,
+        "finalRedrawQueued": 0,
+        "finalMaxFrameDeltaMs": 7,
+        "finalFrameSpikes": 0,
+        "finalDisplayObjects": 687,
+        "finalActiveTweens": 22,
+        "finalTileMode": "viewport"
+      }
+    }
+  ],
+  "currentGitStatus": [
+    " M AGENTS.md",
+    " M docs/DESKTOP_MAC_SYNC_WORKFLOW.md",
+    " M handoffs/LATEST.json",
+    " M src/game/scenes/GameScene.ts",
+    "?? docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+    "?? docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+    "?? docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+    "?? docs/Strategieën voor Geavanceerde Automatisering in Incrementele Games.md",
+    "?? docs/artifacts/title-art-2026-06-19/",
+    "?? docs/artifacts/ui-hud-trigger-feed-2026-06-24/desktop-918x854.png",
+    "?? docs/artifacts/ui-hud-trigger-feed-2026-06-24/mobile-390x844.png",
+    "?? docs/grasstouching.mid",
+    "?? docs/lucid.aif",
+    "?? handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json",
+    "?? handoffs/HANDOFF_2026-06-24_HUD_TRIGGER_FEED_UI_PASS.json"
+  ],
+  "knownIssues": [
+    "Stress/perf overlay text can visually cross the Trigger Feed in debug URLs because the overlay intentionally sits at high depth. Normal play is unaffected.",
+    "The new UI is implemented in GameScene.ts only; a later cleanup could split HUD/feed helpers if the file becomes painful to navigate."
+  ],
+  "nextRecommendedSteps": [
+    "Test a real saved game without stress/perf query params on phone width to judge final visual balance.",
+    "If the direction feels right, commit GameScene.ts plus this handoff/LATEST update, leaving unrelated dirty docs and media alone."
+  ],
+  "doNotRevert": [
+    "Do not revert the pre-existing dirty AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, docs/media, or unrelated untracked docs unless the user explicitly asks.",
+    "Preserve the mobile viewport culling behavior from the prior performance work."
+  ]
+}

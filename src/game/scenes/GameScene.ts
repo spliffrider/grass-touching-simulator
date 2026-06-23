@@ -174,6 +174,14 @@ const MAX_ACTIVE_POP_TEXTS = 18;
 const PERF_HARNESS_IDLE_DELAY_MS = 900;
 const PERF_HARNESS_PHASE_DELAY_MS = 800;
 const PERF_HARNESS_TAP_COUNT = 14;
+const HUD_CHIP_HEIGHT = 48;
+const HUD_CHIP_COMPACT_HEIGHT = 42;
+const HUD_CHIP_GAP = 8;
+const TRIGGER_FEED_MAX_EVENTS = 6;
+const TRIGGER_FEED_EVENT_TTL_MS = 90000;
+const TRIGGER_FEED_WIDTH = 246;
+const TRIGGER_FEED_ROW_HEIGHT = 54;
+const MOBILE_COMMAND_DOCK_PADDING = 10;
 
 function formatAutomationSupportUnits(support: number): string {
   return support >= 10 ? support.toFixed(0) : support.toFixed(1);
@@ -211,6 +219,34 @@ function formatHudGrassTouches(value: number): string {
   }
 
   return lines.join("\n");
+}
+
+function formatHudChipNumber(value: number): string {
+  const whole = Math.floor(value);
+  const abs = Math.abs(whole);
+  if (abs >= 1_000_000_000_000_000) {
+    return whole.toExponential(2).replace("+", "");
+  }
+
+  const units = [
+    { value: 1_000_000_000_000, suffix: "T" },
+    { value: 1_000_000_000, suffix: "B" },
+    { value: 1_000_000, suffix: "M" },
+  ];
+
+  for (const unit of units) {
+    if (abs >= unit.value) {
+      const scaled = whole / unit.value;
+      const decimals = Math.abs(scaled) >= 100 ? 0 : Math.abs(scaled) >= 10 ? 1 : 2;
+      return `${scaled.toFixed(decimals)}${unit.suffix}`;
+    }
+  }
+
+  return formatGrassTouches(whole);
+}
+
+function formatHudChipRate(value: number): string {
+  return `${formatHudChipNumber(value)}/min`;
 }
 
 function getDirectiveAdjustedAutomationOutput(state: GameState, output: number): number {
@@ -393,6 +429,38 @@ interface GoldStoreItemView {
 type StoreMode = "automation" | "goods";
 type AutomationBuyMode = "single" | "boost";
 type ComboTouchSource = "manual" | "sprinkler" | "field_mouse" | "meadow_rabbit" | "sheep";
+type HudChipId = "touches" | "seeds" | "gold" | "auto" | "quest";
+
+interface HudChipView {
+  id: HudChipId;
+  container: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Rectangle;
+  glow: Phaser.GameObjects.Rectangle;
+  iconBg: Phaser.GameObjects.Ellipse;
+  iconImage?: Phaser.GameObjects.Image;
+  iconText?: Phaser.GameObjects.Text;
+  title: Phaser.GameObjects.Text;
+  value: Phaser.GameObjects.Text;
+  width: number;
+}
+
+interface TriggerFeedItem {
+  id: number;
+  label: string;
+  detail: string;
+  icon: string;
+  color: number;
+  createdAt: number;
+}
+
+interface TriggerFeedRowView {
+  container: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Rectangle;
+  icon: Phaser.GameObjects.Text;
+  label: Phaser.GameObjects.Text;
+  detail: Phaser.GameObjects.Text;
+  age: Phaser.GameObjects.Text;
+}
 
 interface AutomationPurchasePlan {
   quantity: number;
@@ -589,11 +657,27 @@ export class GameScene extends Phaser.Scene {
   private titleText!: Phaser.GameObjects.Text;
   private buildLabelText!: Phaser.GameObjects.Text;
   private resourceText!: Phaser.GameObjects.Text;
+  private hudChipRoot!: Phaser.GameObjects.Container;
+  private hudChips: HudChipView[] = [];
+  private hudChipBottomY = 0;
+  private hudChipRightX = 0;
   private comboBadge!: Phaser.GameObjects.Container;
   private comboBadgeBg!: Phaser.GameObjects.Rectangle;
   private comboBadgeText!: Phaser.GameObjects.Text;
   private comboBadgeMeter!: Phaser.GameObjects.Rectangle;
   private milestoneText!: Phaser.GameObjects.Text;
+  private triggerFeedRoot!: Phaser.GameObjects.Container;
+  private triggerFeedBg!: Phaser.GameObjects.Rectangle;
+  private triggerFeedTitle!: Phaser.GameObjects.Text;
+  private triggerFeedToggle!: Phaser.GameObjects.Text;
+  private triggerFeedRows: TriggerFeedRowView[] = [];
+  private triggerFeedEvents: TriggerFeedItem[] = [];
+  private triggerFeedCollapsed = false;
+  private nextTriggerFeedId = 1;
+  private triggerFeedRenderKey = "";
+  private menuDockBg!: Phaser.GameObjects.Rectangle;
+  private mobileCommandDockTop = Number.POSITIVE_INFINITY;
+  private mobileCommandDockHeight = 0;
   private seasonTint!: Phaser.GameObjects.Rectangle;
   private weatherTint!: Phaser.GameObjects.Rectangle;
   private weatherBadge!: Phaser.GameObjects.Container;
@@ -788,6 +872,7 @@ export class GameScene extends Phaser.Scene {
   private autoTouchVisualCredit = 0;
   private lastAutoTouchVisualAt = 0;
   private lastAutoTouchPopAt = 0;
+  private lastAutomationIncomeFeedAt = 0;
   private activeAutoTouchVisualObjects = 0;
   private fieldLifeVisualElapsed = 0;
   private lastFieldLifeSweepAt = 0;
@@ -936,6 +1021,7 @@ export class GameScene extends Phaser.Scene {
     this.layoutTiles();
     this.startPerfHarness();
     this.startHazardHarness();
+    this.addTriggerFeedEvent("Field online", this.stressMode ? `${this.fieldTileCount} patches in stress mode` : "watching automation", "OK", 0xb7eba5);
     this.showMessage(
       this.stressMode ? "Stress mode: big field, busy systems, no save writes." : "Touch the grass. Let it regrow. Become reasonable.",
       3600,
@@ -2035,6 +2121,17 @@ export class GameScene extends Phaser.Scene {
       })
       .setDepth(20)
       .setShadow(0, 1, "#ffffff", 1, false, true);
+    this.resourceText.setVisible(false);
+
+    this.hudChipRoot = this.add.container(0, 0).setDepth(24);
+    this.hudChips = [
+      this.createHudChip("touches", "Touches", "grass-normal", "GT", 150),
+      this.createHudChip("seeds", "Seeds", "effect-seed-kernel", "S", 98),
+      this.createHudChip("gold", "Gold", "effect-gold-coin", "G", 98),
+      this.createHudChip("auto", "Auto", "world-tiny-sprinkler", "A", 136),
+      this.createHudChip("quest", "Quest", "item-quest-clipboard", "Q", 112),
+    ];
+    this.hudChipRoot.add(this.hudChips.map((chip) => chip.container));
 
     this.comboBadge = this.add.container(0, 0).setDepth(22).setVisible(false);
     this.comboBadgeBg = this.add
@@ -2066,6 +2163,14 @@ export class GameScene extends Phaser.Scene {
       .setDepth(20)
       .setShadow(0, 2, "#06190f", 2, false, true);
 
+    this.createTriggerFeed();
+    this.menuDockBg = this.add
+      .rectangle(10, this.scale.height - 96, this.scale.width - 20, 88, 0x06190f, 0.72)
+      .setOrigin(0, 0)
+      .setDepth(19)
+      .setStrokeStyle(2, 0xffef78, 0.45)
+      .setVisible(false);
+
     this.skillButton = createTextButton(this, "Skills", () => this.openSkillTree(), 118, 44, 20);
     this.questButton = createTextButton(this, "Quests", () => this.openQuestLog(), 118, 44, 20);
     this.seedButton = createTextButton(this, "Seeds", () => this.openSeedShop(), 118, 44, 20);
@@ -2073,6 +2178,137 @@ export class GameScene extends Phaser.Scene {
     this.autoButton = createTextButton(this, "Auto", () => this.openAutomationPanel(), 118, 44, 20);
     this.journalButton = createTextButton(this, "Journal", () => this.openJournal(), 118, 44, 20);
     this.optionsButton = createTextButton(this, "Options", () => this.openOptions(), 118, 44, 20);
+  }
+
+  private createHudChip(
+    id: HudChipId,
+    titleText: string,
+    textureKey: string | undefined,
+    fallbackIcon: string,
+    width: number,
+  ): HudChipView {
+    const container = this.add.container(0, 0);
+    const glow = this.add
+      .rectangle(0, 0, width + 6, HUD_CHIP_HEIGHT + 6, 0xffef78, 0.12)
+      .setOrigin(0, 0)
+      .setStrokeStyle(2, 0xffef78, 0.7)
+      .setVisible(false);
+    const bg = this.add
+      .rectangle(0, 0, width, HUD_CHIP_HEIGHT, 0x0d331b, 0.92)
+      .setOrigin(0, 0)
+      .setStrokeStyle(2, 0xffef78, 0.76);
+    const iconBg = this.add.ellipse(24, HUD_CHIP_HEIGHT / 2, 30, 30, 0xf4ffdc, 0.96).setStrokeStyle(2, 0x75d894, 0.9);
+    const iconImage = textureKey && this.textures.exists(textureKey) ? this.add.image(24, HUD_CHIP_HEIGHT / 2, textureKey).setDisplaySize(22, 22) : undefined;
+    const iconText = iconImage
+      ? undefined
+      : this.add
+          .text(24, HUD_CHIP_HEIGHT / 2, fallbackIcon, {
+            fontFamily: "Trebuchet MS, Arial",
+            fontSize: "13px",
+            color: "#173b20",
+            stroke: "#ffffff",
+            strokeThickness: 2,
+          })
+          .setOrigin(0.5);
+    const title = this.add.text(44, 7, titleText, {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "11px",
+      color: "#fff3a8",
+      stroke: "#06190f",
+      strokeThickness: 2,
+    });
+    const value = this.add.text(44, 23, "", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "16px",
+      color: "#f7ffe8",
+      stroke: "#06190f",
+      strokeThickness: 3,
+    });
+
+    container.add([glow, bg, iconBg, ...(iconImage ? [iconImage] : []), ...(iconText ? [iconText] : []), title, value]);
+    return { id, container, bg, glow, iconBg, iconImage, iconText, title, value, width };
+  }
+
+  private createTriggerFeed(): void {
+    this.triggerFeedRoot = this.add.container(0, 0).setDepth(28).setVisible(false);
+    this.triggerFeedBg = this.add
+      .rectangle(0, 0, TRIGGER_FEED_WIDTH, 96, 0x082211, 0.9)
+      .setOrigin(0, 0)
+      .setStrokeStyle(2, 0xb7eba5, 0.82)
+      .setInteractive({ useHandCursor: true });
+    this.triggerFeedBg.on("pointerdown", () => {
+      this.triggerFeedCollapsed = !this.triggerFeedCollapsed;
+      this.renderTriggerFeed(true);
+      this.layoutTriggerFeed();
+    });
+    this.triggerFeedTitle = this.add.text(14, 12, "Trigger Feed", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "15px",
+      color: "#fff3a8",
+      stroke: "#06190f",
+      strokeThickness: 3,
+    });
+    this.triggerFeedToggle = this.add
+      .text(TRIGGER_FEED_WIDTH - 24, 12, "^", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "16px",
+        color: "#dfffc8",
+        stroke: "#06190f",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 0);
+
+    this.triggerFeedRoot.add([this.triggerFeedBg, this.triggerFeedTitle, this.triggerFeedToggle]);
+    for (let index = 0; index < TRIGGER_FEED_MAX_EVENTS; index += 1) {
+      const row = this.createTriggerFeedRow(index);
+      this.triggerFeedRows.push(row);
+      this.triggerFeedRoot.add(row.container);
+    }
+  }
+
+  private createTriggerFeedRow(index: number): TriggerFeedRowView {
+    const container = this.add.container(10, 42 + index * TRIGGER_FEED_ROW_HEIGHT).setVisible(false);
+    const bg = this.add
+      .rectangle(0, 0, TRIGGER_FEED_WIDTH - 20, TRIGGER_FEED_ROW_HEIGHT - 6, 0x12341c, 0.9)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, 0x75d894, 0.62);
+    const icon = this.add
+      .text(14, 15, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "15px",
+        color: "#bff4ff",
+        stroke: "#06190f",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 0);
+    const label = this.add.text(32, 8, "", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "12px",
+      color: "#f7ffe8",
+      stroke: "#06190f",
+      strokeThickness: 2,
+      wordWrap: { width: TRIGGER_FEED_WIDTH - 100 },
+    });
+    const detail = this.add.text(32, 26, "", {
+      fontFamily: "Trebuchet MS, Arial",
+      fontSize: "11px",
+      color: "#dfffc8",
+      stroke: "#06190f",
+      strokeThickness: 2,
+      wordWrap: { width: TRIGGER_FEED_WIDTH - 100 },
+    });
+    const age = this.add
+      .text(TRIGGER_FEED_WIDTH - 34, 27, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "10px",
+        color: "#fff3a8",
+        stroke: "#06190f",
+        strokeThickness: 2,
+      })
+      .setOrigin(1, 0);
+
+    container.add([bg, icon, label, detail, age]);
+    return { container, bg, icon, label, detail, age };
   }
 
   private createBoardLayers(): void {
@@ -2318,17 +2554,17 @@ export class GameScene extends Phaser.Scene {
     this.titleText.setWordWrapWidth(headerWidth);
     this.buildLabelText.setFontSize(mobilePortrait ? 10 : compact ? 12 : 13);
     this.buildLabelText.setWordWrapWidth(headerWidth);
-    this.resourceText.setFontSize(mobilePortrait ? 13 : compact ? 15 : 18);
-    this.resourceText.setWordWrapWidth(headerWidth);
+    this.resourceText.setVisible(false);
     this.comboBadgeText.setFontSize(mobilePortrait ? 12 : compact ? 14 : 16);
     this.milestoneText.setFontSize(mobilePortrait ? 12 : compact ? 13 : 16);
     this.milestoneText.setWordWrapWidth(mobilePortrait ? Math.max(240, this.scale.width - 36) : headerWidth);
 
     this.titleText.setPosition(mobilePortrait ? 18 : 24, mobilePortrait ? 16 : 18);
     this.buildLabelText.setPosition(mobilePortrait ? 20 : 26, this.titleText.y + this.titleText.height);
-    this.resourceText.setPosition(mobilePortrait ? 20 : 26, this.buildLabelText.y + this.buildLabelText.height + (mobilePortrait ? 6 : 8));
+    this.layoutHudChips();
     this.milestoneText.setPosition(mobilePortrait ? 20 : 26, this.layoutComboBadge());
     this.layoutMenuButtons();
+    this.layoutTriggerFeed();
     this.layoutSeasonVisuals();
     this.layoutWeatherVisuals();
   }
@@ -2338,25 +2574,62 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getMobileMenuBottom(): number {
-    if (!this.isMobilePortrait()) {
-      return 0;
+    return 0;
+  }
+
+  private layoutHudChips(): void {
+    const mobilePortrait = this.isMobilePortrait();
+    const compact = this.scale.width < 760;
+    const chipHeight = mobilePortrait || compact ? HUD_CHIP_COMPACT_HEIGHT : HUD_CHIP_HEIGHT;
+    const gap = mobilePortrait ? 6 : HUD_CHIP_GAP;
+    const startX = mobilePortrait ? 14 : 26;
+    const startY = this.buildLabelText.y + this.buildLabelText.height + (mobilePortrait ? 8 : 10);
+    const rightLimit = mobilePortrait ? this.scale.width - 14 : Math.max(startX + 260, this.scale.width - (compact ? 18 : 170));
+    const mobileWidth = Math.max(86, Math.floor((rightLimit - startX - gap * 2) / 3));
+    const widths: Record<HudChipId, number> = mobilePortrait
+      ? { touches: mobileWidth, seeds: mobileWidth, gold: mobileWidth, auto: mobileWidth, quest: mobileWidth }
+      : compact
+        ? { touches: 150, seeds: 88, gold: 88, auto: 122, quest: 96 }
+        : { touches: 178, seeds: 98, gold: 98, auto: 136, quest: 112 };
+
+    let x = startX;
+    let y = startY;
+    let rowBottom = y + chipHeight;
+    let rowRight = x;
+    for (const chip of this.hudChips) {
+      const width = widths[chip.id];
+      if (x > startX && x + width > rightLimit) {
+        x = startX;
+        y = rowBottom + gap;
+        rowBottom = y + chipHeight;
+      }
+
+      this.resizeHudChip(chip, width, chipHeight, compact || mobilePortrait);
+      chip.container.setPosition(x, y);
+      x += width + gap;
+      rowRight = Math.max(rowRight, x - gap);
+      rowBottom = Math.max(rowBottom, y + chipHeight);
     }
 
-    const visibleButtonCount =
-      4 +
-      (getAutomationUnitCount(this.state) > 0 ? 1 : 0) +
-      (this.state.seedShopPurchases.field_journal === true ? 1 : 0) +
-      1;
+    this.hudChipBottomY = rowBottom;
+    this.hudChipRightX = rowRight;
+  }
 
-    return 18 + Math.max(0, visibleButtonCount - 1) * 39 + 44 * 0.74;
+  private resizeHudChip(chip: HudChipView, width: number, height: number, compact: boolean): void {
+    chip.width = width;
+    chip.glow.setSize(width + 6, height + 6);
+    chip.glow.setPosition(-3, -3);
+    chip.bg.setSize(width, height);
+    chip.iconBg.setPosition(22, height / 2).setDisplaySize(compact ? 26 : 30, compact ? 26 : 30);
+    chip.iconImage?.setPosition(22, height / 2).setDisplaySize(compact ? 19 : 22, compact ? 19 : 22);
+    chip.iconText?.setPosition(22, height / 2).setFontSize(compact ? 11 : 13);
+    chip.title.setPosition(40, compact ? 5 : 7).setFontSize(compact ? 10 : 11).setWordWrapWidth(Math.max(40, width - 46));
+    chip.value.setPosition(40, compact ? 20 : 23).setFontSize(compact || width < 100 ? 12 : 16).setWordWrapWidth(Math.max(40, width - 46));
   }
 
   private layoutMenuButtons(): void {
     const mobilePortrait = this.isMobilePortrait();
     const buttonScale = mobilePortrait ? 0.74 : 1;
-    const buttonX = mobilePortrait ? this.scale.width - 102 : this.scale.width - 142;
-    let buttonY = mobilePortrait ? 18 : 24;
-    const buttonStep = mobilePortrait ? 39 : 52;
     const visibleButtons = [
       this.skillButton,
       this.questButton,
@@ -2370,6 +2643,40 @@ export class GameScene extends Phaser.Scene {
     this.autoButton.setVisible(getAutomationUnitCount(this.state) > 0);
     this.journalButton.setVisible(this.state.seedShopPurchases.field_journal === true);
 
+    if (mobilePortrait) {
+      const columns = Math.min(4, visibleButtons.length);
+      const rows = Math.ceil(visibleButtons.length / columns);
+      const scaledButtonWidth = 118 * buttonScale;
+      const scaledButtonHeight = 44 * buttonScale;
+      const gap = 8;
+      const dockHeight = rows * scaledButtonHeight + Math.max(0, rows - 1) * gap + MOBILE_COMMAND_DOCK_PADDING * 2;
+      const dockTop = Math.max(12, this.scale.height - dockHeight - 8);
+      this.mobileCommandDockTop = dockTop;
+      this.mobileCommandDockHeight = dockHeight;
+      this.menuDockBg
+        .setPosition(10, dockTop)
+        .setSize(this.scale.width - 20, dockHeight)
+        .setVisible(!this.hasBlockingOverlayOpen());
+
+      visibleButtons.forEach((button, index) => {
+        const row = Math.floor(index / columns);
+        const column = index % columns;
+        const rowCount = row === rows - 1 ? visibleButtons.length - row * columns : columns;
+        const rowWidth = rowCount * scaledButtonWidth + Math.max(0, rowCount - 1) * gap;
+        const x = (this.scale.width - rowWidth) / 2 + column * (scaledButtonWidth + gap);
+        const y = dockTop + MOBILE_COMMAND_DOCK_PADDING + row * (scaledButtonHeight + gap);
+        button.setScale(buttonScale);
+        button.setPosition(x, y);
+      });
+      return;
+    }
+
+    this.mobileCommandDockTop = Number.POSITIVE_INFINITY;
+    this.mobileCommandDockHeight = 0;
+    this.menuDockBg.setVisible(false);
+    const buttonX = this.scale.width - 142;
+    let buttonY = 24;
+    const buttonStep = 52;
     for (const button of visibleButtons) {
       button.setScale(buttonScale);
       button.setPosition(buttonX, buttonY);
@@ -2382,9 +2689,9 @@ export class GameScene extends Phaser.Scene {
     const mobilePortrait = this.isMobilePortrait();
     const badgeWidth = mobilePortrait ? 136 : compact ? 166 : 194;
     const badgeHeight = mobilePortrait ? 28 : compact ? 36 : 40;
-    const resourceBottom = this.resourceText.y + this.resourceText.height;
+    const resourceBottom = this.hudChipBottomY || this.buildLabelText.y + this.buildLabelText.height + 12;
     const rightUiLeft = this.scale.width - 156;
-    const fitsRight = !compact && this.resourceText.x + this.resourceText.width + badgeWidth + 22 < rightUiLeft;
+    const fitsRight = !compact && this.hudChipRightX + badgeWidth + 22 < rightUiLeft;
 
     this.comboBadgeBg.setSize(badgeWidth, badgeHeight);
     this.comboBadgeMeter.setPosition(12, mobilePortrait ? 7 : compact ? 10 : 12);
@@ -2394,7 +2701,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (fitsRight) {
-      this.comboBadge.setPosition(this.resourceText.x + this.resourceText.width + 12, this.resourceText.y + this.resourceText.height / 2);
+      this.comboBadge.setPosition(this.hudChipRightX + 12, resourceBottom - (mobilePortrait ? HUD_CHIP_COMPACT_HEIGHT : HUD_CHIP_HEIGHT) / 2);
       return resourceBottom + 12;
     }
 
@@ -2430,6 +2737,157 @@ export class GameScene extends Phaser.Scene {
     if (this.state?.seedShopPurchases.weather_jar && this.state.activeWeatherId && this.activeWeatherVisualId === this.state.activeWeatherId) {
       this.createWeatherParticleEffect(this.state.activeWeatherId);
     }
+  }
+
+  private addTriggerFeedEvent(label: string, detail: string, icon: string, color: number, now = Date.now()): void {
+    const latest = this.triggerFeedEvents[0];
+    if (latest && latest.label === label && latest.detail === detail && now - latest.createdAt < 1800) {
+      latest.createdAt = now;
+      this.renderTriggerFeed(true);
+      return;
+    }
+
+    this.triggerFeedEvents.unshift({
+      id: this.nextTriggerFeedId,
+      label,
+      detail,
+      icon,
+      color,
+      createdAt: now,
+    });
+    this.nextTriggerFeedId += 1;
+    this.triggerFeedEvents = this.triggerFeedEvents.slice(0, TRIGGER_FEED_MAX_EVENTS);
+    this.renderTriggerFeed(true);
+  }
+
+  private addHazardTriggerFeedEvent(text: string): void {
+    if (text === "cactus") {
+      this.addTriggerFeedEvent("Cactus appeared", "watch your fingers", "HZ", 0xffb347);
+      return;
+    }
+
+    if (text === "weeds") {
+      this.addTriggerFeedEvent("Weeds appeared", "clear the patch", "HZ", 0xb7eba5);
+      return;
+    }
+
+    if (text === "spread weeds") {
+      this.addTriggerFeedEvent("Weeds spread", "nearby patch blocked", "HZ", 0xb7eba5);
+    }
+  }
+
+  private layoutTriggerFeed(): void {
+    if (!this.triggerFeedRoot) {
+      return;
+    }
+
+    const mobilePortrait = this.isMobilePortrait();
+    const visible =
+      !this.hasBlockingOverlayOpen() &&
+      this.triggerFeedEvents.length > 0 &&
+      ((!mobilePortrait && this.scale.width >= 720 && this.scale.height >= 540) ||
+        (mobilePortrait && this.scale.width >= 340 && this.scale.height >= 680));
+    this.triggerFeedRoot.setVisible(visible);
+    if (!visible) {
+      return;
+    }
+
+    const feedWidth = this.getTriggerFeedWidth();
+    const rowHeight = this.getTriggerFeedRowHeight();
+    const rowLimit = this.getTriggerFeedVisibleLimit();
+    const rowCount = this.triggerFeedCollapsed ? 0 : Math.min(this.triggerFeedEvents.length, rowLimit);
+    const height = this.triggerFeedCollapsed ? 42 : 44 + rowCount * rowHeight;
+    const x = mobilePortrait ? 8 : 18;
+    const desktopY = Math.max(166, this.boardTopY + 14, this.milestoneText.y + this.milestoneText.height + 12);
+    const mobileY = Math.min(
+      Math.max(this.hudChipBottomY + 8, this.milestoneText.y + this.milestoneText.height + 8),
+      Math.max(this.hudChipBottomY + 8, this.mobileCommandDockTop - height - 18),
+    );
+    const y = mobilePortrait ? mobileY : desktopY;
+    this.triggerFeedRoot.setPosition(x, y);
+    this.triggerFeedBg.setSize(feedWidth, Math.max(42, height));
+    this.triggerFeedTitle.setPosition(mobilePortrait ? 12 : 14, mobilePortrait ? 10 : 12).setFontSize(mobilePortrait ? 13 : 15);
+    this.triggerFeedToggle.setPosition(feedWidth - 24, mobilePortrait ? 10 : 12);
+    this.triggerFeedRows.forEach((row, index) => {
+      if (index >= rowLimit) {
+        row.container.setVisible(false);
+      }
+      row.container.setPosition(mobilePortrait ? 8 : 10, 38 + index * rowHeight);
+      row.bg.setSize(feedWidth - (mobilePortrait ? 16 : 20), rowHeight - 6);
+      row.icon.setPosition(mobilePortrait ? 13 : 14, mobilePortrait ? 14 : 15).setFontSize(mobilePortrait ? 12 : 15);
+      row.label
+        .setPosition(mobilePortrait ? 30 : 32, mobilePortrait ? 7 : 8)
+        .setFontSize(mobilePortrait ? 11 : 12)
+        .setWordWrapWidth(Math.max(82, feedWidth - 96));
+      row.detail
+        .setPosition(mobilePortrait ? 30 : 32, mobilePortrait ? 24 : 26)
+        .setFontSize(mobilePortrait ? 10 : 11)
+        .setWordWrapWidth(Math.max(82, feedWidth - 96));
+      row.age.setPosition(feedWidth - (mobilePortrait ? 28 : 34), mobilePortrait ? 24 : 27);
+    });
+  }
+
+  private getTriggerFeedWidth(): number {
+    return this.isMobilePortrait() ? Math.min(222, this.scale.width - 18) : TRIGGER_FEED_WIDTH;
+  }
+
+  private getTriggerFeedRowHeight(): number {
+    return this.isMobilePortrait() ? 48 : TRIGGER_FEED_ROW_HEIGHT;
+  }
+
+  private getTriggerFeedVisibleLimit(): number {
+    return this.isMobilePortrait() ? 3 : TRIGGER_FEED_MAX_EVENTS;
+  }
+
+  private renderTriggerFeed(force = false): void {
+    if (!this.triggerFeedRoot) {
+      return;
+    }
+
+    const now = Date.now();
+    this.triggerFeedEvents = this.triggerFeedEvents.filter((event) => now - event.createdAt <= TRIGGER_FEED_EVENT_TTL_MS);
+    const visibleEvents = this.triggerFeedCollapsed ? [] : this.triggerFeedEvents.slice(0, this.getTriggerFeedVisibleLimit());
+    const ageBucket = visibleEvents.map((event) => Math.floor((now - event.createdAt) / 1000)).join(",");
+    const renderKey = [
+      this.triggerFeedCollapsed ? "closed" : "open",
+      visibleEvents.map((event) => event.id).join(","),
+      ageBucket,
+    ].join("|");
+    if (!force && renderKey === this.triggerFeedRenderKey) {
+      return;
+    }
+
+    this.triggerFeedRenderKey = renderKey;
+    this.triggerFeedToggle.setText(this.triggerFeedCollapsed ? "v" : "^");
+    visibleEvents.forEach((event, index) => {
+      const row = this.triggerFeedRows[index];
+      const ageMs = now - event.createdAt;
+      row.container.setVisible(true);
+      row.bg.setStrokeStyle(1, event.color, 0.68);
+      row.icon.setText(event.icon).setColor(this.colorToHex(event.color));
+      this.setTextIfChanged(row.label, event.label);
+      this.setTextIfChanged(row.detail, event.detail);
+      this.setTextIfChanged(row.age, this.formatFeedAge(ageMs));
+    });
+
+    for (let index = visibleEvents.length; index < this.triggerFeedRows.length; index += 1) {
+      this.triggerFeedRows[index].container.setVisible(false);
+    }
+
+    this.layoutTriggerFeed();
+  }
+
+  private colorToHex(color: number): string {
+    return `#${color.toString(16).padStart(6, "0")}`;
+  }
+
+  private formatFeedAge(ageMs: number): string {
+    const seconds = Math.max(0, Math.floor(ageMs / 1000));
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+
+    return `${Math.floor(seconds / 60)}m`;
   }
 
   private createTileInfoPanel(): void {
@@ -4691,6 +5149,7 @@ export class GameScene extends Phaser.Scene {
       this.saveState();
       this.refreshUi();
       this.playGoldStoreItemSuccess(item.id);
+      this.addTriggerFeedEvent("Store item used", "+5 seeds", "ST", 0xfff1a8);
       return;
     }
 
@@ -4703,6 +5162,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
     this.layoutTiles();
     this.playGoldStoreItemSuccess(item.id);
+    this.addTriggerFeedEvent("Store purchase", item.name, "ST", item.kind === "animal" ? 0xffef78 : 0xdfffc8);
   }
 
   private useGoldStoreItem(itemId: string): void {
@@ -4724,6 +5184,7 @@ export class GameScene extends Phaser.Scene {
         this.saveState();
         this.refreshUi();
         this.playGoldStoreItemSuccess(itemId);
+        this.addTriggerFeedEvent("Store item used", "+5 seeds", "ST", 0xfff1a8);
         break;
     }
   }
@@ -4757,6 +5218,7 @@ export class GameScene extends Phaser.Scene {
     this.saveState();
     this.refreshUi();
     this.playGoldStoreItemSuccess("pocket_sunshine");
+    this.addTriggerFeedEvent("Pocket Sunshine", `${restingTiles.length} patches regrown`, "ST", 0xffef78);
   }
 
   private buySeedShopItem(itemId: string): void {
@@ -4796,6 +5258,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
     this.layoutTiles();
     this.playSeedShopItemSuccess(item.id);
+    this.addTriggerFeedEvent("Seed upgrade", item.name, "SE", 0xb7eba5);
   }
 
   private getSkillResourceText(): string {
@@ -4917,6 +5380,9 @@ export class GameScene extends Phaser.Scene {
     this.combo.reset();
     this.activeComboSource = "manual";
     this.lastMusicComboLevel = 0;
+    this.lastAutomationIncomeFeedAt = 0;
+    this.triggerFeedEvents = [];
+    this.triggerFeedRenderKey = "";
     this.music.setComboLevel(0);
     this.recentlyRegrownAt.clear();
     this.destroyAllPerfectTouchCues();
@@ -5284,7 +5750,10 @@ export class GameScene extends Phaser.Scene {
     const boardWidth = bounds.width * (TILE_SIZE + TILE_GAP);
     const boardHeight = bounds.height * (TILE_SIZE + TILE_GAP);
     const mobilePortrait = this.isMobilePortrait();
-    const mobileDockSafeBottom = mobilePortrait && this.getActiveWorldObjects().length > 0 ? 76 : 28;
+    const commandDockReserve = Number.isFinite(this.mobileCommandDockTop) ? this.scale.height - this.mobileCommandDockTop + 12 : 112;
+    const mobileDockSafeBottom = mobilePortrait
+      ? Math.max(this.getActiveWorldObjects().length > 0 ? 148 : 112, commandDockReserve + (this.getActiveWorldObjects().length > 0 ? 44 : 0))
+      : 28;
     this.boardTopY = mobilePortrait
       ? Math.max(176, this.getMobileMenuBottom() + 8, this.milestoneText.y + this.milestoneText.height + 12)
       : Math.max(142, this.milestoneText.y + this.milestoneText.height + 24);
@@ -5391,6 +5860,7 @@ export class GameScene extends Phaser.Scene {
       this.layoutWorldObjects();
     });
 
+    this.layoutTriggerFeed();
     this.profileScope("layout:hover", () => this.refreshHoverMarker());
     } finally {
       if (perfStart !== undefined) {
@@ -5955,7 +6425,10 @@ export class GameScene extends Phaser.Scene {
     const maxDockY = this.scale.height - 50 * dockScale;
     const neededHeight = Math.max(0, (activeObjects.length - 1) * spacing);
     const verticalStartY = Phaser.Math.Clamp(dockTop, this.boardTopY + 34, Math.max(this.boardTopY + 34, maxDockY - neededHeight));
-    const horizontalY = mobilePortrait ? this.scale.height - 22 : Phaser.Math.Clamp(this.scale.height - 54 * dockScale, this.boardTopY + 42, this.scale.height - 38);
+    const mobileDockY = Number.isFinite(this.mobileCommandDockTop) ? this.mobileCommandDockTop - 30 : this.scale.height - 112;
+    const horizontalY = mobilePortrait
+      ? Phaser.Math.Clamp(mobileDockY, this.boardTopY + 42, this.scale.height - 38)
+      : Phaser.Math.Clamp(this.scale.height - 54 * dockScale, this.boardTopY + 42, this.scale.height - 38);
     const horizontalStartX = Math.max(42 * dockScale, (this.scale.width - (activeObjects.length - 1) * spacing) / 2);
 
     activeObjects.forEach((object, index) => {
@@ -7371,7 +7844,12 @@ export class GameScene extends Phaser.Scene {
         this.layoutTiles();
       },
       popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
-      playWildSpread: (originTile, addedTiles) => this.playWildSpreadFeedback(originTile, addedTiles),
+      playWildSpread: (originTile, addedTiles) => {
+        this.playWildSpreadFeedback(originTile, addedTiles);
+        if (addedTiles.length > 0) {
+          this.addTriggerFeedEvent("Seeds spread", `+${addedTiles.length} patch${addedTiles.length === 1 ? "" : "es"}`, "SE", 0xb7eba5);
+        }
+      },
       emitSeedBurst: (tile) => this.emitSeedBurst(tile),
       emitGoldBurst: (tile, amount) => this.emitGoldBurst(tile, amount),
       playSound: (sound) => this.audio.play(sound),
@@ -7517,6 +7995,11 @@ export class GameScene extends Phaser.Scene {
     this.runWithAmbientFeedback(() =>
       this.profileScope("auto:incomeVisuals", () => this.queueAutomationTouchVisuals(result.gained, result.touchesPerMinute)),
     );
+    const now = Date.now();
+    if (now - this.lastAutomationIncomeFeedAt >= 8000) {
+      this.lastAutomationIncomeFeedAt = now;
+      this.addTriggerFeedEvent("Auto income", `+${formatGrassTouches(result.gained)} touches`, "AI", 0xbff4ff, now);
+    }
     this.queueSave();
   }
 
@@ -7921,6 +8404,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     if (changed) {
+      this.addTriggerFeedEvent("Sprinkler fired", "watered nearby patches", "SP", 0xbff4ff);
       this.queueSave();
     }
   }
@@ -7945,6 +8429,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     if (changed) {
+      this.addTriggerFeedEvent("Companions helped", "field friends took action", "FR", 0xffef78);
       this.queueSave();
     }
   }
@@ -7961,6 +8446,7 @@ export class GameScene extends Phaser.Scene {
 
     this.state.mutationEvents += 1;
     this.runWithAmbientFeedback(() => this.playMutationEvent(event));
+    this.addTriggerFeedEvent("Mutation event", event.label, "MU", 0xdfffc8);
     this.updateJournalDiscoveries();
     this.queueSave();
   }
@@ -7973,7 +8459,10 @@ export class GameScene extends Phaser.Scene {
     const changed = this.runWithAmbientFeedback(() =>
       this.hazards.update(delta, this.state, stats, Date.now(), {
         refreshTile: (tile) => this.refreshTile(tile),
-        popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
+        popAtTile: (tile, text, color) => {
+          this.popAtTile(tile, text, color);
+          this.addHazardTriggerFeedEvent(text);
+        },
         playMower: (event) => this.playMowerEvent(event),
       }),
     );
@@ -8012,6 +8501,7 @@ export class GameScene extends Phaser.Scene {
     this.mowerSprite = mower;
     this.audio.play("mower");
     this.showMessage("Robotic lawnmower is making a pass.", 1800);
+    this.addTriggerFeedEvent("Mower pass", `${routePositions.length} tile route`, "MW", 0xfff2b2);
     this.state.hazardStats.mowerPasses += 1;
     this.addJournalValue(this.state.journal.seenHazardIds, "mower");
     this.refreshUi(false);
@@ -8407,6 +8897,7 @@ export class GameScene extends Phaser.Scene {
 
     if (announce) {
       this.showMessage(`${weather.name}: ${weather.description}`, 2600);
+      this.addTriggerFeedEvent("Weather changed", weather.name, "WX", 0xbff4ff, now);
     }
 
     this.refreshWeatherVisuals();
@@ -9885,6 +10376,37 @@ export class GameScene extends Phaser.Scene {
     return "Next automation helper unlocks as the lawn grows.";
   }
 
+  private refreshHudChips(automationTouchesPerMinute: number, automationUnitCount: number, readyQuestCount: number): void {
+    this.setHudChipValue("touches", "Touches", formatHudChipNumber(this.state.grassTouches), false);
+    this.setHudChipValue("seeds", "Seeds", formatHudChipNumber(this.state.seeds), false);
+    this.setHudChipValue("gold", "Gold", formatHudChipNumber(this.state.gold), false);
+    this.setHudChipValue(
+      "auto",
+      "Auto",
+      automationTouchesPerMinute > 0
+        ? formatHudChipRate(automationTouchesPerMinute)
+        : automationUnitCount > 0
+          ? `${automationUnitCount} systems`
+          : "idle",
+      automationTouchesPerMinute > 0,
+    );
+    this.setHudChipValue("quest", "Quest", readyQuestCount > 0 ? `${readyQuestCount} ready` : "active", readyQuestCount > 0);
+  }
+
+  private setHudChipValue(id: HudChipId, title: string, value: string, attention: boolean): void {
+    const chip = this.hudChips.find((candidate) => candidate.id === id);
+    if (!chip) {
+      return;
+    }
+
+    this.setTextIfChanged(chip.title, title);
+    this.setTextIfChanged(chip.value, value);
+    chip.value.setFontSize(value.length > 11 || chip.width < 100 ? 12 : chip.width < 130 ? 14 : 16);
+    chip.glow.setVisible(attention);
+    chip.bg.setStrokeStyle(2, attention ? 0xffef78 : 0xffef78, attention ? 0.98 : 0.76);
+    chip.iconBg.setStrokeStyle(2, attention ? 0xffef78 : 0x75d894, attention ? 0.98 : 0.9);
+  }
+
   private refreshUi(forcePanels = true): void {
     const nextMilestone = this.profileScope("ui:nextMilestone", () =>
       MILESTONES.find((milestone) => !this.state.reachedMilestones.includes(milestone.id)),
@@ -9896,7 +10418,6 @@ export class GameScene extends Phaser.Scene {
     const readyQuestCount = currentReadyQuestKeys.size;
     const nextTier = getNextGrassTier(this.state);
     const nextAutomationBreakthroughLine = this.profileScope("ui:autoGoal", () => this.getNextAutomationBreakthroughLine());
-    const compact = this.scale.width < 620;
     const mobilePortrait = this.isMobilePortrait();
     const stats = this.profileScope("ui:stats", () => this.getCachedRuntimeStats());
     const automationTouchesPerMinute = this.profileScope("calc:autoTotal", () => getTotalAutomationTouchesPerMinute(this.state, stats));
@@ -9917,46 +10438,8 @@ export class GameScene extends Phaser.Scene {
       this.layoutSeasonVisuals();
       this.refreshWeatherVisuals();
     });
-    this.profileScope("ui:resourceText", () => {
-      const grassTouches = formatHudGrassTouches(this.state.grassTouches);
-      const grassTouchLabel = mobilePortrait
-        ? `Grass ${grassTouches}`
-        : compact || grassTouches.includes("\n")
-          ? `Grass Touches:\n${grassTouches}`
-          : `Grass Touches: ${grassTouches}`;
-      const resourceSeparator = compact || grassTouches.includes("\n") ? "\n" : " | ";
-      const hazardStatus = getHazardStatusText(this.state);
-      if (mobilePortrait) {
-        this.setTextIfChanged(
-          this.resourceText,
-          [
-            `${grassTouchLabel} | Seeds ${Math.floor(this.state.seeds)} | Gold ${Math.floor(this.state.gold)}`,
-            automationTouchesPerMinute > 0
-              ? `Auto ${formatGrassTouchesPerMinute(automationTouchesPerMinute)} | Patches ${this.fieldTileCount}`
-              : `Patches ${this.fieldTileCount}`,
-            hazardStatus ? `Hazards: ${hazardStatus}` : "",
-          ]
-            .filter(Boolean)
-            .join("\n"),
-        );
-        return;
-      }
-
-      this.setTextIfChanged(
-        this.resourceText,
-        [
-          grassTouchLabel,
-          `Seeds: ${Math.floor(this.state.seeds)}`,
-          `Gold: ${Math.floor(this.state.gold)}`,
-          automationTouchesPerMinute > 0 ? `Auto: ${formatGrassTouchesPerMinute(automationTouchesPerMinute)}` : "",
-          automationUnitCount > 0 ? `Systems: ${automationUnitCount}` : "",
-          hazardStatus ? `Status: ${hazardStatus}` : "",
-          `Patches: ${this.fieldTileCount}`,
-        ]
-          .filter(Boolean)
-          .join(resourceSeparator),
-      );
-    });
+    this.profileScope("ui:hudChips", () => this.refreshHudChips(automationTouchesPerMinute, automationUnitCount, readyQuestCount));
+    this.profileScope("ui:triggerFeed", () => this.renderTriggerFeed());
     this.profileScope("ui:combo", () => this.refreshComboBadge());
     setTextButtonText(this.skillButton, mobilePortrait ? "Skill" : "Skills");
     setTextButtonText(this.questButton, readyQuestCount > 0 ? (mobilePortrait ? `Quest ${readyQuestCount}` : `Quests (${readyQuestCount})`) : "Quests");
@@ -10024,6 +10507,7 @@ export class GameScene extends Phaser.Scene {
       );
     });
     this.milestoneText.setPosition(26, this.layoutComboBadge());
+    this.layoutTriggerFeed();
 
     if (this.skillTreeOpen && refreshPanels) {
       this.profileScope("ui:skillTree", () => this.refreshSkillTree());
@@ -10524,6 +11008,7 @@ export class GameScene extends Phaser.Scene {
     this.readyQuestKeys = this.getReadyQuestKeys();
     this.playQuestClaimFeedback(questId);
     this.refreshUi();
+    this.addTriggerFeedEvent("Quest claimed", quest.name, "Q", 0xffef78);
     this.questStatusText.setText(claimMessage);
   }
 
@@ -10552,6 +11037,12 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
     this.bumpResourceHud();
     this.playButtonCelebration(this.questClaimReadyButton, 0xffef78, "seed-fleck");
+    this.addTriggerFeedEvent(
+      "Quest rewards claimed",
+      claimedQuests.length === 1 ? claimedQuests[0].name : `${claimedQuests.length} rewards`,
+      "Q",
+      0xffef78,
+    );
 
     const firstQuest = claimedQuests[0];
     const extraCount = claimedQuests.length - 1;
@@ -10593,6 +11084,12 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
     this.bumpResourceHud();
     this.playButtonCelebration(this.questButton, 0xffef78, "seed-fleck");
+    this.addTriggerFeedEvent(
+      "Clipboard claimed",
+      `${readyQuests.length} quest reward${readyQuests.length === 1 ? "" : "s"}`,
+      "Q",
+      0xffef78,
+    );
 
     if (this.questLogOpen) {
       this.questStatusText.setText(
@@ -11172,6 +11669,7 @@ export class GameScene extends Phaser.Scene {
     const quest = QUESTS.find((candidate) => candidate.id === newlyReadyId);
     this.audio.play("unlock");
     this.playButtonCelebration(this.questButton, 0xffef78, "crit-fleck");
+    this.addTriggerFeedEvent("Quest ready", quest?.name ?? "claim reward", "Q", 0xffef78);
     this.showMessage(quest ? `Quest complete: ${quest.name}. Claim it in the Quest Log.` : "Quest complete. Claim it in the Quest Log.", 3200);
   }
 
