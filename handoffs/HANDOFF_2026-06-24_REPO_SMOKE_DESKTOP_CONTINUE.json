@@ -1,0 +1,49 @@
+{
+  "updatedAt": "2026-06-24",
+  "topic": "Repo smoke check before desktop continuation",
+  "currentUserGoal": "Push/commit current project state so work can continue from the desktop Codex session.",
+  "changesMade": [
+    "Reviewed the latest handoff and recent git history.",
+    "Confirmed the HUD and Trigger Feed UI pass is already committed as c6ce5f0 and present on origin/master.",
+    "Ran a clean production build.",
+    "Smoke-tested normal non-debug gameplay in browser at mobile and desktop viewport sizes.",
+    "Confirmed the working tree was clean before creating this handoff."
+  ],
+  "filesTouched": [
+    "handoffs/HANDOFF_2026-06-24_REPO_SMOKE_DESKTOP_CONTINUE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "check": "Normal mobile browser smoke test at 390x844",
+      "result": "passed",
+      "details": "Title screen and gameplay rendered. Stat chips, Trigger Feed, field, and bottom command dock fit without overlap. No console warnings/errors observed."
+    },
+    {
+      "check": "Normal desktop browser smoke test at 918x854",
+      "result": "passed",
+      "details": "Gameplay HUD, Trigger Feed, field, and right-side command menu rendered cleanly. No console warnings/errors observed."
+    }
+  ],
+  "currentGitStatus": [
+    "Before this handoff: clean, master even with origin/master.",
+    "After committing this handoff: expected clean, one commit ahead pushed to origin/master."
+  ],
+  "knownIssues": [
+    "The previous HUD handoff embedded a stale dirty git-status snapshot from before c6ce5f0 was committed; actual repository state before this handoff was clean.",
+    "No new gameplay or performance issues were found during the normal-route smoke test."
+  ],
+  "nextRecommendedSteps": [
+    "On the desktop session, run git pull or the Mac-to-desktop resume workflow, then read this handoff via handoffs/LATEST.json.",
+    "Continue with a real gameplay pass on the new HUD and Trigger Feed during automation, shop, quest, and event activity.",
+    "If UI direction still feels right, consider splitting HUD/feed helpers out of GameScene.ts later; no immediate refactor is required."
+  ],
+  "doNotRevert": [
+    "Do not revert c6ce5f0 Polish HUD and trigger feed UI.",
+    "Preserve the mobile viewport culling behavior from prior performance work."
+  ]
+}

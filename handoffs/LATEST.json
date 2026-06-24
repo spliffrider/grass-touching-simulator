@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-24",
-  "latestHandoff": "HANDOFF_2026-06-24_HUD_TRIGGER_FEED_UI_PASS.json",
+  "latestHandoff": "HANDOFF_2026-06-24_REPO_SMOKE_DESKTOP_CONTINUE.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",
