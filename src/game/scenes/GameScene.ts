@@ -179,9 +179,19 @@ const HUD_CHIP_COMPACT_HEIGHT = 42;
 const HUD_CHIP_GAP = 8;
 const TRIGGER_FEED_MAX_EVENTS = 6;
 const TRIGGER_FEED_EVENT_TTL_MS = 90000;
+const TRIGGER_FEED_REPEAT_WINDOW_MS = 12000;
 const TRIGGER_FEED_WIDTH = 246;
 const TRIGGER_FEED_ROW_HEIGHT = 54;
 const MOBILE_COMMAND_DOCK_PADDING = 10;
+const UI_ACTION_ICONS = {
+  skills: "SK",
+  quests: "Q",
+  seeds: "SE",
+  store: "ST",
+  automation: "AI",
+  journal: "J",
+  options: "OP",
+} as const;
 
 function formatAutomationSupportUnits(support: number): string {
   return support >= 10 ? support.toFixed(0) : support.toFixed(1);
@@ -451,15 +461,24 @@ interface TriggerFeedItem {
   icon: string;
   color: number;
   createdAt: number;
+  count: number;
 }
 
 interface TriggerFeedRowView {
   container: Phaser.GameObjects.Container;
   bg: Phaser.GameObjects.Rectangle;
+  accent: Phaser.GameObjects.Rectangle;
   icon: Phaser.GameObjects.Text;
   label: Phaser.GameObjects.Text;
   detail: Phaser.GameObjects.Text;
+  count: Phaser.GameObjects.Text;
   age: Phaser.GameObjects.Text;
+}
+
+interface GoalNudgeData {
+  icon: string;
+  text: string;
+  color: number;
 }
 
 interface AutomationPurchasePlan {
@@ -665,6 +684,10 @@ export class GameScene extends Phaser.Scene {
   private comboBadgeBg!: Phaser.GameObjects.Rectangle;
   private comboBadgeText!: Phaser.GameObjects.Text;
   private comboBadgeMeter!: Phaser.GameObjects.Rectangle;
+  private goalNudgeRoot!: Phaser.GameObjects.Container;
+  private goalNudgeBg!: Phaser.GameObjects.Rectangle;
+  private goalNudgeIcon!: Phaser.GameObjects.Text;
+  private goalNudgeText!: Phaser.GameObjects.Text;
   private milestoneText!: Phaser.GameObjects.Text;
   private triggerFeedRoot!: Phaser.GameObjects.Container;
   private triggerFeedBg!: Phaser.GameObjects.Rectangle;
@@ -2151,6 +2174,31 @@ export class GameScene extends Phaser.Scene {
     this.comboBadgeMeter = this.add.rectangle(12, 12, 0, 4, 0xf4df6a, 0.92).setOrigin(0, 0.5);
     this.comboBadge.add([this.comboBadgeBg, this.comboBadgeText, this.comboBadgeMeter]);
 
+    this.goalNudgeRoot = this.add.container(0, 0).setDepth(23).setVisible(false);
+    this.goalNudgeBg = this.add
+      .rectangle(0, 0, 360, 34, 0x0a2a17, 0.88)
+      .setOrigin(0, 0)
+      .setStrokeStyle(2, 0xb7eba5, 0.7);
+    this.goalNudgeIcon = this.add
+      .text(16, 17, "GO", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "11px",
+        color: "#fff3a8",
+        stroke: "#06190f",
+        strokeThickness: 2,
+      })
+      .setOrigin(0.5);
+    this.goalNudgeText = this.add
+      .text(34, 9, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "13px",
+        color: "#f7ffe8",
+        stroke: "#06190f",
+        strokeThickness: 3,
+      })
+      .setOrigin(0, 0);
+    this.goalNudgeRoot.add([this.goalNudgeBg, this.goalNudgeIcon, this.goalNudgeText]);
+
     this.milestoneText = this.add
       .text(26, 108, "", {
         fontFamily: "Trebuchet MS, Arial",
@@ -2213,7 +2261,7 @@ export class GameScene extends Phaser.Scene {
     const title = this.add.text(44, 7, titleText, {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "11px",
-      color: "#fff3a8",
+      color: "#b7eba5",
       stroke: "#06190f",
       strokeThickness: 2,
     });
@@ -2272,6 +2320,7 @@ export class GameScene extends Phaser.Scene {
       .rectangle(0, 0, TRIGGER_FEED_WIDTH - 20, TRIGGER_FEED_ROW_HEIGHT - 6, 0x12341c, 0.9)
       .setOrigin(0, 0)
       .setStrokeStyle(1, 0x75d894, 0.62);
+    const accent = this.add.rectangle(0, 0, 4, TRIGGER_FEED_ROW_HEIGHT - 6, 0x75d894, 0.88).setOrigin(0, 0);
     const icon = this.add
       .text(14, 15, "", {
         fontFamily: "Trebuchet MS, Arial",
@@ -2297,6 +2346,15 @@ export class GameScene extends Phaser.Scene {
       strokeThickness: 2,
       wordWrap: { width: TRIGGER_FEED_WIDTH - 100 },
     });
+    const count = this.add
+      .text(TRIGGER_FEED_WIDTH - 34, 8, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "10px",
+        color: "#fff3a8",
+        stroke: "#06190f",
+        strokeThickness: 2,
+      })
+      .setOrigin(1, 0);
     const age = this.add
       .text(TRIGGER_FEED_WIDTH - 34, 27, "", {
         fontFamily: "Trebuchet MS, Arial",
@@ -2307,8 +2365,8 @@ export class GameScene extends Phaser.Scene {
       })
       .setOrigin(1, 0);
 
-    container.add([bg, icon, label, detail, age]);
-    return { container, bg, icon, label, detail, age };
+    container.add([bg, accent, icon, label, detail, count, age]);
+    return { container, bg, accent, icon, label, detail, count, age };
   }
 
   private createBoardLayers(): void {
@@ -2414,7 +2472,28 @@ export class GameScene extends Phaser.Scene {
         `\n${stats.hotspots}`,
       ].join("  "),
     );
-    this.perfText.setPosition(26, Math.max(122, (this.milestoneText?.y ?? 108) + (this.milestoneText?.height ?? 0) + 8));
+    this.layoutPerfPanel();
+  }
+
+  private layoutPerfPanel(): void {
+    if (!this.perfText) {
+      return;
+    }
+
+    const mobilePortrait = this.isMobilePortrait();
+    const feedBottom = this.triggerFeedRoot?.visible ? this.triggerFeedRoot.y + this.triggerFeedBg.height + 8 : 0;
+    const nudgeBottom = this.goalNudgeRoot?.visible ? this.goalNudgeRoot.y + this.goalNudgeBg.height + 8 : 0;
+    const milestoneBottom = (this.milestoneText?.y ?? 108) + (this.milestoneText?.height ?? 0) + 8;
+    const hudBottom = (this.hudChipBottomY || 108) + 8;
+    let y = Math.max(122, hudBottom, nudgeBottom, milestoneBottom, feedBottom);
+
+    if (mobilePortrait) {
+      const dockTop = Number.isFinite(this.mobileCommandDockTop) ? this.mobileCommandDockTop : this.scale.height - 112;
+      const maxY = Math.max(hudBottom, dockTop - this.perfText.height - 10);
+      y = Math.min(y, maxY);
+    }
+
+    this.perfText.setPosition(mobilePortrait ? 12 : 26, y);
   }
 
   private getActiveTweenCount(): number {
@@ -2556,13 +2635,15 @@ export class GameScene extends Phaser.Scene {
     this.buildLabelText.setWordWrapWidth(headerWidth);
     this.resourceText.setVisible(false);
     this.comboBadgeText.setFontSize(mobilePortrait ? 12 : compact ? 14 : 16);
+    this.goalNudgeText.setFontSize(mobilePortrait ? 11 : compact ? 12 : 13);
+    this.goalNudgeIcon.setFontSize(mobilePortrait ? 10 : 11);
     this.milestoneText.setFontSize(mobilePortrait ? 12 : compact ? 13 : 16);
     this.milestoneText.setWordWrapWidth(mobilePortrait ? Math.max(240, this.scale.width - 36) : headerWidth);
 
     this.titleText.setPosition(mobilePortrait ? 18 : 24, mobilePortrait ? 16 : 18);
     this.buildLabelText.setPosition(mobilePortrait ? 20 : 26, this.titleText.y + this.titleText.height);
     this.layoutHudChips();
-    this.milestoneText.setPosition(mobilePortrait ? 20 : 26, this.layoutComboBadge());
+    this.milestoneText.setPosition(mobilePortrait ? 20 : 26, this.layoutGoalNudge(this.layoutComboBadge()));
     this.layoutMenuButtons();
     this.layoutTriggerFeed();
     this.layoutSeasonVisuals();
@@ -2648,7 +2729,7 @@ export class GameScene extends Phaser.Scene {
       const rows = Math.ceil(visibleButtons.length / columns);
       const scaledButtonWidth = 118 * buttonScale;
       const scaledButtonHeight = 44 * buttonScale;
-      const gap = 8;
+      const gap = 7;
       const dockHeight = rows * scaledButtonHeight + Math.max(0, rows - 1) * gap + MOBILE_COMMAND_DOCK_PADDING * 2;
       const dockTop = Math.max(12, this.scale.height - dockHeight - 8);
       this.mobileCommandDockTop = dockTop;
@@ -2656,6 +2737,8 @@ export class GameScene extends Phaser.Scene {
       this.menuDockBg
         .setPosition(10, dockTop)
         .setSize(this.scale.width - 20, dockHeight)
+        .setFillStyle(0x06190f, 0.84)
+        .setStrokeStyle(2, 0xb7eba5, 0.58)
         .setVisible(!this.hasBlockingOverlayOpen());
 
       visibleButtons.forEach((button, index) => {
@@ -2709,6 +2792,30 @@ export class GameScene extends Phaser.Scene {
     return resourceBottom + badgeHeight + (mobilePortrait ? 14 : 20);
   }
 
+  private layoutGoalNudge(startY: number): number {
+    if (!this.goalNudgeRoot) {
+      return startY;
+    }
+
+    const mobilePortrait = this.isMobilePortrait();
+    const compact = this.scale.width < 760;
+    const x = mobilePortrait ? 18 : 26;
+    const rightLimit = mobilePortrait ? this.scale.width - 18 : Math.max(x + 260, this.scale.width - (compact ? 18 : 170));
+    const maxWidth = mobilePortrait ? Math.max(180, this.scale.width - 36) : 420;
+    const minWidth = Math.min(maxWidth, mobilePortrait ? 260 : 300);
+    const width = Phaser.Math.Clamp(rightLimit - x, minWidth, maxWidth);
+    const height = mobilePortrait ? 30 : 34;
+    const visible = this.goalNudgeRoot.visible;
+
+    this.goalNudgeBg.setSize(width, height);
+    this.goalNudgeIcon.setPosition(mobilePortrait ? 15 : 16, height / 2);
+    this.goalNudgeText
+      .setPosition(mobilePortrait ? 30 : 34, mobilePortrait ? 8 : 9)
+      .setWordWrapWidth(Math.max(120, width - (mobilePortrait ? 42 : 48)));
+    this.goalNudgeRoot.setPosition(x, startY);
+    return visible ? startY + height + (mobilePortrait ? 8 : 10) : startY;
+  }
+
   private layoutSeasonVisuals(): void {
     if (!this.seasonTint) {
       return;
@@ -2740,9 +2847,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   private addTriggerFeedEvent(label: string, detail: string, icon: string, color: number, now = Date.now()): void {
-    const latest = this.triggerFeedEvents[0];
-    if (latest && latest.label === label && latest.detail === detail && now - latest.createdAt < 1800) {
-      latest.createdAt = now;
+    const repeated = this.triggerFeedEvents.find(
+      (event) =>
+        event.label === label &&
+        event.detail === detail &&
+        event.icon === icon &&
+        event.color === color &&
+        now - event.createdAt < TRIGGER_FEED_REPEAT_WINDOW_MS,
+    );
+    if (repeated) {
+      repeated.createdAt = now;
+      repeated.count += 1;
+      this.triggerFeedEvents = [repeated, ...this.triggerFeedEvents.filter((event) => event !== repeated)];
       this.renderTriggerFeed(true);
       return;
     }
@@ -2754,6 +2870,7 @@ export class GameScene extends Phaser.Scene {
       icon,
       color,
       createdAt: now,
+      count: 1,
     });
     this.nextTriggerFeedId += 1;
     this.triggerFeedEvents = this.triggerFeedEvents.slice(0, TRIGGER_FEED_MAX_EVENTS);
@@ -2789,6 +2906,7 @@ export class GameScene extends Phaser.Scene {
         (mobilePortrait && this.scale.width >= 340 && this.scale.height >= 680));
     this.triggerFeedRoot.setVisible(visible);
     if (!visible) {
+      this.layoutPerfPanel();
       return;
     }
 
@@ -2814,17 +2932,20 @@ export class GameScene extends Phaser.Scene {
       }
       row.container.setPosition(mobilePortrait ? 8 : 10, 38 + index * rowHeight);
       row.bg.setSize(feedWidth - (mobilePortrait ? 16 : 20), rowHeight - 6);
+      row.accent.setSize(mobilePortrait ? 3 : 4, rowHeight - 6);
       row.icon.setPosition(mobilePortrait ? 13 : 14, mobilePortrait ? 14 : 15).setFontSize(mobilePortrait ? 12 : 15);
       row.label
         .setPosition(mobilePortrait ? 30 : 32, mobilePortrait ? 7 : 8)
         .setFontSize(mobilePortrait ? 11 : 12)
-        .setWordWrapWidth(Math.max(82, feedWidth - 96));
+        .setWordWrapWidth(Math.max(78, feedWidth - (mobilePortrait ? 104 : 112)));
       row.detail
         .setPosition(mobilePortrait ? 30 : 32, mobilePortrait ? 24 : 26)
         .setFontSize(mobilePortrait ? 10 : 11)
-        .setWordWrapWidth(Math.max(82, feedWidth - 96));
+        .setWordWrapWidth(Math.max(78, feedWidth - (mobilePortrait ? 104 : 112)));
+      row.count.setPosition(feedWidth - (mobilePortrait ? 28 : 34), mobilePortrait ? 7 : 8);
       row.age.setPosition(feedWidth - (mobilePortrait ? 28 : 34), mobilePortrait ? 24 : 27);
     });
+    this.layoutPerfPanel();
   }
 
   private getTriggerFeedWidth(): number {
@@ -2850,7 +2971,8 @@ export class GameScene extends Phaser.Scene {
     const ageBucket = visibleEvents.map((event) => Math.floor((now - event.createdAt) / 1000)).join(",");
     const renderKey = [
       this.triggerFeedCollapsed ? "closed" : "open",
-      visibleEvents.map((event) => event.id).join(","),
+      this.triggerFeedEvents.length,
+      visibleEvents.map((event) => `${event.id}:${event.count}`).join(","),
       ageBucket,
     ].join("|");
     if (!force && renderKey === this.triggerFeedRenderKey) {
@@ -2858,15 +2980,25 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.triggerFeedRenderKey = renderKey;
+    this.setTextIfChanged(
+      this.triggerFeedTitle,
+      this.triggerFeedEvents.length > this.getTriggerFeedVisibleLimit() && !this.triggerFeedCollapsed
+        ? `Trigger Feed +${this.triggerFeedEvents.length - this.getTriggerFeedVisibleLimit()}`
+        : "Trigger Feed",
+    );
     this.triggerFeedToggle.setText(this.triggerFeedCollapsed ? "v" : "^");
     visibleEvents.forEach((event, index) => {
       const row = this.triggerFeedRows[index];
       const ageMs = now - event.createdAt;
       row.container.setVisible(true);
+      row.bg.setFillStyle(0x12341c, event.count > 1 ? 0.96 : 0.9);
       row.bg.setStrokeStyle(1, event.color, 0.68);
+      row.accent.setFillStyle(event.color, event.count > 1 ? 1 : 0.82);
       row.icon.setText(event.icon).setColor(this.colorToHex(event.color));
       this.setTextIfChanged(row.label, event.label);
       this.setTextIfChanged(row.detail, event.detail);
+      this.setTextIfChanged(row.count, event.count > 1 ? this.formatFeedCount(event.count) : "");
+      row.count.setVisible(event.count > 1);
       this.setTextIfChanged(row.age, this.formatFeedAge(ageMs));
     });
 
@@ -2888,6 +3020,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     return `${Math.floor(seconds / 60)}m`;
+  }
+
+  private formatFeedCount(count: number): string {
+    return count > 99 ? "x99+" : `x${count}`;
   }
 
   private createTileInfoPanel(): void {
@@ -5048,6 +5184,7 @@ export class GameScene extends Phaser.Scene {
     this.saveState();
     this.refreshUi();
     this.playGoldStoreItemSuccess(system.id);
+    this.playHudChipCelebration("auto", "crit-fleck", 0xbff4ff, 12);
   }
 
   private showAutomationSystemDetails(systemId: string): void {
@@ -5149,6 +5286,7 @@ export class GameScene extends Phaser.Scene {
       this.saveState();
       this.refreshUi();
       this.playGoldStoreItemSuccess(item.id);
+      this.playHudChipCelebration("seeds", "effect-seed-kernel", 0xb7eba5, 12);
       this.addTriggerFeedEvent("Store item used", "+5 seeds", "ST", 0xfff1a8);
       return;
     }
@@ -5162,6 +5300,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
     this.layoutTiles();
     this.playGoldStoreItemSuccess(item.id);
+    this.playHudChipCelebration("gold", "effect-gold-coin", 0xffef78, 10);
     this.addTriggerFeedEvent("Store purchase", item.name, "ST", item.kind === "animal" ? 0xffef78 : 0xdfffc8);
   }
 
@@ -5184,6 +5323,7 @@ export class GameScene extends Phaser.Scene {
         this.saveState();
         this.refreshUi();
         this.playGoldStoreItemSuccess(itemId);
+        this.playHudChipCelebration("seeds", "effect-seed-kernel", 0xb7eba5, 12);
         this.addTriggerFeedEvent("Store item used", "+5 seeds", "ST", 0xfff1a8);
         break;
     }
@@ -5258,6 +5398,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
     this.layoutTiles();
     this.playSeedShopItemSuccess(item.id);
+    this.playHudChipCelebration("seeds", "effect-seed-kernel", 0xb7eba5, 10);
     this.addTriggerFeedEvent("Seed upgrade", item.name, "SE", 0xb7eba5);
   }
 
@@ -9827,6 +9968,31 @@ export class GameScene extends Phaser.Scene {
     this.emitUiBurst(texture, button.x, button.y, 22, color);
   }
 
+  private playHudChipCelebration(id: HudChipId, texture: string, color: number, quantity = 14): void {
+    const chip = this.hudChips.find((candidate) => candidate.id === id);
+    if (!chip || !chip.container.visible) {
+      return;
+    }
+
+    const x = chip.container.x + chip.width / 2;
+    const y = chip.container.y + chip.bg.height / 2;
+    this.pulseContainer(chip.container, 1.045);
+    this.emitUiBurst(texture, x, y, quantity, color);
+  }
+
+  private playQuestRewardHudCelebration(reward: QuestDefinition["reward"]): void {
+    if ((reward.gold ?? 0) > 0) {
+      this.playHudChipCelebration("gold", "effect-gold-coin", 0xffef78, 12);
+    }
+    if ((reward.seeds ?? 0) > 0) {
+      this.playHudChipCelebration("seeds", "effect-seed-kernel", 0xb7eba5, 12);
+    }
+    if ((reward.grassTouches ?? 0) > 0) {
+      this.playHudChipCelebration("touches", "grass-fleck", 0xdfffc8, 12);
+    }
+    this.playHudChipCelebration("quest", "seed-fleck", 0xffef78, 8);
+  }
+
   private flashScreen(color: number, alpha: number, duration: number): void {
     const flash = this.add.rectangle(0, 0, this.scale.width, this.scale.height, color, alpha).setOrigin(0).setDepth(120);
     this.tweens.add({
@@ -10401,10 +10567,147 @@ export class GameScene extends Phaser.Scene {
 
     this.setTextIfChanged(chip.title, title);
     this.setTextIfChanged(chip.value, value);
-    chip.value.setFontSize(value.length > 11 || chip.width < 100 ? 12 : chip.width < 130 ? 14 : 16);
+    const primary = id === "touches";
+    const valueSize = value.length > 11 || chip.width < 100 ? 12 : chip.width < 130 ? 14 : primary ? 17 : 16;
+    chip.title.setColor(attention ? "#fff3a8" : primary ? "#dfffc8" : "#a9d8a1");
+    chip.value.setColor(primary ? "#ffffff" : attention ? "#fff7c7" : "#f7ffe8");
+    chip.value.setFontSize(valueSize);
     chip.glow.setVisible(attention);
-    chip.bg.setStrokeStyle(2, attention ? 0xffef78 : 0xffef78, attention ? 0.98 : 0.76);
+    chip.bg.setFillStyle(primary ? 0x0f3b20 : 0x0d331b, primary ? 0.96 : 0.92);
+    chip.bg.setStrokeStyle(primary || attention ? 3 : 2, attention ? 0xffef78 : primary ? 0xb7eba5 : 0xffef78, attention ? 0.98 : primary ? 0.86 : 0.64);
     chip.iconBg.setStrokeStyle(2, attention ? 0xffef78 : 0x75d894, attention ? 0.98 : 0.9);
+  }
+
+  private getReadyUnlockCounts(keys: Set<string>): { skill: number; seed: number; store: number } {
+    const counts = { skill: 0, seed: 0, store: 0 };
+    for (const key of keys) {
+      if (key.startsWith("upgrade:") || key.startsWith("prestige:")) {
+        counts.skill += 1;
+      } else if (key.startsWith("seed:")) {
+        counts.seed += 1;
+      } else if (key.startsWith("automation:") || key.startsWith("gold:")) {
+        counts.store += 1;
+      }
+    }
+
+    return counts;
+  }
+
+  private formatReadyMenuLabel(baseLabel: string, readyCount: number): string {
+    if (readyCount <= 0) {
+      return baseLabel;
+    }
+
+    return `${baseLabel} ${readyCount > 9 ? "9+" : readyCount}`;
+  }
+
+  private formatActionMenuLabel(icon: string, baseLabel: string, readyCount = 0): string {
+    return this.formatReadyMenuLabel(`${icon} ${baseLabel}`, readyCount);
+  }
+
+  private formatAffordabilityPreview(current: number, cost: number, formatValue: (value: number) => string, unitLabel = ""): string {
+    if (current >= cost) {
+      return "Ready now";
+    }
+
+    const missing = Math.max(0, cost - current);
+    const progress = cost > 0 ? Phaser.Math.Clamp(Math.floor((current / cost) * 100), 0, 99) : 0;
+    const unitSuffix = unitLabel ? ` ${unitLabel}` : "";
+    return `Need ${formatValue(missing)} more${unitSuffix} (${progress}%)`;
+  }
+
+  private getGoalNudgeData(
+    readyQuestCount: number,
+    nextQuest: QuestDefinition | undefined,
+    nextMilestone: (typeof MILESTONES)[number] | undefined,
+    nextTier: ReturnType<typeof getNextGrassTier>,
+    readyUnlockKeys: Set<string>,
+    nextAutomationBreakthroughLine: string,
+  ): GoalNudgeData {
+    if (readyQuestCount > 0) {
+      return {
+        icon: "Q",
+        text: `Next: claim ${readyQuestCount} quest reward${readyQuestCount === 1 ? "" : "s"}`,
+        color: 0xffef78,
+      };
+    }
+
+    const prestigeReady = [...readyUnlockKeys].some((key) => key.startsWith("prestige:"));
+    if (prestigeReady) {
+      return { icon: "SK", text: "Next: prestige is ready", color: 0xffef78 };
+    }
+
+    const readyUpgrade = UPGRADES.find((upgrade) => [...readyUnlockKeys].some((key) => key.startsWith(`upgrade:${upgrade.id}:`)));
+    if (readyUpgrade) {
+      return { icon: "SK", text: `Next: upgrade ${readyUpgrade.name}`, color: 0xffef78 };
+    }
+
+    const readySeedItem = SEED_SHOP_ITEMS.find((item) => readyUnlockKeys.has(`seed:${item.id}`));
+    if (readySeedItem) {
+      return { icon: "SE", text: `Next: buy ${readySeedItem.name}`, color: 0xb7eba5 };
+    }
+
+    const readyAutomation = AUTOMATION_SYSTEMS.find((system) => [...readyUnlockKeys].some((key) => key.startsWith(`automation:${system.id}:`)));
+    if (readyAutomation) {
+      return { icon: "AI", text: `Next: hire ${readyAutomation.name}`, color: 0xbff4ff };
+    }
+
+    const readyGoldItem = GOLD_STORE_ITEMS.find((item) => [...readyUnlockKeys].some((key) => key.startsWith(`gold:${item.id}:`)));
+    if (readyGoldItem) {
+      return { icon: "ST", text: `Next: buy ${readyGoldItem.name}`, color: 0xffef78 };
+    }
+
+    if (nextQuest) {
+      return { icon: "Q", text: `Next: ${nextQuest.name} - ${formatQuestProgress(nextQuest, this.state)}`, color: 0xffef78 };
+    }
+
+    const nextSeedItem = SEED_SHOP_ITEMS.find((item) => !this.state.seedShopPurchases[item.id] && item.isUnlocked(this.state));
+    if (nextSeedItem && this.state.seeds < nextSeedItem.cost) {
+      return {
+        icon: "SE",
+        text: `Next: ${nextSeedItem.name} needs ${nextSeedItem.cost - Math.floor(this.state.seeds)} seeds`,
+        color: 0xb7eba5,
+      };
+    }
+
+    if (nextMilestone) {
+      return {
+        icon: "GT",
+        text: `Next: ${nextMilestone.name} at ${formatGrassTouches(nextMilestone.requiredLifetimeTouches)} lifetime touches`,
+        color: 0xb7eba5,
+      };
+    }
+
+    if (nextTier) {
+      return {
+        icon: "GT",
+        text: `Next: ${nextTier.name} at ${formatGrassTouches(nextTier.unlockAtLifetimeTouches)} touches`,
+        color: 0xb7eba5,
+      };
+    }
+
+    return { icon: "AI", text: nextAutomationBreakthroughLine, color: 0xbff4ff };
+  }
+
+  private refreshGoalNudge(data: GoalNudgeData): void {
+    const visible = !this.hasBlockingOverlayOpen() && data.text.length > 0;
+    this.setVisibleIfChanged(this.goalNudgeRoot, visible);
+    if (!visible) {
+      return;
+    }
+
+    this.goalNudgeBg.setStrokeStyle(2, data.color, 0.78);
+    this.goalNudgeIcon.setText(data.icon).setColor(this.colorToHex(data.color));
+    this.setTextIfChanged(this.goalNudgeText, this.compactGoalNudgeText(data.text));
+  }
+
+  private compactGoalNudgeText(text: string): string {
+    const limit = this.isMobilePortrait() ? 38 : this.scale.width < 760 ? 54 : 68;
+    if (text.length <= limit) {
+      return text;
+    }
+
+    return `${text.slice(0, Math.max(0, limit - 3)).trimEnd()}...`;
   }
 
   private refreshUi(forcePanels = true): void {
@@ -10416,6 +10719,8 @@ export class GameScene extends Phaser.Scene {
     );
     const currentReadyQuestKeys = this.profileScope("ui:readyQuests", () => this.getReadyQuestKeys());
     const readyQuestCount = currentReadyQuestKeys.size;
+    const readyUnlockKeys = this.profileScope("ui:readyUnlocks", () => this.getReadyUnlockKeys());
+    const readyUnlockCounts = this.getReadyUnlockCounts(readyUnlockKeys);
     const nextTier = getNextGrassTier(this.state);
     const nextAutomationBreakthroughLine = this.profileScope("ui:autoGoal", () => this.getNextAutomationBreakthroughLine());
     const mobilePortrait = this.isMobilePortrait();
@@ -10441,13 +10746,19 @@ export class GameScene extends Phaser.Scene {
     this.profileScope("ui:hudChips", () => this.refreshHudChips(automationTouchesPerMinute, automationUnitCount, readyQuestCount));
     this.profileScope("ui:triggerFeed", () => this.renderTriggerFeed());
     this.profileScope("ui:combo", () => this.refreshComboBadge());
-    setTextButtonText(this.skillButton, mobilePortrait ? "Skill" : "Skills");
-    setTextButtonText(this.questButton, readyQuestCount > 0 ? (mobilePortrait ? `Quest ${readyQuestCount}` : `Quests (${readyQuestCount})`) : "Quests");
-    setTextButtonText(this.seedButton, mobilePortrait ? "Seed" : "Seeds");
-    setTextButtonText(this.storeButton, mobilePortrait ? "Shop" : "Store");
-    setTextButtonText(this.autoButton, mobilePortrait ? "Auto" : "Auto");
-    setTextButtonText(this.optionsButton, mobilePortrait ? "Opts" : "Options");
-    this.profileScope("ui:buttons", () => this.refreshMenuButtonAttention(currentReadyQuestKeys));
+    setTextButtonText(this.skillButton, this.formatActionMenuLabel(UI_ACTION_ICONS.skills, mobilePortrait ? "Skill" : "Skills", readyUnlockCounts.skill));
+    setTextButtonText(this.questButton, this.formatActionMenuLabel(UI_ACTION_ICONS.quests, mobilePortrait ? "Quest" : "Quests", readyQuestCount));
+    setTextButtonText(this.seedButton, this.formatActionMenuLabel(UI_ACTION_ICONS.seeds, mobilePortrait ? "Seed" : "Seeds", readyUnlockCounts.seed));
+    setTextButtonText(this.storeButton, this.formatActionMenuLabel(UI_ACTION_ICONS.store, mobilePortrait ? "Shop" : "Store", readyUnlockCounts.store));
+    setTextButtonText(this.autoButton, this.formatActionMenuLabel(UI_ACTION_ICONS.automation, "Auto"));
+    setTextButtonText(this.journalButton, this.formatActionMenuLabel(UI_ACTION_ICONS.journal, mobilePortrait ? "Log" : "Journal"));
+    setTextButtonText(this.optionsButton, this.formatActionMenuLabel(UI_ACTION_ICONS.options, mobilePortrait ? "Opts" : "Options"));
+    this.profileScope("ui:buttons", () => this.refreshMenuButtonAttention(currentReadyQuestKeys, readyUnlockKeys));
+    this.profileScope("ui:goalNudge", () =>
+      this.refreshGoalNudge(
+        this.getGoalNudgeData(readyQuestCount, nextQuest, nextMilestone, nextTier, readyUnlockKeys, nextAutomationBreakthroughLine),
+      ),
+    );
     this.refreshJournalAccess();
     if (this.skillTreeOpen) {
       this.setTextIfChanged(this.skillResourceText, this.getSkillResourceText());
@@ -10506,7 +10817,7 @@ export class GameScene extends Phaser.Scene {
           .join("\n"),
       );
     });
-    this.milestoneText.setPosition(26, this.layoutComboBadge());
+    this.milestoneText.setPosition(mobilePortrait ? 20 : 26, this.layoutGoalNudge(this.layoutComboBadge()));
     this.layoutTriggerFeed();
 
     if (this.skillTreeOpen && refreshPanels) {
@@ -10581,10 +10892,9 @@ export class GameScene extends Phaser.Scene {
     this.refreshSkillDetail();
   }
 
-  private refreshMenuButtonAttention(currentReadyQuestKeys = this.getReadyQuestKeys()): void {
-    const readyUnlockKeys = this.profileScope("ui:readyUnlocks", () => this.getReadyUnlockKeys());
+  private refreshMenuButtonAttention(currentReadyQuestKeys = this.getReadyQuestKeys(), readyUnlockKeys = this.getReadyUnlockKeys()): void {
     const readyUnlockList = [...readyUnlockKeys];
-    setTextButtonAttention(this.skillButton, readyUnlockList.some((key) => key.startsWith("upgrade:")) || getPrestigePreview(this.state).canPrestige);
+    setTextButtonAttention(this.skillButton, readyUnlockList.some((key) => key.startsWith("upgrade:") || key.startsWith("prestige:")));
     setTextButtonAttention(this.seedButton, readyUnlockList.some((key) => key.startsWith("seed:")));
     setTextButtonAttention(
       this.storeButton,
@@ -10666,7 +10976,7 @@ export class GameScene extends Phaser.Scene {
     const filterCounts = this.getQuestFilterCounts();
     const relevantQuestCount = this.getRelevantQuestCount();
 
-    setTextButtonText(this.questButton, readyCount > 0 ? `Quests (${readyCount})` : "Quests");
+    setTextButtonText(this.questButton, this.formatActionMenuLabel(UI_ACTION_ICONS.quests, "Quests", readyCount));
     setTextButtonText(this.questClaimReadyButton, readyCount > 0 ? `Claim Ready (${readyCount})` : "Claim Ready");
     setTextButtonEnabled(this.questClaimReadyButton, readyCount > 0);
     this.questResourceText?.setText(
@@ -11008,6 +11318,7 @@ export class GameScene extends Phaser.Scene {
     this.readyQuestKeys = this.getReadyQuestKeys();
     this.playQuestClaimFeedback(questId);
     this.refreshUi();
+    this.playQuestRewardHudCelebration(quest.reward);
     this.addTriggerFeedEvent("Quest claimed", quest.name, "Q", 0xffef78);
     this.questStatusText.setText(claimMessage);
   }
@@ -11036,6 +11347,7 @@ export class GameScene extends Phaser.Scene {
     this.readyQuestKeys = this.getReadyQuestKeys();
     this.refreshUi();
     this.bumpResourceHud();
+    this.playQuestRewardHudCelebration(this.combineQuestRewards(claimedQuests));
     this.playButtonCelebration(this.questClaimReadyButton, 0xffef78, "seed-fleck");
     this.addTriggerFeedEvent(
       "Quest rewards claimed",
@@ -11062,6 +11374,17 @@ export class GameScene extends Phaser.Scene {
     this.state.lifetimeGold += quest.reward.gold ?? 0;
   }
 
+  private combineQuestRewards(quests: QuestDefinition[]): QuestDefinition["reward"] {
+    return quests.reduce<QuestDefinition["reward"]>(
+      (total, quest) => ({
+        grassTouches: (total.grassTouches ?? 0) + (quest.reward.grassTouches ?? 0),
+        seeds: (total.seeds ?? 0) + (quest.reward.seeds ?? 0),
+        gold: (total.gold ?? 0) + (quest.reward.gold ?? 0),
+      }),
+      {},
+    );
+  }
+
   private updateQuestClipboard(): void {
     if (!this.state.seedShopPurchases.quest_clipboard) {
       return;
@@ -11083,6 +11406,7 @@ export class GameScene extends Phaser.Scene {
     this.saveState();
     this.refreshUi();
     this.bumpResourceHud();
+    this.playQuestRewardHudCelebration(this.combineQuestRewards(readyQuests));
     this.playButtonCelebration(this.questButton, 0xffef78, "seed-fleck");
     this.addTriggerFeedEvent(
       "Clipboard claimed",
@@ -11197,10 +11521,10 @@ export class GameScene extends Phaser.Scene {
         view.status.setText("Locked");
         view.status.setColor("#c8d1cc");
       } else if (!affordable) {
-        view.status.setText(`Cost: ${item.cost} seeds | Need ${item.cost - Math.floor(this.state.seeds)} more`);
+        view.status.setText(`Cost: ${item.cost} seeds | ${this.formatAffordabilityPreview(this.state.seeds, item.cost, (value) => `${Math.ceil(value)}`, "seeds")}`);
         view.status.setColor("#6d4c19");
       } else {
-        view.status.setText(`Cost: ${item.cost} seeds | Ready`);
+        view.status.setText(`Cost: ${item.cost} seeds | Ready now`);
         view.status.setColor("#26652e");
       }
     }
@@ -11219,22 +11543,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshStoreModeButtons(): void {
-    const hasReadyAutomation = AUTOMATION_SYSTEMS.some((system) => {
+    const readyAutomationCount = AUTOMATION_SYSTEMS.filter((system) => {
       const owned = getAutomationSystemOwned(this.state, system.id);
       const plan = this.getAutomationPurchasePlan(system, owned);
       return system.isUnlocked(this.state) && canAffordGrassTouches(this.state.grassTouches, plan.totalCost);
-    });
-    const hasReadyGoods = GOLD_STORE_ITEMS.some((item) => {
+    }).length;
+    const readyGoodsCount = GOLD_STORE_ITEMS.filter((item) => {
       const quantity = getInventoryQuantity(this.state, item.id);
       const maxed = item.maxQuantity !== undefined && quantity >= item.maxQuantity;
       return !maxed && item.isUnlocked(this.state) && this.state.gold >= item.cost && (item.kind !== "consumable" || quantity === 0);
-    });
+    }).length;
 
     this.storeAutomationButton.setAlpha(this.storeMode === "automation" ? 1 : 0.72);
     this.storeGoodsButton.setAlpha(this.storeMode === "goods" ? 1 : 0.72);
+    setTextButtonText(this.storeAutomationButton, this.formatActionMenuLabel(UI_ACTION_ICONS.automation, "Auto", readyAutomationCount));
+    setTextButtonText(this.storeGoodsButton, this.formatActionMenuLabel(UI_ACTION_ICONS.store, "Goods", readyGoodsCount));
     setTextButtonText(this.storeAutomationBuyModeButton, this.automationBuyMode === "boost" ? "To Boost" : "Buy 1");
-    setTextButtonAttention(this.storeAutomationButton, hasReadyAutomation);
-    setTextButtonAttention(this.storeGoodsButton, hasReadyGoods);
+    setTextButtonAttention(this.storeAutomationButton, readyAutomationCount > 0);
+    setTextButtonAttention(this.storeGoodsButton, readyGoodsCount > 0);
   }
 
   private refreshAutomationStore(): void {
@@ -11300,7 +11626,7 @@ export class GameScene extends Phaser.Scene {
         view.status.setText(
           `Owned ${owned}${supportSuffix} | ${formatGrassTouchesPerMinute(output)} (${outputDelta}) | ${
             plan.quantity > 1 ? `+${plan.quantity} to boost` : milestoneStatus
-          } | Need ${formatGrassTouches(getMissingGrassTouches(this.state.grassTouches, plan.totalCost))}`,
+          } | ${this.formatAffordabilityPreview(this.state.grassTouches, plan.totalCost, formatGrassTouches)}`,
         );
         view.status.setColor("#d6e6d0");
       } else {
@@ -11349,16 +11675,23 @@ export class GameScene extends Phaser.Scene {
         view.status.setText(`Owned ${quantity} | Click to use`);
         view.status.setColor("#f4df6a");
       } else if (item.id === "seed_satchel" && affordable) {
-        view.status.setText(`Owned ${quantity} | Cost ${item.cost} gold | Opens +5 seeds`);
+        view.status.setText(`Owned ${quantity} | Ready now | Opens +5 seeds`);
         view.status.setColor("#f4df6a");
       } else if (maxed) {
         view.status.setText(`Owned ${quantity}${maxText} | Ready to place`);
         view.status.setColor("#b7eba5");
       } else if (!affordable) {
-        view.status.setText(`Owned ${quantity}${maxText} | Need ${item.cost - Math.floor(this.state.gold)} gold`);
+        view.status.setText(
+          `Owned ${quantity}${maxText} | Cost ${item.cost} gold | ${this.formatAffordabilityPreview(
+            this.state.gold,
+            item.cost,
+            (value) => `${Math.ceil(value)}`,
+            "gold",
+          )}`,
+        );
         view.status.setColor("#d6e6d0");
       } else {
-        view.status.setText(`Owned ${quantity}${maxText} | Cost ${item.cost} gold`);
+        view.status.setText(`Owned ${quantity}${maxText} | Cost ${item.cost} gold | Ready now`);
         view.status.setColor("#f4df6a");
       }
     }

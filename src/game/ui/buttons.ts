@@ -14,6 +14,10 @@ export function createTextButton(
     .setOrigin(0.5)
     .setStrokeStyle(3, 0xffef78, 0.9)
     .setVisible(false);
+  const pressGlow = scene.add
+    .rectangle(width / 2, height / 2, width - 8, height - 8, 0xffffff, 0.22)
+    .setOrigin(0.5)
+    .setVisible(false);
   const hasEmeraldButtons =
     scene.textures.exists("button-emerald-normal") &&
     scene.textures.exists("button-emerald-hover") &&
@@ -47,8 +51,9 @@ export function createTextButton(
   });
   bg.on("pointerout", () => {
     const enabled = button.getData("enabled") !== false;
+    const attentive = attentionGlow.getData("attentionActive") === true;
     setButtonTexture(bg, "button-emerald-normal");
-    label.setColor(enabled ? "#f7ffe8" : "#9ba992");
+    label.setColor(enabled ? (attentive ? "#fff3a8" : "#f7ffe8") : "#9ba992");
     label.setScale(1);
     label.setY(height / 2);
   });
@@ -57,6 +62,7 @@ export function createTextButton(
       return;
     }
     setButtonTexture(bg, "button-emerald-active");
+    playPressFlash(button, pressGlow);
     label.setY(height / 2 + 1);
     label.setScale(0.98);
     onClick();
@@ -68,11 +74,16 @@ export function createTextButton(
     label.setY(height / 2);
     label.setScale(enabled ? 1.03 : 1);
   });
-  button.add([attentionGlow, bg, label]);
+  button.add([attentionGlow, bg, pressGlow, label]);
   button.setData("bg", bg);
   button.setData("label", label);
   button.setData("attentionGlow", attentionGlow);
+  button.setData("pressGlow", pressGlow);
   button.setData("enabled", true);
+  button.setData("baseWidth", width);
+  button.setData("baseHeight", height);
+  button.setData("baseFontSize", height < 40 ? 14 : 18);
+  fitButtonLabel(button, label, text);
   return button;
 }
 
@@ -80,6 +91,7 @@ export function setTextButtonText(button: Phaser.GameObjects.Container, text: st
   const label = button.getData("label") as Phaser.GameObjects.Text | undefined;
   if (label && label.text !== text) {
     label.setText(text);
+    fitButtonLabel(button, label, text);
   }
 }
 
@@ -100,13 +112,16 @@ export function setTextButtonEnabled(button: Phaser.GameObjects.Container, enabl
   }
 
   bg?.setAlpha(enabled ? 1 : 0.58);
-  label?.setColor(enabled ? "#f7ffe8" : "#9ba992");
+  const glow = button.getData("attentionGlow") as Phaser.GameObjects.Rectangle | undefined;
+  const attentive = glow?.getData("attentionActive") === true;
+  label?.setColor(enabled ? (attentive ? "#fff3a8" : "#f7ffe8") : "#9ba992");
   label?.setAlpha(enabled ? 1 : 0.82);
 }
 
 export function setTextButtonAttention(button: Phaser.GameObjects.Container, active: boolean): void {
   const glow = button.getData("attentionGlow") as Phaser.GameObjects.Rectangle | undefined;
   const bg = button.getData("bg") as TextButtonBg | undefined;
+  const label = button.getData("label") as Phaser.GameObjects.Text | undefined;
   if (!glow || glow.getData("attentionActive") === active) {
     return;
   }
@@ -118,6 +133,7 @@ export function setTextButtonAttention(button: Phaser.GameObjects.Container, act
   if (!active) {
     glow.setAlpha(1);
     glow.setScale(1);
+    label?.setColor(button.getData("enabled") === false ? "#9ba992" : "#f7ffe8");
     if (bg instanceof Phaser.GameObjects.Rectangle) {
       bg.setStrokeStyle(3, 0x2d6f36);
     }
@@ -127,6 +143,7 @@ export function setTextButtonAttention(button: Phaser.GameObjects.Container, act
   if (bg instanceof Phaser.GameObjects.Rectangle) {
     bg.setStrokeStyle(3, 0xffef78, 0.98);
   }
+  label?.setColor("#fff3a8");
 
   glow.setAlpha(0.72);
   glow.setScale(1);
@@ -148,4 +165,33 @@ function setButtonTexture(bg: TextButtonBg | undefined, texture: string): void {
   }
 
   bg.setTexture(texture);
+}
+
+function fitButtonLabel(button: Phaser.GameObjects.Container, label: Phaser.GameObjects.Text, text: string): void {
+  const width = Number(button.getData("baseWidth") ?? 118);
+  const baseFontSize = Number(button.getData("baseFontSize") ?? 18);
+  const compactForLength = text.length > 15 ? 4 : text.length > 11 ? 2 : 0;
+  const compactForWidth = width < 110 && text.length > 8 ? 2 : 0;
+  const fontSize = Math.max(10, baseFontSize - compactForLength - compactForWidth);
+  label.setFontSize(fontSize);
+  label.setWordWrapWidth(Math.max(40, width - 14));
+}
+
+function playPressFlash(button: Phaser.GameObjects.Container, pressGlow: Phaser.GameObjects.Rectangle): void {
+  button.scene.tweens.killTweensOf(pressGlow);
+  pressGlow.setVisible(true);
+  pressGlow.setAlpha(0.28);
+  pressGlow.setScale(0.92);
+  button.scene.tweens.add({
+    targets: pressGlow,
+    alpha: 0,
+    scaleX: 1.1,
+    scaleY: 1.22,
+    duration: 180,
+    ease: "Sine.easeOut",
+    onComplete: () => {
+      pressGlow.setVisible(false);
+      pressGlow.setScale(1);
+    },
+  });
 }

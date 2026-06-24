@@ -1,0 +1,97 @@
+{
+  "updatedAt": "2026-06-24",
+  "topic": "Second UI polish pass and desktop to Mac sync",
+  "currentUserGoal": "Implement the remaining small UI improvement suggestions, then commit, push, and run the desktop-to-Mac handoff workflow.",
+  "changesMade": [
+    "Added tactile press feedback to shared text buttons with a brief inner glow while keeping the existing hover and attention states.",
+    "Made action menu labels use consistent compact icon tokens across main buttons, quest overrides, and store mode tabs.",
+    "Tightened the mobile command dock spacing and strengthened the dock backing so the bottom controls read more clearly over the field.",
+    "Added affordability previews for seed shop, automation, and gold store purchases, including missing resources and percent progress toward the next buy.",
+    "Moved the perf/debug text panel below the HUD, goal nudge, milestone text, and trigger feed when those elements are visible.",
+    "Added small HUD chip reward celebrations for quest claims, automation purchases, seed shop purchases, satchel use, and gold store purchases."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/ui/buttons.ts",
+    "handoffs/HANDOFF_2026-06-24_UI_MICRO_POLISH.json",
+    "handoffs/HANDOFF_2026-06-24_UI_SECOND_POLISH_AND_SYNC.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed",
+      "details": "Vite production build completed successfully."
+    },
+    {
+      "command": "git diff --check -- src/game/scenes/GameScene.ts src/game/ui/buttons.ts",
+      "result": "passed",
+      "details": "Only normal LF-to-CRLF working-copy warnings were reported."
+    },
+    {
+      "url": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "passed",
+      "method": "Headless Chrome CDP dataset read from document.documentElement.dataset.grassPerfHarness",
+      "desktopSummary": {
+        "viewport": "1280x720",
+        "samples": 9,
+        "finalPhase": "complete",
+        "finalVisibleTiles": 1202,
+        "finalLayoutPasses": 0,
+        "finalRedraws": 0,
+        "finalRedrawQueued": 0,
+        "finalMaxFrameDeltaMs": 17,
+        "finalFrameSpikes": 0,
+        "finalDisplayObjects": 283,
+        "finalActiveTweens": 19,
+        "finalHotspots": "hot none"
+      },
+      "mobileSummary": {
+        "viewport": "390x844",
+        "samples": 9,
+        "finalPhase": "complete",
+        "finalVisibleTiles": 99,
+        "finalLayoutPasses": 0,
+        "finalRedraws": 0,
+        "finalRedrawQueued": 0,
+        "finalMaxFrameDeltaMs": 17,
+        "finalFrameSpikes": 0,
+        "finalDisplayObjects": 786,
+        "finalActiveTweens": 25,
+        "finalHotspots": "hot none"
+      }
+    }
+  ],
+  "currentGitStatusBeforeCommit": [
+    " M AGENTS.md",
+    " M docs/DESKTOP_MAC_SYNC_WORKFLOW.md",
+    " M handoffs/LATEST.json",
+    " M src/game/scenes/GameScene.ts",
+    " M src/game/ui/buttons.ts",
+    "?? docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+    "?? docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+    "?? docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+    "?? docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+    "?? docs/artifacts/title-art-2026-06-19/",
+    "?? docs/grasstouching.mid",
+    "?? docs/lucid.aif",
+    "?? handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json",
+    "?? handoffs/HANDOFF_2026-06-24_UI_MICRO_POLISH.json",
+    "?? handoffs/HANDOFF_2026-06-24_UI_SECOND_POLISH_AND_SYNC.json"
+  ],
+  "knownIssues": [
+    "The in-app browser screenshot path timed out during this pass, and later headless screenshot captures returned only the green background. Dataset-based perf harness checks still completed through Chrome CDP.",
+    "The action icon tokens are text abbreviations rather than image icons. They are intentionally low-risk and cheap to render for this small polish pass.",
+    "Goal nudge, trigger feed, and store status logic still live in GameScene.ts with the existing HUD/store code; this keeps the change local but the file remains large."
+  ],
+  "nextRecommendedSteps": [
+    "Play one normal saved run on desktop and phone dimensions to judge whether the extra ready labels and reward celebrations feel useful.",
+    "If the UI direction holds up, consider extracting HUD/feed/shop presentation helpers from GameScene.ts in a later, measured refactor.",
+    "Keep using the perf harness after UI work that changes overlays, animations, or large-field rendering."
+  ],
+  "doNotRevert": [
+    "Do not revert the pre-existing dirty AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md edits.",
+    "Do not stage or delete the unrelated untracked docs/media files unless the user explicitly asks.",
+    "Preserve the verified viewport culling behavior: large desktop runs should keep visibleTiles around the active viewport, and mobile should remain far below the full 1200-tile field."
+  ]
+}

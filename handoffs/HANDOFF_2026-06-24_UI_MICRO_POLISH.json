@@ -1,0 +1,99 @@
+{
+  "updatedAt": "2026-06-24",
+  "topic": "UI micro polish pass",
+  "currentUserGoal": "Apply small but meaningful UI improvements without starting a full redesign: readable Trigger Feed, clearer actionable states, HUD chip hierarchy, and a compact goal nudge.",
+  "changesMade": [
+    "Added a compact goal nudge below the HUD chips that prioritizes ready quest rewards, ready upgrades/purchases, the next active quest, and then growth goals.",
+    "Updated main menu buttons to show compact ready counts for skills, quests, seeds, and store actions.",
+    "Updated store mode buttons to show ready counts for Automation and Goods tabs.",
+    "Strengthened the shared text button attention state so ready buttons keep the warm label color outside hover.",
+    "Improved HUD chip hierarchy by making Touches the strongest visual chip and quieting secondary chip labels.",
+    "Improved Trigger Feed rows with a colored accent rail, repeat counts, overflow title count, and aggregation of repeated identical events within a short window."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/ui/buttons.ts",
+    "handoffs/HANDOFF_2026-06-24_UI_MICRO_POLISH.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "check": "Normal desktop route in browser",
+      "result": "passed",
+      "details": "No console warnings/errors. HUD chips, goal nudge, Trigger Feed, and command menu rendered without the debug overlay."
+    },
+    {
+      "check": "Desktop stress route in browser",
+      "result": "passed",
+      "details": "No console warnings/errors. HUD/feed/nudge rendered; perf overlay still crosses the HUD area in debug URLs as previously known."
+    },
+    {
+      "check": "Mobile stress route at 390x844",
+      "result": "passed",
+      "details": "No console warnings/errors. Mobile HUD, goal nudge, Trigger Feed, field, and bottom command dock rendered."
+    },
+    {
+      "url": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "passed",
+      "desktopSummary": {
+        "samples": 9,
+        "finalPhase": "complete",
+        "finalVisibleTiles": 1204,
+        "finalLayoutPasses": 0,
+        "finalRedraws": 0,
+        "finalRedrawQueued": 0,
+        "finalMaxFrameDeltaMs": 12,
+        "finalFrameSpikes": 0,
+        "finalDisplayObjects": 286,
+        "finalActiveTweens": 21,
+        "finalHotspots": "hot none"
+      },
+      "mobileSummary": {
+        "samples": 9,
+        "finalPhase": "complete",
+        "finalVisibleTiles": 91,
+        "finalLayoutPasses": 0,
+        "finalRedraws": 0,
+        "finalRedrawQueued": 0,
+        "finalMaxFrameDeltaMs": 7,
+        "finalFrameSpikes": 0,
+        "finalDisplayObjects": 705,
+        "finalActiveTweens": 22,
+        "finalHotspots": "hot none"
+      }
+    }
+  ],
+  "currentGitStatus": [
+    " M AGENTS.md",
+    " M docs/DESKTOP_MAC_SYNC_WORKFLOW.md",
+    " M handoffs/LATEST.json",
+    " M src/game/scenes/GameScene.ts",
+    " M src/game/ui/buttons.ts",
+    "?? docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+    "?? docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+    "?? docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+    "?? docs/StrategieÃ«n voor Geavanceerde Automatisering in Incrementele Games.md",
+    "?? docs/artifacts/title-art-2026-06-19/",
+    "?? docs/grasstouching.mid",
+    "?? docs/lucid.aif",
+    "?? handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json",
+    "?? handoffs/HANDOFF_2026-06-24_UI_MICRO_POLISH.json"
+  ],
+  "knownIssues": [
+    "The perf/stress overlay can still visually cross the HUD and goal nudge in debug URLs because it intentionally renders at high depth. Normal play is unaffected.",
+    "Goal nudge logic lives in GameScene.ts with the rest of the current HUD code; a later HUD extraction could move this out if GameScene becomes too large."
+  ],
+  "nextRecommendedSteps": [
+    "Play a real saved game for a few minutes to judge whether the new goal nudge feels helpful or too bossy.",
+    "If the direction feels right, commit src/game/scenes/GameScene.ts, src/game/ui/buttons.ts, this handoff, and handoffs/LATEST.json while leaving unrelated local docs/media alone.",
+    "Consider a follow-up pass that makes the debug perf overlay avoid the HUD/feed area."
+  ],
+  "doNotRevert": [
+    "Do not revert the pre-existing dirty AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, docs/media, or unrelated untracked docs unless the user explicitly asks.",
+    "Preserve the mobile viewport culling behavior confirmed by the perf harness."
+  ]
+}
