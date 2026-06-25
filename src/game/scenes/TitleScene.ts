@@ -211,10 +211,10 @@ export class TitleScene extends Phaser.Scene {
   private createTitleMark(): void {
     this.titleTopText = this.add
       .text(0, 0, "GRASS TOUCHING", {
-        fontFamily: "Impact, Trebuchet MS, Arial",
+        fontFamily: "Georgia, Impact, Trebuchet MS, Arial",
         fontSize: "66px",
-        color: "#95ee66",
-        stroke: "#062713",
+        color: "#f2e8d5",
+        stroke: "#2b160f",
         strokeThickness: 10,
         align: "center",
       })
@@ -224,9 +224,9 @@ export class TitleScene extends Phaser.Scene {
 
     this.titleBottomText = this.add
       .text(0, 0, "SIMULATOR", {
-        fontFamily: "Impact, Trebuchet MS, Arial",
+        fontFamily: "Georgia, Impact, Trebuchet MS, Arial",
         fontSize: "64px",
-        color: "#ffd76a",
+        color: "#ffd996",
         stroke: "#3a1c10",
         strokeThickness: 10,
         align: "center",
@@ -239,7 +239,7 @@ export class TitleScene extends Phaser.Scene {
       .text(0, 0, "FEEL THE GRASS. RELAX. BREATHE.", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "19px",
-        color: "#f7ffe8",
+        color: "#f2e8d5",
         stroke: "#092213",
         strokeThickness: 5,
         align: "center",
@@ -298,10 +298,10 @@ export class TitleScene extends Phaser.Scene {
     selectorWidth: number,
   ): void {
     const frame = this.add
-      .rectangle(0, 0, hitWidth, hitHeight, 0x0b2a18, 0.72)
+      .rectangle(0, 0, hitWidth, hitHeight, 0x102716, 0.9)
       .setOrigin(0.5)
       .setDepth(7)
-      .setStrokeStyle(2, 0xb7eba5, 0.42);
+      .setStrokeStyle(3, 0xa9683f, 0.86);
     const hit = this.add
       .rectangle(0, 0, hitWidth, hitHeight, 0xffffff, 0.001)
       .setOrigin(0.5)
@@ -309,9 +309,9 @@ export class TitleScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     const label = this.add
       .text(0, 0, this.getMenuButtonLabel(id), {
-        fontFamily: "Impact, Trebuchet MS, Arial",
+        fontFamily: "Georgia, Impact, Trebuchet MS, Arial",
         fontSize: "42px",
-        color: "#fff1a8",
+        color: "#f2e8d5",
         stroke: "#2b160f",
         strokeThickness: 6,
         shadow: { offsetX: 0, offsetY: 3, color: "#06190f", blur: 2, stroke: false, fill: true },
@@ -412,15 +412,15 @@ export class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
     this.creditsBackHit = this.add
-      .rectangle(0, 0, 138, 44, 0xe9ffd0, 0.98)
+      .rectangle(0, 0, 138, 44, 0x12341c, 0.98)
       .setOrigin(0.5)
-      .setStrokeStyle(3, 0x2d6f36)
+      .setStrokeStyle(3, 0xa9683f)
       .setInteractive({ useHandCursor: true });
     this.creditsBackText = this.add
       .text(0, 0, "Back", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "20px",
-        color: "#183d20",
+        color: "#f2e8d5",
       })
       .setOrigin(0.5);
 
@@ -474,27 +474,27 @@ export class TitleScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     this.volumeKnob = this.add.circle(0, 0, 14, 0xf7ffe8, 1).setStrokeStyle(4, 0xb7eba5).setInteractive({ useHandCursor: true });
     this.musicToggleHit = this.add
-      .rectangle(0, 0, 136, 42, 0xe9ffd0, 0.98)
+      .rectangle(0, 0, 136, 42, 0x12341c, 0.98)
       .setOrigin(0.5)
-      .setStrokeStyle(3, 0x2d6f36)
+      .setStrokeStyle(3, 0xa9683f)
       .setInteractive({ useHandCursor: true });
     this.musicToggleText = this.add
       .text(0, 0, "", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "18px",
-        color: "#183d20",
+        color: "#f2e8d5",
       })
       .setOrigin(0.5);
     this.optionsBackHit = this.add
-      .rectangle(0, 0, 100, 42, 0xe9ffd0, 0.98)
+      .rectangle(0, 0, 100, 42, 0x12341c, 0.98)
       .setOrigin(0.5)
-      .setStrokeStyle(3, 0x2d6f36)
+      .setStrokeStyle(3, 0xa9683f)
       .setInteractive({ useHandCursor: true });
     this.optionsBackText = this.add
       .text(0, 0, "Back", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "18px",
-        color: "#183d20",
+        color: "#f2e8d5",
       })
       .setOrigin(0.5);
 
@@ -589,15 +589,15 @@ export class TitleScene extends Phaser.Scene {
     this.classSelectRoot.add([this.classAbilityPanel, this.classAbilityTitle, this.classAbilityBody]);
 
     this.classBackHit = this.add
-      .rectangle(0, 0, 118, 42, 0xe9ffd0, 0.98)
+      .rectangle(0, 0, 118, 42, 0x12341c, 0.98)
       .setOrigin(0.5)
-      .setStrokeStyle(3, 0x2d6f36)
+      .setStrokeStyle(3, 0xa9683f)
       .setInteractive({ useHandCursor: true });
     this.classBackText = this.add
       .text(0, 0, "Back", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "18px",
-        color: "#183d20",
+        color: "#f2e8d5",
         resolution: CLASS_TEXT_RESOLUTION,
       })
       .setOrigin(0.5);
@@ -614,9 +614,9 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
     const frame = this.add
-      .rectangle(0, 0, CLASS_CARD_BASE_WIDTH, CLASS_CARD_BASE_HEIGHT, 0x071f12, 0.96)
+      .rectangle(0, 0, CLASS_CARD_BASE_WIDTH, CLASS_CARD_BASE_HEIGHT, 0x102716, 0.96)
       .setOrigin(0.5)
-      .setStrokeStyle(3, 0xb7eba5, 0.72);
+      .setStrokeStyle(3, 0xa9683f, 0.86);
     const hasIcon = Boolean(characterClass.iconKey);
     const iconX = hasIcon ? -104 : 0;
     const textX = hasIcon ? 32 : 0;
@@ -672,14 +672,14 @@ export class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0);
     const button = this.add
-      .rectangle(0, 130, 188, 38, 0xe9ffd0, 0.98)
+      .rectangle(0, 130, 188, 38, 0x12341c, 0.98)
       .setOrigin(0.5)
-      .setStrokeStyle(3, 0x2d6f36);
+      .setStrokeStyle(3, 0xa9683f);
     const buttonText = this.add
       .text(0, 130, "Start", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "18px",
-        color: "#183d20",
+        color: "#f2e8d5",
         resolution: CLASS_TEXT_RESOLUTION,
       })
       .setOrigin(0.5);
@@ -748,12 +748,12 @@ export class TitleScene extends Phaser.Scene {
       const y = menuTop + (short ? 12 : 18) + menuRowHeight / 2 + index * (menuRowHeight + menuGap);
       const rowWidth = button.id === "credits" ? menuWidth * 0.72 : button.id === "quit" ? menuWidth * 0.66 : menuWidth * 0.86;
       button.frame.setPosition(centerX, y).setSize(rowWidth, menuRowHeight);
-      button.frame.setFillStyle(active ? 0xffef78 : 0x0b2a18, active ? 0.32 : 0.7);
-      button.frame.setStrokeStyle(active ? 4 : 2, active ? 0xffef78 : 0xb7eba5, active ? 0.96 : 0.42);
+      button.frame.setFillStyle(active ? 0x173a22 : 0x102716, active ? 0.98 : 0.9);
+      button.frame.setStrokeStyle(active ? 4 : 3, active ? 0xffd996 : 0xa9683f, active ? 1 : 0.86);
       button.hit.setPosition(centerX, y).setSize(Math.max(rowWidth, 180), menuRowHeight + 8).setScale(1);
       button.label.setPosition(centerX, y - (short ? 1 : 2));
       button.label.setFontSize(short ? (button.id === "credits" ? 22 : 29) : compact ? (button.id === "credits" ? 25 : 34) : button.id === "credits" ? 30 : 41);
-      button.label.setColor(active ? "#fff7c7" : "#ffe6a3");
+      button.label.setColor(active ? "#fff3c2" : "#f2e8d5");
       button.label.setStroke("#2b160f", short ? 4 : 6);
     });
 
@@ -792,14 +792,15 @@ export class TitleScene extends Phaser.Scene {
     const menuX = centerX - menuWidth / 2;
 
     this.titleArt.clear();
-    this.titleArt.fillStyle(0x06190f, 0.74);
-    this.titleArt.fillRoundedRect(titleX + 8, titleTop + 8, titleWidth, titleHeight, 20);
-    this.titleArt.fillStyle(0x0c2e1c, 0.9);
+    this.titleArt.fillStyle(0x020805, 0.48);
+    this.titleArt.fillRoundedRect(titleX + 9, titleTop + 10, titleWidth, titleHeight, 22);
+    this.titleArt.fillStyle(0x102716, 0.96);
     this.titleArt.fillRoundedRect(titleX, titleTop, titleWidth, titleHeight, 20);
-    this.titleArt.lineStyle(compact ? 3 : 4, 0xb7eba5, 0.72);
+    this.titleArt.lineStyle(compact ? 3 : 4, 0xa9683f, 0.94);
     this.titleArt.strokeRoundedRect(titleX, titleTop, titleWidth, titleHeight, 20);
-    this.titleArt.lineStyle(2, 0xffef78, 0.32);
+    this.titleArt.lineStyle(2, 0xffd996, 0.42);
     this.titleArt.strokeRoundedRect(titleX + 8, titleTop + 8, titleWidth - 16, titleHeight - 16, 14);
+    this.drawPanelFlourishes(this.titleArt, titleX, titleTop, titleWidth, titleHeight, compact ? 26 : 38, 0.9);
 
     this.drawMenuPanel(menuX, menuTop, menuWidth, menuHeight, compact);
     this.drawForegroundShade();
@@ -809,18 +810,19 @@ export class TitleScene extends Phaser.Scene {
     const border = compact ? 3 : 4;
     const inset = compact ? 8 : 12;
     this.menuPanel.clear();
-    this.menuPanel.fillStyle(0x04130b, 0.68);
+    this.menuPanel.fillStyle(0x020805, 0.52);
     this.menuPanel.fillRoundedRect(x + 9, y + 10, width, height, 18);
-    this.menuPanel.fillStyle(0x071b11, 0.84);
+    this.menuPanel.fillStyle(0x06190f, 0.92);
     this.menuPanel.fillRoundedRect(x, y, width, height, 18);
-    this.menuPanel.fillStyle(0x0f3d22, 0.62);
+    this.menuPanel.fillStyle(0x102716, 0.86);
     this.menuPanel.fillRoundedRect(x + border, y + border, width - border * 2, height - border * 2, 14);
-    this.menuPanel.fillStyle(0xb7eba5, 0.16);
+    this.menuPanel.fillStyle(0xffd996, 0.14);
     this.menuPanel.fillRoundedRect(x + inset, y + inset, width - inset * 2, compact ? 8 : 12, 4);
-    this.menuPanel.lineStyle(border, 0xb7eba5, 0.76);
+    this.menuPanel.lineStyle(border, 0xa9683f, 0.9);
     this.menuPanel.strokeRoundedRect(x, y, width, height, 18);
-    this.menuPanel.lineStyle(2, 0xffef78, 0.24);
+    this.menuPanel.lineStyle(2, 0xffd996, 0.32);
     this.menuPanel.strokeRoundedRect(x + inset, y + inset, width - inset * 2, height - inset * 2, 10);
+    this.drawPanelFlourishes(this.menuPanel, x, y, width, height, compact ? 18 : 26, 0.82);
   }
 
   private drawForegroundShade(): void {
@@ -833,6 +835,73 @@ export class TitleScene extends Phaser.Scene {
       this.foregroundArt.fillStyle(0x06190f, 0.05 + index * 0.025);
       this.foregroundArt.fillRect(0, y, this.scale.width, bandHeight);
     }
+
+    this.drawScreenCornerFlourishes();
+  }
+
+  private drawPanelFlourishes(
+    graphics: Phaser.GameObjects.Graphics,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    size: number,
+    alpha: number,
+  ): void {
+    const corners = [
+      { x, y, sx: 1, sy: 1 },
+      { x: x + width, y, sx: -1, sy: 1 },
+      { x, y: y + height, sx: 1, sy: -1 },
+      { x: x + width, y: y + height, sx: -1, sy: -1 },
+    ] as const;
+
+    for (const corner of corners) {
+      graphics.lineStyle(2, 0x5b3926, alpha);
+      graphics.beginPath();
+      graphics.moveTo(corner.x + corner.sx * 8, corner.y + corner.sy * size);
+      graphics.lineTo(corner.x + corner.sx * (size * 0.28), corner.y + corner.sy * (size * 0.62));
+      graphics.lineTo(corner.x + corner.sx * (size * 0.62), corner.y + corner.sy * (size * 0.28));
+      graphics.lineTo(corner.x + corner.sx * size, corner.y + corner.sy * 8);
+      graphics.strokePath();
+      graphics.lineStyle(2, 0xe0a36c, alpha * 0.8);
+      graphics.beginPath();
+      graphics.moveTo(corner.x + corner.sx * 14, corner.y + corner.sy * (size * 0.84));
+      graphics.lineTo(corner.x + corner.sx * (size * 0.84), corner.y + corner.sy * 14);
+      graphics.strokePath();
+      graphics.fillStyle(0x8fbf68, alpha * 0.62);
+      graphics.fillEllipse(corner.x + corner.sx * (size * 0.48), corner.y + corner.sy * (size * 0.34), size * 0.2, size * 0.34);
+      graphics.fillEllipse(corner.x + corner.sx * (size * 0.34), corner.y + corner.sy * (size * 0.52), size * 0.18, size * 0.3);
+    }
+  }
+
+  private drawScreenCornerFlourishes(): void {
+    const size = Math.min(86, Math.max(46, Math.min(this.scale.width, this.scale.height) * 0.11));
+    this.foregroundArt.lineStyle(4, 0x5b3926, 0.76);
+    this.drawScreenCorner(size, 1, 1);
+    this.drawScreenCorner(size, -1, 1);
+    this.drawScreenCorner(size, 1, -1);
+    this.drawScreenCorner(size, -1, -1);
+  }
+
+  private drawScreenCorner(size: number, sx: 1 | -1, sy: 1 | -1): void {
+    const inset = 3;
+    const x = sx === 1 ? inset : this.scale.width - inset;
+    const y = sy === 1 ? inset : this.scale.height - inset;
+    this.foregroundArt.beginPath();
+    this.foregroundArt.moveTo(x + sx * 4, y + sy * size);
+    this.foregroundArt.lineTo(x + sx * 4, y + sy * 4);
+    this.foregroundArt.lineTo(x + sx * size, y + sy * 4);
+    this.foregroundArt.strokePath();
+    this.foregroundArt.lineStyle(2, 0xe0a36c, 0.66);
+    this.foregroundArt.beginPath();
+    this.foregroundArt.moveTo(x + sx * 12, y + sy * (size * 0.82));
+    this.foregroundArt.lineTo(x + sx * (size * 0.34), y + sy * (size * 0.54));
+    this.foregroundArt.lineTo(x + sx * (size * 0.54), y + sy * (size * 0.34));
+    this.foregroundArt.lineTo(x + sx * (size * 0.82), y + sy * 12);
+    this.foregroundArt.strokePath();
+    this.foregroundArt.fillStyle(0x8fbf68, 0.44);
+    this.foregroundArt.fillEllipse(x + sx * (size * 0.34), y + sy * (size * 0.58), size * 0.12, size * 0.24);
+    this.foregroundArt.fillEllipse(x + sx * (size * 0.56), y + sy * (size * 0.34), size * 0.12, size * 0.24);
   }
 
   private setActiveMenuButton(id: TitleButton["id"]): void {
@@ -956,7 +1025,8 @@ export class TitleScene extends Phaser.Scene {
     const shortMobile = phonePortrait && this.scale.height < 680;
     const fullCardPanelHeight = rows > 1 ? 820 : 570;
     const panelWidth = Math.min(phonePortrait ? 390 : compactPicker ? 760 : columns === 2 ? 850 : 1080, this.scale.width - (compactPicker ? 12 : 36));
-    const panelHeight = Math.min(compactPicker ? this.scale.height - 16 : fullCardPanelHeight, this.scale.height - (compactPicker ? 16 : 32));
+    const compactPanelHeight = phonePortrait ? this.scale.height - 16 : Math.min(590, this.scale.height - 16);
+    const panelHeight = Math.min(compactPicker ? compactPanelHeight : fullCardPanelHeight, this.scale.height - (compactPicker ? 16 : 32));
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
     const columnGap = phonePortrait ? 0 : compactPicker ? 12 : 24;
@@ -970,10 +1040,10 @@ export class TitleScene extends Phaser.Scene {
     const cardWidth = phonePortrait
       ? Math.min(CLASS_CARD_BASE_WIDTH, panelWidth - horizontalPadding)
       : Math.min(CLASS_CARD_BASE_WIDTH, (panelWidth - horizontalPadding - (columns - 1) * columnGap) / columns);
-    const cardHeightCap = phonePortrait ? (shortMobile ? 92 : 112) : compactPicker ? 84 : CLASS_CARD_BASE_HEIGHT;
+    const cardHeightCap = phonePortrait ? (shortMobile ? 92 : 112) : compactLandscape ? 142 : compactPicker ? 84 : CLASS_CARD_BASE_HEIGHT;
     const cardHeight = Math.min(cardHeightCap, (cardsAreaHeight - (rows - 1) * rowGap) / rows);
     const condensedCards = compactPicker;
-    const cardScale = condensedCards ? Math.min(1, cardWidth / CLASS_CARD_BASE_WIDTH, Math.max(0.74, cardHeight / 78)) : 1;
+    const cardScale = condensedCards ? Math.min(1, cardWidth / CLASS_CARD_BASE_WIDTH, Math.max(0.74, cardHeight / (compactLandscape ? 118 : 78))) : 1;
     const cardScaleX = condensedCards ? cardScale : cardWidth / CLASS_CARD_BASE_WIDTH;
     const cardScaleY = condensedCards ? cardScale : cardHeight / CLASS_CARD_BASE_HEIGHT;
     const cardsTop = centerY - panelHeight / 2 + headerHeight;
@@ -1190,14 +1260,14 @@ export class TitleScene extends Phaser.Scene {
     this.refreshClassAbilitySummary();
     for (const card of this.classCards) {
       const active = card.characterClass.id === this.activeClassId;
-      card.frame.setFillStyle(active ? 0x123d23 : 0x0b2a18, active ? 0.98 : 0.92);
-      card.frame.setStrokeStyle(active ? 4 : 3, active ? 0xffef78 : 0xb7eba5, active ? 0.98 : 0.72);
-      card.button.setFillStyle(active ? 0xffef78 : 0xe9ffd0, 0.98);
-      card.button.setStrokeStyle(3, active ? 0xf4df6a : 0x2d6f36);
+      card.frame.setFillStyle(active ? 0x173a22 : 0x102716, active ? 0.98 : 0.94);
+      card.frame.setStrokeStyle(active ? 4 : 3, active ? 0xffd996 : 0xa9683f, active ? 0.98 : 0.82);
+      card.button.setFillStyle(active ? 0xffd996 : 0x12341c, active ? 0.98 : 0.96);
+      card.button.setStrokeStyle(3, active ? 0xfff3c2 : 0xa9683f, active ? 0.98 : 0.86);
       card.buttonText.setText(active ? "Start as This" : this.compactClassSelect ? "Details" : "Start");
-      card.buttonText.setColor("#183d20");
-      card.name.setColor(active ? "#ffef78" : "#f7ffe8");
-      card.passive.setColor(active ? "#fff2b2" : "#ffef78");
+      card.buttonText.setColor(active ? "#2b160f" : "#f2e8d5");
+      card.name.setColor(active ? "#fff3c2" : "#f2e8d5");
+      card.passive.setColor(active ? "#ffd996" : "#f2d28b");
     }
   }
 

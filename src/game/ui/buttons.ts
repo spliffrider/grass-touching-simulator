@@ -39,6 +39,7 @@ export function createTextButton(
       color: UITheme.colors.cream,
       stroke: UITheme.text.stroke,
       strokeThickness: height < 40 ? 3 : 4,
+      align: "center",
     })
     .setOrigin(0.5)
     .setShadow(0, 2, "#020805", 2, false, true);
@@ -176,10 +177,15 @@ export function setTextButtonAttention(button: Phaser.GameObjects.Container, act
 function fitButtonLabel(button: Phaser.GameObjects.Container, label: Phaser.GameObjects.Text, text: string): void {
   const width = Number(button.getData("baseWidth") ?? 118);
   const baseFontSize = Number(button.getData("baseFontSize") ?? 18);
-  const compactForLength = text.length > 15 ? 4 : text.length > 11 ? 2 : 0;
-  const compactForWidth = width < 110 && text.length > 8 ? 2 : 0;
-  const fontSize = Math.max(10, baseFontSize - compactForLength - compactForWidth);
+  const lines = text.split("\n");
+  const longestLine = lines.reduce((longest, line) => Math.max(longest, line.length), 0);
+  const compactForLength = longestLine > 15 ? 4 : longestLine > 11 ? 2 : 0;
+  const compactForWidth = width < 110 && longestLine > 8 ? 2 : 0;
+  const compactForLines = lines.length > 1 ? 3 : 0;
+  const fontSize = Math.max(10, baseFontSize - compactForLength - compactForWidth - compactForLines);
   label.setFontSize(fontSize);
+  label.setAlign("center");
+  label.setLineSpacing(lines.length > 1 ? 1 : 0);
   label.setWordWrapWidth(Math.max(40, width - 14));
 }
 

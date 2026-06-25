@@ -179,6 +179,9 @@ const PERF_HARNESS_TAP_COUNT = 14;
 const HUD_CHIP_HEIGHT = 48;
 const HUD_CHIP_COMPACT_HEIGHT = 42;
 const HUD_CHIP_GAP = 8;
+const ACTION_BUTTON_WIDTH = 118;
+const ACTION_BUTTON_HEIGHT = 58;
+const ACTION_BUTTON_GAP = 10;
 const TRIGGER_FEED_MAX_EVENTS = 6;
 const TRIGGER_FEED_EVENT_TTL_MS = 90000;
 const TRIGGER_FEED_REPEAT_WINDOW_MS = 12000;
@@ -687,6 +690,7 @@ export class GameScene extends Phaser.Scene {
   private buildLabelText!: Phaser.GameObjects.Text;
   private resourceText!: Phaser.GameObjects.Text;
   private hudChipRoot!: Phaser.GameObjects.Container;
+  private hudRailFrame!: OrnateFrame;
   private hudChips: HudChipView[] = [];
   private hudChipBottomY = 0;
   private hudChipRightX = 0;
@@ -2218,6 +2222,22 @@ export class GameScene extends Phaser.Scene {
       .setShadow(0, 1, "#ffffff", 1, false, true);
     this.resourceText.setVisible(false);
 
+    this.hudRailFrame = createOrnateFrame(this, 540, 64, {
+      x: 18,
+      y: 72,
+      depth: 19,
+      fillColor: UITheme.colors.panelBgDeep,
+      fillAlpha: 0.82,
+      insetAlpha: 0.1,
+      accentColor: UITheme.colors.bronze,
+      accentAlpha: 0.72,
+      glowAlpha: 0.04,
+      shadowAlpha: 0.38,
+      trim: 2,
+      cornerSize: 18,
+    });
+    this.hudRailFrame.setVisible(false);
+
     this.hudChipRoot = this.add.container(0, 0).setDepth(24);
     this.hudChips = [
       this.createHudChip("touches", "Touches", "grass-normal", "GT", 150),
@@ -2318,13 +2338,13 @@ export class GameScene extends Phaser.Scene {
     this.menuDockBg = this.menuDockFrame.bg;
     this.menuDockFrame.setVisible(false);
 
-    this.skillButton = createTextButton(this, "Skills", () => this.openSkillTree(), 118, 44, 20);
-    this.questButton = createTextButton(this, "Quests", () => this.openQuestLog(), 118, 44, 20);
-    this.seedButton = createTextButton(this, "Seeds", () => this.openSeedShop(), 118, 44, 20);
-    this.storeButton = createTextButton(this, "Store", () => this.openGoldStore(), 118, 44, 20);
-    this.autoButton = createTextButton(this, "Auto", () => this.openAutomationPanel(), 118, 44, 20);
-    this.journalButton = createTextButton(this, "Journal", () => this.openJournal(), 118, 44, 20);
-    this.optionsButton = createTextButton(this, "Options", () => this.openOptions(), 118, 44, 20);
+    this.skillButton = createTextButton(this, "Skills", () => this.openSkillTree(), ACTION_BUTTON_WIDTH, ACTION_BUTTON_HEIGHT, 20);
+    this.questButton = createTextButton(this, "Quests", () => this.openQuestLog(), ACTION_BUTTON_WIDTH, ACTION_BUTTON_HEIGHT, 20);
+    this.seedButton = createTextButton(this, "Seeds", () => this.openSeedShop(), ACTION_BUTTON_WIDTH, ACTION_BUTTON_HEIGHT, 20);
+    this.storeButton = createTextButton(this, "Store", () => this.openGoldStore(), ACTION_BUTTON_WIDTH, ACTION_BUTTON_HEIGHT, 20);
+    this.autoButton = createTextButton(this, "Auto", () => this.openAutomationPanel(), ACTION_BUTTON_WIDTH, ACTION_BUTTON_HEIGHT, 20);
+    this.journalButton = createTextButton(this, "Journal", () => this.openJournal(), ACTION_BUTTON_WIDTH, ACTION_BUTTON_HEIGHT, 20);
+    this.optionsButton = createTextButton(this, "Options", () => this.openOptions(), ACTION_BUTTON_WIDTH, ACTION_BUTTON_HEIGHT, 20);
   }
 
   private createHudChip(
@@ -2824,6 +2844,12 @@ export class GameScene extends Phaser.Scene {
 
     this.hudChipBottomY = rowBottom;
     this.hudChipRightX = rowRight;
+    const railPad = mobilePortrait ? 6 : 8;
+    const railWidth = Math.max(156, Math.min(rightLimit - startX + railPad * 2, rowRight - startX + railPad * 2));
+    const railHeight = Math.max(chipHeight + railPad * 2, rowBottom - startY + railPad * 2);
+    this.hudRailFrame.setPosition(startX - railPad, startY - railPad);
+    this.hudRailFrame.setSize(railWidth, railHeight);
+    this.hudRailFrame.setVisible(!this.hasBlockingOverlayOpen());
   }
 
   private resizeHudChip(chip: HudChipView, width: number, height: number, compact: boolean): void {
@@ -2842,6 +2868,8 @@ export class GameScene extends Phaser.Scene {
   private layoutMenuButtons(): void {
     const mobilePortrait = this.isMobilePortrait();
     const buttonScale = mobilePortrait ? 0.74 : 1;
+    const buttonWidth = Number(this.skillButton.getData("baseWidth") ?? ACTION_BUTTON_WIDTH);
+    const buttonHeight = Number(this.skillButton.getData("baseHeight") ?? ACTION_BUTTON_HEIGHT);
     const storeUnlocked = this.isStoreUnlocked();
     const visibleButtons = [
       this.skillButton,
@@ -2860,8 +2888,8 @@ export class GameScene extends Phaser.Scene {
     if (mobilePortrait) {
       const columns = Math.min(4, visibleButtons.length);
       const rows = Math.ceil(visibleButtons.length / columns);
-      const scaledButtonWidth = 118 * buttonScale;
-      const scaledButtonHeight = 44 * buttonScale;
+      const scaledButtonWidth = buttonWidth * buttonScale;
+      const scaledButtonHeight = buttonHeight * buttonScale;
       const gap = 7;
       const dockHeight = rows * scaledButtonHeight + Math.max(0, rows - 1) * gap + MOBILE_COMMAND_DOCK_PADDING * 2;
       const dockTop = Math.max(12, this.scale.height - dockHeight - 8);
@@ -2891,10 +2919,16 @@ export class GameScene extends Phaser.Scene {
 
     this.mobileCommandDockTop = Number.POSITIVE_INFINITY;
     this.mobileCommandDockHeight = 0;
-    this.menuDockFrame.setVisible(false);
-    const buttonX = this.scale.width - 142;
-    let buttonY = 24;
-    const buttonStep = 52;
+    const railWidth = buttonWidth + 24;
+    const railHeight = visibleButtons.length * buttonHeight + Math.max(0, visibleButtons.length - 1) * ACTION_BUTTON_GAP + 20;
+    const railX = this.scale.width - railWidth - 12;
+    const railY = 18;
+    this.menuDockFrame.setPosition(railX, railY);
+    this.menuDockFrame.setSize(railWidth, railHeight);
+    this.menuDockFrame.setVisible(!this.hasBlockingOverlayOpen());
+    const buttonX = railX + 12;
+    let buttonY = railY + 10;
+    const buttonStep = buttonHeight + ACTION_BUTTON_GAP;
     for (const button of visibleButtons) {
       button.setScale(buttonScale);
       button.setPosition(buttonX, buttonY);
@@ -3809,8 +3843,8 @@ export class GameScene extends Phaser.Scene {
     this.journalResourceText = this.add.text(0, 0, "", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "18px",
-      color: "#173b20",
-      backgroundColor: "#e9ffd0",
+      color: UITheme.colors.cream,
+      backgroundColor: "#102716",
       padding: { x: 12, y: 8 },
     });
     this.journalStatusText = this.add
@@ -3879,29 +3913,29 @@ export class GameScene extends Phaser.Scene {
 
     this.seedRoot = this.add.container(0, 0).setDepth(105).setVisible(false);
     this.seedBackdrop = this.add
-      .rectangle(0, 0, this.scale.width, this.scale.height, 0x20351f, 1)
+      .rectangle(0, 0, this.scale.width, this.scale.height, UITheme.colors.panelBgDeep, 0.98)
       .setOrigin(0, 0)
       .setInteractive();
     this.seedTitleText = this.add.text(0, 0, "Seed Shop", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "34px",
-      color: "#f7ffe8",
-      stroke: "#17491f",
+      color: UITheme.colors.creamBright,
+      stroke: "#2b160f",
       strokeThickness: 6,
     }).setShadow(0, 3, "#06190f", 3, false, true);
     this.seedResourceText = this.add.text(0, 0, "", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "18px",
-      color: "#173b20",
-      backgroundColor: "#e9ffd0",
+      color: UITheme.colors.cream,
+      backgroundColor: "#102716",
       padding: { x: 12, y: 8 },
     });
     this.seedStatusText = this.add
       .text(0, 0, "Seeds unlock new ways to touch grass.", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "16px",
-        color: "#f7ffe8",
-        stroke: "#17491f",
+        color: UITheme.colors.cream,
+        stroke: "#06190f",
         strokeThickness: 4,
       })
       .setOrigin(0.5, 0);
@@ -3913,30 +3947,30 @@ export class GameScene extends Phaser.Scene {
       const container = this.add.container(0, 0);
       const attentionGlow = this.createReadyRowGlow(430, 102);
       const bg = this.add
-        .rectangle(0, 0, 420, 92, 0xf4ffdc, 0.96)
+        .rectangle(0, 0, 420, 92, UITheme.colors.panelBg, 0.96)
         .setOrigin(0, 0)
-        .setStrokeStyle(3, 0x2d6f36)
+        .setStrokeStyle(3, UITheme.colors.bronze, 0.86)
         .setInteractive({ useHandCursor: true });
       const iconBg = this.add
-        .rectangle(14, 14, SHOP_ICON_SIZE + 10, SHOP_ICON_SIZE + 10, 0xdfffc8, 0.74)
+        .rectangle(14, 14, SHOP_ICON_SIZE + 10, SHOP_ICON_SIZE + 10, UITheme.colors.panelInset, 0.86)
         .setOrigin(0, 0)
-        .setStrokeStyle(2, 0x85d35e, 0.62);
+        .setStrokeStyle(2, UITheme.colors.bronzeLight, 0.58);
       const icon = this.add.image(43, 43, SEED_SHOP_ICON_KEYS[item.id] ?? "item-seed-pouch").setDisplaySize(SHOP_ICON_SIZE, SHOP_ICON_SIZE);
       const name = this.add.text(78, 10, item.name, {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "20px",
-        color: "#183d20",
+        color: UITheme.colors.cream,
       });
       const description = this.add.text(78, 38, item.description, {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "14px",
-        color: "#416247",
+        color: UITheme.colors.mutedGreen,
         wordWrap: { width: 326 },
       });
       const status = this.add.text(78, 68, "", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "15px",
-        color: "#6d4c19",
+        color: "#d6e6d0",
       });
       const readyBadge = this.createReadyBadge();
 
@@ -4008,29 +4042,29 @@ export class GameScene extends Phaser.Scene {
 
     this.storeRoot = this.add.container(0, 0).setDepth(108).setVisible(false);
     this.storeBackdrop = this.add
-      .rectangle(0, 0, this.scale.width, this.scale.height, 0x102315, 1)
+      .rectangle(0, 0, this.scale.width, this.scale.height, UITheme.colors.panelBgDeep, 0.98)
       .setOrigin(0, 0)
       .setInteractive();
     this.storeTitleText = this.add.text(0, 0, "Store", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "34px",
-      color: "#f7ffe8",
-      stroke: "#17491f",
+      color: UITheme.colors.creamBright,
+      stroke: "#2b160f",
       strokeThickness: 6,
     }).setShadow(0, 3, "#06190f", 3, false, true);
     this.storeResourceText = this.add.text(0, 0, "", {
       fontFamily: "Trebuchet MS, Arial",
       fontSize: "18px",
-      color: "#f7ffe8",
-      backgroundColor: "#0f3d22",
+      color: UITheme.colors.cream,
+      backgroundColor: "#102716",
       padding: { x: 12, y: 8 },
     });
     this.storeStatusText = this.add
       .text(0, 0, this.getDefaultStoreStatus(), {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "16px",
-        color: "#dfffc8",
-        stroke: "#17491f",
+        color: UITheme.colors.mutedGreen,
+        stroke: "#06190f",
         strokeThickness: 4,
       })
       .setOrigin(0.5, 0);
@@ -4056,12 +4090,12 @@ export class GameScene extends Phaser.Scene {
       const bg = this.add
         .rectangle(0, 0, 430, 98, 0x12341c, 0.96)
         .setOrigin(0, 0)
-        .setStrokeStyle(3, 0xb7eba5)
+        .setStrokeStyle(3, UITheme.colors.bronze, 0.86)
         .setInteractive({ useHandCursor: true });
       const iconBg = this.add
         .rectangle(14, 15, SHOP_ICON_SIZE + 10, SHOP_ICON_SIZE + 10, 0x0d2f1c, 0.82)
         .setOrigin(0, 0)
-        .setStrokeStyle(2, 0xb7eba5, 0.58);
+        .setStrokeStyle(2, UITheme.colors.bronzeLight, 0.58);
       const icon = this.add.image(43, 44, GOLD_STORE_ICON_KEYS[system.id] ?? "world-tiny-sprinkler").setDisplaySize(SHOP_ICON_SIZE, SHOP_ICON_SIZE);
       const name = this.add.text(78, 10, system.name, {
         fontFamily: "Trebuchet MS, Arial",
@@ -4094,12 +4128,12 @@ export class GameScene extends Phaser.Scene {
       const bg = this.add
         .rectangle(0, 0, 430, 98, 0x12341c, 0.96)
         .setOrigin(0, 0)
-        .setStrokeStyle(3, 0xb7eba5)
+        .setStrokeStyle(3, UITheme.colors.bronze, 0.86)
         .setInteractive({ useHandCursor: true });
       const iconBg = this.add
         .rectangle(14, 15, SHOP_ICON_SIZE + 10, SHOP_ICON_SIZE + 10, 0x0d2f1c, 0.82)
         .setOrigin(0, 0)
-        .setStrokeStyle(2, 0xb7eba5, 0.58);
+        .setStrokeStyle(2, UITheme.colors.bronzeLight, 0.58);
       const icon = this.add.image(43, 44, GOLD_STORE_ICON_KEYS[item.id] ?? "item-seed-satchel").setDisplaySize(SHOP_ICON_SIZE, SHOP_ICON_SIZE);
       const name = this.add.text(78, 10, item.name, {
         fontFamily: "Trebuchet MS, Arial",
@@ -4199,42 +4233,44 @@ export class GameScene extends Phaser.Scene {
   private createOptionsPanel(): void {
     this.optionsRoot = this.add.container(0, 0).setDepth(110).setVisible(false);
     this.optionsBackdrop = this.add
-      .rectangle(0, 0, this.scale.width, this.scale.height, 0x102315, 0.62)
+      .rectangle(0, 0, this.scale.width, this.scale.height, UITheme.colors.panelBgDeep, 0.74)
       .setOrigin(0, 0)
       .setInteractive();
     this.optionsPanel = this.add
-      .rectangle(0, 0, 460, 280, 0xf4ffdc, 0.98)
+      .rectangle(0, 0, 460, 280, UITheme.colors.panelBg, 0.98)
       .setOrigin(0.5)
-      .setStrokeStyle(5, 0x2d6f36);
+      .setStrokeStyle(5, UITheme.colors.bronze, 0.9);
     this.optionsTitleText = this.add
       .text(0, 0, "Options", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "34px",
-        color: "#183d20",
+        color: UITheme.colors.creamBright,
+        stroke: "#2b160f",
+        strokeThickness: 5,
       })
       .setOrigin(0.5)
-      .setShadow(0, 2, "#ffffff", 2, false, true);
+      .setShadow(0, 3, "#020805", 3, false, true);
     this.optionsVolumeLabel = this.add
       .text(0, 0, "", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "18px",
-        color: "#416247",
+        color: UITheme.colors.mutedGreen,
       })
       .setOrigin(0.5);
-    this.optionsVolumeTrack = this.add.rectangle(0, 0, 320, 12, 0x9bbf7e, 1).setOrigin(0, 0.5);
-    this.optionsVolumeFill = this.add.rectangle(0, 0, 220, 12, 0x2d6f36, 1).setOrigin(0, 0.5);
+    this.optionsVolumeTrack = this.add.rectangle(0, 0, 320, 12, UITheme.colors.bronzeDark, 1).setOrigin(0, 0.5);
+    this.optionsVolumeFill = this.add.rectangle(0, 0, 220, 12, UITheme.colors.bronzeLight, 1).setOrigin(0, 0.5);
     this.optionsVolumeHit = this.add
       .rectangle(0, 0, 350, 44, 0xffffff, 0.001)
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
-    this.optionsVolumeKnob = this.add.circle(0, 0, 14, 0xf7ffe8, 1).setStrokeStyle(4, 0x17491f).setInteractive({ useHandCursor: true });
+    this.optionsVolumeKnob = this.add.circle(0, 0, 14, 0xf2e8d5, 1).setStrokeStyle(4, UITheme.colors.bronze, 0.92).setInteractive({ useHandCursor: true });
     
     // Track selector
     this.optionsTrackLabel = this.add
       .text(0, 0, "", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "18px",
-        color: "#183d20",
+        color: UITheme.colors.cream,
       })
       .setOrigin(0.5);
     this.optionsTrackLeftBtn = createTextButton(this, "<", () => this.cycleTrack(-1), 44, 38, 111);
@@ -4354,26 +4390,28 @@ export class GameScene extends Phaser.Scene {
   private createAutomationPanel(): void {
     this.automationRoot = this.add.container(0, 0).setDepth(108).setVisible(false);
     this.automationBackdrop = this.add
-      .rectangle(0, 0, this.scale.width, this.scale.height, 0x102315, 0.62)
+      .rectangle(0, 0, this.scale.width, this.scale.height, UITheme.colors.panelBgDeep, 0.76)
       .setOrigin(0, 0)
       .setInteractive();
     this.automationPanel = this.add
-      .rectangle(0, 0, 560, 540, 0xf4ffdc, 0.98)
+      .rectangle(0, 0, 560, 540, UITheme.colors.panelBg, 0.98)
       .setOrigin(0.5)
-      .setStrokeStyle(5, 0x2d6f36);
+      .setStrokeStyle(5, UITheme.colors.bronze, 0.9);
     this.automationTitleText = this.add
       .text(0, 0, "Automation", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "34px",
-        color: "#183d20",
+        color: UITheme.colors.creamBright,
+        stroke: "#2b160f",
+        strokeThickness: 5,
       })
       .setOrigin(0.5)
-      .setShadow(0, 2, "#ffffff", 2, false, true);
+      .setShadow(0, 3, "#020805", 3, false, true);
     this.automationStatusText = this.add
       .text(0, 0, "", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "16px",
-        color: "#416247",
+        color: UITheme.colors.mutedGreen,
         align: "center",
       })
       .setOrigin(0.5);
@@ -4389,19 +4427,19 @@ export class GameScene extends Phaser.Scene {
 
     for (const directive of AUTOMATION_DIRECTIVES) {
       const container = this.add.container(0, 0).setSize(460, 68).setInteractive({ useHandCursor: true });
-      const bg = this.add.rectangle(0, 0, 460, 68, 0xe9ffd0, 0.96).setOrigin(0, 0).setStrokeStyle(2, 0x8fcf78, 0.8);
+      const bg = this.add.rectangle(0, 0, 460, 68, UITheme.colors.panelBgDeep, 0.96).setOrigin(0, 0).setStrokeStyle(2, UITheme.colors.bronze, 0.82);
       const name = this.add
         .text(16, 10, directive.name, {
           fontFamily: "Trebuchet MS, Arial",
           fontSize: "20px",
-          color: "#183d20",
+          color: UITheme.colors.cream,
         })
         .setOrigin(0, 0);
       const description = this.add
         .text(16, 36, directive.description, {
           fontFamily: "Trebuchet MS, Arial",
           fontSize: "13px",
-          color: "#416247",
+          color: UITheme.colors.mutedGreen,
           wordWrap: { width: 420 },
         })
         .setOrigin(0, 0);
@@ -4490,9 +4528,9 @@ export class GameScene extends Phaser.Scene {
 
     for (const view of this.automationDirectiveViews.values()) {
       const selected = view.directiveId === currentDirective.id;
-      view.bg.setFillStyle(selected ? 0xdfffc8 : 0xe9ffd0, selected ? 1 : 0.96);
-      view.bg.setStrokeStyle(selected ? 4 : 2, selected ? 0xf4df6a : 0x8fcf78, selected ? 0.96 : 0.8);
-      view.name.setColor(selected ? "#0d3018" : "#183d20");
+      view.bg.setFillStyle(selected ? UITheme.colors.panelInset : UITheme.colors.panelBgDeep, selected ? 1 : 0.96);
+      view.bg.setStrokeStyle(selected ? 4 : 2, selected ? UITheme.colors.glow : UITheme.colors.bronze, selected ? 0.96 : 0.82);
+      view.name.setColor(selected ? UITheme.colors.creamBright : UITheme.colors.cream);
     }
 
     this.layoutAutomationPanel();
@@ -4719,16 +4757,40 @@ export class GameScene extends Phaser.Scene {
     const radius = compact ? 14 : 18;
 
     this.skillMapBackdropGraphics.clear();
-    this.skillMapBackdropGraphics.fillStyle(0x071b11, 0.72);
+    this.skillMapBackdropGraphics.fillStyle(0x020805, 0.5);
     this.skillMapBackdropGraphics.fillRoundedRect(x + 8, y + 10, width, height, radius);
-    this.skillMapBackdropGraphics.fillStyle(0x12341c, 0.92);
+    this.skillMapBackdropGraphics.fillStyle(UITheme.colors.panelBg, 0.94);
     this.skillMapBackdropGraphics.fillRoundedRect(x, y, width, height, radius);
-    this.skillMapBackdropGraphics.lineStyle(Math.max(2, 3 * treeScale), 0xb7eba5, 0.46);
+    this.skillMapBackdropGraphics.lineStyle(Math.max(2, 3 * treeScale), UITheme.colors.bronze, 0.86);
     this.skillMapBackdropGraphics.strokeRoundedRect(x, y, width, height, radius);
-    this.skillMapBackdropGraphics.lineStyle(Math.max(1, 2 * treeScale), 0xffef78, 0.22);
+    this.skillMapBackdropGraphics.lineStyle(Math.max(1, 2 * treeScale), UITheme.colors.bronzeLight, 0.34);
     this.skillMapBackdropGraphics.strokeRoundedRect(x + 8, y + 8, width - 16, height - 16, Math.max(8, radius - 5));
     this.skillMapBackdropGraphics.fillStyle(0xb7eba5, 0.08);
     this.skillMapBackdropGraphics.fillEllipse(x + width * 0.52, y + height * 0.5, width * 0.88, height * 0.68);
+    this.drawSkillMapCorners(x, y, width, height, Math.max(22, 34 * treeScale));
+  }
+
+  private drawSkillMapCorners(x: number, y: number, width: number, height: number, size: number): void {
+    const corners = [
+      { x, y, sx: 1, sy: 1 },
+      { x: x + width, y, sx: -1, sy: 1 },
+      { x, y: y + height, sx: 1, sy: -1 },
+      { x: x + width, y: y + height, sx: -1, sy: -1 },
+    ] as const;
+
+    for (const corner of corners) {
+      this.skillMapBackdropGraphics.lineStyle(2, UITheme.colors.bronzeDark, 0.72);
+      this.skillMapBackdropGraphics.lineBetween(corner.x + corner.sx * 8, corner.y + corner.sy * size, corner.x + corner.sx * size, corner.y + corner.sy * 8);
+      this.skillMapBackdropGraphics.lineStyle(1, UITheme.colors.bronzeLight, 0.7);
+      this.skillMapBackdropGraphics.lineBetween(
+        corner.x + corner.sx * 14,
+        corner.y + corner.sy * (size * 0.76),
+        corner.x + corner.sx * (size * 0.76),
+        corner.y + corner.sy * 14,
+      );
+      this.skillMapBackdropGraphics.fillStyle(0x8fbf68, 0.42);
+      this.skillMapBackdropGraphics.fillEllipse(corner.x + corner.sx * (size * 0.42), corner.y + corner.sy * (size * 0.38), size * 0.18, size * 0.28);
+    }
   }
 
   private drawSkillLines(treeScale: number, treeX: number, treeY: number): void {
@@ -10912,7 +10974,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private formatActionMenuLabel(icon: string, baseLabel: string, readyCount = 0): string {
-    return this.formatReadyMenuLabel(`${icon} ${baseLabel}`, readyCount);
+    return `${icon}\n${this.formatReadyMenuLabel(baseLabel, readyCount)}`;
   }
 
   private formatAffordabilityPreview(current: number, cost: number, formatValue: (value: number) => string, unitLabel = ""): string {
@@ -11827,22 +11889,22 @@ export class GameScene extends Phaser.Scene {
       const ready = !purchased && unlocked && affordable;
 
       view.container.setAlpha(unlocked || purchased ? 1 : 0.76);
-      view.bg.setFillStyle(purchased ? 0xdfffc8 : 0xf4ffdc, unlocked || purchased ? 0.96 : 0.7);
-      view.bg.setStrokeStyle(3, purchased ? 0x85d35e : ready ? 0xffef78 : 0x2d6f36, ready ? 0.98 : 1);
+      view.bg.setFillStyle(purchased ? UITheme.colors.panelInset : UITheme.colors.panelBg, unlocked || purchased ? 0.96 : 0.66);
+      view.bg.setStrokeStyle(3, ready ? UITheme.colors.glow : purchased ? UITheme.colors.bronzeLight : UITheme.colors.bronze, ready ? 0.98 : 0.86);
       this.setReadyItemAttention(view, ready);
 
       if (purchased) {
         view.status.setText("Unlocked");
-        view.status.setColor("#26652e");
+        view.status.setColor(UITheme.colors.mutedGreen);
       } else if (!unlocked) {
         view.status.setText("Locked");
-        view.status.setColor("#c8d1cc");
+        view.status.setColor("#8ea594");
       } else if (!affordable) {
         view.status.setText(`Cost: ${item.cost} seeds | ${this.formatAffordabilityPreview(this.state.seeds, item.cost, (value) => `${Math.ceil(value)}`, "seeds")}`);
-        view.status.setColor("#6d4c19");
+        view.status.setColor("#d6e6d0");
       } else {
         view.status.setText(`Cost: ${item.cost} seeds | Ready now`);
-        view.status.setColor("#26652e");
+        view.status.setColor("#ffd996");
       }
     }
   }
@@ -11873,8 +11935,8 @@ export class GameScene extends Phaser.Scene {
 
     this.storeAutomationButton.setAlpha(this.storeMode === "automation" ? 1 : 0.72);
     this.storeGoodsButton.setAlpha(this.storeMode === "goods" ? 1 : 0.72);
-    setTextButtonText(this.storeAutomationButton, this.formatActionMenuLabel(UI_ACTION_ICONS.automation, "Auto", readyAutomationCount));
-    setTextButtonText(this.storeGoodsButton, this.formatActionMenuLabel(UI_ACTION_ICONS.store, "Goods", readyGoodsCount));
+    setTextButtonText(this.storeAutomationButton, this.formatReadyMenuLabel(`${UI_ACTION_ICONS.automation} Auto`, readyAutomationCount));
+    setTextButtonText(this.storeGoodsButton, this.formatReadyMenuLabel(`${UI_ACTION_ICONS.store} Goods`, readyGoodsCount));
     setTextButtonText(this.storeAutomationBuyModeButton, this.automationBuyMode === "boost" ? "To Boost" : "Buy 1");
     setTextButtonAttention(this.storeAutomationButton, readyAutomationCount > 0);
     setTextButtonAttention(this.storeGoodsButton, readyGoodsCount > 0);
@@ -11932,8 +11994,12 @@ export class GameScene extends Phaser.Scene {
             : "max boost";
 
       view.container.setAlpha(unlocked || owned > 0 ? 1 : 0.68);
-      view.bg.setFillStyle(owned > 0 ? 0x1c4728 : 0x12341c, unlocked || owned > 0 ? 0.96 : 0.62);
-      view.bg.setStrokeStyle(3, ready ? 0xffef78 : owned > 0 ? 0x85d35e : 0xb7eba5, ready ? 0.98 : unlocked || owned > 0 ? 0.86 : 0.44);
+      view.bg.setFillStyle(owned > 0 ? UITheme.colors.panelInset : UITheme.colors.panelBg, unlocked || owned > 0 ? 0.96 : 0.62);
+      view.bg.setStrokeStyle(
+        3,
+        ready ? UITheme.colors.glow : owned > 0 ? UITheme.colors.bronzeLight : UITheme.colors.bronze,
+        ready ? 0.98 : unlocked || owned > 0 ? 0.86 : 0.44,
+      );
       this.setReadyItemAttention(view, ready);
 
       if (!unlocked && owned <= 0) {
@@ -11981,8 +12047,12 @@ export class GameScene extends Phaser.Scene {
       const ready = !maxed && unlocked && affordable && (item.kind !== "consumable" || quantity === 0);
 
       view.container.setAlpha(unlocked || quantity > 0 ? 1 : 0.68);
-      view.bg.setFillStyle(quantity > 0 ? 0x1c4728 : 0x12341c, unlocked || quantity > 0 ? 0.96 : 0.62);
-      view.bg.setStrokeStyle(3, ready ? 0xffef78 : quantity > 0 ? 0x85d35e : 0xb7eba5, ready ? 0.98 : unlocked || quantity > 0 ? 0.86 : 0.44);
+      view.bg.setFillStyle(quantity > 0 ? UITheme.colors.panelInset : UITheme.colors.panelBg, unlocked || quantity > 0 ? 0.96 : 0.62);
+      view.bg.setStrokeStyle(
+        3,
+        ready ? UITheme.colors.glow : quantity > 0 ? UITheme.colors.bronzeLight : UITheme.colors.bronze,
+        ready ? 0.98 : unlocked || quantity > 0 ? 0.86 : 0.44,
+      );
       this.setReadyItemAttention(view, ready);
 
       if (!unlocked && quantity <= 0) {

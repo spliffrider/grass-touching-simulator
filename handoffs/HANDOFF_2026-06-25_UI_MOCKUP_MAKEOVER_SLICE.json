@@ -1,0 +1,71 @@
+{
+  "date": "2026-06-25",
+  "topic": "UI Mockup Makeover Slice",
+  "currentGoal": "Apply the visual direction from the exported UI mockups without adding fake systems, keep the first-click/rate-limit work intact, then push live and sync to the Mac mini.",
+  "workCompleted": [
+    "Moved the title/menu/class-select flow toward the mockup's deep forest and bronze style with ornate panel flourishes, cream/gold title typography, themed class cards, and compact landscape picker sizing.",
+    "Restyled the gameplay HUD into a framed resource rail and a right-side command rail with two-line icon-over-label command tiles.",
+    "Kept the Store gate intact: Store remains hidden until the Sprinkler Calibration unlock path makes it available.",
+    "Restyled the skill tree map frame with bronze trim and corner details while leaving the existing skill system unchanged.",
+    "Themed the command overlays that players hit from the rail: Seed Shop, Store, Automation, Options, and Journal resource summary now use the forest/bronze palette instead of pale green surfaces.",
+    "Kept the previous first-touch ceremony and manual click pressure limiter intact; this session did not add new gameplay systems from the mockups."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/scenes/TitleScene.ts",
+    "src/game/ui/buttons.ts",
+    "handoffs/HANDOFF_2026-06-25_UI_MOCKUP_MAKEOVER_SLICE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "git diff --check -- src/game/scenes/GameScene.ts src/game/scenes/TitleScene.ts src/game/ui/buttons.ts",
+      "result": "passed with existing LF-to-CRLF warnings for touched files"
+    },
+    {
+      "command": "npm run build",
+      "result": "passed; production asset dist/assets/index-CAQPPIDk.js"
+    },
+    {
+      "check": "In-app browser visuals",
+      "result": "Checked title, character select, fresh gameplay, first manual touch feedback, and skill tree. Console error count stayed at 0 during these checks."
+    },
+    {
+      "check": "Edge CDP 1280x720 visual sweep",
+      "result": "Captured field, Seed Shop, Store, Automation, and Options through headless Edge DevTools. No Runtime or Log errors were reported."
+    },
+    {
+      "command": "http://127.0.0.1:5173/?perfHarness&tiles=1200 via Edge CDP at 390x844",
+      "result": "status complete; visibleTiles 96; tileMode viewport; layoutPasses 0; redraws 0; redrawQueued 0; maxFrameDeltaMs 17; frameSpikes 0; displayObjects 708; activeTweens 25; hotspots hot none"
+    },
+    {
+      "command": "http://127.0.0.1:5173/?perfHarness&tiles=1200 via Edge CDP at 1280x720",
+      "result": "status complete; visibleTiles 1200; tileMode batch; layoutPasses 0; redraws 0; redrawQueued 0; maxFrameDeltaMs 17; frameSpikes 0; displayObjects 304; activeTweens 23; hotspots hot none"
+    }
+  ],
+  "currentGitStatusBeforeCommit": [
+    "M AGENTS.md (pre-existing/unrelated)",
+    "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md (pre-existing/unrelated)",
+    "M src/game/scenes/GameScene.ts",
+    "M src/game/scenes/TitleScene.ts",
+    "M src/game/ui/buttons.ts",
+    "?? several pre-existing docs/media artifacts remain untracked",
+    "?? handoffs/HANDOFF_2026-06-25_UI_MOCKUP_MAKEOVER_SLICE.json"
+  ],
+  "knownIssues": [
+    "The stress-mode visual screenshots include the existing stress overlay text; this is a verification artifact, not a UI regression.",
+    "The in-app browser screenshot pipe timed out after several captures, so Edge DevTools was used for the final overlay and perf verification.",
+    "Unrelated tracked changes remain in AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md and must not be staged with this work."
+  ],
+  "nextRecommendedSteps": [
+    "After commit and push, verify the public deployment serves the new Vite asset.",
+    "Run the desktop-to-Mac handoff workflow so the Mac mini pulls the UI commit.",
+    "Continue the makeover in a later slice for any remaining secondary panels if they become visible during playtesting."
+  ],
+  "doNotRevert": [
+    "Do not revert the Store-after-Sprinkler-Calibration gate from the previous commit.",
+    "Do not revert the first-touch ceremony or click pressure limiter from commits d089170 and c3ba252.",
+    "Do not add mockup-only fake systems such as water/energy/day mechanics unless the user explicitly asks for real gameplay design work.",
+    "Do not revert unrelated local edits in AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, or untracked docs/media files."
+  ]
+}
