@@ -1,0 +1,83 @@
+{
+  "date": "2026-06-25",
+  "topic": "UI Makeover Live And Synced",
+  "currentGoal": "Close the session after shipping the UI mockup makeover slice: confirm it is live, confirm the Mac mini is synced, and leave a clear handoff for the next session.",
+  "sessionOutcome": {
+    "status": "complete",
+    "latestCodeCommit": "46d5b85617c143c6f048657163ffdfcb99e59cc7",
+    "latestCodeCommitShort": "46d5b85",
+    "latestCodeCommitMessage": "Apply bronze forest UI makeover slice",
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "liveAssetVerified": "https://grasstouchingsimulator.com/assets/index-CAQPPIDk.js",
+    "desktopHeadBeforeThisHandoff": "46d5b85",
+    "macHeadBeforeThisHandoff": "46d5b85"
+  },
+  "workCompleted": [
+    "Shipped the bronze/forest UI makeover slice from the Antigravity/Gemini mockup direction without adding mockup-only fake systems.",
+    "Updated the title screen, character select, gameplay HUD resource rail, right command rail, skill tree frame, Seed Shop, Store, Automation panel, Options panel, and Journal resource styling.",
+    "Kept the previous first-touch ceremony and high-rate click pressure limiter intact.",
+    "Kept the Store unlock gate intact: Store remains gated behind the Sprinkler Calibration path.",
+    "Committed and pushed the implementation as 46d5b85.",
+    "Verified the live domain is serving the new Vite production asset index-CAQPPIDk.js.",
+    "Ran the desktop-to-Mac handoff with build verification; the Mac mini fast-forwarded to 46d5b85 and built the same asset successfully."
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed locally for the implementation commit; production asset dist/assets/index-CAQPPIDk.js"
+    },
+    {
+      "check": "Local visual sweep",
+      "result": "Title, character select, gameplay HUD, first manual touch, skill tree, Seed Shop, Store, Automation, and Options were checked. Edge CDP screenshots were used after the in-app screenshot pipe timed out."
+    },
+    {
+      "command": "http://127.0.0.1:5173/?perfHarness&tiles=1200 via Edge CDP at 390x844",
+      "result": "status complete; visibleTiles 96; tileMode viewport; layoutPasses 0; redraws 0; redrawQueued 0; maxFrameDeltaMs 17; frameSpikes 0; displayObjects 708; activeTweens 25; hotspots hot none"
+    },
+    {
+      "command": "http://127.0.0.1:5173/?perfHarness&tiles=1200 via Edge CDP at 1280x720",
+      "result": "status complete; visibleTiles 1200; tileMode batch; layoutPasses 0; redraws 0; redrawQueued 0; maxFrameDeltaMs 17; frameSpikes 0; displayObjects 304; activeTweens 23; hotspots hot none"
+    },
+    {
+      "command": "Invoke-WebRequest -Method Head https://grasstouchingsimulator.com/assets/index-CAQPPIDk.js",
+      "result": "HTTP 200; Content-Length 437386; Content-Type application/javascript; charset=utf-8"
+    },
+    {
+      "command": "node scripts/sync-mac-mini.mjs status",
+      "result": "desktop=46d5b85 and mac=46d5b85 before this handoff-only commit"
+    }
+  ],
+  "filesChangedInImplementation": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/scenes/TitleScene.ts",
+    "src/game/ui/buttons.ts",
+    "handoffs/HANDOFF_2026-06-25_UI_MOCKUP_MAKEOVER_SLICE.json",
+    "handoffs/LATEST.json"
+  ],
+  "filesChangedInThisHandoffCommit": [
+    "handoffs/HANDOFF_2026-06-25_UI_MAKEOVER_LIVE_SYNCED.json",
+    "handoffs/LATEST.json"
+  ],
+  "currentDesktopDirtyStateBeforeThisHandoffCommit": [
+    "M AGENTS.md (pre-existing/unrelated)",
+    "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md (pre-existing/unrelated)",
+    "Untracked docs/media artifacts remain pre-existing and unrelated, including Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "The implementation handoff was written before final live/Mac verification, so this final handoff records the completed shipped state.",
+    "The in-app browser screenshot function timed out after repeated captures; Edge DevTools worked for visual and perf verification.",
+    "Stress-mode screenshots include the existing stress overlay text; that is expected in stress URLs."
+  ],
+  "nextRecommendedSteps": [
+    "Let the user rest. Next session should start from this handoff, then run git status --short.",
+    "Have the user play the live domain on their real save and judge whether the UI direction feels right.",
+    "If continuing the makeover, do it in small verified slices and keep perf harness checks for HUD/overlay work."
+  ],
+  "doNotRevert": [
+    "Do not revert commit 46d5b85 unless the user explicitly asks to roll back the UI makeover.",
+    "Do not revert the Store-after-Sprinkler-Calibration gate from fe1fdcc.",
+    "Do not revert the first-touch ceremony or click pressure limiter from d089170 and c3ba252.",
+    "Do not add mockup-only systems such as water/energy/day mechanics unless the user explicitly asks for real gameplay design work.",
+    "Do not stage or clean the unrelated local AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, or untracked docs/media artifacts without explicit user direction."
+  ]
+}
