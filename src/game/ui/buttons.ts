@@ -1,3 +1,5 @@
+import { createOrnateFrame, type OrnateFrame, UITheme } from "./theme";
+
 type TextButtonBg = Phaser.GameObjects.Rectangle | Phaser.GameObjects.NineSlice;
 
 export function createTextButton(
@@ -10,34 +12,36 @@ export function createTextButton(
 ): Phaser.GameObjects.Container {
   const button = scene.add.container(0, 0).setDepth(depth);
   const attentionGlow = scene.add
-    .rectangle(width / 2, height / 2, width + 10, height + 10, 0xffef78, 0.12)
+    .rectangle(width / 2, height / 2, width + 12, height + 12, UITheme.colors.glow, 0.12)
     .setOrigin(0.5)
-    .setStrokeStyle(3, 0xffef78, 0.9)
+    .setStrokeStyle(3, UITheme.colors.glow, 0.9)
     .setVisible(false);
   const pressGlow = scene.add
-    .rectangle(width / 2, height / 2, width - 8, height - 8, 0xffffff, 0.22)
+    .rectangle(width / 2, height / 2, width - 8, height - 8, 0xffffff, 0.2)
     .setOrigin(0.5)
     .setVisible(false);
-  const hasEmeraldButtons =
-    scene.textures.exists("button-emerald-normal") &&
-    scene.textures.exists("button-emerald-hover") &&
-    scene.textures.exists("button-emerald-active");
-  const bg: TextButtonBg = hasEmeraldButtons
-    ? scene.add.nineslice(0, 0, "button-emerald-normal", undefined, width, height, 14, 14, 12, 12).setOrigin(0, 0)
-    : scene.add
-        .rectangle(0, 0, width, height, 0xf4ffdc, 0.96)
-        .setOrigin(0, 0)
-        .setStrokeStyle(3, 0x2d6f36);
+  const frame = createOrnateFrame(scene, width, height, {
+    fillColor: UITheme.colors.panelBg,
+    fillAlpha: 0.96,
+    insetAlpha: 0.18,
+    accentColor: UITheme.colors.bronze,
+    accentAlpha: 0.92,
+    glowAlpha: 0.07,
+    shadowAlpha: 0.42,
+    trim: height < 40 ? 2 : 3,
+    cornerSize: height < 40 ? 14 : 18,
+  });
+  const bg: TextButtonBg = frame.bg;
   const label = scene.add
     .text(width / 2, height / 2, text, {
-      fontFamily: "Trebuchet MS, Arial",
+      fontFamily: UITheme.text.fontFamily,
       fontSize: height < 40 ? "14px" : "18px",
-      color: "#f7ffe8",
-      stroke: "#0a2414",
+      color: UITheme.colors.cream,
+      stroke: UITheme.text.stroke,
       strokeThickness: height < 40 ? 3 : 4,
     })
     .setOrigin(0.5)
-    .setShadow(0, 2, "#06190f", 2, false, true);
+    .setShadow(0, 2, "#020805", 2, false, true);
 
   attentionGlow.setData("attentionActive", false);
   bg.setInteractive({ useHandCursor: true });
@@ -45,15 +49,17 @@ export function createTextButton(
     if (button.getData("enabled") === false) {
       return;
     }
-    setButtonTexture(bg, "button-emerald-hover");
-    label.setColor("#fff3a8");
+    frame.setFill(0x173a22, 0.98);
+    frame.setAccent(UITheme.colors.bronzeLight, 0.98);
+    label.setColor(UITheme.colors.creamBright);
     label.setScale(1.03);
   });
   bg.on("pointerout", () => {
     const enabled = button.getData("enabled") !== false;
     const attentive = attentionGlow.getData("attentionActive") === true;
-    setButtonTexture(bg, "button-emerald-normal");
-    label.setColor(enabled ? (attentive ? "#fff3a8" : "#f7ffe8") : "#9ba992");
+    frame.setFill(UITheme.colors.panelBg, enabled ? 0.96 : 0.62);
+    frame.setAccent(attentive ? UITheme.colors.glow : UITheme.colors.bronze, attentive ? 0.98 : 0.92);
+    label.setColor(enabled ? (attentive ? UITheme.colors.creamBright : UITheme.colors.cream) : "#9b9b8a");
     label.setScale(1);
     label.setY(height / 2);
   });
@@ -61,7 +67,8 @@ export function createTextButton(
     if (button.getData("enabled") === false) {
       return;
     }
-    setButtonTexture(bg, "button-emerald-active");
+    frame.setFill(0x0a2113, 1);
+    frame.setAccent(UITheme.colors.glow, 1);
     playPressFlash(button, pressGlow);
     label.setY(height / 2 + 1);
     label.setScale(0.98);
@@ -69,12 +76,14 @@ export function createTextButton(
   });
   bg.on("pointerup", () => {
     const enabled = button.getData("enabled") !== false;
-    setButtonTexture(bg, enabled ? "button-emerald-hover" : "button-emerald-normal");
-    label.setColor(enabled ? "#fff3a8" : "#9ba992");
+    frame.setFill(enabled ? 0x173a22 : UITheme.colors.panelBg, enabled ? 0.98 : 0.62);
+    frame.setAccent(enabled ? UITheme.colors.bronzeLight : UITheme.colors.bronzeDark, enabled ? 0.98 : 0.46);
+    label.setColor(enabled ? UITheme.colors.creamBright : "#9b9b8a");
     label.setY(height / 2);
     label.setScale(enabled ? 1.03 : 1);
   });
-  button.add([attentionGlow, bg, pressGlow, label]);
+  button.add([attentionGlow, ...frame.objects, pressGlow, label]);
+  button.setData("frame", frame);
   button.setData("bg", bg);
   button.setData("label", label);
   button.setData("attentionGlow", attentionGlow);
@@ -98,23 +107,25 @@ export function setTextButtonText(button: Phaser.GameObjects.Container, text: st
 export function setTextButtonEnabled(button: Phaser.GameObjects.Container, enabled: boolean): void {
   const bg = button.getData("bg") as TextButtonBg | undefined;
   const label = button.getData("label") as Phaser.GameObjects.Text | undefined;
+  const frame = button.getData("frame") as OrnateFrame | undefined;
 
   if (button.getData("enabled") === enabled) {
     return;
   }
 
   button.setData("enabled", enabled);
-  setButtonTexture(bg, "button-emerald-normal");
+  frame?.setFill(UITheme.colors.panelBg, enabled ? 0.96 : 0.62);
+  frame?.setAccent(enabled ? UITheme.colors.bronze : UITheme.colors.bronzeDark, enabled ? 0.92 : 0.5);
 
   if (bg instanceof Phaser.GameObjects.Rectangle) {
-    bg.setFillStyle(enabled ? 0xf4ffdc : 0xb9c8ab, enabled ? 0.96 : 0.74);
-    bg.setStrokeStyle(3, enabled ? 0x2d6f36 : 0x63715d);
+    bg.setFillStyle(enabled ? UITheme.colors.panelBg : UITheme.colors.panelBgDeep, enabled ? 0.96 : 0.62);
+    bg.setStrokeStyle(3, enabled ? UITheme.colors.bronze : UITheme.colors.bronzeDark, enabled ? 0.92 : 0.5);
   }
 
   bg?.setAlpha(enabled ? 1 : 0.58);
   const glow = button.getData("attentionGlow") as Phaser.GameObjects.Rectangle | undefined;
   const attentive = glow?.getData("attentionActive") === true;
-  label?.setColor(enabled ? (attentive ? "#fff3a8" : "#f7ffe8") : "#9ba992");
+  label?.setColor(enabled ? (attentive ? UITheme.colors.creamBright : UITheme.colors.cream) : "#9b9b8a");
   label?.setAlpha(enabled ? 1 : 0.82);
 }
 
@@ -122,6 +133,7 @@ export function setTextButtonAttention(button: Phaser.GameObjects.Container, act
   const glow = button.getData("attentionGlow") as Phaser.GameObjects.Rectangle | undefined;
   const bg = button.getData("bg") as TextButtonBg | undefined;
   const label = button.getData("label") as Phaser.GameObjects.Text | undefined;
+  const frame = button.getData("frame") as OrnateFrame | undefined;
   if (!glow || glow.getData("attentionActive") === active) {
     return;
   }
@@ -133,17 +145,19 @@ export function setTextButtonAttention(button: Phaser.GameObjects.Container, act
   if (!active) {
     glow.setAlpha(1);
     glow.setScale(1);
-    label?.setColor(button.getData("enabled") === false ? "#9ba992" : "#f7ffe8");
+    label?.setColor(button.getData("enabled") === false ? "#9b9b8a" : UITheme.colors.cream);
+    frame?.setAccent(UITheme.colors.bronze, 0.92);
     if (bg instanceof Phaser.GameObjects.Rectangle) {
-      bg.setStrokeStyle(3, 0x2d6f36);
+      bg.setStrokeStyle(3, UITheme.colors.bronze, 0.92);
     }
     return;
   }
 
+  frame?.setAccent(UITheme.colors.glow, 0.98);
   if (bg instanceof Phaser.GameObjects.Rectangle) {
-    bg.setStrokeStyle(3, 0xffef78, 0.98);
+    bg.setStrokeStyle(3, UITheme.colors.glow, 0.98);
   }
-  label?.setColor("#fff3a8");
+  label?.setColor(UITheme.colors.creamBright);
 
   glow.setAlpha(0.72);
   glow.setScale(1);
@@ -157,14 +171,6 @@ export function setTextButtonAttention(button: Phaser.GameObjects.Container, act
     repeat: -1,
     ease: "Sine.easeInOut",
   });
-}
-
-function setButtonTexture(bg: TextButtonBg | undefined, texture: string): void {
-  if (!bg || bg instanceof Phaser.GameObjects.Rectangle || !bg.scene.textures.exists(texture)) {
-    return;
-  }
-
-  bg.setTexture(texture);
 }
 
 function fitButtonLabel(button: Phaser.GameObjects.Container, label: Phaser.GameObjects.Text, text: string): void {

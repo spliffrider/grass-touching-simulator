@@ -88,6 +88,7 @@ import type {
   WeatherId,
 } from "../types/game-state";
 import { createTextButton, setTextButtonAttention, setTextButtonEnabled, setTextButtonText } from "../ui/buttons";
+import { createOrnateFrame, type OrnateFrame, UITheme } from "../ui/theme";
 
 const TILE_SIZE = 58;
 const TILE_GAP = 8;
@@ -450,6 +451,7 @@ type HudChipId = "touches" | "seeds" | "gold" | "auto" | "quest";
 interface HudChipView {
   id: HudChipId;
   container: Phaser.GameObjects.Container;
+  frame: OrnateFrame;
   bg: Phaser.GameObjects.Rectangle;
   glow: Phaser.GameObjects.Rectangle;
   iconBg: Phaser.GameObjects.Ellipse;
@@ -472,6 +474,7 @@ interface TriggerFeedItem {
 
 interface TriggerFeedRowView {
   container: Phaser.GameObjects.Container;
+  frame: OrnateFrame;
   bg: Phaser.GameObjects.Rectangle;
   accent: Phaser.GameObjects.Rectangle;
   icon: Phaser.GameObjects.Text;
@@ -687,15 +690,18 @@ export class GameScene extends Phaser.Scene {
   private hudChipBottomY = 0;
   private hudChipRightX = 0;
   private comboBadge!: Phaser.GameObjects.Container;
+  private comboBadgeFrame!: OrnateFrame;
   private comboBadgeBg!: Phaser.GameObjects.Rectangle;
   private comboBadgeText!: Phaser.GameObjects.Text;
   private comboBadgeMeter!: Phaser.GameObjects.Rectangle;
   private goalNudgeRoot!: Phaser.GameObjects.Container;
+  private goalNudgeFrame!: OrnateFrame;
   private goalNudgeBg!: Phaser.GameObjects.Rectangle;
   private goalNudgeIcon!: Phaser.GameObjects.Text;
   private goalNudgeText!: Phaser.GameObjects.Text;
   private milestoneText!: Phaser.GameObjects.Text;
   private triggerFeedRoot!: Phaser.GameObjects.Container;
+  private triggerFeedFrame!: OrnateFrame;
   private triggerFeedBg!: Phaser.GameObjects.Rectangle;
   private triggerFeedTitle!: Phaser.GameObjects.Text;
   private triggerFeedToggle!: Phaser.GameObjects.Text;
@@ -704,12 +710,14 @@ export class GameScene extends Phaser.Scene {
   private triggerFeedCollapsed = false;
   private nextTriggerFeedId = 1;
   private triggerFeedRenderKey = "";
+  private menuDockFrame!: OrnateFrame;
   private menuDockBg!: Phaser.GameObjects.Rectangle;
   private mobileCommandDockTop = Number.POSITIVE_INFINITY;
   private mobileCommandDockHeight = 0;
   private seasonTint!: Phaser.GameObjects.Rectangle;
   private weatherTint!: Phaser.GameObjects.Rectangle;
   private weatherBadge!: Phaser.GameObjects.Container;
+  private weatherBadgeFrame!: OrnateFrame;
   private weatherBadgeBg!: Phaser.GameObjects.Rectangle;
   private weatherBadgeTitle!: Phaser.GameObjects.Text;
   private weatherBadgeBody!: Phaser.GameObjects.Text;
@@ -1471,6 +1479,13 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private playFirstTouchSound(tier: GrassTierId, trait: TileTrait): void {
+    const played = this.audio.playFirstTouch(tier, trait);
+    if (played) {
+      this.music.duckForSfx(0.72, 0.3);
+    }
+  }
+
   private createAutomationScheduler(): AutomationScheduler<RuntimeStats> {
     const scheduler = new AutomationScheduler<RuntimeStats>(250, 6);
     scheduler.add({
@@ -2213,47 +2228,64 @@ export class GameScene extends Phaser.Scene {
     this.hudChipRoot.add(this.hudChips.map((chip) => chip.container));
 
     this.comboBadge = this.add.container(0, 0).setDepth(22).setVisible(false);
-    this.comboBadgeBg = this.add
-      .rectangle(0, 0, 178, 40, 0x12341c, 0.94)
-      .setOrigin(0, 0.5)
-      .setStrokeStyle(3, 0xf4df6a, 0.82);
+    this.comboBadgeFrame = createOrnateFrame(this, 178, 40, {
+      y: -20,
+      fillColor: UITheme.colors.panelBg,
+      fillAlpha: 0.94,
+      insetAlpha: 0.18,
+      accentColor: UITheme.colors.glow,
+      accentAlpha: 0.82,
+      glowAlpha: 0.08,
+      shadowAlpha: 0.38,
+      trim: 2,
+      cornerSize: 15,
+    });
+    this.comboBadgeBg = this.comboBadgeFrame.bg;
     this.comboBadgeText = this.add
       .text(12, -10, "", {
-        fontFamily: "Trebuchet MS, Arial",
+        fontFamily: UITheme.text.fontFamily,
         fontSize: "16px",
-        color: "#f7ffe8",
-        stroke: "#06190f",
+        color: UITheme.colors.cream,
+        stroke: UITheme.text.stroke,
         strokeThickness: 3,
       })
       .setOrigin(0, 0.5)
       .setShadow(0, 2, "#06190f", 2, false, true);
-    this.comboBadgeMeter = this.add.rectangle(12, 12, 0, 4, 0xf4df6a, 0.92).setOrigin(0, 0.5);
-    this.comboBadge.add([this.comboBadgeBg, this.comboBadgeText, this.comboBadgeMeter]);
+    this.comboBadgeMeter = this.add.rectangle(12, 12, 0, 4, UITheme.colors.glow, 0.92).setOrigin(0, 0.5);
+    this.comboBadge.add([...this.comboBadgeFrame.objects, this.comboBadgeText, this.comboBadgeMeter]);
 
     this.goalNudgeRoot = this.add.container(0, 0).setDepth(23).setVisible(false);
-    this.goalNudgeBg = this.add
-      .rectangle(0, 0, 360, 34, 0x0a2a17, 0.88)
-      .setOrigin(0, 0)
-      .setStrokeStyle(2, 0xb7eba5, 0.7);
+    this.goalNudgeFrame = createOrnateFrame(this, 360, 34, {
+      fillColor: UITheme.colors.panelBgDeep,
+      fillAlpha: 0.9,
+      insetAlpha: 0.12,
+      accentColor: UITheme.colors.bronze,
+      accentAlpha: 0.78,
+      glowAlpha: 0.04,
+      shadowAlpha: 0.36,
+      trim: 2,
+      cornerSize: 14,
+    });
+    this.goalNudgeBg = this.goalNudgeFrame.bg;
     this.goalNudgeIcon = this.add
       .text(16, 17, "GO", {
-        fontFamily: "Trebuchet MS, Arial",
+        fontFamily: UITheme.text.fontFamily,
         fontSize: "11px",
-        color: "#fff3a8",
-        stroke: "#06190f",
+        color: UITheme.colors.creamBright,
+        stroke: UITheme.text.stroke,
         strokeThickness: 2,
       })
       .setOrigin(0.5);
     this.goalNudgeText = this.add
       .text(34, 9, "", {
-        fontFamily: "Trebuchet MS, Arial",
+        fontFamily: UITheme.text.fontFamily,
         fontSize: "13px",
-        color: "#f7ffe8",
-        stroke: "#06190f",
+        color: UITheme.colors.cream,
+        stroke: UITheme.text.stroke,
         strokeThickness: 3,
       })
       .setOrigin(0, 0);
-    this.goalNudgeRoot.add([this.goalNudgeBg, this.goalNudgeIcon, this.goalNudgeText]);
+    this.goalNudgeRoot.add([...this.goalNudgeFrame.objects, this.goalNudgeIcon, this.goalNudgeText]);
 
     this.milestoneText = this.add
       .text(26, 108, "", {
@@ -2268,12 +2300,22 @@ export class GameScene extends Phaser.Scene {
       .setShadow(0, 2, "#06190f", 2, false, true);
 
     this.createTriggerFeed();
-    this.menuDockBg = this.add
-      .rectangle(10, this.scale.height - 96, this.scale.width - 20, 88, 0x06190f, 0.72)
-      .setOrigin(0, 0)
-      .setDepth(19)
-      .setStrokeStyle(2, 0xffef78, 0.45)
-      .setVisible(false);
+    this.menuDockFrame = createOrnateFrame(this, this.scale.width - 20, 88, {
+      x: 10,
+      y: this.scale.height - 96,
+      depth: 19,
+      fillColor: UITheme.colors.panelBgDeep,
+      fillAlpha: 0.86,
+      insetAlpha: 0.12,
+      accentColor: UITheme.colors.bronze,
+      accentAlpha: 0.66,
+      glowAlpha: 0.04,
+      shadowAlpha: 0.4,
+      trim: 2,
+      cornerSize: 15,
+    });
+    this.menuDockBg = this.menuDockFrame.bg;
+    this.menuDockFrame.setVisible(false);
 
     this.skillButton = createTextButton(this, "Skills", () => this.openSkillTree(), 118, 44, 20);
     this.questButton = createTextButton(this, "Quests", () => this.openQuestLog(), 118, 44, 20);
@@ -2292,22 +2334,26 @@ export class GameScene extends Phaser.Scene {
     width: number,
   ): HudChipView {
     const container = this.add.container(0, 0);
-    const glow = this.add
-      .rectangle(0, 0, width + 6, HUD_CHIP_HEIGHT + 6, 0xffef78, 0.12)
-      .setOrigin(0, 0)
-      .setStrokeStyle(2, 0xffef78, 0.7)
-      .setVisible(false);
-    const bg = this.add
-      .rectangle(0, 0, width, HUD_CHIP_HEIGHT, 0x0d331b, 0.92)
-      .setOrigin(0, 0)
-      .setStrokeStyle(2, 0xffef78, 0.76);
-    const iconBg = this.add.ellipse(24, HUD_CHIP_HEIGHT / 2, 30, 30, 0xf4ffdc, 0.96).setStrokeStyle(2, 0x75d894, 0.9);
+    const frame = createOrnateFrame(this, width, HUD_CHIP_HEIGHT, {
+      fillColor: id === "touches" ? 0x11351e : UITheme.colors.panelBg,
+      fillAlpha: id === "touches" ? 0.97 : 0.94,
+      insetAlpha: 0.18,
+      accentColor: id === "touches" ? UITheme.colors.bronzeLight : UITheme.colors.bronze,
+      accentAlpha: id === "touches" ? 0.9 : 0.78,
+      glowAlpha: 0.05,
+      shadowAlpha: 0.4,
+      trim: 2,
+      cornerSize: 15,
+    });
+    const glow = frame.glow.setVisible(false);
+    const bg = frame.bg;
+    const iconBg = this.add.ellipse(24, HUD_CHIP_HEIGHT / 2, 30, 30, 0xead5aa, 0.96).setStrokeStyle(2, UITheme.colors.bronzeDark, 0.9);
     const iconImage = textureKey && this.textures.exists(textureKey) ? this.add.image(24, HUD_CHIP_HEIGHT / 2, textureKey).setDisplaySize(22, 22) : undefined;
     const iconText = iconImage
       ? undefined
       : this.add
           .text(24, HUD_CHIP_HEIGHT / 2, fallbackIcon, {
-            fontFamily: "Trebuchet MS, Arial",
+            fontFamily: UITheme.text.fontFamily,
             fontSize: "13px",
             color: "#173b20",
             stroke: "#ffffff",
@@ -2315,54 +2361,61 @@ export class GameScene extends Phaser.Scene {
           })
           .setOrigin(0.5);
     const title = this.add.text(44, 7, titleText, {
-      fontFamily: "Trebuchet MS, Arial",
+      fontFamily: UITheme.text.fontFamily,
       fontSize: "11px",
-      color: "#b7eba5",
-      stroke: "#06190f",
+      color: UITheme.colors.mutedGreen,
+      stroke: UITheme.text.stroke,
       strokeThickness: 2,
     });
     const value = this.add.text(44, 23, "", {
-      fontFamily: "Trebuchet MS, Arial",
+      fontFamily: UITheme.text.fontFamily,
       fontSize: "16px",
-      color: "#f7ffe8",
-      stroke: "#06190f",
+      color: UITheme.colors.cream,
+      stroke: UITheme.text.stroke,
       strokeThickness: 3,
     });
 
-    container.add([glow, bg, iconBg, ...(iconImage ? [iconImage] : []), ...(iconText ? [iconText] : []), title, value]);
-    return { id, container, bg, glow, iconBg, iconImage, iconText, title, value, width };
+    container.add([...frame.objects, iconBg, ...(iconImage ? [iconImage] : []), ...(iconText ? [iconText] : []), title, value]);
+    return { id, container, frame, bg, glow, iconBg, iconImage, iconText, title, value, width };
   }
 
   private createTriggerFeed(): void {
     this.triggerFeedRoot = this.add.container(0, 0).setDepth(28).setVisible(false);
-    this.triggerFeedBg = this.add
-      .rectangle(0, 0, TRIGGER_FEED_WIDTH, 96, 0x082211, 0.9)
-      .setOrigin(0, 0)
-      .setStrokeStyle(2, 0xb7eba5, 0.82)
-      .setInteractive({ useHandCursor: true });
+    this.triggerFeedFrame = createOrnateFrame(this, TRIGGER_FEED_WIDTH, 96, {
+      fillColor: UITheme.colors.panelBg,
+      fillAlpha: 0.94,
+      insetAlpha: 0.2,
+      accentColor: UITheme.colors.bronze,
+      accentAlpha: 0.9,
+      glowAlpha: 0.08,
+      shadowAlpha: 0.48,
+      trim: 3,
+      cornerSize: 22,
+    });
+    this.triggerFeedBg = this.triggerFeedFrame.bg.setInteractive({ useHandCursor: true });
     this.triggerFeedBg.on("pointerdown", () => {
       this.triggerFeedCollapsed = !this.triggerFeedCollapsed;
       this.renderTriggerFeed(true);
       this.layoutTriggerFeed();
     });
     this.triggerFeedTitle = this.add.text(14, 12, "Trigger Feed", {
-      fontFamily: "Trebuchet MS, Arial",
+      fontFamily: UITheme.text.fontFamily,
       fontSize: "15px",
-      color: "#fff3a8",
-      stroke: "#06190f",
+      color: UITheme.colors.creamBright,
+      stroke: UITheme.text.stroke,
       strokeThickness: 3,
     });
     this.triggerFeedToggle = this.add
       .text(TRIGGER_FEED_WIDTH - 24, 12, "^", {
-        fontFamily: "Trebuchet MS, Arial",
+        fontFamily: UITheme.text.fontFamily,
         fontSize: "16px",
-        color: "#dfffc8",
-        stroke: "#06190f",
+        color: UITheme.colors.mutedGreen,
+        stroke: UITheme.text.stroke,
         strokeThickness: 3,
       })
       .setOrigin(0.5, 0);
 
-    this.triggerFeedRoot.add([this.triggerFeedBg, this.triggerFeedTitle, this.triggerFeedToggle]);
+    this.triggerFeedRoot.add([...this.triggerFeedFrame.objects, this.triggerFeedTitle, this.triggerFeedToggle]);
     for (let index = 0; index < TRIGGER_FEED_MAX_EVENTS; index += 1) {
       const row = this.createTriggerFeedRow(index);
       this.triggerFeedRows.push(row);
@@ -2372,57 +2425,65 @@ export class GameScene extends Phaser.Scene {
 
   private createTriggerFeedRow(index: number): TriggerFeedRowView {
     const container = this.add.container(10, 42 + index * TRIGGER_FEED_ROW_HEIGHT).setVisible(false);
-    const bg = this.add
-      .rectangle(0, 0, TRIGGER_FEED_WIDTH - 20, TRIGGER_FEED_ROW_HEIGHT - 6, 0x12341c, 0.9)
-      .setOrigin(0, 0)
-      .setStrokeStyle(1, 0x75d894, 0.62);
-    const accent = this.add.rectangle(0, 0, 4, TRIGGER_FEED_ROW_HEIGHT - 6, 0x75d894, 0.88).setOrigin(0, 0);
+    const frame = createOrnateFrame(this, TRIGGER_FEED_WIDTH - 20, TRIGGER_FEED_ROW_HEIGHT - 6, {
+      fillColor: 0x12341c,
+      fillAlpha: 0.88,
+      insetAlpha: 0.08,
+      accentColor: UITheme.colors.bronzeDark,
+      accentAlpha: 0.64,
+      glowAlpha: 0,
+      shadowAlpha: 0.18,
+      trim: 1,
+      cornerSize: 10,
+    });
+    const bg = frame.bg;
+    const accent = this.add.rectangle(0, 0, 4, TRIGGER_FEED_ROW_HEIGHT - 6, UITheme.colors.bronzeLight, 0.88).setOrigin(0, 0);
     const icon = this.add
       .text(14, 15, "", {
-        fontFamily: "Trebuchet MS, Arial",
+        fontFamily: UITheme.text.fontFamily,
         fontSize: "15px",
         color: "#bff4ff",
-        stroke: "#06190f",
+        stroke: UITheme.text.stroke,
         strokeThickness: 3,
       })
       .setOrigin(0.5, 0);
     const label = this.add.text(32, 8, "", {
-      fontFamily: "Trebuchet MS, Arial",
+      fontFamily: UITheme.text.fontFamily,
       fontSize: "12px",
-      color: "#f7ffe8",
-      stroke: "#06190f",
+      color: UITheme.colors.cream,
+      stroke: UITheme.text.stroke,
       strokeThickness: 2,
       wordWrap: { width: TRIGGER_FEED_WIDTH - 100 },
     });
     const detail = this.add.text(32, 26, "", {
-      fontFamily: "Trebuchet MS, Arial",
+      fontFamily: UITheme.text.fontFamily,
       fontSize: "11px",
-      color: "#dfffc8",
-      stroke: "#06190f",
+      color: UITheme.colors.mutedGreen,
+      stroke: UITheme.text.stroke,
       strokeThickness: 2,
       wordWrap: { width: TRIGGER_FEED_WIDTH - 100 },
     });
     const count = this.add
       .text(TRIGGER_FEED_WIDTH - 34, 8, "", {
-        fontFamily: "Trebuchet MS, Arial",
+        fontFamily: UITheme.text.fontFamily,
         fontSize: "10px",
-        color: "#fff3a8",
-        stroke: "#06190f",
+        color: UITheme.colors.creamBright,
+        stroke: UITheme.text.stroke,
         strokeThickness: 2,
       })
       .setOrigin(1, 0);
     const age = this.add
       .text(TRIGGER_FEED_WIDTH - 34, 27, "", {
-        fontFamily: "Trebuchet MS, Arial",
+        fontFamily: UITheme.text.fontFamily,
         fontSize: "10px",
-        color: "#fff3a8",
-        stroke: "#06190f",
+        color: UITheme.colors.creamBright,
+        stroke: UITheme.text.stroke,
         strokeThickness: 2,
       })
       .setOrigin(1, 0);
 
-    container.add([bg, accent, icon, label, detail, count, age]);
-    return { container, bg, accent, icon, label, detail, count, age };
+    container.add([...frame.objects, accent, icon, label, detail, count, age]);
+    return { container, frame, bg, accent, icon, label, detail, count, age };
   }
 
   private createBoardLayers(): void {
@@ -2611,23 +2672,35 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
 
     this.weatherBadge = this.add.container(0, 0).setDepth(21).setVisible(false);
-    this.weatherBadgeBg = this.add
-      .rectangle(0, 0, 280, 58, 0xf4ffdc, 0.94)
-      .setOrigin(0, 0)
-      .setStrokeStyle(3, 0x2d6f36);
-    this.weatherBadgeTitle = this.add.text(14, 8, "", {
-      fontFamily: "Trebuchet MS, Arial",
-      fontSize: "17px",
-      color: "#183d20",
+    this.weatherBadgeFrame = createOrnateFrame(this, 280, 64, {
+      fillColor: UITheme.colors.panelBg,
+      fillAlpha: 0.94,
+      insetAlpha: 0.18,
+      accentColor: UITheme.colors.bronzeLight,
+      accentAlpha: 0.82,
+      glowAlpha: 0.08,
+      shadowAlpha: 0.46,
+      trim: 3,
+      cornerSize: 18,
     });
-    this.weatherBadgeBody = this.add.text(14, 31, "", {
-      fontFamily: "Trebuchet MS, Arial",
+    this.weatherBadgeBg = this.weatherBadgeFrame.bg;
+    this.weatherBadgeTitle = this.add.text(14, 8, "", {
+      fontFamily: UITheme.text.fontFamily,
+      fontSize: "15px",
+      color: UITheme.colors.creamBright,
+      stroke: UITheme.text.stroke,
+      strokeThickness: 3,
+    });
+    this.weatherBadgeBody = this.add.text(14, 30, "", {
+      fontFamily: UITheme.text.fontFamily,
       fontSize: "12px",
-      color: "#416247",
+      color: UITheme.colors.mutedGreen,
+      stroke: UITheme.text.stroke,
+      strokeThickness: 2,
       wordWrap: { width: 250 },
     });
 
-    this.weatherBadge.add([this.weatherBadgeBg, this.weatherBadgeTitle, this.weatherBadgeBody]);
+    this.weatherBadge.add([...this.weatherBadgeFrame.objects, this.weatherBadgeTitle, this.weatherBadgeBody]);
     this.layoutWeatherVisuals();
   }
 
@@ -2754,6 +2827,7 @@ export class GameScene extends Phaser.Scene {
 
   private resizeHudChip(chip: HudChipView, width: number, height: number, compact: boolean): void {
     chip.width = width;
+    chip.frame.setSize(width, height);
     chip.glow.setSize(width + 6, height + 6);
     chip.glow.setPosition(-3, -3);
     chip.bg.setSize(width, height);
@@ -2793,9 +2867,11 @@ export class GameScene extends Phaser.Scene {
       this.menuDockBg
         .setPosition(10, dockTop)
         .setSize(this.scale.width - 20, dockHeight)
-        .setFillStyle(0x06190f, 0.84)
-        .setStrokeStyle(2, 0xb7eba5, 0.58)
-        .setVisible(!this.hasBlockingOverlayOpen());
+        .setFillStyle(UITheme.colors.panelBgDeep, 0.86)
+        .setStrokeStyle(2, UITheme.colors.bronze, 0.66);
+      this.menuDockFrame.setPosition(10, dockTop);
+      this.menuDockFrame.setSize(this.scale.width - 20, dockHeight);
+      this.menuDockFrame.setVisible(!this.hasBlockingOverlayOpen());
 
       visibleButtons.forEach((button, index) => {
         const row = Math.floor(index / columns);
@@ -2812,7 +2888,7 @@ export class GameScene extends Phaser.Scene {
 
     this.mobileCommandDockTop = Number.POSITIVE_INFINITY;
     this.mobileCommandDockHeight = 0;
-    this.menuDockBg.setVisible(false);
+    this.menuDockFrame.setVisible(false);
     const buttonX = this.scale.width - 142;
     let buttonY = 24;
     const buttonStep = 52;
@@ -2832,6 +2908,7 @@ export class GameScene extends Phaser.Scene {
     const rightUiLeft = this.scale.width - 156;
     const fitsRight = !compact && this.hudChipRightX + badgeWidth + 22 < rightUiLeft;
 
+    this.comboBadgeFrame.setSize(badgeWidth, badgeHeight);
     this.comboBadgeBg.setSize(badgeWidth, badgeHeight);
     this.comboBadgeMeter.setPosition(12, mobilePortrait ? 7 : compact ? 10 : 12);
 
@@ -2863,6 +2940,7 @@ export class GameScene extends Phaser.Scene {
     const height = mobilePortrait ? 30 : 34;
     const visible = this.goalNudgeRoot.visible;
 
+    this.goalNudgeFrame.setSize(width, height);
     this.goalNudgeBg.setSize(width, height);
     this.goalNudgeIcon.setPosition(mobilePortrait ? 15 : 16, height / 2);
     this.goalNudgeText
@@ -2891,9 +2969,11 @@ export class GameScene extends Phaser.Scene {
     this.weatherTint.setSize(this.scale.width, this.scale.height);
     const compact = this.scale.width < 720;
     const badgeWidth = compact ? Math.max(220, this.scale.width - 180) : 280;
+    const badgeHeight = compact ? 66 : 64;
     const rightMenuLeft = this.scale.width - 156;
     const desktopBadgeX = Math.max(26, rightMenuLeft - badgeWidth - 18);
-    this.weatherBadgeBg.setSize(badgeWidth, compact ? 66 : 58);
+    this.weatherBadgeFrame.setSize(badgeWidth, badgeHeight);
+    this.weatherBadgeBg.setSize(badgeWidth, badgeHeight);
     this.weatherBadgeBody.setWordWrapWidth(badgeWidth - 30);
     this.weatherBadge.setPosition(compact ? 26 : desktopBadgeX, compact ? this.optionsButton.y + 58 : 232);
 
@@ -2979,6 +3059,7 @@ export class GameScene extends Phaser.Scene {
     );
     const y = mobilePortrait ? mobileY : desktopY;
     this.triggerFeedRoot.setPosition(x, y);
+    this.triggerFeedFrame.setSize(feedWidth, Math.max(42, height));
     this.triggerFeedBg.setSize(feedWidth, Math.max(42, height));
     this.triggerFeedTitle.setPosition(mobilePortrait ? 12 : 14, mobilePortrait ? 10 : 12).setFontSize(mobilePortrait ? 13 : 15);
     this.triggerFeedToggle.setPosition(feedWidth - 24, mobilePortrait ? 10 : 12);
@@ -2987,6 +3068,7 @@ export class GameScene extends Phaser.Scene {
         row.container.setVisible(false);
       }
       row.container.setPosition(mobilePortrait ? 8 : 10, 38 + index * rowHeight);
+      row.frame.setSize(feedWidth - (mobilePortrait ? 16 : 20), rowHeight - 6);
       row.bg.setSize(feedWidth - (mobilePortrait ? 16 : 20), rowHeight - 6);
       row.accent.setSize(mobilePortrait ? 3 : 4, rowHeight - 6);
       row.icon.setPosition(mobilePortrait ? 13 : 14, mobilePortrait ? 14 : 15).setFontSize(mobilePortrait ? 12 : 15);
@@ -3049,6 +3131,8 @@ export class GameScene extends Phaser.Scene {
       row.container.setVisible(true);
       row.bg.setFillStyle(0x12341c, event.count > 1 ? 0.96 : 0.9);
       row.bg.setStrokeStyle(1, event.color, 0.68);
+      row.frame.setFill(0x12341c, event.count > 1 ? 0.96 : 0.88);
+      row.frame.setAccent(event.color, event.count > 1 ? 0.82 : 0.62);
       row.accent.setFillStyle(event.color, event.count > 1 ? 1 : 0.82);
       row.icon.setText(event.icon).setColor(this.colorToHex(event.color));
       this.setTextIfChanged(row.label, event.label);
@@ -7346,6 +7430,7 @@ export class GameScene extends Phaser.Scene {
     const stats = this.profileScope("touch:stats", () => this.getCachedRuntimeStats(now));
     const touchedTrait = tile.trait;
     const touchedTier = getGrassTier(tile.tier);
+    const firstManualGrassTouch = source === "manual" && this.state.totalClickedPatches === 0 && this.state.lifetimeGrassTouches === 0;
     this.addJournalValue(this.state.journal.discoveredGrassTiers, touchedTier.id);
     this.addJournalValue(this.state.journal.discoveredTileTraits, touchedTrait);
     const touch = this.profileScope("touch:tile", () => touchTile(tile, this.state, stats, now));
@@ -7378,6 +7463,9 @@ export class GameScene extends Phaser.Scene {
       this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
       this.refreshTile(tile);
       this.popAtTile(tile, this.getTouchPopText(touch), touch.isCrit ? "#ffef78" : touchedTier.id === "normal" ? "#f9ffe5" : "#dfffc8");
+      if (firstManualGrassTouch) {
+        this.playFirstTouchFeedback(tile, touchedTier.id, touchedTrait, touch);
+      }
       this.applyPlacementSynergyFeedback(tile, placementSynergy, now);
       this.applyWateringCanSplash(tile, now, combo.count);
       if (perfectTouchBonus > 0) {
@@ -7400,6 +7488,11 @@ export class GameScene extends Phaser.Scene {
       this.applyGrassTierIdentityBonus(tile, touchedTier.id, touch, stats, now);
     }));
     this.profileScope("touch:audioShake", () => {
+      if (firstManualGrassTouch) {
+        this.playFirstTouchSound(touchedTier.id, touchedTrait);
+        return;
+      }
+
       this.shakeForGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
       this.playMixedGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, combo.count);
     });
@@ -9127,9 +9220,11 @@ export class GameScene extends Phaser.Scene {
 
     const visible = !this.hasBlockingOverlayOpen();
     const compact = this.scale.width < 620;
+    const accent = Number.parseInt(weather.color.slice(1), 16);
     this.setVisibleIfChanged(this.weatherBadge, visible && !compact);
     this.setTextIfChanged(this.weatherBadgeTitle, `Weather Jar: ${weather.name}`);
     this.weatherBadgeTitle.setColor(weather.color);
+    this.weatherBadgeFrame.setAccent(Number.isFinite(accent) ? accent : UITheme.colors.bronzeLight, 0.82);
     this.setTextIfChanged(this.weatherBadgeBody, `${weather.description} (${timeText})`);
     this.setVisibleIfChanged(this.weatherTint, visible);
     this.applyWeatherTint(weather.id);
@@ -9393,19 +9488,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getGrassScale(tile: FieldTile): number {
+    return this.getGrassScaleFor(tile.tier, tile.trait);
+  }
+
+  private getGrassScaleFor(tier: GrassTierId, trait: TileTrait): number {
     const tierScale =
-      tile.tier === "frost"
+      tier === "frost"
         ? 1.12
-        : tile.tier === "crystal"
+        : tier === "crystal"
           ? 1.1
-          : tile.tier === "golden" || tile.tier === "wildflower" || tile.tier === "mushroom"
+          : tier === "golden" || tier === "wildflower" || tier === "mushroom"
             ? 1.09
-            : tile.tier === "clover" || tile.tier === "moss"
+            : tier === "clover" || tier === "moss"
               ? 1.06
-              : tile.tier === "thick"
+              : tier === "thick"
                 ? 1.03
                 : 1;
-    return (tile.trait === "lush" ? 1.06 : 1) * tierScale;
+    return (trait === "lush" ? 1.06 : 1) * tierScale;
   }
 
   private getTierHighlightColor(tier: GrassTierId): number {
@@ -9425,8 +9524,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getGrassTextureKey(tile: FieldTile): string {
-    const tier = getGrassTier(tile.tier).id;
-    const trait = tile.trait === "normal" ? "" : `-${tile.trait}`;
+    return this.getGrassTextureKeyFor(tile.tier, tile.trait);
+  }
+
+  private getGrassTextureKeyFor(tierId: GrassTierId, traitId: TileTrait): string {
+    const tier = getGrassTier(tierId).id;
+    const trait = traitId === "normal" ? "" : `-${traitId}`;
     return `grass-${tier}${trait}`;
   }
 
@@ -9499,6 +9602,140 @@ export class GameScene extends Phaser.Scene {
     if (showFlourish) {
       this.addTouchRing(x, y);
       this.addTouchFlash(x, y);
+    }
+  }
+
+  private playFirstTouchFeedback(tile: FieldTile, touchedTier: GrassTierId, touchedTrait: TileTrait, touch: TouchResult): void {
+    const position = this.getTileVisualPosition(tile);
+    if (!position) {
+      return;
+    }
+
+    const x = position.x;
+    const y = position.y;
+    const scale = this.boardScale;
+    const highlight = this.getTierHighlightColor(touchedTier);
+    const fleckTexture = touchedTrait === "dewy" ? "dew-fleck" : "grass-fleck";
+
+    this.flashScreen(touch.isCrit ? 0xffef78 : 0xf7ffe8, touch.isCrit ? 0.18 : 0.14, touch.isCrit ? 460 : 380);
+    this.cameras.main.shake(touch.isCrit ? 190 : 150, touch.isCrit ? 0.0024 : 0.0018);
+    this.vibrateForFirstTouch();
+    this.playHudChipCelebration("touches", "grass-fleck", 0xdfffc8, 18);
+    this.emitBurst(fleckTexture, x, y - 6 * scale, 54, 1.45, 0.18);
+    this.emitBurst("crit-fleck", x, y - 14 * scale, touch.isCrit ? 42 : 28, touch.isCrit ? 1.5 : 1.14, 0.1);
+    this.emitBurst("dew-fleck", x, y - 3 * scale, 18, 0.9, 0.22);
+    this.emitBurst("dust-fleck", x, y + 12 * scale, 16, 0.9, 0.28);
+
+    if (this.children.list.length >= DISPLAY_OBJECT_CRITICAL_LIMIT || this.effectQuality <= MIN_EFFECT_QUALITY || !this.reserveAmbientTransientObject(5)) {
+      return;
+    }
+
+    const ring = this.trackBoardTransient(
+      this.add
+        .ellipse(x, y + 2 * scale, TILE_SIZE * 0.9 * scale, TILE_SIZE * 0.5 * scale, 0xdfffc8, 0.22)
+        .setStrokeStyle(Math.max(2, 4 * scale), 0xfff3c2, 0.96)
+        .setDepth(38),
+    );
+    const echo = this.trackBoardTransient(
+      this.add
+        .ellipse(x, y + 2 * scale, TILE_SIZE * 0.62 * scale, TILE_SIZE * 0.34 * scale, highlight, 0.2)
+        .setStrokeStyle(Math.max(1, 2 * scale), highlight, 0.84)
+        .setDepth(39),
+    );
+    const sparkle = this.trackBoardTransient(
+      this.add
+        .star(x, y - 21 * scale, 8, TILE_SIZE * 0.08 * scale, TILE_SIZE * 0.48 * scale, 0xffef78, 0.82)
+        .setStrokeStyle(Math.max(1, 2 * scale), 0xffffff, 0.92)
+        .setDepth(42),
+    );
+    const grassGhost = this.trackBoardTransient(
+      this.add
+        .image(x, y, this.getGrassTextureKeyFor(touchedTier, touchedTrait))
+        .setScale(scale * this.getGrassScaleFor(touchedTier, touchedTrait))
+        .setAlpha(0.78)
+        .setTint(0xf7ffe8)
+        .setDepth(41),
+    );
+    const label = this.trackBoardTransient(
+      this.add
+        .text(x, y - 43 * scale, "FIRST TOUCH", {
+          fontFamily: UITheme.text.fontFamily,
+          fontSize: `${Math.round(18 + Math.min(10, scale * 12))}px`,
+          color: UITheme.colors.creamBright,
+          stroke: UITheme.text.stroke,
+          strokeThickness: 5,
+        })
+        .setOrigin(0.5)
+        .setDepth(43)
+        .setAlpha(0)
+        .setScale(0.78),
+    );
+
+    this.tweens.add({
+      targets: ring,
+      scaleX: 3.15,
+      scaleY: 2.05,
+      alpha: 0,
+      duration: 720,
+      ease: "Sine.easeOut",
+      onComplete: () => ring.destroy(),
+    });
+    this.tweens.add({
+      targets: echo,
+      scaleX: 2.35,
+      scaleY: 1.68,
+      alpha: 0,
+      duration: 520,
+      ease: "Sine.easeOut",
+      onComplete: () => echo.destroy(),
+    });
+    this.tweens.add({
+      targets: sparkle,
+      angle: 54,
+      scaleX: 1.62,
+      scaleY: 1.62,
+      y: sparkle.y - 12 * scale,
+      alpha: 0,
+      duration: 650,
+      ease: "Sine.easeOut",
+      onComplete: () => sparkle.destroy(),
+    });
+    this.tweens.add({
+      targets: grassGhost,
+      scaleX: grassGhost.scaleX * 1.34,
+      scaleY: grassGhost.scaleY * 1.34,
+      y: grassGhost.y - 18 * scale,
+      alpha: 0,
+      duration: 620,
+      ease: "Back.easeOut",
+      onComplete: () => grassGhost.destroy(),
+    });
+    this.tweens.add({
+      targets: label,
+      alpha: 1,
+      scaleX: 1.08,
+      scaleY: 1.08,
+      y: label.y - 8 * scale,
+      duration: 140,
+      ease: "Back.easeOut",
+      onComplete: () => {
+        this.tweens.add({
+          targets: label,
+          alpha: 0,
+          y: label.y - 24 * scale,
+          duration: 720,
+          delay: 90,
+          ease: "Sine.easeIn",
+          onComplete: () => label.destroy(),
+        });
+      },
+    });
+  }
+
+  private vibrateForFirstTouch(): void {
+    const vibration = navigator as Navigator & { vibrate?: (pattern: number | number[]) => boolean };
+    if (typeof vibration.vibrate === "function") {
+      vibration.vibrate([12, 28, 18]);
     }
   }
 
@@ -10629,13 +10866,16 @@ export class GameScene extends Phaser.Scene {
     this.setTextIfChanged(chip.value, value);
     const primary = id === "touches";
     const valueSize = value.length > 11 || chip.width < 100 ? 12 : chip.width < 130 ? 14 : primary ? 17 : 16;
-    chip.title.setColor(attention ? "#fff3a8" : primary ? "#dfffc8" : "#a9d8a1");
-    chip.value.setColor(primary ? "#ffffff" : attention ? "#fff7c7" : "#f7ffe8");
+    chip.title.setColor(attention ? UITheme.colors.creamBright : primary ? "#dfffc8" : UITheme.colors.mutedGreen);
+    chip.value.setColor(primary ? "#ffffff" : attention ? "#fff7c7" : UITheme.colors.cream);
     chip.value.setFontSize(valueSize);
     chip.glow.setVisible(attention);
-    chip.bg.setFillStyle(primary ? 0x0f3b20 : 0x0d331b, primary ? 0.96 : 0.92);
-    chip.bg.setStrokeStyle(primary || attention ? 3 : 2, attention ? 0xffef78 : primary ? 0xb7eba5 : 0xffef78, attention ? 0.98 : primary ? 0.86 : 0.64);
-    chip.iconBg.setStrokeStyle(2, attention ? 0xffef78 : 0x75d894, attention ? 0.98 : 0.9);
+    chip.frame.setFill(primary ? 0x11351e : UITheme.colors.panelBg, primary ? 0.97 : 0.94);
+    chip.frame.setAccent(attention ? UITheme.colors.glow : primary ? UITheme.colors.bronzeLight : UITheme.colors.bronze, attention ? 1 : primary ? 0.92 : 0.78);
+    chip.bg.setFillStyle(primary ? 0x11351e : UITheme.colors.panelBg, primary ? 0.97 : 0.94);
+    chip.bg.setStrokeStyle(primary || attention ? 3 : 2, attention ? UITheme.colors.glow : primary ? UITheme.colors.bronzeLight : UITheme.colors.bronze, attention ? 0.98 : primary ? 0.86 : 0.64);
+    chip.iconBg.setFillStyle(attention ? 0xffefbd : 0xead5aa, 0.96);
+    chip.iconBg.setStrokeStyle(2, attention ? UITheme.colors.glow : UITheme.colors.bronzeDark, attention ? 0.98 : 0.9);
   }
 
   private getReadyUnlockCounts(keys: Set<string>): { skill: number; seed: number; store: number } {
@@ -10756,6 +10996,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    this.goalNudgeFrame.setAccent(data.color, 0.78);
     this.goalNudgeBg.setStrokeStyle(2, data.color, 0.78);
     this.goalNudgeIcon.setText(data.icon).setColor(this.colorToHex(data.color));
     this.setTextIfChanged(this.goalNudgeText, this.compactGoalNudgeText(data.text));
@@ -11023,7 +11264,8 @@ export class GameScene extends Phaser.Scene {
     const automated = this.activeComboSource !== "manual";
 
     this.comboBadgeText.setColor(automated ? "#bff4ff" : "#f7ffe8");
-    this.comboBadgeBg.setStrokeStyle(3, automated ? 0xa8e8ff : 0xf4df6a, automated ? 0.9 : 0.82);
+    this.comboBadgeFrame.setAccent(automated ? 0xa8e8ff : UITheme.colors.glow, automated ? 0.9 : 0.82);
+    this.comboBadgeBg.setStrokeStyle(3, automated ? 0xa8e8ff : UITheme.colors.glow, automated ? 0.9 : 0.82);
     this.setTextIfChanged(this.comboBadgeText, `${automated ? "Auto Streak" : "Combo"} ${count}${multiplierText}`);
     this.comboBadgeMeter.setSize(meterWidth, 4);
     this.comboBadgeMeter.setFillStyle(automated ? 0xa8e8ff : multiplier > 1 ? 0xf4df6a : 0xb7eba5, 0.92);

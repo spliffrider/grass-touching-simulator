@@ -1,0 +1,96 @@
+{
+  "date": "2026-06-25",
+  "topic": "First touch ceremony",
+  "currentGoal": "Make the first successful manual grass click in a fresh save feel exceptional without adding new systems or replaying on reload.",
+  "workCompleted": [
+    "Added a once-per-fresh-save first manual grass touch gate using existing totalClickedPatches and lifetimeGrassTouches state.",
+    "Added a first-touch visual ceremony: soft screen flash, camera shake, supported-device vibration, touch HUD celebration, layered bursts, expanding rings, sparkle, grass afterimage, and FIRST TOUCH text.",
+    "Added a dedicated procedural first-touch sound in AudioSystem and routed the first touch through it instead of the ordinary grass touch sound.",
+    "Added helper methods to render a grass afterimage using the pre-touch tier and trait after touchTile mutates the tile to regrowing.",
+    "Kept all changes cosmetic/tactile; no new economy, quest, water, energy, or tutorial systems were added."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/systems/AudioSystem.ts",
+    "handoffs/HANDOFF_2026-06-25_FIRST_TOUCH_CEREMONY.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check -- src/game/scenes/GameScene.ts src/game/systems/AudioSystem.ts",
+      "result": "passed with existing LF-to-CRLF warnings for touched TS files"
+    },
+    {
+      "check": "Fresh browser context first click",
+      "result": "Started a new game, clicked the first tile, observed the FIRST TOUCH ceremony, and saw no browser console/page errors."
+    },
+    {
+      "check": "Reload persistence gate",
+      "result": "After the queued save flushed, reloaded and clicked again. Save advanced from totalClickedPatches 1 to 2 without replaying the FIRST TOUCH ceremony."
+    },
+    {
+      "url": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "viewport": "1280x720",
+      "result": {
+        "status": "complete",
+        "visibleTiles": 1204,
+        "tileMode": "batch",
+        "layoutPasses": 0,
+        "redraws": 0,
+        "redrawQueued": 0,
+        "maxFrameDeltaMs": 11,
+        "frameSpikes": 0,
+        "displayObjects": 294,
+        "activeTweens": 21,
+        "hotspots": "hot none"
+      }
+    },
+    {
+      "url": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "viewport": "390x844",
+      "result": {
+        "status": "complete",
+        "visibleTiles": 104,
+        "tileMode": "viewport",
+        "layoutPasses": 0,
+        "redraws": 0,
+        "redrawQueued": 0,
+        "maxFrameDeltaMs": 7,
+        "frameSpikes": 0,
+        "displayObjects": 701,
+        "activeTweens": 22,
+        "hotspots": "hot none"
+      }
+    }
+  ],
+  "currentGitStatus": [
+    "M AGENTS.md (pre-existing/unrelated)",
+    "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md (pre-existing/unrelated)",
+    "M handoffs/LATEST.json",
+    "M src/game/scenes/GameScene.ts",
+    "M src/game/systems/AudioSystem.ts",
+    "M src/game/ui/buttons.ts (from prior UI style slice)",
+    "?? src/game/ui/theme.ts (from prior UI style slice)",
+    "?? handoffs/HANDOFF_2026-06-25_UI_MOCKUP_STYLE_SLICE.json",
+    "?? handoffs/HANDOFF_2026-06-25_FIRST_TOUCH_CEREMONY.json",
+    "?? several pre-existing docs/media artifacts remain untracked"
+  ],
+  "knownIssues": [
+    "The procedural sound was verified structurally through browser interaction but not subjectively auditioned in this headless run.",
+    "The first-touch ceremony is intentionally limited to fresh saves. Existing saves with any lifetime grass touches will not see it."
+  ],
+  "nextRecommendedSteps": [
+    "Audition the first click locally with speakers/headphones and tune the AudioSystem chord if it is too bright or too soft.",
+    "If desired, add a lightweight debug/query flag for replaying first-touch feedback without resetting saves.",
+    "Commit only the intended UI style slice, first-touch slice, and handoff artifacts; leave unrelated dirty docs/media alone unless explicitly included."
+  ],
+  "doNotRevert": [
+    "Do not revert the manual click pressure limit commit already pushed earlier today.",
+    "Do not revert the UI mockup style slice unless the user explicitly asks to back it out.",
+    "Do not revert pre-existing AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, or unrelated untracked docs/media changes."
+  ]
+}

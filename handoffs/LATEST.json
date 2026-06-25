@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-25",
-  "latestHandoff": "HANDOFF_2026-06-25_MANUAL_CLICK_RATE_LIMIT.json",
+  "latestHandoff": "HANDOFF_2026-06-25_FIRST_TOUCH_CEREMONY.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

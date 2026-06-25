@@ -1,0 +1,91 @@
+{
+  "date": "2026-06-25",
+  "topic": "UI mockup style slice",
+  "currentGoal": "Translate the Antigravity/Gemini UI makeover screenshots into implementation, while keeping only existing game systems and not adding fake mockup-only mechanics.",
+  "workCompleted": [
+    "Added a shared Deep Forest/Bronze UI theme helper with reusable ornate panel frames.",
+    "Reskinned shared text buttons to use the ornate forest/bronze style.",
+    "Applied the mockup visual language to gameplay HUD chips, combo badge, goal nudge, trigger feed, mobile command dock, and Weather Jar badge.",
+    "Kept behavior and mechanics unchanged; no water, energy, day-time, or other mockup-only systems were added.",
+    "Added no-op guards to ornate frame setters so repeated UI refreshes do not redraw frame graphics when position, size, fill, or accent are unchanged."
+  ],
+  "filesTouched": [
+    "src/game/ui/theme.ts",
+    "src/game/ui/buttons.ts",
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-25_UI_MOCKUP_STYLE_SLICE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check -- src/game/scenes/GameScene.ts src/game/ui/buttons.ts src/game/ui/theme.ts",
+      "result": "passed with existing LF-to-CRLF warnings for touched TS files"
+    },
+    {
+      "url": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "viewport": "1280x720",
+      "result": {
+        "status": "complete",
+        "visibleTiles": 1204,
+        "tileMode": "batch",
+        "layoutPasses": 0,
+        "redraws": 0,
+        "redrawQueued": 0,
+        "maxFrameDeltaMs": 12,
+        "frameSpikes": 0,
+        "displayObjects": 294,
+        "activeTweens": 21,
+        "hotspots": "hot none"
+      }
+    },
+    {
+      "url": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "viewport": "390x844",
+      "result": {
+        "status": "complete",
+        "visibleTiles": 96,
+        "tileMode": "viewport",
+        "layoutPasses": 0,
+        "redraws": 0,
+        "redrawQueued": 0,
+        "maxFrameDeltaMs": 7,
+        "frameSpikes": 0,
+        "displayObjects": 737,
+        "activeTweens": 22,
+        "hotspots": "hot none"
+      }
+    },
+    {
+      "url": "http://127.0.0.1:5173/?stress&tiles=1200",
+      "viewports": ["1280x720", "390x844"],
+      "result": "desktop and mobile screenshots checked; no page errors. Chrome reported the expected AudioContext user-gesture warning."
+    }
+  ],
+  "currentGitStatus": [
+    "M AGENTS.md (pre-existing/unrelated)",
+    "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md (pre-existing/unrelated)",
+    "M src/game/scenes/GameScene.ts",
+    "M src/game/ui/buttons.ts",
+    "?? src/game/ui/theme.ts",
+    "?? handoffs/HANDOFF_2026-06-25_UI_MOCKUP_STYLE_SLICE.json",
+    "?? several pre-existing docs/media artifacts remain untracked"
+  ],
+  "knownIssues": [
+    "This is the first gameplay HUD/style slice only. Larger panels such as the skill tree, title/menu, and class select still need deeper mockup-inspired treatment.",
+    "The stress URL enables the perf overlay, so clean screenshots still show the debug overlay in stress mode."
+  ],
+  "nextRecommendedSteps": [
+    "Review the gameplay HUD slice in-browser with a real save and decide whether to tune density, bronze intensity, or panel contrast.",
+    "Continue with a second slice for skill tree and title/class-select screens using the same theme helper.",
+    "Commit only the intended UI files and handoff artifacts; leave unrelated dirty docs/media alone unless the user explicitly wants them included."
+  ],
+  "doNotRevert": [
+    "Do not revert the manual click pressure limit commit already pushed earlier today.",
+    "Do not revert pre-existing AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, or unrelated untracked docs/media changes.",
+    "Do not add mockup-only mechanics; use the screenshots as visual direction only unless a system already exists in the game."
+  ]
+}

@@ -120,6 +120,30 @@ export class AudioSystem {
     return true;
   }
 
+  playFirstTouch(tier: GrassTierId = "normal", trait: TileTrait = "normal"): boolean {
+    this.unlock();
+
+    if (!this.context || !this.master) {
+      return false;
+    }
+
+    if (this.context.state !== "running" || !this.unlocked) {
+      this.resumePromise ??= this.context
+        .resume()
+        .then(() => {
+          this.unlocked = true;
+        })
+        .finally(() => {
+          this.resumePromise = undefined;
+        });
+      void this.resumePromise.then(() => this.playFirstTouchNow(tier, trait));
+      return true;
+    }
+
+    this.playFirstTouchNow(tier, trait);
+    return true;
+  }
+
   private playNow(name: SoundName): void {
     if (!this.context || !this.master || this.context.state !== "running") {
       return;
@@ -211,6 +235,28 @@ export class AudioSystem {
     if (isCrit) {
       this.playCritAccent(now + 0.025);
     }
+  }
+
+  private playFirstTouchNow(tier: GrassTierId, trait: TileTrait): void {
+    if (!this.context || !this.master || this.context.state !== "running") {
+      return;
+    }
+
+    this.lastGrassTouchSoundAt = performance.now();
+    const now = this.now();
+    const tierLift = tier === "crystal" || tier === "frost" ? 1.18 : tier === "golden" ? 1.12 : tier === "moss" || tier === "mushroom" ? 0.92 : 1;
+    const traitSpark = trait === "dewy" ? 1.16 : trait === "lush" ? 1.08 : 1;
+    const low = 98 * tierLift;
+    const root = 196 * tierLift;
+
+    this.playNoiseSweep(0.22, 760 * traitSpark, 0.13, now);
+    this.playNoiseSweep(0.08, 2450 * traitSpark, 0.058, now + 0.018);
+    this.playTone(low, 0.19, 0.08, "sine", now);
+    this.playTone(root, 0.17, 0.072, "triangle", now + 0.012);
+    this.playTone(root * 1.5, 0.14, 0.052, "triangle", now + 0.035);
+    this.playArp([392, 523.25, 659.25, 783.99].map((frequency) => frequency * tierLift), now + 0.055, 0.042, 0.052, "triangle");
+    this.playTone(1567.98 * tierLift * traitSpark, 0.12, 0.034, "sine", now + 0.18);
+    this.playTone(2349.32 * tierLift * traitSpark, 0.08, 0.02, "sine", now + 0.235);
   }
 
   private shouldPlayGrassTouchSound(isCrit: boolean, comboCount: number): boolean {
