@@ -128,7 +128,7 @@ export const AUTOMATION_SYSTEMS: AutomationSystemDefinition[] = [
 ];
 
 export function hasTinySprinklerStoreUnlock(state: GameState): boolean {
-  return state.seedShopPurchases.sprinkler === true || (state.upgrades.sprinkler_calibration?.level ?? 0) > 0;
+  return (state.upgrades.sprinkler_calibration?.level ?? 0) > 0;
 }
 
 export function getAutomationSystemDefinition(id: string): AutomationSystemDefinition | undefined {

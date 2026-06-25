@@ -1,0 +1,59 @@
+{
+  "date": "2026-06-25",
+  "topic": "Store after Sprinkler Calibration",
+  "currentGoal": "Gate the Store so it only unlocks after the first Sprinkler Calibration skill upgrade, then push and sync the desktop work to the Mac mini.",
+  "workCompleted": [
+    "Changed the Store unlock predicate so Tiny Sprinkler passive Store access requires Sprinkler Calibration level 1.",
+    "Hid the Store menu button before the unlock, blocked direct Store opening with a short player-facing message, and suppressed Store-ready attention badges until the Store is actually unlocked.",
+    "Kept the Tiny Sprinkler Blueprint as the active field-sprinkler behavior unlock instead of inventing a new system.",
+    "Updated in-game Seed Shop copy and the systems reference doc to clarify that Store access comes after Sprinkler Calibration level 1."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/data/automation-systems.ts",
+    "src/game/data/seed-shop.ts",
+    "docs/GAME_SYSTEMS_REFERENCE.md",
+    "handoffs/HANDOFF_2026-06-25_STORE_AFTER_SPRINKLER_CALIBRATION.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check -- src/game/scenes/GameScene.ts src/game/data/automation-systems.ts src/game/data/seed-shop.ts docs/GAME_SYSTEMS_REFERENCE.md",
+      "result": "passed with existing LF-to-CRLF warnings for touched files"
+    },
+    {
+      "check": "Fresh game browser check",
+      "result": "Started a fresh Grass Toucher save at http://127.0.0.1:5173/ and confirmed the menu shows Skills, Quests, Seeds, and Options with no Store button."
+    },
+    {
+      "check": "Unlocked-state browser check",
+      "result": "Loaded http://127.0.0.1:5173/?stress&tiles=120 and confirmed the Store button appears when Sprinkler Calibration is already owned."
+    }
+  ],
+  "currentGitStatusBeforeCommit": [
+    "M AGENTS.md (pre-existing/unrelated)",
+    "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md (pre-existing/unrelated)",
+    "M docs/GAME_SYSTEMS_REFERENCE.md",
+    "M src/game/data/automation-systems.ts",
+    "M src/game/data/seed-shop.ts",
+    "M src/game/scenes/GameScene.ts",
+    "?? several pre-existing docs/media artifacts remain untracked"
+  ],
+  "knownIssues": [
+    "Historical test reports and the untracked Claude reference copy still describe the old blueprint-to-Store pacing; they were intentionally left as historical or unrelated artifacts.",
+    "The desktop checkout has unrelated tracked changes in AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md that must not be included in this commit."
+  ],
+  "nextRecommendedSteps": [
+    "After pushing, run the desktop-to-Mac handoff workflow so the Mac mini pulls the new commit.",
+    "If the Store unlock feels too late in playtesting, tune Sprinkler Calibration pacing rather than re-opening the Store from the blueprint."
+  ],
+  "doNotRevert": [
+    "Do not restore seedShopPurchases.sprinkler as a Store unlock source.",
+    "Do not revert the active SprinklerSystem behavior that still checks the Seed Shop blueprint.",
+    "Do not revert unrelated local edits in AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, or untracked docs/media files."
+  ]
+}

@@ -10,6 +10,7 @@ import {
   getAutomationSystemPairSynergyLabel,
   getAutomationSystemTouchesPerMinute,
   getTotalAutomationTouchesPerMinute,
+  hasTinySprinklerStoreUnlock,
   type AutomationSystemDefinition,
 } from "../data/automation-systems";
 import { DEFAULT_CHARACTER_CLASS_ID, getCharacterClass } from "../data/character-classes";
@@ -2841,16 +2842,18 @@ export class GameScene extends Phaser.Scene {
   private layoutMenuButtons(): void {
     const mobilePortrait = this.isMobilePortrait();
     const buttonScale = mobilePortrait ? 0.74 : 1;
+    const storeUnlocked = this.isStoreUnlocked();
     const visibleButtons = [
       this.skillButton,
       this.questButton,
       this.seedButton,
-      this.storeButton,
+      storeUnlocked ? this.storeButton : undefined,
       getAutomationUnitCount(this.state) > 0 ? this.autoButton : undefined,
       this.state.seedShopPurchases.field_journal === true ? this.journalButton : undefined,
       this.optionsButton,
     ].filter((button): button is Phaser.GameObjects.Container => button !== undefined);
 
+    this.storeButton.setVisible(storeUnlocked);
     this.autoButton.setVisible(getAutomationUnitCount(this.state) > 0);
     this.journalButton.setVisible(this.state.seedShopPurchases.field_journal === true);
 
@@ -5096,6 +5099,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private openGoldStore(): void {
+    if (!this.isStoreUnlocked()) {
+      this.showMessage("Upgrade Sprinkler Calibration once to unlock the Store.", 2200);
+      this.audio.play("blocked");
+      return;
+    }
+
     this.closeSkillTree();
     this.closeQuestLog();
     this.closeJournal();
@@ -10880,12 +10889,13 @@ export class GameScene extends Phaser.Scene {
 
   private getReadyUnlockCounts(keys: Set<string>): { skill: number; seed: number; store: number } {
     const counts = { skill: 0, seed: 0, store: 0 };
+    const storeUnlocked = this.isStoreUnlocked();
     for (const key of keys) {
       if (key.startsWith("upgrade:") || key.startsWith("prestige:")) {
         counts.skill += 1;
       } else if (key.startsWith("seed:")) {
         counts.seed += 1;
-      } else if (key.startsWith("automation:") || key.startsWith("gold:")) {
+      } else if (storeUnlocked && (key.startsWith("automation:") || key.startsWith("gold:"))) {
         counts.store += 1;
       }
     }
@@ -11038,6 +11048,11 @@ export class GameScene extends Phaser.Scene {
     }
 
     const overlayOpen = this.hasBlockingOverlayOpen();
+    if (this.storeOpen && !this.isStoreUnlocked()) {
+      this.storeOpen = false;
+      this.storeRoot?.setVisible(false);
+    }
+
     this.setTextIfChanged(this.titleText, "Grass Touching Simulator");
     this.setVisibleIfChanged(this.ambientSpores, !overlayOpen);
     this.profileScope("ui:weatherVisuals", () => {
@@ -11199,7 +11214,7 @@ export class GameScene extends Phaser.Scene {
     setTextButtonAttention(this.seedButton, readyUnlockList.some((key) => key.startsWith("seed:")));
     setTextButtonAttention(
       this.storeButton,
-      readyUnlockList.some((key) => key.startsWith("automation:") || key.startsWith("gold:")),
+      this.isStoreUnlocked() && readyUnlockList.some((key) => key.startsWith("automation:") || key.startsWith("gold:")),
     );
     setTextButtonAttention(this.questButton, currentReadyQuestKeys.size > 0);
   }
@@ -12233,6 +12248,7 @@ export class GameScene extends Phaser.Scene {
 
   private getReadyUnlockKeys(): Set<string> {
     const keys = new Set<string>();
+    const storeUnlocked = this.isStoreUnlocked();
 
     for (const upgrade of UPGRADES) {
       if (this.isUpgradeReady(upgrade)) {
@@ -12252,23 +12268,29 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    for (const system of AUTOMATION_SYSTEMS) {
-      const owned = getAutomationSystemOwned(this.state, system.id);
-      const cost = getAutomationSystemCost(system, owned);
-      if (system.isUnlocked(this.state) && canAffordGrassTouches(this.state.grassTouches, cost)) {
-        keys.add(`automation:${system.id}:${owned + 1}`);
+    if (storeUnlocked) {
+      for (const system of AUTOMATION_SYSTEMS) {
+        const owned = getAutomationSystemOwned(this.state, system.id);
+        const cost = getAutomationSystemCost(system, owned);
+        if (system.isUnlocked(this.state) && canAffordGrassTouches(this.state.grassTouches, cost)) {
+          keys.add(`automation:${system.id}:${owned + 1}`);
+        }
       }
-    }
 
-    for (const item of GOLD_STORE_ITEMS) {
-      const quantity = getInventoryQuantity(this.state, item.id);
-      const maxed = item.maxQuantity !== undefined && quantity >= item.maxQuantity;
-      if (!maxed && item.isUnlocked(this.state) && this.state.gold >= item.cost && (item.kind !== "consumable" || quantity === 0)) {
-        keys.add(`gold:${item.id}:${quantity + 1}`);
+      for (const item of GOLD_STORE_ITEMS) {
+        const quantity = getInventoryQuantity(this.state, item.id);
+        const maxed = item.maxQuantity !== undefined && quantity >= item.maxQuantity;
+        if (!maxed && item.isUnlocked(this.state) && this.state.gold >= item.cost && (item.kind !== "consumable" || quantity === 0)) {
+          keys.add(`gold:${item.id}:${quantity + 1}`);
+        }
       }
     }
 
     return keys;
+  }
+
+  private isStoreUnlocked(): boolean {
+    return hasTinySprinklerStoreUnlock(this.state);
   }
 
   private isUpgradeReady(upgrade: (typeof UPGRADES)[number]): boolean {
