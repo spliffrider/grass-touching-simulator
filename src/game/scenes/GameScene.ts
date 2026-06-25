@@ -264,6 +264,11 @@ function getDirectiveAdjustedAutomationOutput(state: GameState, output: number):
 }
 const LIVE_TILE_VIEW_FIELD_LIMIT = 180;
 const POP_TEXT_POOL_LIMIT = 36;
+const MANUAL_TOUCH_MIN_INTERVAL_MS = 34;
+const MANUAL_TOUCH_BUSY_MIN_INTERVAL_MS = 42;
+const MANUAL_TOUCH_PRESSURE_WINDOW_MS = 1000;
+const MANUAL_TOUCH_PRESSURE_THRESHOLD = 12;
+const MANUAL_TOUCH_PRESSURE_HOLD_MS = 850;
 const TOUCH_FLOURISH_INTERVAL_MS = 72;
 const TOUCH_FLOURISH_BUSY_INTERVAL_MS = 128;
 const PERFECT_TOUCH_CUE_LIMIT = 6;
@@ -439,6 +444,7 @@ interface GoldStoreItemView {
 type StoreMode = "automation" | "goods";
 type AutomationBuyMode = "single" | "boost";
 type ComboTouchSource = "manual" | "sprinkler" | "field_mouse" | "meadow_rabbit" | "sheep";
+type TileClickSource = "manual" | "persistent" | "harness";
 type HudChipId = "touches" | "seeds" | "gold" | "auto" | "quest";
 
 interface HudChipView {
@@ -891,6 +897,10 @@ export class GameScene extends Phaser.Scene {
   private ambientWorldActionArcSpritesUsed = 0;
   private popTextPool: Phaser.GameObjects.Text[] = [];
   private activePopTexts = new Set<Phaser.GameObjects.Text>();
+  private manualTouchWindowAt = 0;
+  private manualTouchAttemptsInWindow = 0;
+  private manualTouchPressureUntil = 0;
+  private lastManualTouchAcceptedAt = 0;
   private lastTouchFlourishAt = 0;
   private autoTouchVisualCredit = 0;
   private lastAutoTouchVisualAt = 0;
@@ -1599,6 +1609,52 @@ export class GameScene extends Phaser.Scene {
     return true;
   }
 
+  private shouldAcceptManualTileTouch(now: number): boolean {
+    this.recordManualTouchAttempt(now);
+    const minInterval = this.getManualTouchMinIntervalMs(now);
+    if (now - this.lastManualTouchAcceptedAt < minInterval) {
+      return false;
+    }
+
+    this.lastManualTouchAcceptedAt = now;
+    return true;
+  }
+
+  private recordManualTouchAttempt(now: number): void {
+    if (now - this.manualTouchWindowAt >= MANUAL_TOUCH_PRESSURE_WINDOW_MS) {
+      this.manualTouchWindowAt = now;
+      this.manualTouchAttemptsInWindow = 0;
+    }
+
+    this.manualTouchAttemptsInWindow += 1;
+    if (this.manualTouchAttemptsInWindow >= MANUAL_TOUCH_PRESSURE_THRESHOLD) {
+      this.manualTouchPressureUntil = Math.max(this.manualTouchPressureUntil, now + MANUAL_TOUCH_PRESSURE_HOLD_MS);
+    }
+  }
+
+  private getManualTouchMinIntervalMs(now: number): number {
+    const underPressure =
+      this.isManualTouchPressureActive(now) ||
+      this.isBoardRenderBusy() ||
+      this.children.list.length >= DISPLAY_OBJECT_PRESSURE_LIMIT ||
+      this.frameSpikeCount > 0 ||
+      this.effectQuality <= 0.58;
+
+    return underPressure ? MANUAL_TOUCH_BUSY_MIN_INTERVAL_MS : MANUAL_TOUCH_MIN_INTERVAL_MS;
+  }
+
+  private isManualTouchPressureActive(now = Date.now()): boolean {
+    return now < this.manualTouchPressureUntil;
+  }
+
+  private withManualTouchFeedbackBudget<T>(now: number, callback: () => T): T {
+    if (!this.isManualTouchPressureActive(now)) {
+      return callback();
+    }
+
+    return this.runWithAmbientFeedback(callback);
+  }
+
   private resetAmbientFeedbackBudget(now = Date.now()): void {
     if (now - this.ambientFeedbackWindowAt < AMBIENT_FEEDBACK_WINDOW_MS) {
       return;
@@ -1828,7 +1884,7 @@ export class GameScene extends Phaser.Scene {
 
   private runPerfHarnessTapBurst(): void {
     for (const tile of this.getPerfHarnessTouchTiles(PERF_HARNESS_TAP_COUNT)) {
-      this.handleTileClicked(tile);
+      this.handleTileClicked(tile, "harness");
     }
   }
 
@@ -7046,7 +7102,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.handleTileClicked(tile);
+    this.handleTileClicked(tile, "persistent");
     if (this.persistentTouchActive) {
       this.persistentTouchNextAt = now + this.getPersistentTouchIntervalMs();
     }
@@ -7260,7 +7316,7 @@ export class GameScene extends Phaser.Scene {
     this.tileInfoPanel.setPosition(x, y);
   }
 
-  private handleTileClicked(tile: FieldTile): void {
+  private handleTileClicked(tile: FieldTile, source: TileClickSource = "manual"): void {
     const perfStart = this.shouldProfile() ? performance.now() : undefined;
     try {
     if (this.hasBlockingOverlayOpen()) {
@@ -7269,6 +7325,11 @@ export class GameScene extends Phaser.Scene {
 
     if (this.selectedPlacementObjectId) {
       this.placeSelectedWorldObject(tile);
+      return;
+    }
+
+    const now = Date.now();
+    if (source === "manual" && !this.shouldAcceptManualTileTouch(now)) {
       return;
     }
 
@@ -7282,7 +7343,6 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const now = Date.now();
     const stats = this.profileScope("touch:stats", () => this.getCachedRuntimeStats(now));
     const touchedTrait = tile.trait;
     const touchedTier = getGrassTier(tile.tier);
@@ -7314,7 +7374,7 @@ export class GameScene extends Phaser.Scene {
       this.state.lifetimeGrassTouches = addGrassTouches(this.state.lifetimeGrassTouches, placementSynergy.bonusTouches);
     }
 
-    this.profileScope("touch:visuals", () => {
+    this.profileScope("touch:visuals", () => this.withManualTouchFeedbackBudget(now, () => {
       this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
       this.refreshTile(tile);
       this.popAtTile(tile, this.getTouchPopText(touch), touch.isCrit ? "#ffef78" : touchedTier.id === "normal" ? "#f9ffe5" : "#dfffc8");
@@ -7333,12 +7393,12 @@ export class GameScene extends Phaser.Scene {
       if (touch.instantRegrown) {
         this.popAtTile(tile, "instant regrow", "#dfffc8");
       }
-    });
-    this.profileScope("touch:drops", () => {
+    }));
+    this.profileScope("touch:drops", () => this.withManualTouchFeedbackBudget(now, () => {
       this.drops.tryDropSeed(this.state, tile, touchedTrait, stats, this.getDropFeedback(), placementSynergy.seedChanceScale);
       this.drops.tryDropGold(this.state, tile, touchedTrait, touchedTier.id, touch, stats, this.getDropFeedback(), placementSynergy.goldChanceScale);
       this.applyGrassTierIdentityBonus(tile, touchedTier.id, touch, stats, now);
-    });
+    }));
     this.profileScope("touch:audioShake", () => {
       this.shakeForGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
       this.playMixedGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, combo.count);

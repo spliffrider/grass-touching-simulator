@@ -1,0 +1,117 @@
+{
+  "updatedAt": "2026-06-25",
+  "topic": "Manual click rate limit for large-field lag",
+  "currentUserGoal": "Reduce lag when the player rapidly smashes left click on a large visible field, while keeping clicks feeling responsive.",
+  "changesMade": [
+    "Added a high manual tile-click rate limiter in GameScene.ts: normal manual clicks allow roughly 29 accepted touches per second, tightening to roughly 24 per second while the board is busy, frame spikes were seen, or manual click pressure is active.",
+    "Added a one-second manual click pressure detector. After 12 manual attempts in the window, pressure stays active briefly so visual feedback reuses the existing ambient budgets for pop text, transient objects, and particle bursts.",
+    "Kept persistent-touch upgrade input and the built-in perf harness tap burst out of the manual limiter so their existing timing and benchmark behavior remain stable."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-25_MANUAL_CLICK_RATE_LIMIT.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed",
+      "details": "TypeScript and Vite production build completed successfully."
+    },
+    {
+      "command": "git diff --check -- src/game/scenes/GameScene.ts",
+      "result": "passed",
+      "details": "Only the repo's normal LF-to-CRLF working-copy warning was reported."
+    },
+    {
+      "url": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "viewport": "1698x1179",
+      "result": "passed",
+      "desktopSummary": {
+        "samples": 9,
+        "tapBurstVisibleTiles": 1200,
+        "tapBurstLayoutPasses": 0,
+        "tapBurstRedraws": 0,
+        "tapBurstRedrawQueued": 54,
+        "tapBurstMaxFrameDeltaMs": 11,
+        "tapBurstFrameSpikes": 0,
+        "tapBurstDisplayObjects": 645,
+        "tapBurstActiveTweens": 15,
+        "tapBurstHotspots": "hot frame:update 5.1/1.5x26  regrow 2.5/1.2x21  ui 2.4/2.4x1  render:queuedCommon 1.7/1.0x8  text:set 0.6/0.2x33  ui:hudChips 0.6/0.6x1",
+        "completeVisibleTiles": 1036,
+        "completeLayoutPasses": 0,
+        "completeRedraws": 0,
+        "completeRedrawQueued": 0,
+        "completeMaxFrameDeltaMs": 10,
+        "completeFrameSpikes": 0,
+        "completeDisplayObjects": 285,
+        "completeActiveTweens": 21,
+        "completeHotspots": "hot none"
+      }
+    },
+    {
+      "url": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "viewport": "390x844",
+      "result": "passed",
+      "mobileSummary": {
+        "samples": 9,
+        "tapBurstVisibleTiles": 91,
+        "tapBurstTileMode": "viewport",
+        "tapBurstLayoutPasses": 0,
+        "tapBurstRedraws": 0,
+        "tapBurstRedrawQueued": 0,
+        "tapBurstMaxFrameDeltaMs": 10,
+        "tapBurstFrameSpikes": 0,
+        "tapBurstDisplayObjects": 629,
+        "tapBurstActiveTweens": 27,
+        "tapBurstHotspots": "hot frame:update 2.5/0.4x25  ui 1.8/1.8x1  regrow 0.9/0.3x17  ui:hudChips 0.5/0.5x1  text:set 0.4/0.2x14  combo 0.3/0.1x11",
+        "completeVisibleTiles": 104,
+        "completeTileMode": "viewport",
+        "completeLayoutPasses": 0,
+        "completeRedraws": 0,
+        "completeRedrawQueued": 0,
+        "completeMaxFrameDeltaMs": 7,
+        "completeFrameSpikes": 0,
+        "completeDisplayObjects": 693,
+        "completeActiveTweens": 22,
+        "completeHotspots": "hot none"
+      }
+    },
+    {
+      "url": "http://127.0.0.1:5173/?stress&perf&tiles=1200",
+      "viewport": "1698x1179",
+      "result": "passed",
+      "details": "Coordinate-click smoke used 80 real browser clicks. Browser automation overhead made it too slow to represent true mouse smashing, but the real input path stayed at maxFrameDeltaMs 7 and frameSpikes 0 afterward."
+    }
+  ],
+  "currentGitStatus": [
+    " M AGENTS.md",
+    " M docs/DESKTOP_MAC_SYNC_WORKFLOW.md",
+    " M handoffs/LATEST.json",
+    " M src/game/scenes/GameScene.ts",
+    "?? docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+    "?? docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+    "?? docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+    "?? docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+    "?? docs/artifacts/title-art-2026-06-19/",
+    "?? docs/grasstouching.mid",
+    "?? docs/lucid.aif",
+    "?? handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json",
+    "?? handoffs/HANDOFF_2026-06-25_MANUAL_CLICK_RATE_LIMIT.json"
+  ],
+  "knownIssues": [
+    "The manual click-pressure cap needs subjective testing on the user's real save and mouse. The current cap is intentionally high: it should only trim extreme bursts.",
+    "Browser automation coordinate clicks were too slow to reproduce true physical click mashing. The standard harness and a real input smoke passed, but a human live test remains the best final feel check."
+  ],
+  "nextRecommendedSteps": [
+    "Run the live/dev build on the user's real save at the screenshot-sized field and aggressively left-click for 20-30 seconds.",
+    "If it still lags, lower MANUAL_TOUCH_BUSY_MIN_INTERVAL_MS slightly upward from 42ms or make manual pressure activate earlier than 12 attempts per second.",
+    "If clicks feel capped too early, raise MANUAL_TOUCH_PRESSURE_THRESHOLD before changing the accepted-click intervals."
+  ],
+  "doNotRevert": [
+    "Do not revert the pre-existing dirty AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md edits.",
+    "Do not stage or delete the unrelated untracked docs/media files unless the user explicitly asks.",
+    "Keep the perf harness tap burst bypassing the manual limiter so benchmark comparisons remain meaningful.",
+    "Keep persistent touch on its own interval rather than double-throttling it with manual click pressure."
+  ]
+}
