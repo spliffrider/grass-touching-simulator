@@ -692,6 +692,8 @@ export class GameScene extends Phaser.Scene {
   private selectedPlacementObjectId?: string;
   private emeraldBackground!: Phaser.GameObjects.Image;
   private boardBackdropGraphics?: Phaser.GameObjects.Graphics;
+  private boardViewportMaskGraphics?: Phaser.GameObjects.Graphics;
+  private boardViewportMask?: Phaser.Display.Masks.GeometryMask;
   private ambientSpores?: Phaser.GameObjects.Particles.ParticleEmitter;
   private titleText!: Phaser.GameObjects.Text;
   private buildLabelText!: Phaser.GameObjects.Text;
@@ -761,6 +763,7 @@ export class GameScene extends Phaser.Scene {
   private skillBuyButton!: Phaser.GameObjects.Container;
   private skillBranchLabels: SkillBranchLabelView[] = [];
   private tileInfoPanel!: Phaser.GameObjects.Container;
+  private tileInfoFrame!: OrnateFrame;
   private tileInfoBg!: Phaser.GameObjects.Rectangle;
   private tileInfoTitle!: Phaser.GameObjects.Text;
   private tileInfoBody!: Phaser.GameObjects.Text;
@@ -788,7 +791,9 @@ export class GameScene extends Phaser.Scene {
   private storeGoldItemViews = new Map<string, GoldStoreItemView>();
   private questRoot!: Phaser.GameObjects.Container;
   private questBackdrop!: Phaser.GameObjects.Rectangle;
+  private questBackdropPattern!: Phaser.GameObjects.Image;
   private questTitleText!: Phaser.GameObjects.Text;
+  private questResourceFrame!: OrnateFrame;
   private questResourceText!: Phaser.GameObjects.Text;
   private questStatusText!: Phaser.GameObjects.Text;
   private questBackButton!: Phaser.GameObjects.Container;
@@ -2537,10 +2542,13 @@ export class GameScene extends Phaser.Scene {
 
   private createBoardLayers(): void {
     this.boardBackdropGraphics = this.add.graphics().setDepth(-3);
+    this.boardViewportMaskGraphics = this.add.graphics().setVisible(false);
+    this.boardViewportMask = this.boardViewportMaskGraphics.createGeometryMask();
     this.commonTileLayer = this.add
       .renderTexture(0, 0, this.scale.width, this.scale.height)
       .setOrigin(0, 0)
       .setDepth(-2);
+    this.commonTileLayer.setMask(this.boardViewportMask);
     this.commonTileLayerWidth = this.scale.width;
     this.commonTileLayerHeight = this.scale.height;
     this.boardHitZone = this.add
@@ -3032,7 +3040,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.weatherTint.setSize(this.scale.width, this.scale.height);
-    const compact = this.scale.width < 720;
+    const compact = this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH;
     const badgeWidth = compact ? Math.max(220, this.scale.width - 180) : 280;
     const badgeHeight = compact ? 66 : 64;
     const rightMenuLeft = this.scale.width - 156;
@@ -3103,8 +3111,9 @@ export class GameScene extends Phaser.Scene {
     const visible =
       !this.hasBlockingOverlayOpen() &&
       this.triggerFeedEvents.length > 0 &&
-      ((!mobilePortrait && this.scale.width >= 720 && this.scale.height >= 540) ||
-        (mobilePortrait && this.scale.width >= 340 && this.scale.height >= 680));
+      !mobilePortrait &&
+      this.scale.width >= TABLET_LARGE_FIELD_MAX_WIDTH &&
+      this.scale.height >= 540;
     this.triggerFeedRoot.setVisible(visible);
     if (!visible) {
       this.layoutPerfPanel();
@@ -3233,24 +3242,36 @@ export class GameScene extends Phaser.Scene {
 
   private createTileInfoPanel(): void {
     this.tileInfoPanel = this.add.container(0, 0).setDepth(60).setVisible(false);
-    this.tileInfoBg = this.add
-      .rectangle(0, 0, 260, 128, 0xf4ffdc, 0.97)
-      .setOrigin(0, 0)
-      .setStrokeStyle(3, 0x2d6f36);
-    this.tileInfoTitle = this.add.text(12, 10, "", {
-      fontFamily: "Trebuchet MS, Arial",
-      fontSize: "18px",
-      color: "#183d20",
+    this.tileInfoFrame = createOrnateFrame(this, 260, 128, {
+      fillColor: UITheme.colors.panelBg,
+      fillAlpha: 0.97,
+      insetAlpha: 0.2,
+      accentColor: UITheme.colors.bronzeLight,
+      accentAlpha: 0.84,
+      glowAlpha: 0.07,
+      shadowAlpha: 0.48,
+      trim: 3,
+      cornerSize: 18,
     });
+    this.tileInfoBg = this.tileInfoFrame.bg;
+    this.tileInfoTitle = this.add.text(12, 10, "", {
+      fontFamily: UITheme.text.fontFamily,
+      fontSize: "18px",
+      color: UITheme.colors.creamBright,
+      stroke: UITheme.text.stroke,
+      strokeThickness: 4,
+    }).setShadow(0, 2, "#06190f", 2, false, true);
     this.tileInfoBody = this.add.text(12, 38, "", {
-      fontFamily: "Trebuchet MS, Arial",
+      fontFamily: UITheme.text.fontFamily,
       fontSize: "14px",
-      color: "#416247",
+      color: UITheme.colors.mutedGreen,
+      stroke: UITheme.text.stroke,
+      strokeThickness: 2,
       lineSpacing: 2,
       wordWrap: { width: 236 },
     });
 
-    this.tileInfoPanel.add([this.tileInfoBg, this.tileInfoTitle, this.tileInfoBody]);
+    this.tileInfoPanel.add([...this.tileInfoFrame.objects, this.tileInfoTitle, this.tileInfoBody]);
   }
 
   private createSkillTree(): void {
@@ -3553,29 +3574,44 @@ export class GameScene extends Phaser.Scene {
 
     this.questRoot = this.add.container(0, 0).setDepth(104).setVisible(false);
     this.questBackdrop = this.add
-      .rectangle(0, 0, this.scale.width, this.scale.height, 0x071b11, 0.98)
+      .rectangle(0, 0, this.scale.width, this.scale.height, UITheme.colors.panelBgDeep, 0.98)
       .setOrigin(0, 0)
       .setInteractive();
+    this.questBackdropPattern = this.add
+      .image(this.scale.width / 2, this.scale.height / 2, "meadow-clearing-bg")
+      .setOrigin(0.5)
+      .setAlpha(0.18);
     this.questTitleText = this.add.text(0, 0, "Quest Log", {
-      fontFamily: "Trebuchet MS, Arial",
+      fontFamily: UITheme.text.fontFamily,
       fontSize: "34px",
       color: "#f4df6a",
-      stroke: "#06190f",
+      stroke: UITheme.text.stroke,
       strokeThickness: 6,
     }).setShadow(0, 3, "#06190f", 3, false, true);
+    this.questResourceFrame = createOrnateFrame(this, 330, 46, {
+      fillColor: UITheme.colors.panelBg,
+      fillAlpha: 0.94,
+      insetAlpha: 0.16,
+      accentColor: UITheme.colors.bronze,
+      accentAlpha: 0.82,
+      glowAlpha: 0.05,
+      shadowAlpha: 0.28,
+      trim: 2,
+      cornerSize: 15,
+    });
     this.questResourceText = this.add.text(0, 0, "", {
-      fontFamily: "Trebuchet MS, Arial",
+      fontFamily: UITheme.text.fontFamily,
       fontSize: "18px",
-      color: "#f7ffe8",
-      backgroundColor: "#0f3d22",
-      padding: { x: 12, y: 8 },
+      color: UITheme.colors.cream,
+      stroke: UITheme.text.stroke,
+      strokeThickness: 3,
     });
     this.questStatusText = this.add
       .text(0, 0, "Complete small goals and claim the rewards.", {
-        fontFamily: "Trebuchet MS, Arial",
+        fontFamily: UITheme.text.fontFamily,
         fontSize: "16px",
-        color: "#dfffc8",
-        stroke: "#06190f",
+        color: UITheme.colors.mutedGreen,
+        stroke: UITheme.text.stroke,
         strokeThickness: 4,
       })
       .setOrigin(0.5, 0);
@@ -3583,7 +3619,9 @@ export class GameScene extends Phaser.Scene {
     this.questClaimReadyButton = createTextButton(this, "Claim Ready", () => this.claimReadyQuestRewards(), 150, 38, 105);
     this.questRoot.add([
       this.questBackdrop,
+      this.questBackdropPattern,
       this.questTitleText,
+      ...this.questResourceFrame.objects,
       this.questResourceText,
       this.questStatusText,
       this.questBackButton,
@@ -3593,16 +3631,16 @@ export class GameScene extends Phaser.Scene {
     for (const filter of QUEST_FILTERS) {
       const container = this.add.container(0, 0);
       const bg = this.add
-        .rectangle(0, 0, 86, 30, 0x173d23, 0.94)
+        .rectangle(0, 0, 86, 30, UITheme.colors.panelBg, 0.94)
         .setOrigin(0, 0)
-        .setStrokeStyle(2, 0xb7eba5, 0.68)
+        .setStrokeStyle(2, UITheme.colors.bronze, 0.72)
         .setInteractive({ useHandCursor: true });
       const label = this.add
         .text(43, 15, filter.label, {
-          fontFamily: "Trebuchet MS, Arial",
+          fontFamily: UITheme.text.fontFamily,
           fontSize: "13px",
-          color: "#dfffc8",
-          stroke: "#06190f",
+          color: UITheme.colors.cream,
+          stroke: UITheme.text.stroke,
           strokeThickness: 3,
         })
         .setOrigin(0.5);
@@ -3617,29 +3655,37 @@ export class GameScene extends Phaser.Scene {
       const container = this.add.container(0, 0);
       const attentionGlow = this.createReadyRowGlow(470, 116, 0.16, 0.85);
       const bg = this.add
-        .rectangle(0, 0, 460, 106, 0x12341c, 0.95)
+        .rectangle(0, 0, 460, 106, UITheme.colors.panelBg, 0.96)
         .setOrigin(0, 0)
-        .setStrokeStyle(3, 0xb7eba5, 0.72);
+        .setStrokeStyle(3, UITheme.colors.bronze, 0.78);
       const name = this.add.text(14, 10, `${quest.category}: ${quest.name}`, {
-        fontFamily: "Trebuchet MS, Arial",
+        fontFamily: UITheme.text.fontFamily,
         fontSize: "20px",
-        color: "#f7ffe8",
+        color: UITheme.colors.creamBright,
+        stroke: UITheme.text.stroke,
+        strokeThickness: 3,
       });
       const description = this.add.text(14, 38, quest.description, {
-        fontFamily: "Trebuchet MS, Arial",
+        fontFamily: UITheme.text.fontFamily,
         fontSize: "13px",
-        color: "#d6e6d0",
+        color: UITheme.colors.mutedGreen,
+        stroke: UITheme.text.stroke,
+        strokeThickness: 2,
         wordWrap: { width: 278 },
       });
       const progress = this.add.text(14, 74, "", {
-        fontFamily: "Trebuchet MS, Arial",
+        fontFamily: UITheme.text.fontFamily,
         fontSize: "14px",
         color: "#b7eba5",
+        stroke: UITheme.text.stroke,
+        strokeThickness: 2,
       });
       const reward = this.add.text(300, 20, "", {
-        fontFamily: "Trebuchet MS, Arial",
+        fontFamily: UITheme.text.fontFamily,
         fontSize: "13px",
         color: "#f4df6a",
+        stroke: UITheme.text.stroke,
+        strokeThickness: 2,
         align: "center",
         wordWrap: { width: 140 },
       });
@@ -3687,12 +3733,23 @@ export class GameScene extends Phaser.Scene {
     let y = startY - this.questScroll;
 
     this.resizeInteractiveBackdrop(this.questBackdrop);
+    this.questBackdropPattern.setPosition(this.scale.width / 2, this.scale.height / 2);
+    this.questBackdropPattern.setScale(
+      Math.max(this.scale.width / this.questBackdropPattern.width, this.scale.height / this.questBackdropPattern.height),
+    );
     this.questTitleText.setFontSize(compact ? 30 : 34);
     this.questResourceText.setFontSize(compact ? 14 : 18);
     this.questStatusText.setFontSize(compact ? 13 : 16);
     this.questStatusText.setWordWrapWidth(Math.max(240, this.scale.width - 48));
     this.questTitleText.setPosition(24, 24);
-    this.questResourceText.setPosition(26, compact ? 72 : 78);
+    const resourceFrameWidth = compact ? Math.min(panelWidth, this.scale.width - 48) : Math.min(380, Math.max(300, this.scale.width - 360));
+    const resourceFrameHeight = compact ? 42 : 46;
+    const resourceFrameX = 24;
+    const resourceFrameY = compact ? 70 : 74;
+    this.questResourceFrame.setPosition(resourceFrameX, resourceFrameY);
+    this.questResourceFrame.setSize(resourceFrameWidth, resourceFrameHeight);
+    this.questResourceText.setPosition(resourceFrameX + 14, resourceFrameY + (compact ? 11 : 12));
+    this.questResourceText.setWordWrapWidth(resourceFrameWidth - 28);
     this.questStatusText.setPosition(this.scale.width / 2, compact ? 108 : 112);
     this.questBackButton.setScale(compact ? 0.9 : 1);
     this.questBackButton.setPosition(this.scale.width - 142, 24);
@@ -3749,11 +3806,11 @@ export class GameScene extends Phaser.Scene {
       const selected = filter.id === this.selectedQuestFilter;
       view.container.setPosition(x + column * (buttonWidth + gap), y + row * (buttonHeight + 6));
       view.bg.setSize(buttonWidth, buttonHeight);
-      view.bg.setFillStyle(selected ? 0x2f6a34 : 0x173d23, selected ? 1 : 0.94);
-      view.bg.setStrokeStyle(2, selected ? 0xf4df6a : 0xb7eba5, selected ? 0.95 : 0.68);
+      view.bg.setFillStyle(selected ? UITheme.colors.panelInset : UITheme.colors.panelBg, selected ? 1 : 0.94);
+      view.bg.setStrokeStyle(2, selected ? UITheme.colors.glow : UITheme.colors.bronze, selected ? 0.98 : 0.72);
       view.label.setPosition(buttonWidth / 2, buttonHeight / 2);
       view.label.setFontSize(compact ? 12 : 13);
-      view.label.setColor(selected ? "#f7ffe8" : "#dfffc8");
+      view.label.setColor(selected ? UITheme.colors.creamBright : UITheme.colors.cream);
     });
   }
 
@@ -6032,6 +6089,14 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const view: TileView = { base, grass, hazard, label, outline, glint };
+    if (this.boardViewportMask) {
+      base.setMask(this.boardViewportMask);
+      grass.setMask(this.boardViewportMask);
+      hazard.setMask(this.boardViewportMask);
+      label.setMask(this.boardViewportMask);
+      outline.setMask(this.boardViewportMask);
+      glint.setMask(this.boardViewportMask);
+    }
     base.on("pointerdown", () => this.handleTileViewClicked(view));
     grass.on("pointerdown", () => this.handleTileViewClicked(view));
     hazard.on("pointerdown", () => this.handleTileViewClicked(view));
@@ -6303,7 +6368,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getBoardRightUiReserve(): number {
-    return this.isMobilePortrait() || this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH ? 0 : DESKTOP_BOARD_RIGHT_UI_RESERVE;
+    return this.isMobilePortrait() ? 0 : DESKTOP_BOARD_RIGHT_UI_RESERVE;
   }
 
   private getBoardLeftUiReserve(): number {
@@ -6315,11 +6380,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getBoardTopUiReserveBottom(): number {
-    if (this.isMobilePortrait() || this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH) {
+    if (this.isMobilePortrait()) {
       return 0;
     }
 
-    if (!this.weatherBadge?.visible || !this.weatherBadgeBg) {
+    const weatherActive =
+      this.state.seedShopPurchases.weather_jar && this.state.activeWeatherId && this.scale.width >= TABLET_LARGE_FIELD_MAX_WIDTH;
+    if ((!this.weatherBadge?.visible && !weatherActive) || !this.weatherBadgeBg) {
       return 0;
     }
 
@@ -6359,6 +6426,16 @@ export class GameScene extends Phaser.Scene {
         this.boardHitZone.input.hitArea = new Phaser.Geom.Rectangle(0, 0, hitWidth, hitHeight);
         this.boardHitZone.input.hitAreaCallback = Phaser.Geom.Rectangle.Contains;
       }
+    }
+
+    if (this.boardViewportMaskGraphics) {
+      const maskX = this.boardViewportWidth > 0 ? this.boardViewportX : 0;
+      const maskY = this.boardViewportHeight > 0 ? this.boardViewportY : 0;
+      const maskWidth = this.boardViewportWidth > 0 ? this.boardViewportWidth : this.scale.width;
+      const maskHeight = this.boardViewportHeight > 0 ? this.boardViewportHeight : this.scale.height;
+      this.boardViewportMaskGraphics.clear();
+      this.boardViewportMaskGraphics.fillStyle(0xffffff, 1);
+      this.boardViewportMaskGraphics.fillRect(maskX, maskY, maskWidth, maskHeight);
     }
   }
 
@@ -9444,9 +9521,13 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const wasBadgeVisible = this.weatherBadge.visible;
     if (!this.state.seedShopPurchases.weather_jar) {
       this.setVisibleIfChanged(this.weatherTint, false);
       this.setVisibleIfChanged(this.weatherBadge, false);
+      if (wasBadgeVisible) {
+        this.requestBoardLayout("ui");
+      }
       this.weatherParticles?.destroy();
       this.weatherParticles = undefined;
       this.activeWeatherVisualId = "none";
@@ -9460,9 +9541,10 @@ export class GameScene extends Phaser.Scene {
     const timeText = `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
     const visible = !this.hasBlockingOverlayOpen();
-    const compact = this.scale.width < 620;
+    const compact = this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH;
+    const badgeVisible = visible && !compact;
     const accent = Number.parseInt(weather.color.slice(1), 16);
-    this.setVisibleIfChanged(this.weatherBadge, visible && !compact);
+    this.setVisibleIfChanged(this.weatherBadge, badgeVisible);
     this.setTextIfChanged(this.weatherBadgeTitle, `Weather Jar: ${weather.name}`);
     this.weatherBadgeTitle.setColor(weather.color);
     this.weatherBadgeFrame.setAccent(Number.isFinite(accent) ? accent : UITheme.colors.bronzeLight, 0.82);
@@ -9473,6 +9555,9 @@ export class GameScene extends Phaser.Scene {
     if (this.activeWeatherVisualId !== weather.id) {
       this.activeWeatherVisualId = weather.id;
       this.createWeatherParticleEffect(weather.id);
+    }
+    if (wasBadgeVisible !== badgeVisible) {
+      this.requestBoardLayout("ui");
     }
   }
 
@@ -11553,11 +11638,18 @@ export class GameScene extends Phaser.Scene {
       const claimed = this.state.claimedQuestIds.includes(quest.id);
       const ready = complete && !claimed;
 
-      view.bg.setFillStyle(claimed ? 0x20351f : complete ? 0x1c4728 : available ? 0x12341c : 0x14231a, claimed ? 0.74 : 0.95);
-      view.bg.setStrokeStyle(3, claimed ? 0x51615a : ready ? 0xffef78 : available ? 0xb7eba5 : 0x496455, ready ? 0.98 : 0.62);
+      view.bg.setFillStyle(
+        claimed ? UITheme.colors.panelBgDeep : ready ? UITheme.colors.panelInset : UITheme.colors.panelBg,
+        claimed ? 0.74 : available ? 0.96 : 0.7,
+      );
+      view.bg.setStrokeStyle(
+        3,
+        claimed ? UITheme.colors.bronzeDark : ready ? UITheme.colors.glow : available ? UITheme.colors.bronze : 0x496455,
+        ready ? 0.98 : available ? 0.78 : 0.54,
+      );
       view.container.setAlpha(claimed ? 0.72 : available ? 1 : 0.78);
       view.progress.setText(claimed ? "Claimed" : formatQuestProgress(quest, this.state));
-      view.progress.setColor(ready ? "#f4df6a" : available ? "#b7eba5" : "#8ea594");
+      view.progress.setColor(ready ? UITheme.colors.creamBright : available ? "#b7eba5" : "#8ea594");
       view.reward.setText(`Reward:\n${formatQuestReward(quest.reward)}`);
       setTextButtonText(view.claimButton, claimed ? "Claimed" : ready ? "Claim" : "Locked");
       setTextButtonEnabled(view.claimButton, ready);
@@ -12907,7 +12999,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showMessage(message: string, duration: number): void {
+    const previousMilestoneHeight = this.milestoneText.height;
     this.setTextIfChanged(this.milestoneText, message);
+    if (Math.abs(this.milestoneText.height - previousMilestoneHeight) > 1) {
+      this.layoutHeader();
+      this.requestBoardLayout("ui");
+    }
     this.time.delayedCall(duration, () => this.refreshUi());
   }
 
