@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-26",
-  "latestHandoff": "HANDOFF_2026-06-26_WORLD_OBJECT_DOCK_OVERLAP_HOTFIX.json",
+  "latestHandoff": "HANDOFF_2026-06-26_RESPONSIVE_UI_COLLISION_PASS.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

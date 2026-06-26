@@ -1,0 +1,73 @@
+{
+  "date": "2026-06-26",
+  "topic": "Responsive UI Collision Pass",
+  "currentGoal": "Ship the visual Quest/tooltip slice plus responsive gameplay collision fixes while preserving large-field performance.",
+  "sessionOutcome": {
+    "status": "complete",
+    "latestCodeCommit": "1e34822",
+    "latestCodeCommitMessage": "Improve responsive board UI collisions",
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "liveAssetVerified": "https://grasstouchingsimulator.com/assets/index-PByuHFjH.js",
+    "productionAssetLocal": "dist/assets/index-PByuHFjH.js"
+  },
+  "workCompleted": [
+    "Updated Quest Log and tile hover info panel styling to use the shared ornate forest/bronze UI language.",
+    "Added a reusable board viewport geometry mask so large tile art no longer bleeds under HUD, menu, or command surfaces.",
+    "Reserved the right command rail for non-mobile board layouts.",
+    "Hid the Trigger Feed on constrained widths instead of allowing it to overlap the field.",
+    "Hid the Weather Jar badge below the tablet-large breakpoint while preserving weather tint and messages.",
+    "Queued board relayout only when milestone message height or weather badge visibility changes."
+  ],
+  "verificationRun": [
+    {
+      "command": "git diff --check -- src/game/scenes/GameScene.ts",
+      "result": "passed locally; normal CRLF warning only"
+    },
+    {
+      "command": "npm run build",
+      "result": "passed locally; production asset dist/assets/index-PByuHFjH.js"
+    },
+    {
+      "check": "Responsive screenshots",
+      "result": "Checked stress gameplay at 1280x720, 1097x971, 742x807, and 390x844; checked Quest Log and Store panel states. Stress overlay is diagnostic-only."
+    },
+    {
+      "command": "http://127.0.0.1:5173/?perfHarness&tiles=1200 at 390x844",
+      "result": "status complete; visibleTiles 49; tileMode viewport; layoutPasses 0; redraws 0; redrawQueued 0; maxFrameDeltaMs 7; frameSpikes 0; displayObjects 435; activeTweens 22; hotspots hot none"
+    },
+    {
+      "command": "http://127.0.0.1:5173/?perfHarness&tiles=1200 at 1280x720",
+      "result": "status complete; visibleTiles 1190; tileMode batch; layoutPasses 0; redraws 0; redrawQueued 0; maxFrameDeltaMs 12; frameSpikes 0; displayObjects 304; activeTweens 21; hotspots hot none"
+    },
+    {
+      "command": "Invoke-WebRequest https://grasstouchingsimulator.com/",
+      "result": "HTTP 200 and HTML references /assets/index-PByuHFjH.js"
+    },
+    {
+      "command": "HEAD https://grasstouchingsimulator.com/assets/index-PByuHFjH.js",
+      "result": "HTTP 200 with Content-Length 444517"
+    }
+  ],
+  "filesChangedInImplementation": [
+    "src/game/scenes/GameScene.ts"
+  ],
+  "currentDesktopDirtyStateBeforeThisHandoffCommit": [
+    "M AGENTS.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "Untracked docs/media artifacts remain pre-existing and unrelated, including Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "Stress/perf URLs intentionally show the diagnostic perf overlay across the board and panels.",
+    "No cleanup or staging was performed on unrelated local docs/artifacts.",
+    "Mac mini sync was not run in this step because the user asked to push and get live, not handoff/sync."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user refresh the live game and confirm the responsive board clipping feels right on their real save.",
+    "Start the next visual update as a separate slice rather than mixing it into this shipped layout/perf pass."
+  ],
+  "doNotRevert": [
+    "Do not revert 1e34822 unless the user explicitly asks to roll back the responsive collision and Quest/tooltip visual slice.",
+    "Do not revert 4a9b003 unless the user explicitly asks to roll back the world object dock hotfix.",
+    "Do not stage or clean unrelated local AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, or untracked docs/media artifacts without explicit user direction."
+  ]
+}
