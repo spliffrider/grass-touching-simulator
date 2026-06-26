@@ -1,0 +1,72 @@
+{
+  "date": "2026-06-26",
+  "topic": "Field Expansion Tile Reset Hotfix",
+  "currentGoal": "Fix stale visual leftovers from old board tile size/positions after the field grows.",
+  "sessionOutcome": {
+    "status": "complete",
+    "latestCodeCommit": "b935a1b",
+    "latestCodeCommitMessage": "Reset tile visuals on field expansion",
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "liveAssetVerified": "https://grasstouchingsimulator.com/assets/index-CYl8RAIH.js",
+    "productionAssetLocal": "dist/assets/index-CYl8RAIH.js"
+  },
+  "workCompleted": [
+    "Changed Wild Spread and milestone field growth to use the structural field layout path.",
+    "Field layout now clears board transient effects, perfect-touch cues, active pop text, and tile-view tweens before recalculating positions and scale.",
+    "Normal tap/regrow updates remain on the cheaper dirty-tile path."
+  ],
+  "verificationRun": [
+    {
+      "command": "git diff --check -- src/game/scenes/GameScene.ts",
+      "result": "passed locally; normal CRLF warning only"
+    },
+    {
+      "command": "npm run build",
+      "result": "passed locally; production asset dist/assets/index-CYl8RAIH.js"
+    },
+    {
+      "check": "Stress visual repro",
+      "result": "Expanded a stress field from 64 to 84 tiles without stale old-size tile visuals."
+    },
+    {
+      "check": "Live-to-viewport threshold repro",
+      "result": "Expanded a stress field from 170 to 186 tiles and crossed into viewport mode cleanly; no dirty/stale/common redraw queues remained."
+    },
+    {
+      "command": "http://127.0.0.1:5173/?perfHarness&tiles=1200 at 390x844",
+      "result": "status complete; visibleTiles 42; tileMode viewport; layoutPasses 0; redraws 0; redrawQueued 0; maxFrameDeltaMs 7; frameSpikes 0; displayObjects 429; activeTweens 22; hotspots hot none"
+    },
+    {
+      "command": "http://127.0.0.1:5173/?perfHarness&tiles=1200 at 1280x720 rerun",
+      "result": "status complete; visibleTiles 1189; tileMode batch; layoutPasses 0; redraws 0; redrawQueued 0; maxFrameDeltaMs 13; frameSpikes 0; displayObjects 303; activeTweens 21; hotspots hot none"
+    },
+    {
+      "command": "Invoke-WebRequest https://grasstouchingsimulator.com/",
+      "result": "HTTP 200 and HTML references /assets/index-CYl8RAIH.js"
+    },
+    {
+      "command": "HEAD https://grasstouchingsimulator.com/assets/index-CYl8RAIH.js",
+      "result": "HTTP 200 with Content-Length 444979"
+    }
+  ],
+  "filesChangedInImplementation": [
+    "src/game/scenes/GameScene.ts"
+  ],
+  "currentDesktopDirtyStateBeforeThisHandoffCommit": [
+    "M AGENTS.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "Untracked docs/media artifacts remain pre-existing and unrelated, including Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "No cleanup or staging was performed on unrelated local docs/artifacts.",
+    "Mac mini sync was not run in this step because the user asked to keep going on the hotfix/live path, not handoff/sync."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user refresh the live game and confirm field growth no longer leaves old-size visual leftovers on their real save.",
+    "If any stale effect remains, inspect whether it is a particle emitter or world-object placement visual rather than a tile-view tween."
+  ],
+  "doNotRevert": [
+    "Do not revert b935a1b unless the user explicitly asks to roll back the field expansion visual reset.",
+    "Do not stage or clean unrelated local AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, or untracked docs/media artifacts without explicit user direction."
+  ]
+}
