@@ -6894,9 +6894,22 @@ export class GameScene extends Phaser.Scene {
     const activeObjects = this.getActiveWorldObjects();
     const mobilePortrait = this.isMobilePortrait();
     const dockScale = mobilePortrait ? 0.46 : this.scale.width < 620 ? 0.68 : 0.76;
-    const horizontal = mobilePortrait || this.scale.height < 560 || this.scale.width < 620 || activeObjects.length >= 5;
+    let horizontal = mobilePortrait || this.scale.height < 560 || this.scale.width < 620 || activeObjects.length >= 5;
+    const dockHalfWidth = 42 * dockScale;
+    const feedRight = this.triggerFeedRoot?.visible ? this.triggerFeedRoot.x + this.triggerFeedBg.width : 0;
+    const boardLeft = this.boardViewportWidth > 0 ? this.boardViewportX : this.boardAvailableLeft;
+    const canUseFeedBoardGap =
+      !mobilePortrait &&
+      !horizontal &&
+      feedRight > 0 &&
+      boardLeft - feedRight >= dockHalfWidth * 2 + DESKTOP_BOARD_FLOATING_UI_GAP * 2;
+    if (!mobilePortrait && !horizontal && feedRight > 0 && !canUseFeedBoardGap) {
+      horizontal = true;
+    }
     const spacing = horizontal ? 78 * dockScale : 98 * dockScale;
-    const dockX = Phaser.Math.Clamp(48, 34, Math.max(34, this.scale.width - 44));
+    const dockX = canUseFeedBoardGap
+      ? Phaser.Math.Clamp(feedRight + DESKTOP_BOARD_FLOATING_UI_GAP + dockHalfWidth, 34, Math.max(34, boardLeft - dockHalfWidth))
+      : Phaser.Math.Clamp(48, 34, Math.max(34, this.scale.width - 44));
     const dockTop = Math.max(this.boardTopY + 44, this.milestoneText.y + this.milestoneText.height + 34);
     const maxDockY = this.scale.height - 50 * dockScale;
     const neededHeight = Math.max(0, (activeObjects.length - 1) * spacing);
