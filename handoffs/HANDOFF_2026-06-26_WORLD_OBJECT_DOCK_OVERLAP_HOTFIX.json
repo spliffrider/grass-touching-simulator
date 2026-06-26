@@ -1,0 +1,75 @@
+{
+  "date": "2026-06-26",
+  "topic": "World Object Dock Overlap Hotfix",
+  "currentGoal": "Fix the live overlap where the trigger feed and world object/item dock could sit on top of each other after the expanded board layout change.",
+  "sessionOutcome": {
+    "status": "complete",
+    "latestCodeCommit": "4a9b003",
+    "latestCodeCommitMessage": "Prevent world object dock overlapping feed",
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "liveAssetVerified": "https://grasstouchingsimulator.com/assets/index-C3q6CDw2.js",
+    "macHeadAfterSync": "4a9b003",
+    "macBuildAsset": "dist/assets/index-C3q6CDw2.js"
+  },
+  "workCompleted": [
+    "Adjusted desktop world object dock layout so a vertical item dock uses the gap between the trigger feed and board when that space exists.",
+    "Falls back to the horizontal dock when the feed-to-board gap is too small, preventing the item icon from landing on top of the trigger feed title.",
+    "Left the trigger feed layout and board layout rules intact.",
+    "Pushed the hotfix to origin/master, verified the live asset, and synced/built on the Mac mini."
+  ],
+  "verificationRun": [
+    {
+      "command": "git diff --check -- src/game/scenes/GameScene.ts",
+      "result": "passed locally; normal CRLF warning only"
+    },
+    {
+      "command": "npm run build",
+      "result": "passed locally; production asset dist/assets/index-C3q6CDw2.js"
+    },
+    {
+      "check": "Targeted browser repro",
+      "result": "temporary save with a one-item sprinkler dock and expanded board showed the dock no longer overlapping the trigger feed; no browser errors"
+    },
+    {
+      "command": "http://127.0.0.1:5173/?perfHarness&tiles=1200 at 390x844",
+      "result": "status complete; visibleTiles 49; tileMode viewport; layoutPasses 0; redraws 0; redrawQueued 0; maxFrameDeltaMs 17; frameSpikes 0; displayObjects 426; activeTweens 25; hotspots hot none"
+    },
+    {
+      "command": "http://127.0.0.1:5173/?perfHarness&tiles=1200 at 1280x720",
+      "result": "status complete; visibleTiles 1189; tileMode batch; layoutPasses 0; redraws 0; redrawQueued 0; maxFrameDeltaMs 17; frameSpikes 0; displayObjects 299; activeTweens 19; hotspots hot none"
+    },
+    {
+      "command": "Invoke-WebRequest https://grasstouchingsimulator.com/",
+      "result": "HTTP 200 and HTML references /assets/index-C3q6CDw2.js; asset HEAD returned HTTP 200 with Content-Length 441879"
+    },
+    {
+      "command": "Mac mini SSH: git pull --ff-only and npm run build",
+      "result": "Mac fast-forwarded to 4a9b003 and built dist/assets/index-C3q6CDw2.js successfully"
+    }
+  ],
+  "filesChangedInImplementation": [
+    "src/game/scenes/GameScene.ts"
+  ],
+  "filesChangedInThisHandoffCommit": [
+    "handoffs/HANDOFF_2026-06-26_WORLD_OBJECT_DOCK_OVERLAP_HOTFIX.json",
+    "handoffs/LATEST.json"
+  ],
+  "currentDesktopDirtyStateBeforeThisHandoffCommit": [
+    "M AGENTS.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "Untracked docs/media artifacts remain pre-existing and unrelated, including Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "Stress/perf URLs intentionally show the diagnostic perf overlay across the board; this is expected.",
+    "No cleanup or staging was performed on unrelated local docs/artifacts."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user refresh the live game and confirm the trigger feed/item dock no longer overlaps on their real save.",
+    "If there are still collisions at unusual viewport sizes, capture that viewport and tune the dock fallback threshold."
+  ],
+  "doNotRevert": [
+    "Do not revert 4a9b003 unless the user explicitly asks to roll back the dock overlap hotfix.",
+    "Do not revert aec29d2 unless the user explicitly asks to roll back the fixed board layout.",
+    "Do not stage or clean unrelated local AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, or untracked docs/media artifacts without explicit user direction."
+  ]
+}
