@@ -6185,7 +6185,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.cancelCommonRedrawQueue();
-    if (reason === "pan" || reason === "zoom" || reason === "resize" || reason === "field") {
+    if (reason === "field") {
+      this.resetFieldLayoutVisuals();
+    } else if (reason === "pan" || reason === "zoom" || reason === "resize") {
       this.clearBoardTransientEffects();
     }
     this.layoutPassCount += 1;
@@ -8453,7 +8455,7 @@ export class GameScene extends Phaser.Scene {
           return;
         }
 
-        this.layoutTiles();
+        this.layoutTiles("field");
       },
       popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
       playWildSpread: (originTile, addedTiles) => {
@@ -10744,6 +10746,30 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private resetFieldLayoutVisuals(): void {
+    this.clearBoardTransientEffects();
+    this.destroyAllPerfectTouchCues();
+    this.releaseActivePopTexts();
+
+    for (const view of this.tileViews.values()) {
+      this.resetTileViewTweenState(view);
+    }
+  }
+
+  private resetTileViewTweenState(view: TileView): void {
+    const parts = [view.base, view.grass, view.hazard, view.outline, view.glint, view.label];
+    this.tweens.killTweensOf(parts);
+    for (const part of parts) {
+      part.setAlpha(1);
+    }
+  }
+
+  private releaseActivePopTexts(): void {
+    for (const pop of [...this.activePopTexts]) {
+      this.releasePopText(pop);
+    }
+  }
+
   private addClassSlashMark(x: number, y: number): void {
     const slash = this.add.graphics().setDepth(39);
     const size = TILE_SIZE * this.boardScale;
@@ -12755,7 +12781,7 @@ export class GameScene extends Phaser.Scene {
           this.createTileView(tile);
         }
 
-        this.layoutTiles();
+        this.layoutTiles("field");
         this.playTileDropCascade(addedTiles);
         this.showMessage(milestone.message, 3200);
         this.playMilestoneCelebration();
