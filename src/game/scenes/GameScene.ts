@@ -10141,30 +10141,29 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (view) {
-      this.resetBaseTilePose(view);
+    if (view && this.reserveAmbientTransientObject()) {
       const finalScale = this.boardScale * this.getGrassScale(tile);
-      view.grass.setScale(this.boardScale * 0.18, this.boardScale * 0.08);
-      view.grass.setAlpha(0);
-      view.grass.setPosition(position.x, position.y + 12);
+      const sprout = this.trackBoardTransient(
+        this.add
+          .image(position.x, position.y + 12 * this.boardScale, this.getGrassTextureKey(tile))
+          .setScale(finalScale * 0.18, finalScale * 0.08)
+          .setAlpha(0.72)
+          .setDepth(34),
+      );
+
+      if (this.boardViewportMask) {
+        sprout.setMask(this.boardViewportMask);
+      }
 
       this.tweens.add({
-        targets: view.grass,
+        targets: sprout,
         scaleX: finalScale * 1.18,
         scaleY: finalScale * 1.18,
-        alpha: 1,
+        alpha: 0,
         y: position.y,
-        duration: 180,
+        duration: 260,
         ease: "Back.easeOut",
-        onComplete: () => {
-          this.tweens.add({
-            targets: view.grass,
-            scaleX: finalScale,
-            scaleY: finalScale,
-            duration: 120,
-            ease: "Sine.easeOut",
-          });
-        },
+        onComplete: () => sprout.destroy(),
       });
     }
 
@@ -10770,6 +10769,11 @@ export class GameScene extends Phaser.Scene {
     this.tweens.killTweensOf(parts);
     for (const part of parts) {
       part.setAlpha(1);
+    }
+
+    const tile = view.key ? this.state.field[view.key] : undefined;
+    if (tile) {
+      this.positionTileView(tile, view);
     }
   }
 
