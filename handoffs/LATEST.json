@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-26",
-  "latestHandoff": "HANDOFF_2026-06-26_FIELD_EXPANSION_TILE_RESET_HOTFIX.json",
+  "latestHandoff": "HANDOFF_2026-06-26_TILE_VISUAL_ALIGNMENT_HOTFIX.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

@@ -1,0 +1,77 @@
+{
+  "date": "2026-06-26",
+  "topic": "Tile Visual Alignment Hotfix",
+  "currentGoal": "Ship the tile visual alignment fixes after live playtesting exposed hover-frame and regrow-sprite artifacts, then sync the finished build to the Mac mini.",
+  "sessionOutcome": {
+    "status": "complete",
+    "latestCodeCommit": "4a22358",
+    "latestCodeCommitMessage": "Keep regrow visuals aligned",
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "liveAssetVerified": "https://grasstouchingsimulator.com/assets/index-B6huNvPh.js",
+    "productionDeployment": "https://grass-touching-simulator-gc9tvlo9k-sensitech.vercel.app"
+  },
+  "workCompleted": [
+    "Made Grasslands Groove the default in-game music track and added a v14 save migration for saves still using the old default track.",
+    "Added warmer cactus tile base textures and routed cactus hazard tiles through those base textures in both batched and live tile paths.",
+    "Corrected board grid hint alignment so grid lines sit on true cell boundaries.",
+    "Tightened the hover marker to the actual tile footprint instead of the full tile-plus-gap grid cell.",
+    "Changed regrow feedback to animate a temporary sprout overlay instead of scaling the real board tile sprite.",
+    "Hardened tile-view tween cleanup so interrupted board layout resets restore tile positions and scales."
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed after music/cactus/grid changes; production asset dist/assets/index-CB8KPCCt.js"
+    },
+    {
+      "command": "npm run build",
+      "result": "passed after hover-marker hotfix; production asset dist/assets/index-CmQNbc7-.js"
+    },
+    {
+      "command": "npm run build",
+      "result": "passed after regrow visual hotfix; production asset dist/assets/index-B6huNvPh.js"
+    },
+    {
+      "command": "Invoke-WebRequest https://grasstouchingsimulator.com/",
+      "result": "HTTP 200 and HTML references /assets/index-B6huNvPh.js"
+    },
+    {
+      "command": "HEAD https://grasstouchingsimulator.com/assets/index-B6huNvPh.js",
+      "result": "HTTP 200 with Content-Length 445469"
+    }
+  ],
+  "filesChangedInImplementation": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/systems/ChiptuneMusicSystem.ts",
+    "src/game/systems/FieldSystem.ts",
+    "src/game/systems/SaveSystem.ts",
+    "src/game/types/game-state.ts"
+  ],
+  "commitsShippedThisSession": [
+    "381164a Polish music and tile visuals",
+    "72779b5 Tighten tile hover marker bounds",
+    "4a22358 Keep regrow visuals aligned"
+  ],
+  "filesChangedInThisHandoffCommit": [
+    "handoffs/HANDOFF_2026-06-26_TILE_VISUAL_ALIGNMENT_HOTFIX.json",
+    "handoffs/LATEST.json"
+  ],
+  "currentDesktopDirtyStateBeforeThisHandoffCommit": [
+    "M AGENTS.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "Untracked docs/media artifacts remain pre-existing and unrelated, including Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "No cleanup or staging was performed on unrelated local docs/artifacts.",
+    "Mac mini handoff should be run immediately after this handoff commit is pushed."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user continue live playtesting tile visuals on a real save; if any single tile appears wrong again, first inspect active tween cleanup and live-view promotion rather than board geometry.",
+    "Keep regrow/touch feedback as transient overlays where possible so board tile sprites remain deterministic and cheap."
+  ],
+  "doNotRevert": [
+    "Do not revert 4a22358 unless the user explicitly asks to roll back the regrow visual alignment fix.",
+    "Do not revert 72779b5 unless the user explicitly asks to roll back the hover marker footprint fix.",
+    "Do not stage or clean unrelated local AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, or untracked docs/media artifacts without explicit user direction."
+  ]
+}
