@@ -1,0 +1,93 @@
+{
+  "date": "2026-06-26",
+  "topic": "Fixed Board Layout Live And Synced",
+  "currentGoal": "Ship the large-field board layout fix: use more of the play area before shrinking tiles, keep the field fixed under mouse hold, preserve smooth performance, get the change live, and sync it to the Mac mini.",
+  "sessionOutcome": {
+    "status": "complete",
+    "latestCodeCommit": "aec29d2",
+    "latestCodeCommitMessage": "Fix fixed board layout for large fields",
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "liveAssetVerified": "https://grasstouchingsimulator.com/assets/index-B9hMPAgX.js",
+    "previousLiveAsset": "https://grasstouchingsimulator.com/assets/index-CAQPPIDk.js",
+    "macHeadAfterSync": "aec29d2",
+    "macBuildAsset": "dist/assets/index-B9hMPAgX.js"
+  },
+  "workCompleted": [
+    "Expanded large-field board layout into a fixed viewport that uses more of the open play area before shrinking tiles.",
+    "Added a board content inset so tiles sit inside the play panel instead of touching or bleeding under its frame.",
+    "Reserved desktop space for the trigger feed, weather badge, and right command rail when the board is in expanded mode.",
+    "Disabled mouse-hold board panning while keeping touch panning available for mobile and tablet large-field access.",
+    "Kept zoom centered on the fixed board instead of introducing mouse-driven pan offsets.",
+    "Biased future field expansion toward the shorter axis so large fields use space better before tile shrink pressure kicks in.",
+    "Pushed commit aec29d2 to origin/master and verified the public site serves the new production asset.",
+    "Synced the Mac mini to aec29d2 through GitHub and verified `npm run build` on the Mac."
+  ],
+  "verificationRun": [
+    {
+      "command": "git diff --check -- src/game/scenes/GameScene.ts src/game/systems/FieldSystem.ts",
+      "result": "passed locally; only normal CRLF conversion warnings were reported"
+    },
+    {
+      "command": "npm run build",
+      "result": "passed locally; production asset dist/assets/index-B9hMPAgX.js"
+    },
+    {
+      "check": "Local visual verification via headless Chrome",
+      "result": "large stress field respected the trigger feed/weather/right-rail lanes; small stress field remained usable; mouse drag did not move the board"
+    },
+    {
+      "command": "http://127.0.0.1:5173/?perfHarness&tiles=1200 at 390x844",
+      "result": "status complete; visibleTiles 49; layoutPasses 0; redraws 0; redrawQueued 0; maxFrameDeltaMs 17; frameSpikes 0; displayObjects 426; activeTweens 25; hotspots hot none"
+    },
+    {
+      "command": "http://127.0.0.1:5173/?perfHarness&tiles=1200 at 1280x720",
+      "result": "status complete; visibleTiles 1191; layoutPasses 0; redraws 0; redrawQueued 0; maxFrameDeltaMs 17; frameSpikes 0; displayObjects 301; activeTweens 19; hotspots hot none"
+    },
+    {
+      "command": "git push origin master",
+      "result": "pushed b231ffc..aec29d2 to origin/master"
+    },
+    {
+      "command": "Invoke-WebRequest https://grasstouchingsimulator.com/",
+      "result": "HTTP 200 and HTML references /assets/index-B9hMPAgX.js; asset HEAD returned HTTP 200 with Content-Length 441610"
+    },
+    {
+      "command": "node scripts/sync-mac-mini.mjs handoff --build",
+      "result": "blocked because pre-existing tracked local changes remain in AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md"
+    },
+    {
+      "command": "ssh with ~/.ssh/github_rafbu_windows identity: git fetch, git switch master, git pull --ff-only, npm run build",
+      "result": "Mac fast-forwarded to aec29d2 and built dist/assets/index-B9hMPAgX.js successfully"
+    }
+  ],
+  "filesChangedInImplementation": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/systems/FieldSystem.ts"
+  ],
+  "filesChangedInThisHandoffCommit": [
+    "handoffs/HANDOFF_2026-06-26_FIXED_BOARD_LAYOUT_LIVE_SYNCED.json",
+    "handoffs/LATEST.json"
+  ],
+  "currentDesktopDirtyStateBeforeThisHandoffCommit": [
+    "M AGENTS.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "Untracked docs/media artifacts remain pre-existing and unrelated, including Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "The desktop-to-Mac sync helper currently refuses to run while the pre-existing tracked local AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md changes are present. The Mac was synced manually over SSH using the helper's same identity, host, project path, and GitHub pull flow.",
+    "Stress/perf URLs intentionally show the diagnostic perf overlay across the board; this is expected and not normal gameplay UI.",
+    "No rollback or cleanup was performed on unrelated local docs/artifacts."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user play the live domain on their real save and judge the fixed board feel.",
+    "If continuing layout polish, tune the expanded board ratios in small measured slices and keep using the perf harness.",
+    "Resolve or intentionally commit/stash the unrelated tracked AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md changes if the team wants the sync helper to work without manual SSH fallback."
+  ],
+  "doNotRevert": [
+    "Do not revert aec29d2 unless the user explicitly asks to roll back the fixed board layout.",
+    "Do not revert commit 46d5b85 unless the user explicitly asks to roll back the UI makeover.",
+    "Do not revert the Store-after-Sprinkler-Calibration gate from fe1fdcc.",
+    "Do not revert the first-touch ceremony or click pressure limiter from d089170 and c3ba252.",
+    "Do not stage or clean the unrelated local AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, or untracked docs/media artifacts without explicit user direction."
+  ]
+}

@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-25",
-  "latestHandoff": "HANDOFF_2026-06-25_UI_MAKEOVER_LIVE_SYNCED.json",
+  "updatedAt": "2026-06-26",
+  "latestHandoff": "HANDOFF_2026-06-26_FIXED_BOARD_LAYOUT_LIVE_SYNCED.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",
