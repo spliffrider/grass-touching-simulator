@@ -460,13 +460,15 @@ export const TRACKS: Record<string, ChiptuneTrack> = {
 };
 
 export const TRACK_IDS = [
-  "cozy_meadow",
   "grasslands_groove",
+  "cozy_meadow",
   "dreamy_dewdrops",
   "constellation_climb",
   "sunlit_sprint",
   "rain_barrel_run",
 ];
+
+export const DEFAULT_GAME_TRACK_ID = "grasslands_groove";
 
 export class ChiptuneMusicSystem {
   private context?: AudioContext;
@@ -486,7 +488,7 @@ export class ChiptuneMusicSystem {
   private step = 0;
   private playbackStep = 0;
   private nextStepAt = 0;
-  private currentTrackId = "cozy_meadow";
+  private currentTrackId = DEFAULT_GAME_TRACK_ID;
   private comboLevel = 0;
   private noiseBuffer?: AudioBuffer;
   private noiseBufferSampleRate = 0;
@@ -654,7 +656,7 @@ export class ChiptuneMusicSystem {
       return;
     }
 
-    const track = TRACKS[this.currentTrackId] ?? TRACKS.cozy_meadow;
+    const track = TRACKS[this.currentTrackId] ?? TRACKS[DEFAULT_GAME_TRACK_ID];
     const now = this.context.currentTime;
     this.leadBus?.gain.setTargetAtTime(track.leadGain ?? 0.86, now, 0.04);
     this.delay?.delayTime.setTargetAtTime(track.delayTime ?? 0.155, now, 0.04);
@@ -676,7 +678,7 @@ export class ChiptuneMusicSystem {
       return;
     }
 
-    const track = TRACKS[this.currentTrackId] ?? TRACKS.cozy_meadow;
+    const track = TRACKS[this.currentTrackId] ?? TRACKS[DEFAULT_GAME_TRACK_ID];
     const lookaheadSeconds = 0.8;
     const stepSeconds = 60 / track.bpm / 2;
 
@@ -691,7 +693,7 @@ export class ChiptuneMusicSystem {
   }
 
   private scheduleStep(songStep: number, playbackStep: number, startAt: number, stepSeconds: number): void {
-    const track = TRACKS[this.currentTrackId] ?? TRACKS.cozy_meadow;
+    const track = TRACKS[this.currentTrackId] ?? TRACKS[DEFAULT_GAME_TRACK_ID];
     const layers = this.getArrangementLayers(playbackStep);
     const phraseIndex = Math.floor(songStep / 16) % track.melodyPhrases.length;
     const localStep = songStep % 16;
@@ -1019,7 +1021,7 @@ export class ChiptuneMusicSystem {
   }
 
   private playChord(chord: ChordShape, startAt: number, stepSeconds: number, isLift: boolean): void {
-    const track = TRACKS[this.currentTrackId] ?? TRACKS.cozy_meadow;
+    const track = TRACKS[this.currentTrackId] ?? TRACKS[DEFAULT_GAME_TRACK_ID];
     for (const [index, note] of chord.chord.entries()) {
       this.playTone({
         frequency: NOTE_FREQUENCIES[note],
@@ -1096,7 +1098,7 @@ export class ChiptuneMusicSystem {
     isTurnaround: boolean,
     layers: ArrangementLayers,
   ): void {
-    const track = TRACKS[this.currentTrackId] ?? TRACKS.cozy_meadow;
+    const track = TRACKS[this.currentTrackId] ?? TRACKS[DEFAULT_GAME_TRACK_ID];
     const barStep = songStep % 8;
     const localStep = songStep % 16;
 

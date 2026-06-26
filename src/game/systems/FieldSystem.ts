@@ -2,6 +2,7 @@ import { getGrassTier, pickGrassTier } from "../data/grass-tiers";
 import { DEFAULT_CHARACTER_CLASS_ID } from "../data/character-classes";
 import { addGrassTouches } from "./AmountSystem";
 import { createAutomationStatsState } from "./AutomationProgressSystem";
+import { DEFAULT_GAME_TRACK_ID } from "./ChiptuneMusicSystem";
 import { createPrestigeState } from "./PrestigeSystem";
 import { CURRENT_SAVE_VERSION } from "../types/game-state";
 import type { CharacterClassId, FieldTile, GameState, GrassTierId, RuntimeStats, TileKey, TileTrait, TouchResult } from "../types/game-state";
@@ -208,7 +209,7 @@ export function createInitialState(characterClassId: CharacterClassId = DEFAULT_
     },
     activeWeatherId: "calm",
     weatherEndsAt: 0,
-    selectedTrackId: "cozy_meadow",
+    selectedTrackId: DEFAULT_GAME_TRACK_ID,
     automationDirectiveId: "balanced",
     automationStats: createAutomationStatsState(),
     automationSystems: {},

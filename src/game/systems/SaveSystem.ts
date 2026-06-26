@@ -1,5 +1,6 @@
 import { MAX_FIELD_TILES, createInitialState } from "./FieldSystem";
 import { isAutomationDirectiveId } from "./AutomationDirectiveSystem";
+import { DEFAULT_GAME_TRACK_ID, TRACK_IDS } from "./ChiptuneMusicSystem";
 import { createAutomationStatsState } from "./AutomationProgressSystem";
 import { createPrestigeState } from "./PrestigeSystem";
 import { normalizeGrassTouches } from "./AmountSystem";
@@ -29,6 +30,8 @@ import type {
 
 const SAVE_KEY = "grass-touching-simulator.save.v1";
 const VALID_GRASS_TIERS = ["normal", "thick", "clover", "golden", "wildflower", "moss", "mushroom", "crystal", "frost"] as const;
+const LEGACY_DEFAULT_GAME_TRACK_ID = "cozy_meadow";
+const GRASSLANDS_GROOVE_DEFAULT_SAVE_VERSION = 14;
 
 type SaveProfiler = <T>(name: string, callback: () => T) => T;
 
@@ -103,7 +106,7 @@ function migrateGameState(saved: Record<string, unknown>): GameState {
     journal: readJournal(saved.journal, initial.journal),
     activeWeatherId: readWeatherId(saved.activeWeatherId, initial.activeWeatherId),
     weatherEndsAt: readNumber(saved.weatherEndsAt, initial.weatherEndsAt ?? 0),
-    selectedTrackId: typeof saved.selectedTrackId === "string" ? saved.selectedTrackId : initial.selectedTrackId,
+    selectedTrackId: readSelectedTrackId(saved.selectedTrackId, initial.selectedTrackId, savedVersion),
     automationDirectiveId: isAutomationDirectiveId(saved.automationDirectiveId)
       ? saved.automationDirectiveId
       : initial.automationDirectiveId,
@@ -407,6 +410,15 @@ function readWeatherId(value: unknown, fallback: WeatherId | undefined): Weather
     value === "restless_roots"
     ? value
     : fallback;
+}
+
+function readSelectedTrackId(value: unknown, fallback: string | undefined, savedVersion: number): string | undefined {
+  const trackId = typeof value === "string" && TRACK_IDS.includes(value) ? value : fallback;
+  if (savedVersion < GRASSLANDS_GROOVE_DEFAULT_SAVE_VERSION && trackId === LEGACY_DEFAULT_GAME_TRACK_ID) {
+    return DEFAULT_GAME_TRACK_ID;
+  }
+
+  return trackId;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

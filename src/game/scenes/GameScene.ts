@@ -65,7 +65,7 @@ import {
 import { recordAutomationAction, recordAutomationDirectiveUsed } from "../systems/AutomationProgressSystem";
 import { AutomationScheduler } from "../systems/AutomationScheduler";
 import { AudioSystem } from "../systems/AudioSystem";
-import { ChiptuneMusicSystem, TRACK_IDS } from "../systems/ChiptuneMusicSystem";
+import { ChiptuneMusicSystem, DEFAULT_GAME_TRACK_ID, TRACK_IDS } from "../systems/ChiptuneMusicSystem";
 import { ComboSystem, type ComboResult } from "../systems/ComboSystem";
 import { DropSystem, type DropFeedback } from "../systems/DropSystem";
 import { HazardSystem, getHazardStatusText, getPrickedRemainingMs, getTileHazard, type MowerEvent } from "../systems/HazardSystem";
@@ -1057,7 +1057,7 @@ export class GameScene extends Phaser.Scene {
     this.mutations.reset();
     this.musicVolume = readStoredMusicVolume();
     this.music.setVolume(this.musicVolume);
-    this.music.setTrack(this.state.selectedTrackId || "cozy_meadow");
+    this.music.setTrack(this.state.selectedTrackId || DEFAULT_GAME_TRACK_ID);
     this.updateJournalDiscoveries();
     this.saveState();
 
@@ -6496,7 +6496,7 @@ export class GameScene extends Phaser.Scene {
 
     graphics.lineStyle(1, 0xf7ffe8, 0.08);
     for (let column = 1; column < bounds.width; column += 1) {
-      const lineX = left + column * scaledStep - (TILE_GAP * this.boardScale) / 2;
+      const lineX = left + column * scaledStep;
       graphics.beginPath();
       graphics.moveTo(lineX, top);
       graphics.lineTo(lineX, bottom);
@@ -6504,7 +6504,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (let row = 1; row < bounds.height; row += 1) {
-      const lineY = top + row * scaledStep - (TILE_GAP * this.boardScale) / 2;
+      const lineY = top + row * scaledStep;
       graphics.beginPath();
       graphics.moveTo(left, lineY);
       graphics.lineTo(right, lineY);
@@ -6694,7 +6694,9 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const baseTexture = tile.grassState === "grown" ? "tile-dirt" : "tile-stubble";
+    const key = this.getTileKey(tile);
+    const hazard = tile.grassState === "grown" ? getTileHazard(this.state, key) : undefined;
+    const baseTexture = this.getTileBaseTextureKey(tile, hazard?.id);
     const stampConfig = { scale: this.boardScale, originX: 0.5, originY: 0.5 };
     this.commonTileLayer.stamp(baseTexture, undefined, x, y, stampConfig);
     this.commonStampOpsSinceLastPerf += 1;
@@ -6706,7 +6708,6 @@ export class GameScene extends Phaser.Scene {
         originY: 0.5,
       });
       this.commonStampOpsSinceLastPerf += 1;
-      const hazard = getTileHazard(this.state, this.getTileKey(tile));
       if (hazard) {
         this.commonTileLayer.stamp(this.getHazardTextureKey(hazard.id), undefined, x, y - 2 * this.boardScale, {
           scale: this.boardScale * 0.96,
@@ -9774,7 +9775,7 @@ export class GameScene extends Phaser.Scene {
     this.setVisibleIfChanged(view.glint, isGrown && rareTier);
     view.glint.setFillStyle(highlightColor, tier.id === "normal" ? 0 : 0.88);
     this.setTextIfChanged(view.label, isGrown ? this.getTileLabel(tile, tier.label, hazard?.id) : "...");
-    view.base.setTexture(isGrown ? "tile-dirt" : "tile-stubble");
+    view.base.setTexture(this.getTileBaseTextureKey(tile, isGrown ? hazard?.id : undefined));
 
     if (!this.needsTileView(tile, key)) {
       this.markBatchTileDirty(tile);
@@ -9868,6 +9869,14 @@ export class GameScene extends Phaser.Scene {
 
   private getHazardTextureKey(hazardId: "cactus" | "weeds"): string {
     return hazardId === "cactus" ? "hazard-cactus" : "hazard-weeds";
+  }
+
+  private getTileBaseTextureKey(tile: FieldTile, hazardId?: "cactus" | "weeds"): string {
+    if (hazardId === "cactus") {
+      return tile.grassState === "grown" ? "tile-cactus-dirt" : "tile-cactus-stubble";
+    }
+
+    return tile.grassState === "grown" ? "tile-dirt" : "tile-stubble";
   }
 
   private getHazardInfoLine(hazard: { id: "cactus" | "weeds"; strength?: number }): string {
@@ -10814,6 +10823,8 @@ export class GameScene extends Phaser.Scene {
   private createTileTextures(): void {
     this.createDirtTexture("tile-dirt", 0x8a6139, 0x6b4529);
     this.createDirtTexture("tile-stubble", 0x6f4c2f, 0x4c301f, true);
+    this.createDirtTexture("tile-cactus-dirt", 0x9c6b3f, 0x5f3d25);
+    this.createDirtTexture("tile-cactus-stubble", 0x7f5633, 0x472d1e, true);
     for (const tier of GRASS_TIERS) {
       this.createGrassTexture(`grass-${tier.id}`, tier.colors, false, false);
       this.createGrassTexture(`grass-${tier.id}-dewy`, brightenColors(tier.colors, 0x264c55), true, false);

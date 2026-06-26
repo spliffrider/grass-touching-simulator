@@ -33,7 +33,7 @@ export type DebuffId = "pricked";
 
 export type JournalHazardId = TileHazardId | DebuffId | "mower";
 
-export const CURRENT_SAVE_VERSION = 13;
+export const CURRENT_SAVE_VERSION = 14;
 
 export interface FieldTile {
   x: number;
