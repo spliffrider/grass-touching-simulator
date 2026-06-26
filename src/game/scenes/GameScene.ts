@@ -96,6 +96,13 @@ const TILE_GAP = 8;
 const BOARD_Y_OFFSET = 24;
 const MIN_BOARD_ZOOM = 0.45;
 const MAX_BOARD_ZOOM = 3.2;
+const EXPANDED_BOARD_VIEWPORT_TILE_THRESHOLD = 80;
+const EXPANDED_BOARD_DESKTOP_WIDTH_RATIO = 0.78;
+const EXPANDED_BOARD_NARROW_WIDTH_RATIO = 0.86;
+const EXPANDED_BOARD_MOBILE_WIDTH_RATIO = 0.95;
+const BOARD_CONTENT_INSET_PX = 22;
+const DESKTOP_BOARD_RIGHT_UI_RESERVE = 154;
+const DESKTOP_BOARD_FLOATING_UI_GAP = 14;
 const COMPACT_LARGE_FIELD_MIN_BOARD_SCALE = 1.35;
 const COMPACT_LARGE_FIELD_MAX_WIDTH = 560;
 const TABLET_LARGE_FIELD_MIN_BOARD_SCALE = 1.12;
@@ -856,10 +863,19 @@ export class GameScene extends Phaser.Scene {
   private boardBaseCenterX = 0;
   private boardBaseCenterY = 0;
   private boardTopY = 0;
+  private boardAvailableLeft = 0;
   private boardAvailableWidth = 0;
   private boardAvailableHeight = 0;
   private boardScaledWidth = 0;
   private boardScaledHeight = 0;
+  private boardViewportX = 0;
+  private boardViewportY = 0;
+  private boardViewportWidth = 0;
+  private boardViewportHeight = 0;
+  private boardContentX = 0;
+  private boardContentY = 0;
+  private boardContentWidth = 0;
+  private boardContentHeight = 0;
   private isBoardPanArmed = false;
   private isPanningBoard = false;
   private boardPanStartX = 0;
@@ -1133,8 +1149,12 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
+      if (!this.isPointerInsideBoardViewport(pointer)) {
+        return;
+      }
+
       this.pendingBoardTileKey = this.getBoardTileKeyAtPointer(pointer);
-      this.isBoardPanArmed = true;
+      this.isBoardPanArmed = this.pendingBoardTileKey !== undefined || !this.isMousePointer(pointer);
       this.isPanningBoard = false;
       this.boardPanStartX = this.boardPanX;
       this.boardPanStartY = this.boardPanY;
@@ -1154,17 +1174,17 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
-      if (!this.isBoardPanArmed && !this.isPanningBoard) {
+      if (!this.isBoardPanArmed) {
         return;
       }
 
-      if (this.isBoardPanArmed && !this.isPanningBoard) {
-        const dx = pointer.x - this.pointerPanStartX;
-        const dy = pointer.y - this.pointerPanStartY;
-        if (dx * dx + dy * dy < BOARD_PAN_THRESHOLD_PX * BOARD_PAN_THRESHOLD_PX) {
-          return;
-        }
+      const dx = pointer.x - this.pointerPanStartX;
+      const dy = pointer.y - this.pointerPanStartY;
+      if (dx * dx + dy * dy < BOARD_PAN_THRESHOLD_PX * BOARD_PAN_THRESHOLD_PX) {
+        return;
+      }
 
+      if (!this.isMousePointer(pointer)) {
         this.isBoardPanArmed = false;
         this.isPanningBoard = true;
         this.pendingBoardTileKey = undefined;
@@ -1178,6 +1198,14 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
+      this.pendingBoardTileKey = undefined;
+      this.isBoardPanArmed = false;
+      this.stopPersistentTouch();
+      this.tileInfoPanel.setVisible(false);
+      this.hideHoverMarker();
+    });
+
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
       if (!this.isPanningBoard) {
         return;
       }
@@ -5928,8 +5956,6 @@ export class GameScene extends Phaser.Scene {
 
     const previousZoom = this.boardZoom;
     const previousScale = this.boardScale;
-    const previousPanX = this.boardPanX;
-    const previousPanY = this.boardPanY;
     const zoomFactor = Math.exp(-deltaY * 0.0015);
     this.boardZoom = Phaser.Math.Clamp(this.boardZoom * zoomFactor, MIN_BOARD_ZOOM, MAX_BOARD_ZOOM);
 
@@ -5937,11 +5963,10 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const focusWorldX = (pointerX - this.boardBaseCenterX - previousPanX) / previousScale;
-    const focusWorldY = (pointerY - this.boardBaseCenterY - previousPanY) / previousScale;
-    const nextScale = previousScale * (this.boardZoom / previousZoom);
-    this.boardPanX = pointerX - this.boardBaseCenterX - focusWorldX * nextScale;
-    this.boardPanY = pointerY - this.boardBaseCenterY - focusWorldY * nextScale;
+    void pointerX;
+    void pointerY;
+    this.boardPanX = 0;
+    this.boardPanY = 0;
     this.requestBoardLayout("zoom");
   }
 
@@ -6109,15 +6134,25 @@ export class GameScene extends Phaser.Scene {
     this.boardTopY = mobilePortrait
       ? Math.max(176, this.getMobileMenuBottom() + 8, this.milestoneText.y + this.milestoneText.height + 12)
       : Math.max(142, this.milestoneText.y + this.milestoneText.height + 24);
-    this.boardAvailableWidth = Math.max(120, this.scale.width - (mobilePortrait ? 14 : 24));
+    const horizontalMargin = mobilePortrait ? 7 : 18;
+    const rightUiReserve = this.getBoardRightUiReserve();
+    const expandedBoardViewport = this.shouldUseExpandedBoardViewport(bounds);
+    if (expandedBoardViewport) {
+      this.boardTopY = Math.max(this.boardTopY, this.getBoardTopUiReserveBottom() + DESKTOP_BOARD_FLOATING_UI_GAP);
+    }
+    this.boardAvailableLeft = expandedBoardViewport ? Math.max(horizontalMargin, this.getBoardLeftUiReserve()) : horizontalMargin;
+    this.boardAvailableWidth = Math.max(120, this.scale.width - rightUiReserve - this.boardAvailableLeft - horizontalMargin);
     this.boardAvailableHeight = Math.max(120, this.scale.height - this.boardTopY - mobileDockSafeBottom);
-    const fitScale = Math.min(1, this.boardAvailableWidth / boardWidth, this.boardAvailableHeight / boardHeight);
+    const fitContentWidth = Math.max(80, this.boardAvailableWidth - BOARD_CONTENT_INSET_PX * 2);
+    const fitContentHeight = Math.max(80, this.boardAvailableHeight - BOARD_CONTENT_INSET_PX * 2);
+    const fitScale = Math.min(1, fitContentWidth / boardWidth, fitContentHeight / boardHeight);
     const mobileBoardZoom = mobilePortrait ? 1.22 : 1;
     this.boardScale = Math.max(this.getMinimumBoardScale(), fitScale * this.boardZoom * mobileBoardZoom);
     this.boardScaledWidth = boardWidth * this.boardScale;
     this.boardScaledHeight = boardHeight * this.boardScale;
-    this.boardBaseCenterX = this.scale.width / 2;
-    this.boardBaseCenterY = this.boardTopY + this.boardAvailableHeight / 2 + BOARD_Y_OFFSET * this.boardScale;
+    this.boardBaseCenterX = this.boardAvailableLeft + this.boardAvailableWidth / 2;
+    this.boardBaseCenterY =
+      this.boardTopY + this.boardAvailableHeight / 2 + (expandedBoardViewport ? 0 : BOARD_Y_OFFSET * this.boardScale);
     this.clampBoardPan();
     const centerX = this.boardBaseCenterX + this.boardPanX;
     const centerY = this.boardBaseCenterY + this.boardPanY;
@@ -6128,6 +6163,7 @@ export class GameScene extends Phaser.Scene {
     this.lastVisibleTileKeys.clear();
     let visibleTiles = 0;
     const radius = (TILE_SIZE * this.boardScale) / 2 + this.getTileCullMargin();
+    this.updateBoardViewport(bounds, centerX, centerY);
     const cullBounds = this.getBoardViewportBounds(radius);
     const minVisibleX = Phaser.Math.Clamp(Math.floor((cullBounds.left - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
     const maxVisibleX = Phaser.Math.Clamp(Math.ceil((cullBounds.right - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
@@ -6223,6 +6259,81 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private updateBoardViewport(bounds: FieldBounds, centerX: number, centerY: number): void {
+    const contentInset = this.getBoardContentInset();
+    const naturalWidth = this.boardScaledWidth + contentInset * 2;
+    const naturalHeight = this.boardScaledHeight + contentInset * 2;
+    const expanded = this.shouldUseExpandedBoardViewport(bounds);
+    const minWidth = expanded ? this.boardAvailableWidth * this.getExpandedBoardWidthRatio() : naturalWidth;
+    const minHeight = expanded ? this.boardAvailableHeight * 0.92 : naturalHeight;
+    const width = Math.min(this.boardAvailableWidth, Math.max(naturalWidth, minWidth));
+    const height = Math.min(this.boardAvailableHeight, Math.max(naturalHeight, minHeight));
+    const centeredX = centerX - width / 2;
+    const centeredY = centerY - height / 2;
+    const minX = this.boardAvailableLeft;
+    const maxX = this.boardAvailableLeft + this.boardAvailableWidth - width;
+    const minY = this.boardTopY;
+    const maxY = this.boardTopY + this.boardAvailableHeight - height;
+
+    this.boardViewportWidth = width;
+    this.boardViewportHeight = height;
+    this.boardViewportX = Phaser.Math.Clamp(centeredX, minX, Math.max(minX, maxX));
+    this.boardViewportY = Phaser.Math.Clamp(centeredY, minY, Math.max(minY, maxY));
+    this.boardContentX = this.boardViewportX + contentInset;
+    this.boardContentY = this.boardViewportY + contentInset;
+    this.boardContentWidth = Math.max(1, this.boardViewportWidth - contentInset * 2);
+    this.boardContentHeight = Math.max(1, this.boardViewportHeight - contentInset * 2);
+  }
+
+  private shouldUseExpandedBoardViewport(bounds: FieldBounds): boolean {
+    return (
+      this.fieldTileCount >= EXPANDED_BOARD_VIEWPORT_TILE_THRESHOLD ||
+      bounds.width >= 12 ||
+      bounds.height >= 12 ||
+      Math.max(bounds.width, bounds.height) >= Math.min(this.scale.width, this.scale.height) / 96
+    );
+  }
+
+  private getExpandedBoardWidthRatio(): number {
+    if (this.isMobilePortrait()) {
+      return EXPANDED_BOARD_MOBILE_WIDTH_RATIO;
+    }
+
+    return this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH ? EXPANDED_BOARD_NARROW_WIDTH_RATIO : EXPANDED_BOARD_DESKTOP_WIDTH_RATIO;
+  }
+
+  private getBoardRightUiReserve(): number {
+    return this.isMobilePortrait() || this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH ? 0 : DESKTOP_BOARD_RIGHT_UI_RESERVE;
+  }
+
+  private getBoardLeftUiReserve(): number {
+    if (this.isMobilePortrait() || this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH) {
+      return 0;
+    }
+
+    return 18 + this.getTriggerFeedWidth() + DESKTOP_BOARD_FLOATING_UI_GAP;
+  }
+
+  private getBoardTopUiReserveBottom(): number {
+    if (this.isMobilePortrait() || this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH) {
+      return 0;
+    }
+
+    if (!this.weatherBadge?.visible || !this.weatherBadgeBg) {
+      return 0;
+    }
+
+    return this.weatherBadge.y + this.weatherBadgeBg.height;
+  }
+
+  private getBoardBackdropPad(): number {
+    return Math.max(16, 24 * this.boardScale);
+  }
+
+  private getBoardContentInset(): number {
+    return Math.max(BOARD_CONTENT_INSET_PX, 26 * this.boardScale);
+  }
+
   private layoutBoardLayers(): void {
     if (this.commonTileLayer) {
       this.profileScope("render:commonLayer", () => {
@@ -6238,10 +6349,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.boardHitZone) {
-      this.boardHitZone.setPosition(0, 0);
-      this.boardHitZone.setSize(this.scale.width, this.scale.height);
+      const hitX = this.boardViewportWidth > 0 ? this.boardViewportX : 0;
+      const hitY = this.boardViewportHeight > 0 ? this.boardViewportY : 0;
+      const hitWidth = this.boardViewportWidth > 0 ? this.boardViewportWidth : this.scale.width;
+      const hitHeight = this.boardViewportHeight > 0 ? this.boardViewportHeight : this.scale.height;
+      this.boardHitZone.setPosition(hitX, hitY);
+      this.boardHitZone.setSize(hitWidth, hitHeight);
       if (this.boardHitZone.input) {
-        this.boardHitZone.input.hitArea = new Phaser.Geom.Rectangle(0, 0, this.scale.width, this.scale.height);
+        this.boardHitZone.input.hitArea = new Phaser.Geom.Rectangle(0, 0, hitWidth, hitHeight);
         this.boardHitZone.input.hitAreaCallback = Phaser.Geom.Rectangle.Contains;
       }
     }
@@ -6261,11 +6376,11 @@ export class GameScene extends Phaser.Scene {
     }
 
     const graphics = this.boardBackdropGraphics;
-    const pad = Math.max(16, 24 * this.boardScale);
-    const x = centerX - this.boardScaledWidth / 2 - pad;
-    const y = centerY - this.boardScaledHeight / 2 - pad;
-    const width = this.boardScaledWidth + pad * 2;
-    const height = this.boardScaledHeight + pad * 2;
+    const pad = this.getBoardBackdropPad();
+    const x = this.boardViewportWidth > 0 ? this.boardViewportX : centerX - this.boardScaledWidth / 2 - pad;
+    const y = this.boardViewportHeight > 0 ? this.boardViewportY : centerY - this.boardScaledHeight / 2 - pad;
+    const width = this.boardViewportWidth > 0 ? this.boardViewportWidth : this.boardScaledWidth + pad * 2;
+    const height = this.boardViewportHeight > 0 ? this.boardViewportHeight : this.boardScaledHeight + pad * 2;
     const radius = Phaser.Math.Clamp(20 * this.boardScale, 10, 28);
     const shadowOffset = Math.max(8, 14 * this.boardScale);
 
@@ -6578,6 +6693,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getBoardViewportBounds(margin = 0): { left: number; right: number; top: number; bottom: number } {
+    if (this.boardContentWidth > 0 && this.boardContentHeight > 0) {
+      return {
+        left: Math.max(-margin, this.boardContentX - margin),
+        right: Math.min(this.scale.width + margin, this.boardContentX + this.boardContentWidth + margin),
+        top: Math.max(-margin, this.boardContentY - margin),
+        bottom: Math.min(this.scale.height + margin, this.boardContentY + this.boardContentHeight + margin),
+      };
+    }
+
     if (this.boardScaledWidth <= 0 || this.boardScaledHeight <= 0) {
       return {
         left: -margin,
@@ -7274,15 +7398,35 @@ export class GameScene extends Phaser.Scene {
   }
 
   private shouldTouchBoardOnPointerDown(pointer: Phaser.Input.Pointer): boolean {
+    return this.isMousePointer(pointer) && pointer.leftButtonDown();
+  }
+
+  private isMousePointer(pointer: Phaser.Input.Pointer): boolean {
     const event = pointer.event as PointerEvent | MouseEvent | undefined;
     const pointerType = event && "pointerType" in event ? event.pointerType : "";
-    const isMouse = pointerType === "mouse" || (pointerType === "" && !this.hasTouchScreen());
-    return isMouse && pointer.leftButtonDown();
+    return pointerType === "mouse" || (pointerType === "" && !this.hasTouchScreen());
+  }
+
+  private isPointerInsideBoardViewport(pointer: Phaser.Input.Pointer): boolean {
+    if (this.boardViewportWidth <= 0 || this.boardViewportHeight <= 0) {
+      return true;
+    }
+
+    return (
+      pointer.x >= this.boardViewportX &&
+      pointer.x <= this.boardViewportX + this.boardViewportWidth &&
+      pointer.y >= this.boardViewportY &&
+      pointer.y <= this.boardViewportY + this.boardViewportHeight
+    );
   }
 
   private getBoardTileKeyAtPointer(pointer: Phaser.Input.Pointer): TileKey | undefined {
     const bounds = this.cachedFieldBounds;
     if (!bounds || this.boardScale <= 0) {
+      return undefined;
+    }
+
+    if (!this.isPointerInsideBoardContent(pointer)) {
       return undefined;
     }
 
@@ -7307,6 +7451,19 @@ export class GameScene extends Phaser.Scene {
 
     const key = tileKey(gridX, gridY);
     return this.state.field[key] ? key : undefined;
+  }
+
+  private isPointerInsideBoardContent(pointer: Phaser.Input.Pointer): boolean {
+    if (this.boardContentWidth <= 0 || this.boardContentHeight <= 0) {
+      return true;
+    }
+
+    return (
+      pointer.x >= this.boardContentX &&
+      pointer.x <= this.boardContentX + this.boardContentWidth &&
+      pointer.y >= this.boardContentY &&
+      pointer.y <= this.boardContentY + this.boardContentHeight
+    );
   }
 
   private showTileInfo(tile: FieldTile): void {

@@ -26,6 +26,8 @@ interface ExpansionCandidate {
   distanceFromCenter: number;
 }
 
+type ExpansionBalanceAxis = "horizontal" | "vertical";
+
 export interface FieldBounds {
   minX: number;
   maxX: number;
@@ -327,7 +329,9 @@ export function expandField(state: GameState, tileCount: number, stats: RuntimeS
     return added;
   }
 
-  let growthDirection = pickGrowthDirection(state);
+  let bounds = getFieldBounds(state);
+  let balanceAxis = getExpansionBalanceAxis(bounds);
+  let growthDirection = pickGrowthDirectionForBounds(bounds);
   let lastTile: FieldTile | undefined;
   let lastDirection = growthDirection;
   const center = getFieldCenter(state);
@@ -345,9 +349,14 @@ export function expandField(state: GameState, tileCount: number, stats: RuntimeS
     const localCandidates = lastTile
       ? candidateList.filter((candidate) => Math.abs(candidate.x - lastTile!.x) + Math.abs(candidate.y - lastTile!.y) === 1)
       : [];
-    const shouldKeepGrowingRunner = localCandidates.length > 0 && Math.random() < 0.72;
-    const pool = shouldKeepGrowingRunner ? localCandidates : candidateList;
-    const chosen = pickOrganicCandidate(pool, growthDirection, lastDirection, lastTile);
+    const activeBalanceAxis = balanceAxis;
+    const balancedLocalCandidates = activeBalanceAxis
+      ? localCandidates.filter((candidate) => candidateMatchesBalanceAxis(candidate, activeBalanceAxis))
+      : [];
+    const runnerCandidates = balancedLocalCandidates.length > 0 ? balancedLocalCandidates : localCandidates;
+    const shouldKeepGrowingRunner = runnerCandidates.length > 0 && Math.random() < (balanceAxis ? 0.52 : 0.72);
+    const pool = shouldKeepGrowingRunner ? runnerCandidates : candidateList;
+    const chosen = pickOrganicCandidate(pool, growthDirection, lastDirection, lastTile, balanceAxis, bounds);
     const trait = Math.random() < stats.dewChance ? "dewy" : "normal";
     const tier = pickGrassTier(state, stats).id;
     const tile = createTile(chosen.x, chosen.y, trait, tier);
@@ -357,9 +366,11 @@ export function expandField(state: GameState, tileCount: number, stats: RuntimeS
     added.push(tile);
     lastTile = tile;
     lastDirection = chosen.direction;
+    bounds = extendBounds(bounds, tile);
+    balanceAxis = getExpansionBalanceAxis(bounds);
 
     if (Math.random() < 0.22) {
-      growthDirection = bendDirection(growthDirection);
+      growthDirection = balanceAxis ? pickDirectionForBalanceAxis(balanceAxis) : bendDirection(growthDirection);
     }
   }
 
@@ -459,6 +470,8 @@ function pickOrganicCandidate(
   growthDirection: { x: number; y: number },
   lastDirection: { x: number; y: number },
   lastTile?: FieldTile,
+  balanceAxis?: ExpansionBalanceAxis,
+  bounds?: FieldBounds,
 ): ExpansionCandidate {
   const weighted = candidates.flatMap((candidate) => {
     const alignment = candidate.direction.x * growthDirection.x + candidate.direction.y * growthDirection.y;
@@ -467,9 +480,18 @@ function pickOrganicCandidate(
     const runnerBonus = lastTile && parentDistance <= 1 ? 5 : 0;
     const clumpBonus = candidate.adjacentCount === 2 ? 5 : candidate.adjacentCount === 1 ? 3 : 1;
     const edgeBonus = Math.min(5, candidate.distanceFromCenter);
+    const balanceAxisBonus = balanceAxis && candidateMatchesBalanceAxis(candidate, balanceAxis) ? 7 : balanceAxis ? -4 : 0;
+    const expandsShortAxisBonus = bounds && balanceAxis && candidateExpandsBalanceAxis(candidate, bounds, balanceAxis) ? 6 : 0;
     const weight = Math.max(
       1,
-      3 + runnerBonus + clumpBonus + edgeBonus + (alignment > 0 ? 7 : alignment === 0 ? 2 : -2) + (momentum > 0 ? 4 : 0),
+      3 +
+        runnerBonus +
+        clumpBonus +
+        edgeBonus +
+        balanceAxisBonus +
+        expandsShortAxisBonus +
+        (alignment > 0 ? 7 : alignment === 0 ? 2 : -2) +
+        (momentum > 0 ? 4 : 0),
     );
 
     return Array.from({ length: weight }, () => candidate);
@@ -478,27 +500,74 @@ function pickOrganicCandidate(
   return Phaser.Utils.Array.GetRandom(weighted);
 }
 
-function pickGrowthDirection(state: GameState): { x: number; y: number } {
-  const bounds = getFieldBounds(state);
+function pickGrowthDirectionForBounds(bounds: FieldBounds | undefined): { x: number; y: number } {
   if (!bounds) {
     return Phaser.Utils.Array.GetRandom(NEIGHBORS);
   }
 
-  if (bounds.width > bounds.height + 2 && Math.random() < 0.65) {
-    return Phaser.Utils.Array.GetRandom([
-      { x: 0, y: 1 },
-      { x: 0, y: -1 },
-    ]);
+  const balanceAxis = getExpansionBalanceAxis(bounds);
+  if (balanceAxis && Math.random() < 0.88) {
+    return pickDirectionForBalanceAxis(balanceAxis);
   }
 
-  if (bounds.height > bounds.width + 2 && Math.random() < 0.65) {
+  return Phaser.Utils.Array.GetRandom(NEIGHBORS);
+}
+
+function getExpansionBalanceAxis(bounds: FieldBounds | undefined): ExpansionBalanceAxis | undefined {
+  if (!bounds) {
+    return undefined;
+  }
+
+  if (bounds.height > bounds.width + 2) {
+    return "horizontal";
+  }
+
+  if (bounds.width > bounds.height + 2) {
+    return "vertical";
+  }
+
+  return undefined;
+}
+
+function pickDirectionForBalanceAxis(axis: ExpansionBalanceAxis): { x: number; y: number } {
+  if (axis === "horizontal") {
     return Phaser.Utils.Array.GetRandom([
       { x: 1, y: 0 },
       { x: -1, y: 0 },
     ]);
   }
 
-  return Phaser.Utils.Array.GetRandom(NEIGHBORS);
+  return Phaser.Utils.Array.GetRandom([
+    { x: 0, y: 1 },
+    { x: 0, y: -1 },
+  ]);
+}
+
+function candidateMatchesBalanceAxis(candidate: ExpansionCandidate, axis: ExpansionBalanceAxis): boolean {
+  return axis === "horizontal" ? candidate.direction.x !== 0 : candidate.direction.y !== 0;
+}
+
+function candidateExpandsBalanceAxis(candidate: ExpansionCandidate, bounds: FieldBounds, axis: ExpansionBalanceAxis): boolean {
+  return axis === "horizontal" ? candidate.x < bounds.minX || candidate.x > bounds.maxX : candidate.y < bounds.minY || candidate.y > bounds.maxY;
+}
+
+function extendBounds(bounds: FieldBounds | undefined, tile: FieldTile): FieldBounds {
+  if (!bounds) {
+    return { minX: tile.x, maxX: tile.x, minY: tile.y, maxY: tile.y, width: 1, height: 1 };
+  }
+
+  const minX = Math.min(bounds.minX, tile.x);
+  const maxX = Math.max(bounds.maxX, tile.x);
+  const minY = Math.min(bounds.minY, tile.y);
+  const maxY = Math.max(bounds.maxY, tile.y);
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    width: maxX - minX + 1,
+    height: maxY - minY + 1,
+  };
 }
 
 function bendDirection(direction: { x: number; y: number }): { x: number; y: number } {
