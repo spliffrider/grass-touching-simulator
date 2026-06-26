@@ -2557,7 +2557,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(-1)
       .setInteractive();
     this.hoverMarker = this.add
-      .rectangle(0, 0, TILE_SIZE + 8, TILE_SIZE + 8, 0xffffff, 0)
+      .rectangle(0, 0, TILE_SIZE, TILE_SIZE, 0xffffff, 0)
       .setOrigin(0.5)
       .setStrokeStyle(4, 0xf4ff8a, 0.82)
       .setDepth(32)
@@ -7375,7 +7375,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const size = Math.max(8, (TILE_SIZE + 8) * this.boardScale);
+    const size = Math.max(8, TILE_SIZE * this.boardScale);
     this.hoverMarker
       .setPosition(position.x, position.y)
       .setSize(size, size)
