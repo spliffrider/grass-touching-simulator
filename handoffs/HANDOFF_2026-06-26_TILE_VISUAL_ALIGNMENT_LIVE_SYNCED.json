@@ -1,0 +1,89 @@
+{
+  "date": "2026-06-26",
+  "topic": "Tile Visual Alignment Live Synced",
+  "currentGoal": "Finish the tile visual alignment hotfix session: ensure the game is pushed, live, synced to the Mac mini, and leave a handoff for the next session.",
+  "sessionOutcome": {
+    "status": "complete",
+    "latestCodeCommit": "4a22358",
+    "latestCodeCommitMessage": "Keep regrow visuals aligned",
+    "latestHandoffCommitBeforeThisFile": "7ed63f3",
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "liveAssetVerified": "https://grasstouchingsimulator.com/assets/index-B6huNvPh.js",
+    "productionDeployment": "https://grass-touching-simulator-gc9tvlo9k-sensitech.vercel.app",
+    "desktopHeadBeforeThisHandoffCommit": "7ed63f3",
+    "macHeadBeforeThisHandoffCommit": "7ed63f3",
+    "macBuildAsset": "dist/assets/index-B6huNvPh.js"
+  },
+  "workCompleted": [
+    "Shipped Grasslands Groove as the default in-game track.",
+    "Added distinct cactus-field base colors.",
+    "Fixed board grid hint alignment.",
+    "Tightened the hover marker to the actual tile footprint.",
+    "Fixed the one-small-tile regrow artifact by moving regrow animation onto a temporary sprout overlay.",
+    "Pushed all intended source and handoff work to origin/master.",
+    "Verified the live domain serves the expected production bundle.",
+    "Synced the Mac mini to the same head and built successfully there."
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed locally after the final code hotfix; production asset dist/assets/index-B6huNvPh.js"
+    },
+    {
+      "command": "npx vercel --prod --yes",
+      "result": "production deployment READY and aliased to https://grasstouchingsimulator.com"
+    },
+    {
+      "command": "Invoke-WebRequest https://grasstouchingsimulator.com/",
+      "result": "HTTP 200 and HTML references /assets/index-B6huNvPh.js"
+    },
+    {
+      "command": "HEAD https://grasstouchingsimulator.com/assets/index-B6huNvPh.js",
+      "result": "HTTP 200 with Content-Length 445469"
+    },
+    {
+      "command": "Mac mini SSH git pull --ff-only and npm run build",
+      "result": "Mac fast-forwarded to 7ed63f3 and built dist/assets/index-B6huNvPh.js successfully"
+    },
+    {
+      "command": "node scripts/sync-mac-mini.mjs status",
+      "result": "desktop=7ed63f3 and mac=7ed63f3 before this final handoff commit"
+    }
+  ],
+  "filesChangedInImplementation": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/systems/ChiptuneMusicSystem.ts",
+    "src/game/systems/FieldSystem.ts",
+    "src/game/systems/SaveSystem.ts",
+    "src/game/types/game-state.ts"
+  ],
+  "commitsShippedThisSession": [
+    "381164a Polish music and tile visuals",
+    "72779b5 Tighten tile hover marker bounds",
+    "4a22358 Keep regrow visuals aligned",
+    "7ed63f3 Record tile visual alignment handoff"
+  ],
+  "filesChangedInThisHandoffCommit": [
+    "handoffs/HANDOFF_2026-06-26_TILE_VISUAL_ALIGNMENT_LIVE_SYNCED.json",
+    "handoffs/LATEST.json"
+  ],
+  "currentDesktopDirtyStateBeforeThisHandoffCommit": [
+    "M AGENTS.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "Untracked docs/media artifacts remain pre-existing and unrelated, including Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "The sync helper refuses to run while unrelated tracked local docs are dirty, so final Mac sync used the same GitHub fast-forward flow over SSH without touching those files.",
+    "No cleanup or staging was performed on unrelated local docs/artifacts."
+  ],
+  "nextRecommendedSteps": [
+    "Start the next session by reading AGENTS.md, handoffs/LATEST.json, and this handoff.",
+    "Have the user keep live-testing tile visuals on the real save; if any single tile appears wrong again, inspect active tween cleanup/live-view promotion before changing board geometry.",
+    "Keep board sprites deterministic; prefer temporary overlay sprites for touch/regrow effects."
+  ],
+  "doNotRevert": [
+    "Do not revert 4a22358 unless the user explicitly asks to roll back the regrow visual alignment fix.",
+    "Do not revert 72779b5 unless the user explicitly asks to roll back the hover marker footprint fix.",
+    "Do not stage or clean unrelated local AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, or untracked docs/media artifacts without explicit user direction."
+  ]
+}
