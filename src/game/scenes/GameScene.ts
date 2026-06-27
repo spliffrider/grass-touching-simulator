@@ -6803,7 +6803,12 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.commonTileLayer.erase(this.textures.getFrame(COMMON_TILE_ERASER_TEXTURE_KEY), position.x, position.y);
+    this.commonTileLayer.stamp(COMMON_TILE_ERASER_TEXTURE_KEY, undefined, position.x, position.y, {
+      erase: true,
+      originX: 0.5,
+      originY: 0.5,
+      scale: this.boardScale,
+    });
   }
 
   private positionTileView(tile: FieldTile, view: TileView, x?: number, y?: number): void {
