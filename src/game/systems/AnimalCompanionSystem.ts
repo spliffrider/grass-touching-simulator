@@ -11,6 +11,7 @@ import { recordAutomationAction, recordAutomationSupplyDrop, recordAutomationTou
 import { getFieldTiles, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
 import { getTileHazard } from "./HazardSystem";
 import { getInventoryQuantity } from "./InventorySystem";
+import { getPlacementEntriesForObject, getPlacementSlotIndex } from "./PlacementSystem";
 import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait, TouchResult } from "../types/game-state";
 
 export interface AnimalCompanionFeedback {
@@ -455,18 +456,36 @@ function getPlacedLocalTile(
   isCandidate: (tile: FieldTile) => boolean,
   scoreCandidate?: (tile: FieldTile) => number,
 ): FieldTile | undefined {
-  const placement = state.placedWorldObjects[objectId];
-  const placedTile = placement ? state.field[placement.tileKey] : undefined;
-  if (!placedTile) {
+  const quantity = getInventoryQuantity(state, objectId);
+  const placements = getPlacementEntriesForObject(state, objectId).filter((entry) => {
+    const slotIndex = getPlacementSlotIndex(objectId, entry.placementKey);
+    return slotIndex >= 0 && slotIndex < quantity;
+  });
+  if (placements.length === 0) {
     return undefined;
   }
 
   const localTiles: FieldTile[] = [];
-  for (let y = placedTile.y - radius; y <= placedTile.y + radius; y += 1) {
-    for (let x = placedTile.x - radius; x <= placedTile.x + radius; x += 1) {
-      const tile = state.field[tileKey(x, y)];
-      if (tile && isCandidate(tile) && !hasActiveCactusHazard(state, tile)) {
-        localTiles.push(tile);
+  const seenTileKeys = new Set<string>();
+
+  for (const placement of placements) {
+    const placedTile = state.field[placement.tileKey];
+    if (!placedTile) {
+      continue;
+    }
+
+    for (let y = placedTile.y - radius; y <= placedTile.y + radius; y += 1) {
+      for (let x = placedTile.x - radius; x <= placedTile.x + radius; x += 1) {
+        const key = tileKey(x, y);
+        if (seenTileKeys.has(key)) {
+          continue;
+        }
+
+        const tile = state.field[key];
+        if (tile && isCandidate(tile) && !hasActiveCactusHazard(state, tile)) {
+          seenTileKeys.add(key);
+          localTiles.push(tile);
+        }
       }
     }
   }

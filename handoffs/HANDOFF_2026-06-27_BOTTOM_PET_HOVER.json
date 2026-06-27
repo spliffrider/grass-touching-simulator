@@ -1,0 +1,55 @@
+{
+  "date": "2026-06-27",
+  "topic": "Bottom Pet Dock Hover Fix",
+  "previousHandoff": "HANDOFF_2026-06-27_FAST_CLICK_GRASS_VISUALS.json",
+  "userLatestRead": "Discord playtester TuloWodash reported that hovering pets is buggy when the pet dock sits down on top of the grass board.",
+  "currentGoal": "Prevent board/tile hover from stealing hover state while the pointer is over docked or placed world objects.",
+  "sessionOutcome": {
+    "status": "implemented locally",
+    "committed": false,
+    "pushed": false,
+    "productionDeployed": false
+  },
+  "changesMade": [
+    {
+      "area": "Hover routing",
+      "summary": "Board hover now checks visible docked and placed world-object bounds first. When the pointer is over one, tile hover is cleared without clearing the world-object info panel."
+    },
+    {
+      "area": "Hover state cleanup",
+      "summary": "Added a tile-only hover cleanup helper so tile hover marker/release logic can run without wiping hoveredWorldObjectId."
+    }
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-27_BOTTOM_PET_HOVER.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "command": "Browser stress hover check at http://127.0.0.1:5173/?stress&tiles=360&perf",
+      "result": "passed visually; hovering bottom-docked Field Mouse and Meadow Rabbit showed their world-object panels instead of tile hover stealing the state."
+    }
+  ],
+  "currentGitStatus": [
+    "Gameplay changes are local and uncommitted.",
+    "Placement UX and fast-click grass visual changes from previous handoffs are still local and uncommitted.",
+    "Pre-existing unrelated tracked edits remain in AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md.",
+    "Pre-existing unrelated untracked docs/media/test handoff files remain untouched."
+  ],
+  "knownIssuesAndRisks": [
+    "This fixes hover routing while the dock overlaps the board. It does not redesign the dock placement itself.",
+    "World-object bounds are checked every desktop pointer hover tick, but the list is tiny and the normal hover throttle still applies."
+  ],
+  "nextRecommendedSteps": [
+    "Playtest the bottom pet dock in a normal save with the board expanded enough that pets overlap grass.",
+    "If the user wants this shipped, stage only the intended gameplay/handoff files and leave unrelated dirty docs/media alone."
+  ],
+  "doNotRevert": [
+    "Do not replace clearTileHover with clearTileInfo in the world-object hover guard; that would clear hoveredWorldObjectId and bring the bug back."
+  ]
+}

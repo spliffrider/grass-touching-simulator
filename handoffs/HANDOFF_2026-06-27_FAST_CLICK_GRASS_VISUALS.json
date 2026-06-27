@@ -1,0 +1,64 @@
+{
+  "date": "2026-06-27",
+  "topic": "Fast Click Grass Visual Feedback",
+  "previousHandoff": "HANDOFF_2026-06-27_PLACEMENT_UX_PLAYTESTER.json",
+  "userLatestRead": "Discord playtester TuloWodash reported that when clicking fast, grass often appears to disappear.",
+  "currentGoal": "Make rapid harvesting read as mown/regrowing grass instead of blank or missing grass, without changing touch rewards or regrow timing.",
+  "sessionOutcome": {
+    "status": "implemented locally",
+    "committed": false,
+    "pushed": false,
+    "productionDeployed": false
+  },
+  "changesMade": [
+    {
+      "area": "Regrowing tile visuals",
+      "summary": "Regrowing tiles now render a faded, slightly smaller grass layer over the stubble base in both live tile views and the common render texture."
+    },
+    {
+      "area": "Fast manual input fallback",
+      "summary": "Accepted manual and persistent touches now keep the touched tile live until the common render texture catches up, even if the normal dirty-tile fallback limit has already been reached."
+    },
+    {
+      "area": "Performance",
+      "summary": "The faded regrowing grass layer adds one extra common-layer stamp for regrowing tiles; perf harness remained clean with no frame spikes."
+    }
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-27_FAST_CLICK_GRASS_VISUALS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "command": "Browser stress visual check at http://127.0.0.1:5173/?stress&tiles=360&perf",
+      "result": "passed visually; burst-clicked patches retained a faded/mown grass read and live dirty views appeared during the burst."
+    },
+    {
+      "command": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "passed; status complete, visibleTiles about 1200, maxFrameDeltaMs 15 or lower after tap burst, frameSpikes 0, redrawQueued 0, displayObjects settled near 303, activeTweens settled near 21."
+    }
+  ],
+  "currentGitStatus": [
+    "Gameplay changes are local and uncommitted.",
+    "Placement UX changes from the previous handoff are still local and uncommitted.",
+    "Pre-existing unrelated tracked edits remain in AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md.",
+    "Pre-existing unrelated untracked docs/media/test handoff files remain untouched."
+  ],
+  "knownIssuesAndRisks": [
+    "The stress generator can create actual field holes, which can still look like gaps in screenshots; this change targets regrowing/touched tiles, not absent tiles.",
+    "Regrowing tiles are now more visibly grassy. If playtesters find them too similar to grown tiles, tune REGROWING_GRASS_ALPHA and REGROWING_GRASS_SCALE in GameScene.ts."
+  ],
+  "nextRecommendedSteps": [
+    "Playtest a normal save with rapid clicking and persistent touch to confirm regrowing patches read as mown grass.",
+    "If the user wants this shipped, stage only the intended gameplay/handoff files and leave unrelated dirty docs/media alone."
+  ],
+  "doNotRevert": [
+    "Do not remove the regrowing grass overlay unless replacing it with another visible mown/regrowing state.",
+    "Do not remove the forced live fallback for accepted manual/persistent touches; it prevents rapid input from exposing blank common-layer footprints."
+  ]
+}

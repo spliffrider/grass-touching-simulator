@@ -37,7 +37,17 @@ import {
   type FieldBounds,
 } from "../systems/FieldSystem";
 import { addInventoryItem, consumeInventoryItem, getInventoryQuantity } from "../systems/InventorySystem";
-import { PLACEMENT_RADIUS, getNearbyPlacedObjectIds, getPlacedObjectAt, placeWorldObject, removeWorldObjectPlacement } from "../systems/PlacementSystem";
+import {
+  PLACEMENT_RADIUS,
+  getNearbyPlacementEntries,
+  getPlacementAt,
+  getPlacementEntriesForObject,
+  getPlacementKey,
+  getPlacementObjectId,
+  getPlacementSlotIndex,
+  placeWorldObject,
+  removeWorldObjectPlacement,
+} from "../systems/PlacementSystem";
 import { AnimalCompanionSystem } from "../systems/AnimalCompanionSystem";
 import {
   addGrassTouches,
@@ -97,6 +107,8 @@ const getBoardVisualSize = (tileCount: number) =>
   tileCount * TILE_SIZE + Math.max(0, tileCount - 1) * TILE_GAP;
 const COMMON_TILE_ERASER_TEXTURE_KEY = "tile-common-eraser";
 const COMMON_TILE_ERASER_SIZE = TILE_SIZE + TILE_GAP;
+const REGROWING_GRASS_ALPHA = 0.6;
+const REGROWING_GRASS_SCALE = 0.94;
 const BOARD_Y_OFFSET = 24;
 const MIN_BOARD_ZOOM = 0.45;
 const MAX_BOARD_ZOOM = 3.2;
@@ -565,6 +577,7 @@ interface WorldObjectView {
 
 interface PlacedWorldObjectView {
   objectId: string;
+  placementKey: string;
   coverage: Phaser.GameObjects.Graphics;
   coverageLayoutKey?: string;
   container: Phaser.GameObjects.Container;
@@ -694,6 +707,7 @@ export class GameScene extends Phaser.Scene {
   private worldObjectViews = new Map<string, WorldObjectView>();
   private placedWorldObjectViews = new Map<string, PlacedWorldObjectView>();
   private selectedPlacementObjectId?: string;
+  private selectedPlacementKey?: string;
   private emeraldBackground!: Phaser.GameObjects.Image;
   private boardBackdropGraphics?: Phaser.GameObjects.Graphics;
   private boardViewportMaskGraphics?: Phaser.GameObjects.Graphics;
@@ -5886,6 +5900,7 @@ export class GameScene extends Phaser.Scene {
     });
     this.placedWorldObjectViews.clear();
     this.selectedPlacementObjectId = undefined;
+    this.selectedPlacementKey = undefined;
     this.selectedSkillId = UPGRADES[0].id;
     this.closeSkillTree();
     this.closeQuestLog();
@@ -6772,6 +6787,14 @@ export class GameScene extends Phaser.Scene {
         });
         this.commonStampOpsSinceLastPerf += 1;
       }
+    } else {
+      this.commonTileLayer.stamp(this.getGrassTextureKey(tile), undefined, x, y, {
+        alpha: REGROWING_GRASS_ALPHA,
+        scale: this.boardScale * this.getGrassScale(tile) * REGROWING_GRASS_SCALE,
+        originX: 0.5,
+        originY: 0.5,
+      });
+      this.commonStampOpsSinceLastPerf += 1;
     }
   }
 
@@ -6940,12 +6963,17 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private getWorldObjectDockLabel(id: string, quantity: number): string {
+  private getWorldObjectDockLabel(id: string, _quantity: number): string {
     if (this.selectedPlacementObjectId === id) {
       return "place";
     }
 
-    return quantity > 1 ? `x${quantity}` : "";
+    const limit = this.getWorldObjectPlacementLimit(id);
+    if (limit <= 1) {
+      return this.getWorldObjectPlacedCount(id) > 0 ? "set" : "";
+    }
+
+    return `${this.getWorldObjectPlacedCount(id)}/${limit}`;
   }
 
   private isWorldObjectOwned(id: string): boolean {
@@ -6961,14 +6989,51 @@ export class GameScene extends Phaser.Scene {
     return object.kind === "automation" ? getAutomationSystemOwned(this.state, id) : getInventoryQuantity(this.state, id);
   }
 
-  private beginWorldObjectPlacement(id: string): void {
+  private getWorldObjectPlacementLimit(id: string): number {
+    const object = WORLD_OBJECTS.find((candidate) => candidate.id === id);
+    const quantity = this.getWorldObjectQuantity(id);
+    if (!object || quantity <= 0) {
+      return 0;
+    }
+
+    return object.kind === "automation" ? 1 : quantity;
+  }
+
+  private isPlacementSlotOwned(id: string, placementKey: string): boolean {
+    const slotIndex = getPlacementSlotIndex(id, placementKey);
+    return slotIndex >= 0 && slotIndex < this.getWorldObjectPlacementLimit(id);
+  }
+
+  private getWorldObjectPlacedCount(id: string): number {
+    return getPlacementEntriesForObject(this.state, id).filter((entry) => this.isPlacementSlotOwned(id, entry.placementKey)).length;
+  }
+
+  private getFirstUnplacedPlacementKey(id: string): string | undefined {
+    const limit = this.getWorldObjectPlacementLimit(id);
+    for (let slotIndex = 0; slotIndex < limit; slotIndex += 1) {
+      const placementKey = getPlacementKey(id, slotIndex);
+      if (!this.state.placedWorldObjects[placementKey]) {
+        return placementKey;
+      }
+    }
+
+    return undefined;
+  }
+
+  private getFirstOwnedPlacementKey(id: string): string | undefined {
+    return getPlacementEntriesForObject(this.state, id).find((entry) => this.isPlacementSlotOwned(id, entry.placementKey))?.placementKey;
+  }
+
+  private beginWorldObjectPlacement(id: string, placementKey?: string): void {
     if (!this.isWorldObjectOwned(id)) {
       this.audio.play("blocked");
       return;
     }
 
-    if (this.selectedPlacementObjectId === id) {
+    const nextPlacementKey = placementKey ?? this.getFirstUnplacedPlacementKey(id) ?? this.getFirstOwnedPlacementKey(id) ?? getPlacementKey(id, 0);
+    if (this.selectedPlacementObjectId === id && this.selectedPlacementKey === nextPlacementKey) {
       this.selectedPlacementObjectId = undefined;
+      this.selectedPlacementKey = undefined;
       this.showMessage(`${this.getWorldObjectLabel(id)} placement canceled.`, 1600);
       this.layoutPlacedWorldObjects();
       this.refreshUi();
@@ -6976,8 +7041,17 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.selectedPlacementObjectId = id;
+    this.selectedPlacementKey = nextPlacementKey;
     this.pulseWorldObject(id, 0xffef78);
-    this.showMessage(`Select a grass tile to place ${this.getWorldObjectLabel(id)}.`, 2200);
+    const placedCount = this.getWorldObjectPlacedCount(id);
+    const limit = this.getWorldObjectPlacementLimit(id);
+    const placementHint =
+      placementKey || !this.getFirstUnplacedPlacementKey(id)
+        ? `Select a grass tile to move ${this.getWorldObjectLabel(id)}.`
+        : limit > 1
+          ? `Select grass tiles to place ${this.getWorldObjectLabel(id)} (${placedCount}/${limit} placed).`
+          : `Select a grass tile to place ${this.getWorldObjectLabel(id)}.`;
+    this.showMessage(placementHint, 2400);
     this.refreshWorldObjectInfo(id);
     this.layoutPlacedWorldObjects();
     this.refreshUi();
@@ -7095,18 +7169,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   private syncPlacedWorldObjects(): void {
-    const activeIds = new Set<string>();
+    const activePlacementKeys = new Set<string>();
 
-    for (const [objectId, placement] of Object.entries(this.state.placedWorldObjects)) {
+    for (const [placementKey, placement] of Object.entries(this.state.placedWorldObjects)) {
+      const objectId = getPlacementObjectId(placementKey);
       const object = WORLD_OBJECTS.find((candidate) => candidate.id === objectId);
       const tile = this.state.field[placement.tileKey];
-      if (!object || !tile || !this.isWorldObjectOwned(objectId)) {
-        removeWorldObjectPlacement(this.state, objectId);
+      if (!object || !tile || !this.isWorldObjectOwned(objectId) || !this.isPlacementSlotOwned(objectId, placementKey)) {
+        removeWorldObjectPlacement(this.state, placementKey);
+        if (this.selectedPlacementKey === placementKey) {
+          this.selectedPlacementObjectId = undefined;
+          this.selectedPlacementKey = undefined;
+        }
         continue;
       }
 
-      activeIds.add(objectId);
-      if (this.placedWorldObjectViews.has(objectId)) {
+      activePlacementKeys.add(placementKey);
+      if (this.placedWorldObjectViews.has(placementKey)) {
         continue;
       }
 
@@ -7129,17 +7208,17 @@ export class GameScene extends Phaser.Scene {
 
       hit.on("pointerover", () => this.showWorldObjectInfo(objectId));
       hit.on("pointerout", () => this.hideWorldObjectInfo(objectId));
-      hit.on("pointerdown", () => this.beginWorldObjectPlacement(objectId));
+      hit.on("pointerdown", () => this.beginWorldObjectPlacement(objectId, placementKey));
 
       container.add([hit, aura, sprite, label]);
-      this.placedWorldObjectViews.set(objectId, { objectId, coverage, container, hit, aura, sprite, label });
+      this.placedWorldObjectViews.set(placementKey, { objectId, placementKey, coverage, container, hit, aura, sprite, label });
     }
 
-    for (const [objectId, view] of this.placedWorldObjectViews) {
-      if (!activeIds.has(objectId)) {
+    for (const [placementKey, view] of this.placedWorldObjectViews) {
+      if (!activePlacementKeys.has(placementKey)) {
         view.coverage.destroy();
         view.container.destroy();
-        this.placedWorldObjectViews.delete(objectId);
+        this.placedWorldObjectViews.delete(placementKey);
       }
     }
   }
@@ -7147,8 +7226,9 @@ export class GameScene extends Phaser.Scene {
   private layoutPlacedWorldObjects(): void {
     this.syncPlacedWorldObjects();
 
-    for (const [objectId, view] of this.placedWorldObjectViews) {
-      const placement = this.state.placedWorldObjects[objectId];
+    for (const [placementKey, view] of this.placedWorldObjectViews) {
+      const placement = this.state.placedWorldObjects[placementKey];
+      const objectId = view.objectId;
       const tile = placement ? this.state.field[placement.tileKey] : undefined;
       const position = tile ? this.getTileScreenPosition(tile) : undefined;
       if (!position || this.hasBlockingOverlayOpen()) {
@@ -7173,7 +7253,9 @@ export class GameScene extends Phaser.Scene {
       view.container.setPosition(position.x, position.y - 5 * this.boardScale);
       view.container.setScale(scale);
       view.sprite.setDisplaySize(38, 38);
-      view.label.setVisible(objectId === this.hoveredWorldObjectId || objectId === this.selectedPlacementObjectId);
+      view.label.setVisible(
+        placementKey === this.selectedPlacementKey || objectId === this.hoveredWorldObjectId || objectId === this.selectedPlacementObjectId,
+      );
       view.aura.setScale(1 + Math.sin(Date.now() * 0.003) * 0.04, 1);
     }
   }
@@ -7386,6 +7468,11 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    if (this.isPointerOverWorldObjectControl(pointer)) {
+      this.clearTileHover();
+      return;
+    }
+
     if (!pointer.noButtonDown()) {
       return;
     }
@@ -7450,6 +7537,34 @@ export class GameScene extends Phaser.Scene {
 
   private hideHoverMarker(): void {
     this.hoverMarker?.setVisible(false);
+  }
+
+  private isPointerOverWorldObjectControl(pointer: Phaser.Input.Pointer): boolean {
+    for (const view of this.worldObjectViews.values()) {
+      if (this.isPointerOverVisibleGameObject(pointer, view.container)) {
+        return true;
+      }
+    }
+
+    for (const view of this.placedWorldObjectViews.values()) {
+      if (this.isPointerOverVisibleGameObject(pointer, view.container)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private isPointerOverVisibleGameObject(
+    pointer: Phaser.Input.Pointer,
+    object: { visible: boolean; getBounds(): Phaser.Geom.Rectangle },
+  ): boolean {
+    if (!object.visible) {
+      return false;
+    }
+
+    const bounds = object.getBounds();
+    return Phaser.Geom.Rectangle.Contains(bounds, pointer.x, pointer.y);
   }
 
   private startPersistentTouch(pointer: Phaser.Input.Pointer, tileKey: TileKey): void {
@@ -7637,22 +7752,28 @@ export class GameScene extends Phaser.Scene {
   private hideTileInfo(tile: FieldTile): void {
     const key = this.getTileKey(tile);
     if (this.hoveredTileKey === key) {
-      this.hoveredTileKey = undefined;
-      this.tileInfoPanel.setVisible(false);
-      this.hideHoverMarker();
-      this.releaseBatchTileViewIfIdle(key);
+      this.clearTileHover();
     }
   }
 
-  private clearTileInfo(): void {
+  private clearTileHover(): void {
     const previousHoveredTileKey = this.hoveredTileKey;
     this.hoveredTileKey = undefined;
-    this.hoveredWorldObjectId = undefined;
-    this.tileInfoPanel.setVisible(false);
+    if (!this.hoveredWorldObjectId) {
+      this.tileInfoPanel.setVisible(false);
+    }
     this.hideHoverMarker();
     if (previousHoveredTileKey) {
       this.releaseBatchTileViewIfIdle(previousHoveredTileKey);
     }
+  }
+
+  private clearTileInfo(): void {
+    this.clearTileHover();
+    this.hoveredTileKey = undefined;
+    this.hoveredWorldObjectId = undefined;
+    this.tileInfoPanel.setVisible(false);
+    this.hideHoverMarker();
   }
 
   private showWorldObjectInfo(id: string): void {
@@ -7706,8 +7827,16 @@ export class GameScene extends Phaser.Scene {
     const title = this.getWorldObjectLabel(id) ?? storeItem?.name ?? seedItem?.name ?? id;
     const summary = this.getWorldObjectSummary(id);
     const countLine = quantity > 1 ? `Owned: ${quantity}` : quantity === 1 ? "Owned: 1" : "";
-    const placement = this.state.placedWorldObjects[id];
-    const placementLine = placement ? `Placed at ${placement.tileKey}. Click to move.` : "Click to place on the field.";
+    const placementLimit = this.getWorldObjectPlacementLimit(id);
+    const placedCount = this.getWorldObjectPlacedCount(id);
+    const placementLine =
+      placementLimit > 1
+        ? placedCount >= placementLimit
+          ? `Placed: ${placedCount}/${placementLimit}. Click a helper to move it.`
+          : `Placed: ${placedCount}/${placementLimit}. Click the dock to place the rest.`
+        : this.state.placedWorldObjects[id]
+          ? `Placed at ${this.state.placedWorldObjects[id].tileKey}. Click to move.`
+          : "Click to place on the field.";
 
     this.setTextIfChanged(this.tileInfoTitle, title);
     this.setTextIfChanged(this.tileInfoBody, [summary, countLine, placementLine].filter(Boolean).join("\n"));
@@ -7715,16 +7844,20 @@ export class GameScene extends Phaser.Scene {
 
   private getTilePlacementInfo(tile: FieldTile): string {
     const key = this.getTileKey(tile);
-    const placedObjectId = getPlacedObjectAt(this.state, key);
-    const nearbyLabels = this.getNearbyActivePlacedObjectIds(tile)
-      .filter((objectId) => objectId !== placedObjectId)
-      .map((objectId) => this.getWorldObjectLabel(objectId));
+    const placedEntry = getPlacementAt(this.state, key);
+    const nearbyLabels = Array.from(
+      new Set(
+        this.getNearbyActivePlacementEntries(tile)
+          .filter((entry) => entry.placementKey !== placedEntry?.placementKey)
+          .map((entry) => this.getWorldObjectLabel(entry.objectId)),
+      ),
+    );
 
-    if (!placedObjectId && nearbyLabels.length === 0) {
+    if (!placedEntry && nearbyLabels.length === 0) {
       return "";
     }
 
-    const here = placedObjectId ? `Placed: ${this.getWorldObjectLabel(placedObjectId)}` : "";
+    const here = placedEntry ? `Placed: ${this.getWorldObjectLabel(placedEntry.objectId)}` : "";
     const nearby = nearbyLabels.length > 0 ? `Nearby: ${nearbyLabels.join(", ")}` : "";
     return [here, nearby].filter(Boolean).join("\n");
   }
@@ -7770,7 +7903,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private positionWorldObjectInfo(id: string): void {
-    const placedView = this.placedWorldObjectViews.get(id);
+    const placedView = Array.from(this.placedWorldObjectViews.values()).find((view) => view.objectId === id && view.container.visible);
     const dockView = this.worldObjectViews.get(id);
     const target = placedView?.container.visible ? placedView.container : dockView?.container;
     if (!target) {
@@ -7846,7 +7979,7 @@ export class GameScene extends Phaser.Scene {
 
     this.profileScope("touch:visuals", () => this.withManualTouchFeedbackBudget(now, () => {
       this.playTouchFeedback(tile, touchedTrait, touch.isCrit);
-      this.refreshTile(tile);
+      this.refreshTile(tile, source !== "harness");
       this.popAtTile(tile, this.getTouchPopText(touch), touch.isCrit ? "#ffef78" : touchedTier.id === "normal" ? "#f9ffe5" : "#dfffc8");
       if (firstManualGrassTouch) {
         this.playFirstTouchFeedback(tile, touchedTier.id, touchedTrait, touch);
@@ -7985,28 +8118,38 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const placementKey =
+      this.selectedPlacementKey ?? this.getFirstUnplacedPlacementKey(objectId) ?? this.getFirstOwnedPlacementKey(objectId) ?? getPlacementKey(objectId, 0);
     const key = this.getTileKey(tile);
-    const occupiedBy = getPlacedObjectAt(this.state, key);
-    if (occupiedBy && occupiedBy !== objectId) {
-      this.popAtTile(tile, `${this.getWorldObjectLabel(occupiedBy)} already here`, "#fff2b2");
+    const occupiedBy = getPlacementAt(this.state, key);
+    if (occupiedBy && occupiedBy.placementKey !== placementKey) {
+      this.popAtTile(tile, `${this.getWorldObjectLabel(occupiedBy.objectId)} already here`, "#fff2b2");
       this.audio.play("blocked");
       return;
     }
 
-    if (!placeWorldObject(this.state, objectId, key)) {
+    const wasPlaced = this.state.placedWorldObjects[placementKey] !== undefined;
+    if (!placeWorldObject(this.state, objectId, key, placementKey)) {
       this.popAtTile(tile, "cannot place here", "#fff2b2");
       this.audio.play("blocked");
       return;
     }
 
-    this.selectedPlacementObjectId = undefined;
+    const nextUnplacedKey = this.getFirstUnplacedPlacementKey(objectId);
+    const placementLimit = this.getWorldObjectPlacementLimit(objectId);
+    const placedCount = this.getWorldObjectPlacedCount(objectId);
+    const shouldKeepPlacing = !wasPlaced && nextUnplacedKey !== undefined;
+    this.selectedPlacementObjectId = shouldKeepPlacing ? objectId : undefined;
+    this.selectedPlacementKey = shouldKeepPlacing ? nextUnplacedKey : undefined;
     this.syncPlacedWorldObjects();
     this.layoutPlacedWorldObjects();
     this.syncWorldObjects();
     this.layoutWorldObjects();
     this.refreshTileInfo(tile);
-    this.popAtTile(tile, `${this.getWorldObjectLabel(objectId)} placed`, "#ffef78");
-    if (objectId === "sprinkler") {
+    this.popAtTile(tile, `${this.getWorldObjectLabel(objectId)} ${wasPlaced ? "moved" : "placed"}`, "#ffef78");
+    if (shouldKeepPlacing) {
+      this.showMessage(`Placed ${this.getWorldObjectLabel(objectId)} ${placedCount}/${placementLimit}. Select another tile.`, 2400);
+    } else if (objectId === "sprinkler") {
       this.showMessage("Tiny Sprinkler placed. Its water reaches nearby patches.", 3400);
     }
     this.playPlacementFeedback(tile, objectId);
@@ -8015,18 +8158,23 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
   }
 
-  private getNearbyActivePlacedObjectIds(tile: FieldTile): string[] {
-    return getNearbyPlacedObjectIds(this.state, tile, PLACEMENT_RADIUS).filter((objectId) => this.isWorldObjectOwned(objectId));
+  private getNearbyActivePlacementEntries(tile: FieldTile): ReturnType<typeof getNearbyPlacementEntries> {
+    return getNearbyPlacementEntries(this.state, tile, PLACEMENT_RADIUS).filter(
+      (entry) => this.isWorldObjectOwned(entry.objectId) && this.isPlacementSlotOwned(entry.objectId, entry.placementKey),
+    );
   }
 
   private getPlacementSynergy(tile: FieldTile): {
     objectIds: string[];
+    placementKeys: string[];
     seedChanceScale: number;
     goldChanceScale: number;
     regrowFactor: number;
     bonusTouches: number;
   } {
-    const objectIds = this.getNearbyActivePlacedObjectIds(tile);
+    const placements = this.getNearbyActivePlacementEntries(tile);
+    const objectIds = placements.map((entry) => entry.objectId);
+    const placementKeys = placements.map((entry) => entry.placementKey);
     let seedChanceScale = 1;
     let goldChanceScale = 1;
     let regrowFactor = 1;
@@ -8064,6 +8212,7 @@ export class GameScene extends Phaser.Scene {
 
     return {
       objectIds,
+      placementKeys,
       seedChanceScale,
       goldChanceScale,
       regrowFactor,
@@ -8073,7 +8222,14 @@ export class GameScene extends Phaser.Scene {
 
   private applyPlacementSynergyFeedback(
     tile: FieldTile,
-    synergy: { objectIds: string[]; seedChanceScale: number; goldChanceScale: number; regrowFactor: number; bonusTouches: number },
+    synergy: {
+      objectIds: string[];
+      placementKeys: string[];
+      seedChanceScale: number;
+      goldChanceScale: number;
+      regrowFactor: number;
+      bonusTouches: number;
+    },
     now: number,
   ): void {
     if (synergy.objectIds.length === 0) {
@@ -8094,11 +8250,11 @@ export class GameScene extends Phaser.Scene {
       this.pollinateNeighborFromPlacement(tile);
     }
 
-    for (const objectId of synergy.objectIds) {
-      const placement = this.state.placedWorldObjects[objectId];
+    for (const placementKey of synergy.placementKeys) {
+      const placement = this.state.placedWorldObjects[placementKey];
       const placedTile = placement ? this.state.field[placement.tileKey] : undefined;
       if (placedTile) {
-        this.playPlacementPulse(placedTile, objectId);
+        this.playPlacementPulse(placedTile, placementKey);
       }
     }
   }
@@ -8152,8 +8308,8 @@ export class GameScene extends Phaser.Scene {
     this.popAtTile(tile, "nearby care", "#fff1a8");
   }
 
-  private playPlacementPulse(tile: FieldTile, objectId: string): void {
-    const view = this.placedWorldObjectViews.get(objectId);
+  private playPlacementPulse(tile: FieldTile, placementKey: string): void {
+    const view = this.placedWorldObjectViews.get(placementKey);
     if (view?.container.visible) {
       this.tweens.killTweensOf(view.aura);
       view.aura.setAlpha(0.34);
@@ -9822,11 +9978,11 @@ export class GameScene extends Phaser.Scene {
     return scaledConfig;
   }
 
-  private refreshTile(tile: FieldTile): void {
+  private refreshTile(tile: FieldTile, keepLiveUntilCommonRedraw = false): void {
     const key = this.getTileKey(tile);
     const view = this.tileViews.get(key);
     if (!view) {
-      this.markBatchTileDirty(tile);
+      this.markBatchTileDirty(tile, keepLiveUntilCommonRedraw);
       return;
     }
 
@@ -9837,10 +9993,10 @@ export class GameScene extends Phaser.Scene {
     const highlightColor = this.getTierHighlightColor(tier.id);
     const hazard = getTileHazard(this.state, key);
 
-    this.setVisibleIfChanged(view.grass, isGrown);
+    this.setVisibleIfChanged(view.grass, true);
     view.grass.setTexture(grassTexture);
-    view.grass.setScale(this.boardScale * this.getGrassScale(tile));
-    view.grass.setAlpha(1);
+    view.grass.setScale(this.boardScale * this.getGrassScale(tile) * (isGrown ? 1 : REGROWING_GRASS_SCALE));
+    view.grass.setAlpha(isGrown ? 1 : REGROWING_GRASS_ALPHA);
     this.setVisibleIfChanged(view.hazard, isGrown && hazard !== undefined);
     if (hazard) {
       view.hazard.setTexture(this.getHazardTextureKey(hazard.id));
@@ -9854,12 +10010,12 @@ export class GameScene extends Phaser.Scene {
     this.setTextIfChanged(view.label, isGrown ? this.getTileLabel(tile, tier.label, hazard?.id) : "...");
     view.base.setTexture(this.getTileBaseTextureKey(tile, isGrown ? hazard?.id : undefined));
 
-    if (!this.needsTileView(tile, key)) {
-      this.markBatchTileDirty(tile);
+    if (keepLiveUntilCommonRedraw || !this.needsTileView(tile, key)) {
+      this.markBatchTileDirty(tile, keepLiveUntilCommonRedraw);
     }
   }
 
-  private markBatchTileDirty(tile: FieldTile): void {
+  private markBatchTileDirty(tile: FieldTile, forceLiveView = false): void {
     if (this.usesFullLiveTileViews()) {
       return;
     }
@@ -9882,12 +10038,16 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.dirtyTileViewKeys.size >= this.getDirtyTileViewLimit()) {
+    const dirtyLimitReached = this.dirtyTileViewKeys.size >= this.getDirtyTileViewLimit();
+    if (dirtyLimitReached && !forceLiveView) {
       this.commonTileLayerDirty = true;
       return;
     }
 
     this.dirtyTileViewKeys.add(key);
+    if (dirtyLimitReached) {
+      this.commonTileLayerDirty = true;
+    }
     this.eraseCommonTileFootprint(tile, position);
     if (!this.tileViews.has(key)) {
       this.createTileView(tile);

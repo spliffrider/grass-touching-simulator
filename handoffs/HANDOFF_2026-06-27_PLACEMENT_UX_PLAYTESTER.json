@@ -1,0 +1,73 @@
+{
+  "date": "2026-06-27",
+  "topic": "Multiple Placement UX From Playtester Feedback",
+  "previousHandoff": "HANDOFF_2026-06-27_STABLE_LIVE_BIG_HANDOFF.json",
+  "userLatestRead": "Discord playtester TuloWodash reported that placing items feels janky and gets annoying when you own multiples. User asked to fix it and add him to playtester credits.",
+  "currentGoal": "Make world-object placement less janky when the player owns multiple copies, while preserving existing saves and confirming TuloWodash is credited as a playtester.",
+  "sessionOutcome": {
+    "status": "implemented locally",
+    "committed": false,
+    "pushed": false,
+    "productionDeployed": false,
+    "credits": "TuloWodash was already present in the TitleScene Playtesters list, so no duplicate credit entry was added."
+  },
+  "changesMade": [
+    {
+      "area": "Placement save/state model",
+      "summary": "PlacementSystem now supports slot-based placement keys. The first owned copy keeps the legacy key like field_mouse; extra copies use keys like field_mouse#2 and field_mouse#3."
+    },
+    {
+      "area": "Placement UX",
+      "summary": "GameScene tracks the selected placement slot, shows dock progress such as 1/3, keeps placement mode active while unplaced copies remain, and lets a player click a placed helper to move that exact slot."
+    },
+    {
+      "area": "Placement cleanup",
+      "summary": "Placed-object sync removes stale placements whose object is unowned, whose tile is gone, or whose slot is above the currently owned quantity."
+    },
+    {
+      "area": "Companion behavior",
+      "summary": "Animal companion local targeting now considers every valid placed copy instead of only the first legacy placement key."
+    },
+    {
+      "area": "Credits",
+      "summary": "Confirmed TuloWodash is already listed under Playtesters in src/game/scenes/TitleScene.ts."
+    }
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/systems/PlacementSystem.ts",
+    "src/game/systems/AnimalCompanionSystem.ts",
+    "handoffs/HANDOFF_2026-06-27_PLACEMENT_UX_PLAYTESTER.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "command": "rg checks for stale placement helper imports/references",
+      "result": "passed; old getPlacedObjectAt/getNearbyPlacedObjectIds usage removed from GameScene."
+    }
+  ],
+  "currentGitStatus": [
+    "Gameplay changes are local and uncommitted.",
+    "Pre-existing unrelated tracked edits remain in AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md.",
+    "Pre-existing unrelated untracked docs/media/test handoff files remain untouched.",
+    "This handoff and LATEST.json are expected to be dirty after this session."
+  ],
+  "knownIssuesAndRisks": [
+    "No browser placement choreography smoke test was run; build and code-path review passed.",
+    "Sprinkler remains intentionally single-placement even if future systems ever report multiple owned sprinkler units.",
+    "Slot-key saves are backward-compatible for existing first placements, but future migration/docs should treat object#N keys as intentional."
+  ],
+  "nextRecommendedSteps": [
+    "Playtest buying multiple companions and placing them from the dock: the label should advance 0/N, 1/N, 2/N and stay in placement mode until all owned copies are placed.",
+    "Playtest clicking an already placed companion: it should select that exact helper for moving and should not consume the next unplaced slot.",
+    "If the user asks to ship this, stage only the intended gameplay/handoff files and leave unrelated dirty docs/media alone."
+  ],
+  "doNotRevert": [
+    "Do not collapse placedWorldObjects back to one placement per object id; object#2/object#3 slot keys are deliberate.",
+    "Do not duplicate TuloWodash in credits; he is already in the Playtesters list."
+  ]
+}

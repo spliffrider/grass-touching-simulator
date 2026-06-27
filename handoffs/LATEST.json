@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-27",
-  "latestHandoff": "HANDOFF_2026-06-27_STABLE_LIVE_BIG_HANDOFF.json",
+  "latestHandoff": "HANDOFF_2026-06-27_BOTTOM_PET_HOVER.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",
