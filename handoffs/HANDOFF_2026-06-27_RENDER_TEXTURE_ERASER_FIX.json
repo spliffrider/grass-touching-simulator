@@ -1,0 +1,91 @@
+{
+  "date": "2026-06-27",
+  "topic": "Render Texture Eraser Field Hole Fix",
+  "previousHandoff": "HANDOFF_2026-06-27_PLAYTESTER_FEEDBACK_LIVE.json",
+  "userLatestRead": "User playtested live and reported severe visual bugs where parts of the playing field disappeared, with a screenshot showing missing rectangular chunks of the grass board.",
+  "currentGoal": "Fix and ship the live field visual bug without disturbing unrelated dirty docs/media files.",
+  "sessionOutcome": {
+    "status": "complete",
+    "committed": true,
+    "pushed": true,
+    "productionDeployed": true,
+    "desktopBranch": "master",
+    "hotfixCommit": "b79a3f8",
+    "originMasterAfterHotfixPush": "b79a3f8",
+    "productionDomain": "https://grasstouchingsimulator.com",
+    "productionDeployment": {
+      "id": "dpl_Hu4U53BYniB6LmhvCQnbsfxwi36o",
+      "url": "https://grass-touching-simulator-7aw3q2tkh-sensitech.vercel.app",
+      "status": "Ready",
+      "aliases": [
+        "https://grasstouchingsimulator.com",
+        "https://www.grasstouchingsimulator.com",
+        "https://grass-touching-simulator.vercel.app",
+        "https://grass-touching-simulator-sensitech.vercel.app",
+        "https://grass-touching-simulator-spliffrider-sensitech.vercel.app"
+      ],
+      "latestBuildAsset": "dist/assets/index-Du6-jiug.js"
+    }
+  },
+  "diagnosis": [
+    "Common-layer tile stamps are centered via RenderTexture.stamp(... origin 0.5).",
+    "Dirty tile cleanup used RenderTexture.erase(frame, x, y), and Phaser treats the coordinates for frame erase as exact/top-left-style drawing, not the same centered stamp semantics.",
+    "Fast click/live fallback work increased how often dirty tiles erase common-layer footprints, making the old coordinate mismatch visible as field chunks being removed."
+  ],
+  "changesMade": [
+    {
+      "area": "Common tile render texture erasing",
+      "summary": "eraseCommonTileFootprint now uses RenderTexture.stamp(COMMON_TILE_ERASER_TEXTURE_KEY, ..., { erase: true, originX: 0.5, originY: 0.5, scale: boardScale }) so erased footprints align with centered, scaled tile stamps."
+    }
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-27_RENDER_TEXTURE_ERASER_FIX.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "command": "Browser stress check at http://127.0.0.1:5173/?stress&tiles=360&perf",
+      "result": "passed visually after 72 real canvas clicks across the dense field; no field chunks disappeared, and batch mode settled with small dirty/stale counts."
+    },
+    {
+      "command": "Headless Chrome CDP perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200 with 1280x720 viewport",
+      "result": "passed; status complete, visibleTiles 1202, redrawQueued 0, maxFrameDeltaMs 17, frameSpikes 0, displayObjects 307, activeTweens 25, hotspots hot none."
+    },
+    {
+      "command": "npx vercel --prod --yes",
+      "result": "passed; deployment dpl_Hu4U53BYniB6LmhvCQnbsfxwi36o Ready and aliased to grasstouchingsimulator.com"
+    },
+    {
+      "command": "npx vercel inspect grasstouchingsimulator.com --timeout 30s",
+      "result": "passed; production deployment Ready"
+    },
+    {
+      "command": "Invoke-WebRequest https://grasstouchingsimulator.com",
+      "result": "passed; HTTP 200 and index contains assets/index-Du6-jiug.js"
+    }
+  ],
+  "currentGitStatus": [
+    "Hotfix commit b79a3f8 was pushed to origin/master and deployed to production.",
+    "This handoff is a follow-up session-state artifact and should be committed/pushed after creation.",
+    "Pre-existing unrelated tracked edits remain in AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md.",
+    "Pre-existing unrelated untracked docs/media/test handoff files remain untouched."
+  ],
+  "knownIssuesAndRisks": [
+    "The in-app browser tab became unresponsive while running the perf harness; verification was completed through a fresh headless Chrome CDP run instead.",
+    "This fix is intentionally narrow. It does not redesign the common render layer or dirty queue."
+  ],
+  "nextRecommendedSteps": [
+    "Smoke test the live site by fast-clicking a large field and watching for missing tile chunks.",
+    "If visual field holes still appear, inspect any remaining direct RenderTexture.erase usage and collect a fresh screenshot plus perf overlay line."
+  ],
+  "doNotRevert": [
+    "Do not switch eraseCommonTileFootprint back to RenderTexture.erase(frame, position.x, position.y); that coordinate mismatch can erase neighboring common-layer tiles.",
+    "Keep the erase stamp centered and scaled with boardScale so it matches drawCommonTile's centered tile stamps.",
+    "Do not stage, clean, or revert unrelated AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, Dutch automation docs, GAME_SYSTEMS_REFERENCE CLAUDE.md, title-art artifacts, MIDI/AIF files, or old test handoff unless explicitly instructed."
+  ]
+}

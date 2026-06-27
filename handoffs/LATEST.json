@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-27",
-  "latestHandoff": "HANDOFF_2026-06-27_PLAYTESTER_FEEDBACK_LIVE.json",
+  "latestHandoff": "HANDOFF_2026-06-27_RENDER_TEXTURE_ERASER_FIX.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",
