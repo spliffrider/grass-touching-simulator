@@ -64,8 +64,8 @@ export const AUTOMATION_PAIR_SYNERGIES: AutomationPairSynergyDefinition[] = [
 export const AUTOMATION_SYSTEMS: AutomationSystemDefinition[] = [
   {
     id: "sprinkler",
-    name: "Tiny Sprinkler",
-    description: "A simple water rhythm that starts the passive Grass Touch engine.",
+    name: "Sprinkler Route",
+    description: "A simple watering route that starts the passive Grass Touch engine.",
     baseTouchesPerMinute: 22,
     baseCost: 42,
     costGrowth: 1.15,

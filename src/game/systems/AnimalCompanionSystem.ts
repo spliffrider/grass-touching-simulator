@@ -8,7 +8,8 @@ import {
 } from "./AutomationDirectiveSystem";
 import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
 import { recordAutomationAction, recordAutomationSupplyDrop, recordAutomationTouch } from "./AutomationProgressSystem";
-import { getRandomFieldTile, getRandomGrownTile, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
+import { getFieldTiles, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
+import { getTileHazard } from "./HazardSystem";
 import { getInventoryQuantity } from "./InventorySystem";
 import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait, TouchResult } from "../types/game-state";
 
@@ -254,7 +255,7 @@ export class AnimalCompanionSystem {
     directiveId: ResolvedAutomationDirectiveId,
     growthRegrowMultiplier: number,
   ): boolean {
-    const anchor = getPlacedLocalFieldTile(state, "bee_hive", 2) ?? getRandomFieldTile(state);
+    const anchor = getPlacedLocalFieldTile(state, "bee_hive", 2) ?? getRandomSafeFieldTile(state);
     if (!anchor) {
       return false;
     }
@@ -265,7 +266,7 @@ export class AnimalCompanionSystem {
       state.field[tileKey(anchor.x - 1, anchor.y)],
       state.field[tileKey(anchor.x, anchor.y + 1)],
       state.field[tileKey(anchor.x, anchor.y - 1)],
-    ].filter((tile): tile is FieldTile => tile !== undefined);
+    ].filter((tile): tile is FieldTile => tile !== undefined && !hasActiveCactusHazard(state, tile));
     const improvedTiles = Phaser.Utils.Array.Shuffle(cluster).slice(
       0,
       Math.min(cluster.length, 1 + Math.min(beeHives + (directiveId === "growth" ? 1 : 0), 3)),
@@ -299,7 +300,7 @@ export class AnimalCompanionSystem {
     soilScratchPower: number,
     supplyChanceBonus: number,
   ): boolean {
-    const tile = getRandomFieldTile(state);
+    const tile = getRandomSafeFieldTile(state);
     if (!tile) {
       return false;
     }
@@ -348,7 +349,7 @@ export class AnimalCompanionSystem {
     grazingTrailPower: number,
     supplyChanceBonus: number,
   ): boolean {
-    const tile = directiveId === "harvest" ? pickBestGrownTile(state, 10) : getRandomGrownTile(state);
+    const tile = directiveId === "harvest" ? pickBestGrownTile(state, 10) : getRandomSafeGrownTile(state);
     if (!tile) {
       return false;
     }
@@ -400,7 +401,7 @@ export class AnimalCompanionSystem {
     pastureTurnoverPower: number,
     growthRegrowMultiplier: number,
   ): boolean {
-    const regrowingTiles = Phaser.Utils.Array.Shuffle(getRegrowingTiles(state)).slice(
+    const regrowingTiles = Phaser.Utils.Array.Shuffle(getRegrowingTiles(state).filter((tile) => !hasActiveCactusHazard(state, tile))).slice(
       0,
       Math.min(1 + earthworms + (directiveId === "growth" ? 1 : 0) + (pastureTurnoverPower > 0 ? 1 : 0), 4),
     );
@@ -444,7 +445,7 @@ function getPlacedLocalGrownTile(
 }
 
 function getPlacedLocalFieldTile(state: GameState, objectId: "bee_hive", radius: number): FieldTile | undefined {
-  return getPlacedLocalTile(state, objectId, radius, () => true);
+  return getPlacedLocalTile(state, objectId, radius, (tile) => !hasActiveCactusHazard(state, tile));
 }
 
 function getPlacedLocalTile(
@@ -464,7 +465,7 @@ function getPlacedLocalTile(
   for (let y = placedTile.y - radius; y <= placedTile.y + radius; y += 1) {
     for (let x = placedTile.x - radius; x <= placedTile.x + radius; x += 1) {
       const tile = state.field[tileKey(x, y)];
-      if (tile && isCandidate(tile)) {
+      if (tile && isCandidate(tile) && !hasActiveCactusHazard(state, tile)) {
         localTiles.push(tile);
       }
     }
@@ -478,7 +479,58 @@ function getPlacedLocalTile(
 }
 
 function pickBestGrownTile(state: GameState, maxSamples: number): FieldTile | undefined {
-  return pickBestTile(sampleGrownTiles(state, maxSamples), scoreHarvestTile);
+  return pickBestTile(sampleSafeGrownTiles(state, maxSamples), scoreHarvestTile);
+}
+
+function hasActiveCactusHazard(state: GameState, tile: FieldTile): boolean {
+  return getTileHazard(state, tileKey(tile.x, tile.y))?.id === "cactus";
+}
+
+function getRandomSafeFieldTile(state: GameState): FieldTile | undefined {
+  const tiles = getFieldTiles(state);
+  const randomAttempts = Math.min(32, tiles.length);
+  for (let attempt = 0; attempt < randomAttempts; attempt += 1) {
+    const tile = Phaser.Utils.Array.GetRandom(tiles);
+    if (tile && !hasActiveCactusHazard(state, tile)) {
+      return tile;
+    }
+  }
+
+  return tiles.find((tile) => !hasActiveCactusHazard(state, tile));
+}
+
+function getRandomSafeGrownTile(state: GameState): FieldTile | undefined {
+  const tiles = getFieldTiles(state);
+  const randomAttempts = Math.min(32, tiles.length);
+  for (let attempt = 0; attempt < randomAttempts; attempt += 1) {
+    const tile = Phaser.Utils.Array.GetRandom(tiles);
+    if (tile?.grassState === "grown" && !hasActiveCactusHazard(state, tile)) {
+      return tile;
+    }
+  }
+
+  return tiles.find((tile) => tile.grassState === "grown" && !hasActiveCactusHazard(state, tile));
+}
+
+function sampleSafeGrownTiles(state: GameState, maxSamples: number): FieldTile[] {
+  const sampled = sampleGrownTiles(state, Math.max(maxSamples, maxSamples * 2)).filter((tile) => !hasActiveCactusHazard(state, tile));
+  if (sampled.length >= maxSamples) {
+    return sampled.slice(0, maxSamples);
+  }
+
+  const seen = new Set(sampled.map((tile) => tileKey(tile.x, tile.y)));
+  for (const tile of getFieldTiles(state)) {
+    if (sampled.length >= maxSamples) {
+      break;
+    }
+    const key = tileKey(tile.x, tile.y);
+    if (tile.grassState === "grown" && !seen.has(key) && !hasActiveCactusHazard(state, tile)) {
+      sampled.push(tile);
+      seen.add(key);
+    }
+  }
+
+  return sampled;
 }
 
 function pickBestTile(tiles: FieldTile[], scoreTile: (tile: FieldTile) => number): FieldTile | undefined {

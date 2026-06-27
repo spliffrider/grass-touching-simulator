@@ -93,6 +93,8 @@ import { createOrnateFrame, type OrnateFrame, UITheme } from "../ui/theme";
 
 const TILE_SIZE = 58;
 const TILE_GAP = 8;
+const COMMON_TILE_ERASER_TEXTURE_KEY = "tile-common-eraser";
+const COMMON_TILE_ERASER_SIZE = TILE_SIZE + TILE_GAP;
 const BOARD_Y_OFFSET = 24;
 const MIN_BOARD_ZOOM = 0.45;
 const MAX_BOARD_ZOOM = 3.2;
@@ -636,7 +638,7 @@ interface PerfHarnessResult {
   samples: PerfHarnessSample[];
 }
 
-type HazardHarnessPhase = "initial" | "afterCactus" | "afterWeedPull" | "afterWeedClear" | "afterMower" | "complete";
+type HazardHarnessPhase = "initial" | "afterCactus" | "afterWeedPull" | "afterWeedClear" | "afterMower" | "afterAoeCactusSkip" | "complete";
 
 interface HazardHarnessStep {
   phase: HazardHarnessPhase;
@@ -2052,6 +2054,31 @@ export class GameScene extends Phaser.Scene {
         throw new Error("Hazard harness needs at least four grown tiles.");
       }
 
+      const reservedAoeKeys = new Set([cactusTile, weedTile, mowerCactusTile, mowerWeedTile].map((tile) => this.getTileKey(tile)));
+      let aoeOriginTile: FieldTile | undefined;
+      let aoeCactusTile: FieldTile | undefined;
+      for (const originTile of grownTiles) {
+        const originKey = this.getTileKey(originTile);
+        if (reservedAoeKeys.has(originKey)) {
+          continue;
+        }
+
+        const neighborTiles = COMBO_AOE_NEIGHBORS.map((neighbor) => this.state.field[tileKey(originTile.x + neighbor.x, originTile.y + neighbor.y)]);
+        if (neighborTiles.some((tile) => tile && reservedAoeKeys.has(this.getTileKey(tile)))) {
+          continue;
+        }
+
+        const cactusCandidate = neighborTiles.find((tile): tile is FieldTile => tile?.grassState === "grown");
+        if (cactusCandidate) {
+          aoeOriginTile = originTile;
+          aoeCactusTile = cactusCandidate;
+          break;
+        }
+      }
+      if (!aoeOriginTile || !aoeCactusTile) {
+        throw new Error("Hazard harness needs an adjacent grown pair for AOE cactus testing.");
+      }
+
       this.state.tileHazards = {};
       this.state.debuffs = {};
       this.state.hazardStats = {
@@ -2149,6 +2176,29 @@ export class GameScene extends Phaser.Scene {
         hazardStats: { ...this.state.hazardStats },
         seenHazards: [...this.state.journal.seenHazardIds],
       });
+
+      const aoeNow = Date.now();
+      const aoeCactusKey = this.getTileKey(aoeCactusTile);
+      const prickedCountBeforeAoe = this.state.hazardStats.prickedCount;
+      const cactusClearedBeforeAoe = this.state.hazardStats.cactusCleared;
+      const prickedExpiresBeforeAoe = this.state.debuffs.pricked?.expiresAt ?? 0;
+      this.state.tileHazards[aoeCactusKey] = { id: "cactus", createdAt: aoeNow, expiresAt: aoeNow + 60000 };
+      this.refreshTile(aoeCactusTile);
+      checks.aoeSkipsCactus = !this.shouldComboAoeTouchTile(aoeCactusTile) && this.state.tileHazards[aoeCactusKey]?.id === "cactus";
+      checks.aoeAllowsNonCactusNeighbor = this.shouldComboAoeTouchTile(aoeOriginTile);
+      checks.aoeDoesNotApplyPricked =
+        this.state.hazardStats.prickedCount === prickedCountBeforeAoe &&
+        this.state.hazardStats.cactusCleared === cactusClearedBeforeAoe &&
+        (this.state.debuffs.pricked?.expiresAt ?? 0) === prickedExpiresBeforeAoe;
+      capture("afterAoeCactusSkip", {
+        hazardStats: { ...this.state.hazardStats },
+        tileStates: {
+          [aoeCactusKey]: aoeCactusTile.grassState,
+        },
+        seenHazards: [...this.state.journal.seenHazardIds],
+      });
+      delete this.state.tileHazards[aoeCactusKey];
+      this.refreshTile(aoeCactusTile);
 
       capture("complete");
     } catch (error) {
@@ -6185,9 +6235,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.cancelCommonRedrawQueue();
-    if (reason === "field") {
+    if (this.shouldResetPositionBoundBoardVisuals(reason)) {
       this.resetFieldLayoutVisuals();
-    } else if (reason === "pan" || reason === "zoom" || reason === "resize") {
+    } else if (reason === "pan") {
       this.clearBoardTransientEffects();
     }
     this.layoutPassCount += 1;
@@ -6324,6 +6374,10 @@ export class GameScene extends Phaser.Scene {
         this.recordPerfScope(`layout:${reason}`, duration);
       }
     }
+  }
+
+  private shouldResetPositionBoundBoardVisuals(reason: BoardLayoutReason): boolean {
+    return reason === "field" || reason === "resize" || reason === "ui" || reason === "zoom";
   }
 
   private updateBoardViewport(bounds: FieldBounds, centerX: number, centerY: number): void {
@@ -6717,6 +6771,14 @@ export class GameScene extends Phaser.Scene {
         this.commonStampOpsSinceLastPerf += 1;
       }
     }
+  }
+
+  private eraseCommonTileFootprint(tile: FieldTile, position = this.getTileScreenPosition(tile)): void {
+    if (!this.commonTileLayer || !position || !this.textures.exists(COMMON_TILE_ERASER_TEXTURE_KEY)) {
+      return;
+    }
+
+    this.commonTileLayer.erase(this.textures.getFrame(COMMON_TILE_ERASER_TEXTURE_KEY), position.x, position.y);
   }
 
   private positionTileView(tile: FieldTile, view: TileView, x?: number, y?: number): void {
@@ -8044,9 +8106,11 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const nearbyRestingTiles = Phaser.Utils.Array.Shuffle(this.getNeighborTiles(originTile).filter((tile) => tile.grassState === "regrowing"));
+    const nearbyRestingTiles = Phaser.Utils.Array.Shuffle(
+      this.getNeighborTiles(originTile).filter((tile) => tile.grassState === "regrowing" && !this.hasActiveCactusHazard(tile)),
+    );
     const maxSplashTiles = 1 + (comboCount >= 6 ? 1 : 0) + (comboCount >= 12 ? 1 : 0);
-    const candidates = [originTile, ...nearbyRestingTiles].filter((tile) => tile.grassState === "regrowing");
+    const candidates = [originTile, ...nearbyRestingTiles].filter((tile) => tile.grassState === "regrowing" && !this.hasActiveCactusHazard(tile));
     const wateredTiles: FieldTile[] = [];
 
     for (const tile of candidates) {
@@ -8075,7 +8139,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private pollinateNeighborFromPlacement(originTile: FieldTile): void {
-    const candidates = this.getNeighborTiles(originTile).filter((tile) => tile.grassState === "grown");
+    const candidates = this.getNeighborTiles(originTile).filter((tile) => tile.grassState === "grown" && !this.hasActiveCactusHazard(tile));
     const tile = Phaser.Utils.Array.GetRandom(candidates);
     if (!tile) {
       return;
@@ -8136,7 +8200,7 @@ export class GameScene extends Phaser.Scene {
     const candidates = Phaser.Utils.Array.Shuffle(this.getNeighborTiles(originTile)).slice(0, 2);
     let changed = 0;
     for (const tile of candidates) {
-      if (tile.grassState !== "grown") {
+      if (tile.grassState !== "grown" || this.hasActiveCactusHazard(tile)) {
         continue;
       }
 
@@ -8160,6 +8224,10 @@ export class GameScene extends Phaser.Scene {
 
     let changed = 0;
     for (const tile of Phaser.Utils.Array.Shuffle(this.getNeighborTiles(originTile)).slice(0, 4)) {
+      if (this.hasActiveCactusHazard(tile)) {
+        continue;
+      }
+
       if (tile.grassState === "regrowing") {
         const remainingMs = Math.max(0, tile.regrowEndsAt - now);
         tile.regrowEndsAt = now + Math.max(350, Math.floor(remainingMs * 0.62));
@@ -8373,7 +8441,7 @@ export class GameScene extends Phaser.Scene {
     let gainedTouches = 0;
     for (const neighbor of COMBO_AOE_NEIGHBORS) {
       const tile = this.state.field[tileKey(originTile.x + neighbor.x, originTile.y + neighbor.y)];
-      if (!tile || tile.grassState !== "grown") {
+      if (!this.shouldComboAoeTouchTile(tile)) {
         continue;
       }
 
@@ -8432,6 +8500,14 @@ export class GameScene extends Phaser.Scene {
     return Math.min(0.45, chance);
   }
 
+  private shouldComboAoeTouchTile(tile: FieldTile | undefined): tile is FieldTile {
+    return Boolean(tile && tile.grassState === "grown" && !this.hasActiveCactusHazard(tile));
+  }
+
+  private hasActiveCactusHazard(tile: FieldTile): boolean {
+    return getTileHazard(this.state, this.getTileKey(tile))?.id === "cactus";
+  }
+
   private isWeatherActive(weatherId: WeatherId): boolean {
     return Boolean(this.state.seedShopPurchases.weather_jar && this.state.activeWeatherId === weatherId);
   }
@@ -8443,19 +8519,9 @@ export class GameScene extends Phaser.Scene {
           this.queueSave();
         }
 
-        if (this.isAmbientFeedbackActive()) {
-          this.refreshTile(tile);
-          return;
-        }
-
         this.createTileView(tile);
       },
       layoutTiles: () => {
-        if (this.isAmbientFeedbackActive()) {
-          this.commonTileLayerDirty = true;
-          return;
-        }
-
         this.layoutTiles("field");
       },
       popAtTile: (tile, text, color) => this.popAtTile(tile, text, color),
@@ -8719,30 +8785,29 @@ export class GameScene extends Phaser.Scene {
     const y = position.y;
     const color = this.getTierHighlightColor(tile.tier);
     const stroke = tile.tier === "normal" ? 0xbff4ff : color;
-    this.activeAutoTouchVisualObjects += 2;
-    const grassGhost = this.add
-      .image(x, y, this.getGrassTextureKey(tile))
-      .setScale(this.boardScale * this.getGrassScale(tile))
-      .setTint(stroke)
-      .setAlpha(0.38)
-      .setDepth(34);
-    const ring = this.add
-      .ellipse(x, y + 2 * this.boardScale, TILE_SIZE * 0.5 * this.boardScale, TILE_SIZE * 0.3 * this.boardScale, 0xbff4ff, 0.13)
-      .setStrokeStyle(Math.max(1, 2 * this.boardScale), stroke, 0.74)
-      .setDepth(35);
+    const ring = this.trackAutoTouchVisualObject(
+      this.add
+        .ellipse(x, y + 2 * this.boardScale, TILE_SIZE * 0.5 * this.boardScale, TILE_SIZE * 0.3 * this.boardScale, 0xbff4ff, 0.13)
+        .setStrokeStyle(Math.max(1, 2 * this.boardScale), stroke, 0.74)
+        .setDepth(35),
+    );
+    const spark = this.trackAutoTouchVisualObject(
+      this.add
+        .star(x, y - 12 * this.boardScale, 5, TILE_SIZE * 0.05 * this.boardScale, TILE_SIZE * 0.2 * this.boardScale, stroke, 0.52)
+        .setStrokeStyle(Math.max(1, 2 * this.boardScale), 0xf7ffe8, 0.58)
+        .setDepth(36),
+    );
 
     this.tweens.add({
-      targets: grassGhost,
-      scaleX: grassGhost.scaleX * 1.14,
-      scaleY: grassGhost.scaleY * 0.72,
-      y: y + 5 * this.boardScale,
+      targets: spark,
+      angle: 28,
+      scaleX: 1.35,
+      scaleY: 1.35,
+      y: spark.y - 6 * this.boardScale,
       alpha: 0,
       duration: 250,
       ease: "Sine.easeOut",
-      onComplete: () => {
-        this.activeAutoTouchVisualObjects = Math.max(0, this.activeAutoTouchVisualObjects - 1);
-        grassGhost.destroy();
-      },
+      onComplete: () => spark.destroy(),
     });
 
     this.tweens.add({
@@ -8752,10 +8817,7 @@ export class GameScene extends Phaser.Scene {
       alpha: 0,
       duration: 330,
       ease: "Sine.easeOut",
-      onComplete: () => {
-        this.activeAutoTouchVisualObjects = Math.max(0, this.activeAutoTouchVisualObjects - 1);
-        ring.destroy();
-      },
+      onComplete: () => ring.destroy(),
     });
 
     this.emitBurst(tile.trait === "dewy" ? "dew-fleck" : "grass-fleck", x, y - 6 * this.boardScale, 6, 0.45, 0.1);
@@ -8764,6 +8826,19 @@ export class GameScene extends Phaser.Scene {
       this.lastAutoTouchPopAt = now;
       this.popAtTile(tile, "auto", "#bff4ff");
     }
+  }
+
+  private trackAutoTouchVisualObject<T extends Phaser.GameObjects.GameObject>(effect: T): T {
+    this.activeAutoTouchVisualObjects += 1;
+    let released = false;
+    effect.once("destroy", () => {
+      if (released) {
+        return;
+      }
+      released = true;
+      this.activeAutoTouchVisualObjects = Math.max(0, this.activeAutoTouchVisualObjects - 1);
+    });
+    return this.trackBoardTransient(effect);
   }
 
   private updateFieldLifeVisuals(delta: number, now: number): void {
@@ -9811,6 +9886,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.dirtyTileViewKeys.add(key);
+    this.eraseCommonTileFootprint(tile, position);
     if (!this.tileViews.has(key)) {
       this.createTileView(tile);
     }
@@ -9904,25 +9980,6 @@ export class GameScene extends Phaser.Scene {
 
     if (view && showFlourish) {
       this.resetBaseTilePose(view);
-      const grassGhost = this.trackBoardTransient(
-        this.add
-          .image(x, y, view.grass.texture.key)
-          .setScale(view.grass.scaleX, view.grass.scaleY)
-          .setAlpha(0.95)
-          .setDepth(33),
-      );
-
-      this.tweens.add({
-        targets: grassGhost,
-        scaleX: grassGhost.scaleX * 1.28,
-        scaleY: grassGhost.scaleY * 0.62,
-        alpha: 0,
-        y: y + 5,
-        duration: 170,
-        ease: "Back.easeIn",
-        onComplete: () => grassGhost.destroy(),
-      });
-
       this.addTileImpactPulse(x, y, baseScale, isCrit);
     }
 
@@ -9985,14 +10042,6 @@ export class GameScene extends Phaser.Scene {
         .setStrokeStyle(Math.max(1, 2 * scale), 0xffffff, 0.92)
         .setDepth(42),
     );
-    const grassGhost = this.trackBoardTransient(
-      this.add
-        .image(x, y, this.getGrassTextureKeyFor(touchedTier, touchedTrait))
-        .setScale(scale * this.getGrassScaleFor(touchedTier, touchedTrait))
-        .setAlpha(0.78)
-        .setTint(0xf7ffe8)
-        .setDepth(41),
-    );
     const label = this.trackBoardTransient(
       this.add
         .text(x, y - 43 * scale, "FIRST TOUCH", {
@@ -10036,16 +10085,6 @@ export class GameScene extends Phaser.Scene {
       duration: 650,
       ease: "Sine.easeOut",
       onComplete: () => sparkle.destroy(),
-    });
-    this.tweens.add({
-      targets: grassGhost,
-      scaleX: grassGhost.scaleX * 1.34,
-      scaleY: grassGhost.scaleY * 1.34,
-      y: grassGhost.y - 18 * scale,
-      alpha: 0,
-      duration: 620,
-      ease: "Back.easeOut",
-      onComplete: () => grassGhost.destroy(),
     });
     this.tweens.add({
       targets: label,
@@ -10141,26 +10180,57 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (view && this.reserveAmbientTransientObject()) {
-      const finalScale = this.boardScale * this.getGrassScale(tile);
+    if (view && this.reserveAmbientTransientObject(2)) {
+      const ring = this.trackBoardTransient(
+        this.add
+          .ellipse(
+            position.x,
+            position.y + 4 * this.boardScale,
+            TILE_SIZE * 0.44 * this.boardScale,
+            TILE_SIZE * 0.22 * this.boardScale,
+            0xdfffc8,
+            0.18,
+          )
+          .setStrokeStyle(Math.max(1, 2 * this.boardScale), 0xb7eba5, 0.72)
+          .setDepth(34),
+      );
       const sprout = this.trackBoardTransient(
         this.add
-          .image(position.x, position.y + 12 * this.boardScale, this.getGrassTextureKey(tile))
-          .setScale(finalScale * 0.18, finalScale * 0.08)
-          .setAlpha(0.72)
-          .setDepth(34),
+          .star(
+            position.x,
+            position.y - 12 * this.boardScale,
+            5,
+            TILE_SIZE * 0.055 * this.boardScale,
+            TILE_SIZE * 0.22 * this.boardScale,
+            0xdfffc8,
+            0.72,
+          )
+          .setStrokeStyle(Math.max(1, 2 * this.boardScale), 0xf7ffe8, 0.78)
+          .setDepth(35),
       );
 
       if (this.boardViewportMask) {
+        ring.setMask(this.boardViewportMask);
         sprout.setMask(this.boardViewportMask);
       }
 
       this.tweens.add({
-        targets: sprout,
-        scaleX: finalScale * 1.18,
-        scaleY: finalScale * 1.18,
+        targets: ring,
+        scaleX: 1.85,
+        scaleY: 1.35,
         alpha: 0,
-        y: position.y,
+        duration: 260,
+        ease: "Sine.easeOut",
+        onComplete: () => ring.destroy(),
+      });
+
+      this.tweens.add({
+        targets: sprout,
+        scaleX: 1.24,
+        scaleY: 1.24,
+        angle: 24,
+        alpha: 0,
+        y: sprout.y - 8 * this.boardScale,
         duration: 260,
         ease: "Back.easeOut",
         onComplete: () => sprout.destroy(),
@@ -10827,8 +10897,9 @@ export class GameScene extends Phaser.Scene {
   private createTileTextures(): void {
     this.createDirtTexture("tile-dirt", 0x8a6139, 0x6b4529);
     this.createDirtTexture("tile-stubble", 0x6f4c2f, 0x4c301f, true);
-    this.createDirtTexture("tile-cactus-dirt", 0x9c6b3f, 0x5f3d25);
-    this.createDirtTexture("tile-cactus-stubble", 0x7f5633, 0x472d1e, true);
+    this.createCommonTileEraserTexture();
+    this.createDirtTexture("tile-cactus-dirt", 0xb64a58, 0x612037);
+    this.createDirtTexture("tile-cactus-stubble", 0x8e3448, 0x4c1930, true);
     for (const tier of GRASS_TIERS) {
       this.createGrassTexture(`grass-${tier.id}`, tier.colors, false, false);
       this.createGrassTexture(`grass-${tier.id}-dewy`, brightenColors(tier.colors, 0x264c55), true, false);
@@ -10886,6 +10957,18 @@ export class GameScene extends Phaser.Scene {
     }
 
     graphics.generateTexture(key, TILE_SIZE, TILE_SIZE);
+    graphics.destroy();
+  }
+
+  private createCommonTileEraserTexture(): void {
+    if (this.textures.exists(COMMON_TILE_ERASER_TEXTURE_KEY)) {
+      return;
+    }
+
+    const graphics = this.add.graphics();
+    graphics.fillStyle(0xffffff, 1);
+    graphics.fillRect(0, 0, COMMON_TILE_ERASER_SIZE, COMMON_TILE_ERASER_SIZE);
+    graphics.generateTexture(COMMON_TILE_ERASER_TEXTURE_KEY, COMMON_TILE_ERASER_SIZE, COMMON_TILE_ERASER_SIZE);
     graphics.destroy();
   }
 

@@ -1,0 +1,104 @@
+{
+  "date": "2026-06-27",
+  "topic": "Tile Ghosting Hotfix",
+  "currentGoal": "Fix the remaining weird grass tile visual artifacts shown in user screenshots, especially duplicate/old-position grass tiles after the play area grows or resizes.",
+  "sessionOutcome": {
+    "status": "complete",
+    "committed": false,
+    "pushed": false,
+    "devServer": "http://127.0.0.1:5173/",
+    "latestLocalBuildAsset": "dist/assets/index-DMQihXdh.js"
+  },
+  "workCompleted": [
+    "Inspected the user screenshots and identified three visual artifact sources: stale batch-layer stamps underneath dirty live tile views, regrow feedback animating a squashed full grass tile texture, and other touch/automation feedback animating full grass-tile copies.",
+    "Added a generated tile-common-eraser texture and erased the stale common-layer footprint when a batch tile enters the dirty temporary-live-view path.",
+    "Replaced regrow feedback's full grass-tile image sprout with a lightweight ring plus star sparkle so it no longer resembles a duplicate mini tile.",
+    "Removed the remaining grassGhost/full grass-tile copies from normal touch feedback, first-touch feedback, and automation touch visuals; automation now uses a small star sparkle plus ring.",
+    "Changed Wild Spread tile feedback so newly added tiles always create/register tile views and run layoutTiles('field'), even while ambient feedback budgeting is active. This keeps cached field bounds and tile positions current before drop/sprout animations run.",
+    "After the user clarified the artifact happens when the play screen size increases, fixed the actual resize path: resize/ui/zoom/field layouts now reset position-bound board visuals, killing active tile-view tweens, clearing perfect-touch cues, pop text, and tracked board effects before redrawing at the new geometry.",
+    "Tracked automation touch ring/spark objects as board transients and moved active-object cleanup to destroy listeners, so resize cleanup can remove them without leaving the counter stale.",
+    "Verified desktop, phone, tablet, live-mode growth, width-growth resize, and height-only resize runs after the visual changes.",
+    "Captured resize repro screenshots around 835px width and live-mode small-field runs; the board no longer shows old-position duplicate tile copies after the play area grows."
+  ],
+  "filesChangedThisSession": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-27_TILE_GHOSTING_HOTFIX.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed; dist/assets/index-DMQihXdh.js"
+    },
+    {
+      "command": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200, default desktop viewport",
+      "result": "complete; tileMode=batch; Wild Spread grew totalTiles 1200->1202; visibleTiles 1160-1202; frameSpikes=0; redrawQueued=0; maxFrameDeltaMs range 7-16; final hotspots='hot none'"
+    },
+    {
+      "command": "Browser perf harness at 390x844 viewport",
+      "result": "complete; tileMode=viewport; Wild Spread grew totalTiles 1200->1206; visibleTiles 42-49; frameSpikes=0; redrawQueued=0; maxFrameDeltaMs range 7-13; final hotspots='hot none'"
+    },
+    {
+      "command": "Browser visual screenshot at 390x844 viewport after harness",
+      "result": "no visible mini grass-tile slab in the captured board; touch/regrow effects read as rings/sparkles rather than duplicate grass patches"
+    },
+    {
+      "command": "Browser perf harness at 820x1180 viewport",
+      "result": "complete; tileMode=viewport; Wild Spread grew totalTiles 1200->1204; visibleTiles 154-168; frameSpikes=0; redrawQueued=0; maxFrameDeltaMs range 7-13; final hotspots='hot none'"
+    },
+    {
+      "command": "Browser perf harness at 390x844 viewport with http://127.0.0.1:5173/?perfHarness&tiles=120",
+      "result": "complete; tileMode=live; Wild Spread grew totalTiles 120->122; visibleTiles 103-122; frameSpikes=0; layoutPasses=0; redraws=0; redrawQueued=0; maxFrameDeltaMs range 7-11; screenshot looked clean"
+    },
+    {
+      "command": "rg -n \"grassGhost|this\\.add\\.image\\([^\\n]*(grass|tile)|getGrassTextureKey\\(|getGrassTextureKeyFor\\(\" src\\game\\scenes\\GameScene.ts",
+      "result": "passed; no grassGhost references remain, and grass texture lookups are limited to real tile rendering helpers"
+    },
+    {
+      "command": "Browser resize repro at 760x620 -> 1040x620 with http://127.0.0.1:5173/?stress&perf&tiles=1200",
+      "result": "passed visually; mode switched viewport->batch, resize layout ran once, no old-position large tile copies remained after resize"
+    },
+    {
+      "command": "Browser live-tile resize repro at 760x516 -> 1040x620 with http://127.0.0.1:5173/?stress&perf&tiles=120",
+      "result": "passed visually; tileMode stayed live, tileViews=120, dirtyTiles=0, staleTiles=0, no duplicate old-position tile objects after resize"
+    },
+    {
+      "command": "Browser height-only resize repro at 835x516 -> 835x720 with http://127.0.0.1:5173/?stress&perf&tiles=120",
+      "result": "passed visually; tileMode stayed live, tileViews=120, dirtyTiles=0, staleTiles=0, no duplicate old-position tile objects after the play area height increased"
+    },
+    {
+      "command": "git diff --check -- src/game/scenes/GameScene.ts handoffs/LATEST.json handoffs/HANDOFF_2026-06-27_TILE_GHOSTING_HOTFIX.json",
+      "result": "passed; Git printed expected Windows LF-to-CRLF warnings for tracked files"
+    }
+  ],
+  "knownIssues": [
+    "The user should still real-save test this exact artifact, because the original screenshots came from live play and may involve timing that the harness only approximates.",
+    "A regrowing tile will still show a darker/stubble square by design; the fixed bug is the duplicate grass-tile slab/ghosting around it.",
+    "Earlier automation baseline/stats changes remain dirty and uncommitted from the previous session slice."
+  ],
+  "currentGitStatusBeforeCommit": [
+    "M AGENTS.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "M handoffs/LATEST.json",
+    "M src/game/data/automation-systems.ts (automation slice from previous session)",
+    "M src/game/data/quests.ts (automation slice from previous session)",
+    "M src/game/data/seed-shop.ts (automation slice from previous session)",
+    "M src/game/scenes/GameScene.ts (this tile hotfix)",
+    "M src/game/systems/AutomationIncomeSystem.ts (automation slice from previous session)",
+    "Untracked docs/media artifacts remain pre-existing and unrelated, including Dutch automation docs, docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json",
+    "Untracked handoffs/HANDOFF_2026-06-27_AUTOMATION_BASELINE_AND_STATS_FIX.json and this tile handoff are real session artifacts unless the user asks to discard them."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user retest the same save and watch the exact resize/growing play-area moment, especially browser/window height changes and switching between compact and wider layouts.",
+    "If ghosting still appears, instrument active tweens and tile view world positions during resize, because the confirmed issue family is stale position-bound objects after board geometry changes.",
+    "If the artifact is gone, commit the intended source files plus both 2026-06-27 handoffs and LATEST.json; keep unrelated docs/assets out unless explicitly triaged."
+  ],
+  "doNotRevert": [
+    "Do not restore the regrow feedback that uses this.getGrassTextureKey(tile) as a growing image unless intentionally bringing back the mini-tile-looking animation.",
+    "Do not restore the grassGhost full-tile copies in normal touch, first-touch, or automation touch feedback unless replacing them with non-tile-shaped visuals.",
+    "Do not remove the common-layer footprint erase without replacing it with another way to prevent stale batch stamps from showing under dirty live tile views.",
+    "Do not reintroduce the ambient-feedback shortcut that skips structural field layout after Wild Spread adds tiles; new tiles need registration/layout before drop and sprout visuals.",
+    "Do not narrow resize/ui/zoom/field layout cleanup back to clearBoardTransientEffects only; geometry-changing layouts must cancel tile-view tweens and position-bound overlays before redraw.",
+    "Do not stage, clean, or revert unrelated AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, or untracked docs/media artifacts without explicit user direction."
+  ]
+}

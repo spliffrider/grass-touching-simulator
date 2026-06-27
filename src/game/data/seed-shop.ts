@@ -19,7 +19,7 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
   {
     id: "sprinkler",
     name: "Tiny Sprinkler Blueprint",
-    description: "Installs Tiny Sprinkler field behavior. Store opens after Sprinkler Calibration.",
+    description: "Installs the placed Tiny Sprinkler field tool. Store routes are separate passive operations.",
     cost: 20,
     isUnlocked: (state) => state.seedShopPurchases.seed_pouch === true,
   },

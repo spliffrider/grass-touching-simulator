@@ -1,0 +1,82 @@
+{
+  "date": "2026-06-27",
+  "topic": "Cactus Visibility And AOE Guard",
+  "previousHandoff": "HANDOFF_2026-06-27_TILE_GHOSTING_HOTFIX.json",
+  "currentGoal": "Make cactus hazard tiles easier to see and prevent crit/AOE/indirect touch effects from activating cactus hazards.",
+  "sessionOutcome": {
+    "status": "complete",
+    "committed": false,
+    "pushed": false,
+    "devServer": "http://127.0.0.1:5173/",
+    "latestLocalBuildAsset": "dist/assets/index-0wq8LrqD.js"
+  },
+  "workCompleted": [
+    "Changed cactus hazard tile bases from brown dirt tones to rose/red warning dirt and stubble colors so cactus tiles stand out under the cactus art.",
+    "Added a scene-level active-cactus guard and used it in watering-can splash, placement pollination, wildflower pollination, mushroom spores, and combo AOE touch selection.",
+    "Added a named shouldComboAoeTouchTile predicate so combo AOE explicitly accepts grown non-cactus tiles and rejects active cactus hazards.",
+    "Updated sprinkler automation target selection so grown/regrowing targets exclude active cactus hazards before touch or growth effects run.",
+    "Updated animal companion automation target selection so field mouse, rabbit, bee, chicken, sheep, and earthworm helper effects avoid active cactus hazards.",
+    "Extended the hazard harness with an AOE cactus regression check: AOE rejects the cactus tile, still accepts a non-cactus grown tile, and does not add Pricked or cactus-cleared stats.",
+    "Kept direct player cactus interaction intact: manual and persistent direct touches still route through handleHazardTileClicked."
+  ],
+  "filesChangedThisSession": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/systems/SprinklerSystem.ts",
+    "src/game/systems/AnimalCompanionSystem.ts",
+    "handoffs/HANDOFF_2026-06-27_CACTUS_VISIBILITY_AND_AOE_GUARD.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed; dist/assets/index-0wq8LrqD.js"
+    },
+    {
+      "command": "Browser hazard harness at http://127.0.0.1:5173/?hazardHarness&tiles=120",
+      "result": "passed; aoeSkipsCactus=true, aoeAllowsNonCactusNeighbor=true, aoeDoesNotApplyPricked=true, errors=[]"
+    },
+    {
+      "command": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200, default desktop viewport",
+      "result": "complete; tileMode=batch; totalTiles 1200->1202; visibleTiles 1189-1202; layoutPasses=0; redraws=0; redrawQueued=0; frameSpikes=0; maxFrameDeltaMs range 8-17; final hotspots='hot none'"
+    },
+    {
+      "command": "git diff --check -- src/game/scenes/GameScene.ts src/game/systems/SprinklerSystem.ts src/game/systems/AnimalCompanionSystem.ts",
+      "result": "passed; Git printed expected Windows LF-to-CRLF warnings for tracked files"
+    },
+    {
+      "command": "rg -n \"touchTile\\(|hasActiveCactusHazard|getSafeRegrowingTiles|aoeSkipsCactus|tile-cactus-dirt|tile-cactus-stubble\" src/game/scenes/GameScene.ts src/game/systems/SprinklerSystem.ts src/game/systems/AnimalCompanionSystem.ts",
+      "result": "reviewed remaining touch paths; manual direct touch still handles hazards, combo AOE/sprinkler/companion indirect paths are cactus-aware"
+    }
+  ],
+  "knownIssues": [
+    "Cactus colors may still need a quick subjective pass in real play to choose the exact warning hue, but they are now intentionally distinct from normal dirt.",
+    "Persistent Touch remains direct player input and still clears cactus if held directly over a grown cactus hazard.",
+    "Earlier automation baseline/stats changes and tile ghosting hotfix changes remain dirty and uncommitted in the same working tree."
+  ],
+  "currentGitStatusBeforeCommit": [
+    "M AGENTS.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "M handoffs/LATEST.json",
+    "M src/game/data/automation-systems.ts (automation slice from earlier session work)",
+    "M src/game/data/quests.ts (automation slice from earlier session work)",
+    "M src/game/data/seed-shop.ts (automation slice from earlier session work)",
+    "M src/game/scenes/GameScene.ts (tile ghosting hotfix plus cactus visibility/AOE guard)",
+    "M src/game/systems/AnimalCompanionSystem.ts (cactus-aware companion targeting)",
+    "M src/game/systems/AutomationIncomeSystem.ts (automation slice from earlier session work)",
+    "M src/game/systems/SprinklerSystem.ts (cactus-aware sprinkler targeting)",
+    "Untracked docs/media artifacts remain pre-existing and unrelated, including Dutch automation docs, docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json",
+    "Untracked 2026-06-27 handoffs are real session artifacts unless the user asks to discard them."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user play for a few minutes with cactus hazards active and confirm the new rose/red base is visible enough at the usual zoom.",
+    "If the cactus should be even louder, tune tile-cactus-dirt and tile-cactus-stubble colors in GameScene.createTileTextures.",
+    "When ready, commit the intended source files plus all real 2026-06-27 handoffs and LATEST.json; keep unrelated docs/assets out unless explicitly triaged."
+  ],
+  "doNotRevert": [
+    "Do not remove the active-cactus filters from combo AOE, sprinkler, animal companion, watering-can, pollination, or spores paths unless replacing them with a shared equivalent.",
+    "Do not make touchTile itself clear cactus hazards; cactus clearing is intentionally handled by direct hazard interaction.",
+    "Do not restore the old brown cactus base colors unless replacing them with another high-contrast hazard background.",
+    "Do not revert the tile ghosting hotfix changes described in HANDOFF_2026-06-27_TILE_GHOSTING_HOTFIX.json.",
+    "Do not stage, clean, or revert unrelated AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, or untracked docs/media artifacts without explicit user direction."
+  ]
+}

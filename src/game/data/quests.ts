@@ -271,11 +271,11 @@ export const QUESTS: QuestDefinition[] = [
     id: "sprinkler_owner",
     category: "Seed Shop",
     name: "Responsible Hydration",
-    description: "Get a Tiny Sprinkler running from the Store.",
+    description: "Get a Sprinkler Route running from the Store.",
     reward: { gold: 2 },
     prerequisiteQuestIds: ["seed_pouch_owner"],
     isComplete: (state) => (state.automationSystems?.sprinkler?.owned ?? 0) > 0,
-    getProgress: (state) => `${Math.min(1, state.automationSystems?.sprinkler?.owned ?? 0)}/1 Tiny Sprinklers running`,
+    getProgress: (state) => `${Math.min(1, state.automationSystems?.sprinkler?.owned ?? 0)}/1 Sprinkler Routes running`,
   },
   {
     id: "sprinkler_placed",
@@ -290,7 +290,7 @@ export const QUESTS: QuestDefinition[] = [
         ? "Tiny Sprinkler placed"
         : (state.automationSystems?.sprinkler?.owned ?? 0) > 0
           ? "Not placed yet"
-          : "Get a Tiny Sprinkler running first",
+          : "Start a Sprinkler Route first",
   },
   {
     id: "automation_actions_25",

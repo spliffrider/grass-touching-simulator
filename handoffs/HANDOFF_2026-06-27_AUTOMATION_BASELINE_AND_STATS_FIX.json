@@ -1,0 +1,141 @@
+{
+  "date": "2026-06-27",
+  "topic": "Automation Baseline And Stats Fix",
+  "currentGoal": "Continue from the tile visual alignment session by recording a post-fix performance baseline, reading automation design notes, and taking a small safe automation improvement slice.",
+  "sessionOutcome": {
+    "status": "complete",
+    "committed": false,
+    "pushed": false,
+    "devServer": "http://127.0.0.1:5173/",
+    "latestLocalBuildAsset": "dist/assets/index-BIQOdqq9.js"
+  },
+  "workCompleted": [
+    "Read the latest handoff and respected its dirty-worktree warnings.",
+    "Read the duplicate Dutch automation design notes and the larger systems reference.",
+    "Confirmed the existing automation code already includes derivative support, milestone multipliers, directives, pair synergies, and automation quests.",
+    "Captured desktop, phone, and tablet perf harness baselines at ?perfHarness&tiles=1200.",
+    "Fixed passive automation income double-counting automated actions by removing the extra recordAutomationAction call from AutomationIncomeSystem.",
+    "Renamed the passive Automation Store sprinkler item from Tiny Sprinkler to Sprinkler Route while keeping the stable id as sprinkler.",
+    "Clarified Tiny Sprinkler Blueprint copy and related quest text so the passive store route and placed Tiny Sprinkler read as separate layers."
+  ],
+  "filesChangedThisSession": [
+    "src/game/systems/AutomationIncomeSystem.ts",
+    "src/game/data/automation-systems.ts",
+    "src/game/data/seed-shop.ts",
+    "src/game/data/quests.ts",
+    "handoffs/HANDOFF_2026-06-27_AUTOMATION_BASELINE_AND_STATS_FIX.json",
+    "handoffs/LATEST.json"
+  ],
+  "performanceBaseline": {
+    "url": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+    "desktopDefaultPreFix": {
+      "viewport": "default in-app browser viewport",
+      "status": "complete",
+      "visibleTilesRange": "1194-1206",
+      "tileMode": "batch",
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMsRange": "7-19",
+      "frameSpikes": 0,
+      "displayObjectsRange": "301-648",
+      "activeTweensRange": "11-22",
+      "notableHotspot": "saveStringify 2.3ms",
+      "browserWarningsOrErrors": 0
+    },
+    "phone390x844PreFix": {
+      "viewport": "390x844",
+      "status": "complete",
+      "visibleTilesRange": "42-49",
+      "tileMode": "viewport",
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "commonStamps": 0,
+      "maxFrameDeltaMsRange": "7-14",
+      "frameSpikes": 0,
+      "displayObjectsRange": "408-436",
+      "activeTweensRange": "12-24",
+      "notableHotspot": "saveStringify 0.9ms",
+      "browserWarningsOrErrors": 0
+    },
+    "tablet820x1180PreFix": {
+      "viewport": "820x1180",
+      "status": "complete",
+      "visibleTilesRange": "143-154",
+      "tileMode": "viewport",
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "commonStamps": 0,
+      "maxFrameDeltaMsRange": "7-12",
+      "frameSpikes": 0,
+      "displayObjectsRange": "1122-1219",
+      "activeTweensRange": "11-19",
+      "notableHotspot": "saveStringify 0.7ms",
+      "browserWarningsOrErrors": 0
+    },
+    "desktopPostFixSmoke": {
+      "viewport": "default in-app browser viewport",
+      "status": "complete",
+      "visibleTilesRange": "1200-1202",
+      "tileMode": "batch",
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMsRange": "8-17",
+      "frameSpikes": 0,
+      "displayObjectsRange": "301-467",
+      "activeTweensRange": "11-22",
+      "notableHotspot": "saveStringify 1.0ms",
+      "browserWarningsOrErrors": 0
+    }
+  },
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed before code changes; dist/assets/index-B0MuIBuT.js"
+    },
+    {
+      "command": "Browser perf harness at default viewport, 390x844, and 820x1180",
+      "result": "all completed with frameSpikes=0, layoutPasses=0, redraws=0, redrawQueued=0, and no browser warnings/errors"
+    },
+    {
+      "command": "npm run build",
+      "result": "passed after AutomationIncomeSystem stats fix; dist/assets/index-BKBOPCD3.js"
+    },
+    {
+      "command": "Browser perf harness desktop smoke after stats fix",
+      "result": "completed with frameSpikes=0 and no browser warnings/errors"
+    },
+    {
+      "command": "npm run build",
+      "result": "passed after sprinkler copy changes; dist/assets/index-BIQOdqq9.js"
+    }
+  ],
+  "knownIssues": [
+    "Passive automation action quests now progress at the intended single-action rate for passive income ticks; this may feel slower than the previous double-counted rate and should be playtested.",
+    "The active Tiny Sprinkler and passive Sprinkler Route relationship is clearer in copy, but the deeper ownership model is still a little odd: store ownership supplies the placeable object quantity, while active sprinkler behavior checks the seed blueprint.",
+    "Pre-existing dirty files remain untouched except for this session's intended source and handoff edits."
+  ],
+  "currentGitStatusBeforeCommit": [
+    "M AGENTS.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "M docs/DESKTOP_MAC_SYNC_WORKFLOW.md (pre-existing/unrelated; do not stage without explicit user direction)",
+    "M src/game/data/automation-systems.ts",
+    "M src/game/data/quests.ts",
+    "M src/game/data/seed-shop.ts",
+    "M src/game/systems/AutomationIncomeSystem.ts",
+    "Untracked docs/media artifacts remain pre-existing and unrelated, including Dutch automation docs, docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json",
+    "New handoff files from this session are also dirty until staged/committed."
+  ],
+  "nextRecommendedSteps": [
+    "Play the early automation flow and check whether the 25-action automation quest still feels fair after the double-count fix.",
+    "Decide whether the Sprinkler Route should continue granting placeable Tiny Sprinkler quantity, or whether blueprint/store ownership should be separated more cleanly in a future slice.",
+    "If the current changes feel good, commit only the intended source files plus this handoff and LATEST.json; leave unrelated docs/assets alone unless explicitly triaged."
+  ],
+  "doNotRevert": [
+    "Do not reintroduce the extra passive-income recordAutomationAction call unless intentionally returning to double-counted automation action quest pacing.",
+    "Do not change the stable sprinkler id in saves; only user-facing copy changed.",
+    "Do not stage, clean, or revert unrelated AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, or untracked docs/media artifacts without explicit user direction."
+  ]
+}

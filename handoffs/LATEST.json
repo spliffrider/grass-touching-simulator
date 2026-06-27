@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-26",
-  "latestHandoff": "HANDOFF_2026-06-26_TILE_VISUAL_ALIGNMENT_LIVE_SYNCED.json",
+  "updatedAt": "2026-06-27",
+  "latestHandoff": "HANDOFF_2026-06-27_CACTUS_VISIBILITY_AND_AOE_GUARD.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

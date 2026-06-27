@@ -1,7 +1,7 @@
 import { getTotalAutomationTouchesPerMinute } from "../data/automation-systems";
 import { addGrassTouches, normalizeGrassTouches } from "./AmountSystem";
 import { getResolvedAutomationDirectiveId } from "./AutomationDirectiveSystem";
-import { recordAutomationAction, recordAutomationTouch } from "./AutomationProgressSystem";
+import { recordAutomationTouch } from "./AutomationProgressSystem";
 import type { GameState, RuntimeStats } from "../types/game-state";
 
 export interface AutomationIncomeResult {
@@ -34,7 +34,6 @@ export class AutomationIncomeSystem {
     state.lifetimeGrassTouches = addGrassTouches(state.lifetimeGrassTouches, gained);
 
     const directiveId = getResolvedAutomationDirectiveId(state);
-    recordAutomationAction(state, directiveId);
     recordAutomationTouch(state, gained, directiveId);
 
     return { changed: true, gained, touchesPerMinute };

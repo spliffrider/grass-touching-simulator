@@ -8,7 +8,8 @@ import {
 } from "./AutomationDirectiveSystem";
 import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
 import { recordAutomationAction, recordAutomationSupplyDrop, recordAutomationTouch } from "./AutomationProgressSystem";
-import { getRandomGrownTile, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
+import { getFieldTiles, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
+import { getTileHazard } from "./HazardSystem";
 import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait, TouchResult } from "../types/game-state";
 
 export interface SprinklerFeedback {
@@ -64,6 +65,10 @@ export class SprinklerSystem {
       const tile = getSprinklerTargetTile(state, sprinklerRadius, directiveId);
       if (!tile) {
         break;
+      }
+
+      if (hasActiveCactusHazard(state, tile)) {
+        continue;
       }
 
       if (tile.grassState === "regrowing") {
@@ -141,7 +146,7 @@ function getSprinklerGrownTargetTile(state: GameState, radius: number, directive
   const placement = state.placedWorldObjects.sprinkler;
   const placedTile = placement ? state.field[placement.tileKey] : undefined;
   if (!placedTile) {
-    return directiveId === "harvest" ? pickBestTile(sampleGrownTiles(state, 10), scoreHarvestTile) : getRandomGrownTile(state);
+    return directiveId === "harvest" ? pickBestTile(sampleSafeGrownTiles(state, 10), scoreHarvestTile) : getRandomSafeGrownTile(state);
   }
 
   const localTiles: FieldTile[] = [];
@@ -149,17 +154,17 @@ function getSprinklerGrownTargetTile(state: GameState, radius: number, directive
   for (let y = placedTile.y - radius; y <= placedTile.y + radius; y += 1) {
     for (let x = placedTile.x - radius; x <= placedTile.x + radius; x += 1) {
       const tile = state.field[tileKey(x, y)];
-      if (tile?.grassState === "grown") {
+      if (tile?.grassState === "grown" && !hasActiveCactusHazard(state, tile)) {
         localTiles.push(tile);
       }
     }
   }
 
   if (directiveId === "harvest") {
-    return pickBestTile(localTiles, scoreHarvestTile) ?? pickBestTile(sampleGrownTiles(state, 10), scoreHarvestTile);
+    return pickBestTile(localTiles, scoreHarvestTile) ?? pickBestTile(sampleSafeGrownTiles(state, 10), scoreHarvestTile);
   }
 
-  return Phaser.Utils.Array.GetRandom(localTiles) ?? getRandomGrownTile(state);
+  return Phaser.Utils.Array.GetRandom(localTiles) ?? getRandomSafeGrownTile(state);
 }
 
 function getSprinklerRegrowingTargetTile(state: GameState, radius: number): FieldTile | undefined {
@@ -167,20 +172,62 @@ function getSprinklerRegrowingTargetTile(state: GameState, radius: number): Fiel
   const placedTile = placement ? state.field[placement.tileKey] : undefined;
 
   if (!placedTile) {
-    return Phaser.Utils.Array.GetRandom(getRegrowingTiles(state));
+    return Phaser.Utils.Array.GetRandom(getSafeRegrowingTiles(state));
   }
 
   const localTiles: FieldTile[] = [];
   for (let y = placedTile.y - radius; y <= placedTile.y + radius; y += 1) {
     for (let x = placedTile.x - radius; x <= placedTile.x + radius; x += 1) {
       const tile = state.field[tileKey(x, y)];
-      if (tile?.grassState === "regrowing") {
+      if (tile?.grassState === "regrowing" && !hasActiveCactusHazard(state, tile)) {
         localTiles.push(tile);
       }
     }
   }
 
-  return Phaser.Utils.Array.GetRandom(localTiles) ?? Phaser.Utils.Array.GetRandom(getRegrowingTiles(state));
+  return Phaser.Utils.Array.GetRandom(localTiles) ?? Phaser.Utils.Array.GetRandom(getSafeRegrowingTiles(state));
+}
+
+function hasActiveCactusHazard(state: GameState, tile: FieldTile): boolean {
+  return getTileHazard(state, tileKey(tile.x, tile.y))?.id === "cactus";
+}
+
+function getSafeRegrowingTiles(state: GameState): FieldTile[] {
+  return getRegrowingTiles(state).filter((tile) => !hasActiveCactusHazard(state, tile));
+}
+
+function getRandomSafeGrownTile(state: GameState): FieldTile | undefined {
+  const tiles = getFieldTiles(state);
+  const randomAttempts = Math.min(32, tiles.length);
+  for (let attempt = 0; attempt < randomAttempts; attempt += 1) {
+    const tile = Phaser.Utils.Array.GetRandom(tiles);
+    if (tile?.grassState === "grown" && !hasActiveCactusHazard(state, tile)) {
+      return tile;
+    }
+  }
+
+  return tiles.find((tile) => tile.grassState === "grown" && !hasActiveCactusHazard(state, tile));
+}
+
+function sampleSafeGrownTiles(state: GameState, maxSamples: number): FieldTile[] {
+  const sampled = sampleGrownTiles(state, Math.max(maxSamples, maxSamples * 2)).filter((tile) => !hasActiveCactusHazard(state, tile));
+  if (sampled.length >= maxSamples) {
+    return sampled.slice(0, maxSamples);
+  }
+
+  const seen = new Set(sampled.map((tile) => tileKey(tile.x, tile.y)));
+  for (const tile of getFieldTiles(state)) {
+    if (sampled.length >= maxSamples) {
+      break;
+    }
+    const key = tileKey(tile.x, tile.y);
+    if (tile.grassState === "grown" && !seen.has(key) && !hasActiveCactusHazard(state, tile)) {
+      sampled.push(tile);
+      seen.add(key);
+    }
+  }
+
+  return sampled;
 }
 
 function getTouchPopText(touch: TouchResult): string {
