@@ -1,0 +1,140 @@
+{
+  "date": "2026-06-27",
+  "topic": "Stable Live Build After Tile Visuals And Chill Philosopher",
+  "previousHandoff": "HANDOFF_2026-06-27_CHILL_PHILOSOPHER_CLASS.json",
+  "userLatestRead": "User said the build is pretty good and stable after testing. Requested a big handoff.",
+  "currentGoal": "Preserve the current stable, live, pushed, Mac-synced state after fixing tile visual bugs, cactus AoE behavior, adding Chill Philosopher, enlarging class portraits, and centering the initial 1x1 grass patch.",
+  "sessionOutcome": {
+    "status": "complete",
+    "committed": true,
+    "pushed": true,
+    "productionDeployed": true,
+    "macMiniSynced": true,
+    "desktopBranch": "master",
+    "desktopHead": "8efb893",
+    "originHead": "8efb893",
+    "macMiniHead": "8efb893",
+    "devServer": "http://127.0.0.1:5173/ is responding",
+    "productionDomain": "https://grasstouchingsimulator.com",
+    "productionDeployment": {
+      "id": "dpl_EXrRbs7RqtYDB4zfGpWscayPFsXb",
+      "url": "https://grass-touching-simulator-637c801k5-sensitech.vercel.app",
+      "status": "Ready",
+      "aliases": [
+        "https://grasstouchingsimulator.com",
+        "https://www.grasstouchingsimulator.com",
+        "https://grass-touching-simulator.vercel.app",
+        "https://grass-touching-simulator-sensitech.vercel.app",
+        "https://grass-touching-simulator-spliffrider-sensitech.vercel.app"
+      ],
+      "latestBuildAsset": "dist/assets/index-Cu2JHas5.js"
+    }
+  },
+  "shippedCommits": [
+    {
+      "commit": "e3dd07c",
+      "message": "Fix tile visuals and cactus hazard effects",
+      "summary": [
+        "Fixed grass tile visual artifacts that appeared when fields expanded or the play screen size changed.",
+        "Gave cactus tiles a more distinct reddish/dark hazard background so they are easier to spot.",
+        "Prevented crits and other AoE-style touches from activating cactus tiles or applying cactus prick effects."
+      ]
+    },
+    {
+      "commit": "8efb893",
+      "message": "Add Chill Philosopher class",
+      "summary": [
+        "Added the Chill Philosopher class with the Air-Conditioned Detachment passive.",
+        "Generated and processed the approved light-brown-haired class portrait at public/assets/ui/classes/chill-philosopher.png.",
+        "Added Chill Philosopher upgrades Climate Control and Smug Syllogism.",
+        "Added class quests and reward/skill-branch classification for the new upgrades.",
+        "Increased class portrait badge sizes on the class overview screen.",
+        "Fixed initial 1x1 field alignment by calculating board visual size as tile area plus gaps between tiles, excluding a trailing gap after the final row/column."
+      ]
+    }
+  ],
+  "importantImplementationNotes": [
+    "The first-patch centering fix lives in src/game/scenes/GameScene.ts. getBoardVisualSize(tileCount) now returns tileCount * TILE_SIZE + max(0, tileCount - 1) * TILE_GAP. This keeps one-tile fields centered in their frame and avoids the prior half-gap drift.",
+    "Do not reintroduce board size math as bounds.width * (TILE_SIZE + TILE_GAP) unless deliberately changing the visual model; that formula includes a phantom trailing gap.",
+    "Cactus tiles use dedicated base textures tile-cactus-dirt and tile-cactus-stubble. The AoE guard should keep cactus tiles from being touched by indirect effects.",
+    "Chill Philosopher is now a valid CharacterClassId. Removing it later would need save-selection migration handling.",
+    "The approved class portrait is the light-brown-haired revision. The first darker-haired generation should not replace it.",
+    "Class portrait sizing was intentionally bumped in TitleScene because the overview had room and the previous portraits read too small."
+  ],
+  "filesRecentlyShipped": [
+    "public/assets/ui/classes/chill-philosopher.png",
+    "src/game/types/game-state.ts",
+    "src/game/data/character-classes.ts",
+    "src/game/data/upgrades.ts",
+    "src/game/data/quests.ts",
+    "src/game/scenes/GameScene.ts",
+    "src/game/scenes/TitleScene.ts",
+    "handoffs/HANDOFF_2026-06-27_CHILL_PHILOSOPHER_CLASS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed locally before deploy; latest built app asset dist/assets/index-Cu2JHas5.js"
+    },
+    {
+      "command": "Fresh-run browser check on isolated localhost port",
+      "result": "passed visually; the initial 1x1 grass patch is centered in the starter field frame"
+    },
+    {
+      "command": "Browser class picker checks at http://127.0.0.1:5173/?classCheck=chill",
+      "result": "passed visually across desktop, narrow, and mobile viewports; enlarged portraits fit and labels/buttons do not overlap"
+    },
+    {
+      "command": "npx vercel --prod --yes",
+      "result": "passed; production deployment dpl_EXrRbs7RqtYDB4zfGpWscayPFsXb is Ready and aliased to grasstouchingsimulator.com"
+    },
+    {
+      "command": "npx vercel inspect grasstouchingsimulator.com --timeout 30s",
+      "result": "passed; inspected deployment is Ready with production aliases"
+    },
+    {
+      "command": "Invoke-WebRequest https://grasstouchingsimulator.com",
+      "result": "passed; HTTP 200 and index contains index-Cu2JHas5.js"
+    },
+    {
+      "command": "Mac mini direct fast-forward",
+      "result": "passed; Mac mini checkout fast-forwarded from e3dd07c to 8efb893 and is clean against origin/master"
+    }
+  ],
+  "currentGitStatusAfterShipping": [
+    "Desktop HEAD is 8efb893 on master and matches origin/master.",
+    "Mac mini HEAD is 8efb893 on master and matches origin/master.",
+    "The real shipped gameplay/class/handoff work is committed and pushed.",
+    "Windows still has pre-existing unrelated local tracked edits in AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md.",
+    "Windows also still has pre-existing unrelated untracked docs/media/test handoff artifacts. Leave them alone unless the user explicitly asks to triage them."
+  ],
+  "knownIssuesAndRisks": [
+    "Chill Philosopher balance is intentionally conservative and has only had short subjective playtesting. If it feels too mild, tune Air-Conditioned Detachment or the Climate Control/Smug Syllogism values.",
+    "The new Chill Philosopher skill nodes fit the current tree, but future class additions may need a broader skill tree layout pass.",
+    "The first-patch centering fix touches shared board geometry. It was visually checked on a fresh 1x1 run and build-tested, but future layout work should watch small fields, expanded large fields, panning, zooming, and mobile portrait.",
+    "The official npm run sync:mac:handoff script refuses to run while tracked local files are dirty. Because AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md remain dirty and unrelated, the Mac was synced with a direct clean fast-forward instead."
+  ],
+  "nextRecommendedSteps": [
+    "Keep this stable build as the baseline. If the user asks for more feature work, start by reading this handoff, then run git status --short.",
+    "If more gameplay tuning is requested, start with Chill Philosopher pacing: regrow time, combo window, rare touch bonus, Climate Control values, and Smug Syllogism values.",
+    "If more visual polish is requested, add targeted browser checks for the exact viewport or field size involved before changing shared board math.",
+    "If performance-sensitive field layout changes happen, use npm run build and consider the perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200.",
+    "At some calm moment, ask the user whether to keep, commit, or discard the unrelated local docs/AGENTS changes. Do not decide that silently."
+  ],
+  "doNotRevert": [
+    "Do not revert e3dd07c or 8efb893 unless explicitly asked; both are live and user-approved as stable.",
+    "Do not undo the board visual-size helper or bring back trailing-gap board dimensions.",
+    "Do not replace public/assets/ui/classes/chill-philosopher.png with the earlier dark-haired generated image.",
+    "Do not remove chill_philosopher from character class validation without save compatibility handling.",
+    "Do not stage, clean, or revert unrelated AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, Dutch automation docs, GAME_SYSTEMS_REFERENCE CLAUDE.md, title-art artifacts, MIDI/AIF files, or old test handoff unless explicitly instructed."
+  ],
+  "resumeChecklist": [
+    "Read AGENTS.md.",
+    "Read handoffs/LATEST.json.",
+    "Read this handoff.",
+    "Run git status --short.",
+    "Respect the dirty unrelated local files and do not revert user work.",
+    "If continuing deployment or sync work, confirm desktop, origin, and Mac HEADs before changing anything."
+  ]
+}
