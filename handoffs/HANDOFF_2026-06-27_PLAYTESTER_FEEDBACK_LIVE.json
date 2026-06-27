@@ -1,0 +1,93 @@
+{
+  "date": "2026-06-27",
+  "topic": "Playtester Feedback Fixes Live",
+  "previousHandoff": "HANDOFF_2026-06-27_BOTTOM_PET_HOVER.json",
+  "userLatestRead": "User asked whether the Discord playtester feedback fixes were live and said they wanted them live.",
+  "currentGoal": "Record that the playtester feedback batch was committed, pushed, and deployed to production.",
+  "sessionOutcome": {
+    "status": "complete",
+    "committed": true,
+    "pushed": true,
+    "productionDeployed": true,
+    "desktopBranch": "master",
+    "gameplayCommit": "f267926",
+    "originMasterAfterGameplayPush": "f267926",
+    "productionDomain": "https://grasstouchingsimulator.com",
+    "productionDeployment": {
+      "id": "dpl_CsjDZDRGB6jzBp35jjFf3TWs2unQ",
+      "url": "https://grass-touching-simulator-5tmiu6qjw-sensitech.vercel.app",
+      "status": "Ready",
+      "aliases": [
+        "https://grasstouchingsimulator.com",
+        "https://www.grasstouchingsimulator.com",
+        "https://grass-touching-simulator.vercel.app",
+        "https://grass-touching-simulator-sensitech.vercel.app",
+        "https://grass-touching-simulator-spliffrider-sensitech.vercel.app"
+      ],
+      "latestBuildAsset": "dist/assets/index-C1YtG7ty.js"
+    }
+  },
+  "shippedChanges": [
+    "Multiple owned companions can now be placed as separate slots while keeping the first legacy placement key backward-compatible.",
+    "Dock labels show placement progress and placement mode continues until unplaced owned copies are placed.",
+    "Animal companion local targeting considers every valid placed copy.",
+    "Regrowing tiles keep a faded/mown grass layer so fast clicking does not look like grass disappears.",
+    "Accepted manual and persistent touches keep the touched tile live until the batched common render layer catches up.",
+    "Bottom-docked and placed world objects now claim hover before board/tile hover, so pet hover panels are stable when the dock overlaps grass.",
+    "Confirmed TuloWodash is already listed in Playtesters credits."
+  ],
+  "filesShipped": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/systems/PlacementSystem.ts",
+    "src/game/systems/AnimalCompanionSystem.ts",
+    "handoffs/HANDOFF_2026-06-27_PLACEMENT_UX_PLAYTESTER.json",
+    "handoffs/HANDOFF_2026-06-27_FAST_CLICK_GRASS_VISUALS.json",
+    "handoffs/HANDOFF_2026-06-27_BOTTOM_PET_HOVER.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed locally before commit and deploy"
+    },
+    {
+      "command": "Browser stress visual checks at http://127.0.0.1:5173/?stress&tiles=360&perf",
+      "result": "passed visually for fast clicking/regrowing grass and bottom pet hover"
+    },
+    {
+      "command": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "passed; complete, frameSpikes 0, redrawQueued 0 after phases"
+    },
+    {
+      "command": "npx vercel --prod --yes",
+      "result": "passed; deployment dpl_CsjDZDRGB6jzBp35jjFf3TWs2unQ Ready and aliased to grasstouchingsimulator.com"
+    },
+    {
+      "command": "npx vercel inspect grasstouchingsimulator.com --timeout 30s",
+      "result": "passed; production deployment Ready"
+    },
+    {
+      "command": "Invoke-WebRequest https://grasstouchingsimulator.com",
+      "result": "passed; HTTP 200 and index contains assets/index-C1YtG7ty.js"
+    }
+  ],
+  "currentGitStatus": [
+    "Gameplay commit f267926 was pushed to origin/master and deployed to production.",
+    "This handoff is a follow-up session-state artifact and should be committed/pushed after creation.",
+    "Pre-existing unrelated tracked edits remain in AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md.",
+    "Pre-existing unrelated untracked docs/media/test handoff files remain untouched."
+  ],
+  "knownIssuesAndRisks": [
+    "No Mac mini sync workflow was requested in this live deploy turn.",
+    "If future playtesters find regrowing grass too similar to grown grass, tune REGROWING_GRASS_ALPHA and REGROWING_GRASS_SCALE in GameScene.ts."
+  ],
+  "nextRecommendedSteps": [
+    "Ask the playtester to retry multiple companion placement, fast clicking, and bottom pet hover on the live domain.",
+    "If a Mac handoff is requested later, run the documented desktop-to-Mac workflow while keeping unrelated dirty docs/media out of the commit."
+  ],
+  "doNotRevert": [
+    "Do not collapse placedWorldObjects back to one placement per object id; object#2/object#3 slot keys are intentional.",
+    "Do not remove the regrowing grass overlay or forced live fallback without replacing the visual/readability behavior.",
+    "Do not replace the world-object hover guard's clearTileHover call with clearTileInfo."
+  ]
+}
