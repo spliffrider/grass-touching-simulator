@@ -93,6 +93,8 @@ import { createOrnateFrame, type OrnateFrame, UITheme } from "../ui/theme";
 
 const TILE_SIZE = 58;
 const TILE_GAP = 8;
+const getBoardVisualSize = (tileCount: number) =>
+  tileCount * TILE_SIZE + Math.max(0, tileCount - 1) * TILE_GAP;
 const COMMON_TILE_ERASER_TEXTURE_KEY = "tile-common-eraser";
 const COMMON_TILE_ERASER_SIZE = TILE_SIZE + TILE_GAP;
 const BOARD_Y_OFFSET = 24;
@@ -6241,8 +6243,8 @@ export class GameScene extends Phaser.Scene {
       this.clearBoardTransientEffects();
     }
     this.layoutPassCount += 1;
-    const boardWidth = bounds.width * (TILE_SIZE + TILE_GAP);
-    const boardHeight = bounds.height * (TILE_SIZE + TILE_GAP);
+    const boardWidth = getBoardVisualSize(bounds.width);
+    const boardHeight = getBoardVisualSize(bounds.height);
     const mobilePortrait = this.isMobilePortrait();
     const commandDockReserve = Number.isFinite(this.mobileCommandDockTop) ? this.scale.height - this.mobileCommandDockTop + 12 : 112;
     const mobileDockSafeBottom = mobilePortrait
@@ -6545,8 +6547,8 @@ export class GameScene extends Phaser.Scene {
 
     const left = centerX - this.boardScaledWidth / 2 - (TILE_GAP * this.boardScale) / 2;
     const top = centerY - this.boardScaledHeight / 2 - (TILE_GAP * this.boardScale) / 2;
-    const right = left + this.boardScaledWidth;
-    const bottom = top + this.boardScaledHeight;
+    const right = centerX + this.boardScaledWidth / 2 + (TILE_GAP * this.boardScale) / 2;
+    const bottom = centerY + this.boardScaledHeight / 2 + (TILE_GAP * this.boardScale) / 2;
 
     graphics.lineStyle(1, 0xf7ffe8, 0.08);
     for (let column = 1; column < bounds.width; column += 1) {
@@ -12203,7 +12205,9 @@ export class GameScene extends Phaser.Scene {
           ? 0x9be86b
           : this.state.characterClassId === "goth_girl_baddie"
             ? 0xb78cff
-            : 0xbff4ff
+            : this.state.characterClassId === "chill_philosopher"
+              ? 0x8feaff
+              : 0xbff4ff
       : 0xf4df6a;
     const popText = classClaim ? "mastered" : "claimed";
     const x = view.container.x + view.bg.width / 2;
@@ -12556,6 +12560,8 @@ export class GameScene extends Phaser.Scene {
         "graveyard_shift",
         "steady_tempo",
         "encore_circle",
+        "climate_control",
+        "smug_syllogism",
       ].includes(upgradeId)
     ) {
       return "Class";

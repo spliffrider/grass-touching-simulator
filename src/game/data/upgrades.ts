@@ -576,6 +576,40 @@ export const UPGRADES: UpgradeDefinition[] = [
     apply: () => {},
     isUnlocked: (state) => isClassUpgradeUnlocked(state, "bard_de_wever", 1400),
   },
+  {
+    id: "climate_control",
+    name: "Climate Control",
+    description: "Chill Philosopher only. Cool air keeps regrowth brisk and combo thoughts pleasantly unhurried.",
+    baseCost: 850,
+    costGrowth: 2.25,
+    maxLevel: 4,
+    classId: "chill_philosopher",
+    prerequisiteIds: ["morning_mist", "mindful_contact"],
+    iconAsset: "weather_watching",
+    tree: { x: 80, y: 285, icon: "AC", color: 0x8feaff },
+    apply: (stats, level) => {
+      stats.regrowMultiplier *= Math.max(0.84, 1 - level * 0.03);
+      stats.comboWindowMultiplier *= 1 + level * 0.02;
+    },
+    isUnlocked: (state) => isClassUpgradeUnlocked(state, "chill_philosopher", 900),
+  },
+  {
+    id: "smug_syllogism",
+    name: "Smug Syllogism",
+    description: "Chill Philosopher only. Better reasoning makes rare grass more valuable and every combo conclusion cleaner.",
+    baseCost: 1500,
+    costGrowth: 2.35,
+    maxLevel: 3,
+    classId: "chill_philosopher",
+    prerequisiteIds: ["climate_control"],
+    iconAsset: "better_eyes",
+    tree: { x: 80, y: 365, icon: "hmm", color: 0xbff4ff },
+    apply: (stats, level) => {
+      stats.rareTouchBonus += level * 0.45;
+      stats.comboBonusMultiplier *= 1 + level * 0.025;
+    },
+    isUnlocked: (state) => isClassUpgradeUnlocked(state, "chill_philosopher", 1400),
+  },
 ];
 
 export function getUpgradeCost(upgrade: UpgradeDefinition, level: number): number {

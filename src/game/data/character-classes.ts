@@ -79,6 +79,22 @@ export const CHARACTER_CLASSES: CharacterClassDefinition[] = [
       stats.seedDropBonus += 0.008;
     },
   },
+  {
+    id: "chill_philosopher",
+    name: "Chill Philosopher",
+    archetype: "Cool / Recovery Control",
+    iconKey: "class-chill-philosopher",
+    iconPath: "/assets/ui/classes/chill-philosopher.png",
+    passiveName: "Air-Conditioned Detachment",
+    passiveDescription: "A smugly optimal room temperature keeps the field calm, quick, and easy to think about.",
+    flavor: "Has solved the trolley problem. Mostly by moving the trolley indoors.",
+    statLines: ["-7% regrow time", "+10% combo window", "+0.4 rare touch bonus"],
+    apply: (stats) => {
+      stats.regrowMultiplier *= 0.93;
+      stats.comboWindowMultiplier *= 1.1;
+      stats.rareTouchBonus += 0.4;
+    },
+  },
 ];
 
 export function getCharacterClass(id: CharacterClassId | undefined): CharacterClassDefinition {
@@ -86,5 +102,11 @@ export function getCharacterClass(id: CharacterClassId | undefined): CharacterCl
 }
 
 export function isCharacterClassId(value: unknown): value is CharacterClassId {
-  return value === "grass_toucher" || value === "femboy_slim" || value === "goth_girl_baddie" || value === "bard_de_wever";
+  return (
+    value === "grass_toucher" ||
+    value === "femboy_slim" ||
+    value === "goth_girl_baddie" ||
+    value === "bard_de_wever" ||
+    value === "chill_philosopher"
+  );
 }

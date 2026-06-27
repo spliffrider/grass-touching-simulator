@@ -45,14 +45,15 @@ const countUsedAutomationDirectives = (state: GameState): number =>
   CORE_AUTOMATION_DIRECTIVES.filter((directiveId) => state.automationStats.usedDirectiveIds.includes(directiveId)).length;
 const hasUsedAutomationDirective = (state: GameState, directiveId: AutomationDirectiveId): boolean =>
   state.automationStats.usedDirectiveIds.includes(directiveId);
-const getClassName = (classId: CharacterClassId): string =>
-  classId === "grass_toucher"
-    ? "Grass Toucher"
-    : classId === "femboy_slim"
-      ? "Femboy Slim"
-      : classId === "goth_girl_baddie"
-        ? "Goth Girl Baddie"
-        : "Bard De Wever";
+const CLASS_NAMES: Record<CharacterClassId, string> = {
+  grass_toucher: "Grass Toucher",
+  femboy_slim: "Femboy Slim",
+  goth_girl_baddie: "Goth Girl Baddie",
+  bard_de_wever: "Bard De Wever",
+  chill_philosopher: "Chill Philosopher",
+};
+
+const getClassName = (classId: CharacterClassId): string => CLASS_NAMES[classId];
 
 export const QUESTS: QuestDefinition[] = [
   {
@@ -859,6 +860,28 @@ export const QUESTS: QuestDefinition[] = [
     prerequisiteQuestIds: ["bard_steady_tempo_1", "touch_1500"],
     isComplete: (state) => getUpgradeLevel(state, "encore_circle") >= 3,
     getProgress: (state) => `${Math.min(3, getUpgradeLevel(state, "encore_circle"))}/3 Encore Circle`,
+  },
+  {
+    id: "chill_climate_control_1",
+    category: "Class",
+    name: "The Correct Temperature",
+    description: "As Chill Philosopher, buy 1 level of Climate Control.",
+    reward: { seeds: 5, gold: 2 },
+    classId: "chill_philosopher",
+    prerequisiteQuestIds: ["upgrade_20", "regrowth_3"],
+    isComplete: (state) => getUpgradeLevel(state, "climate_control") >= 1,
+    getProgress: (state) => `${Math.min(1, getUpgradeLevel(state, "climate_control"))}/1 Climate Control`,
+  },
+  {
+    id: "chill_smug_syllogism_3",
+    category: "Class",
+    name: "Therefore, Grass",
+    description: "As Chill Philosopher, max out Smug Syllogism.",
+    reward: { seeds: 8, gold: 4 },
+    classId: "chill_philosopher",
+    prerequisiteQuestIds: ["chill_climate_control_1", "touch_1500"],
+    isComplete: (state) => getUpgradeLevel(state, "smug_syllogism") >= 3,
+    getProgress: (state) => `${Math.min(3, getUpgradeLevel(state, "smug_syllogism"))}/3 Smug Syllogism`,
   },
   {
     id: "first_animal",

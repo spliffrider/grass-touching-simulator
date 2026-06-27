@@ -16,6 +16,12 @@ const CLASS_PANEL_BASE_WIDTH = 1060;
 const CLASS_PANEL_BASE_HEIGHT = 560;
 const CLASS_CARD_BASE_WIDTH = 316;
 const CLASS_CARD_BASE_HEIGHT = 300;
+const CLASS_ICON_FULL_SIZE = 92;
+const CLASS_ICON_FULL_BG_SCALE = 1.1;
+const CLASS_ICON_COMPACT_SIZE = 72;
+const CLASS_ICON_COMPACT_BG_SCALE = 0.88;
+const CLASS_ICON_SHORT_SIZE = 58;
+const CLASS_ICON_SHORT_BG_SCALE = 0.72;
 const CLASS_TEXT_RESOLUTION = 2;
 const OPTIONS_TRACK_BASE_WIDTH = 320;
 const OPTIONS_TRACK_BASE_HEIGHT = 12;
@@ -622,11 +628,12 @@ export class TitleScene extends Phaser.Scene {
     const textX = hasIcon ? 32 : 0;
     const iconBg = this.add
       .circle(iconX, -100, 42, 0x06190f, 0.88)
+      .setScale(CLASS_ICON_FULL_BG_SCALE)
       .setStrokeStyle(3, 0xffef78, hasIcon ? 0.9 : 0)
       .setVisible(hasIcon);
     const icon = this.add
       .image(iconX, -100, characterClass.iconKey ?? "title-selector-leaf")
-      .setDisplaySize(78, 78)
+      .setDisplaySize(CLASS_ICON_FULL_SIZE, CLASS_ICON_FULL_SIZE)
       .setVisible(hasIcon);
     const name = this.add
       .text(textX, -126, characterClass.name, {
@@ -1104,8 +1111,8 @@ export class TitleScene extends Phaser.Scene {
 
       card.frame.setSize(CLASS_CARD_BASE_WIDTH, CLASS_CARD_BASE_HEIGHT);
       card.hit.setSize(CLASS_CARD_BASE_WIDTH, CLASS_CARD_BASE_HEIGHT);
-      card.iconBg.setPosition(iconX, -100).setScale(1);
-      card.icon.setPosition(iconX, -100).setDisplaySize(78, 78);
+      card.iconBg.setPosition(iconX, -100).setScale(CLASS_ICON_FULL_BG_SCALE);
+      card.icon.setPosition(iconX, -100).setDisplaySize(CLASS_ICON_FULL_SIZE, CLASS_ICON_FULL_SIZE);
       card.name.setPosition(textX, -126).setWordWrapWidth(0);
       card.archetype.setPosition(textX, -96).setFontSize(compact ? 15 : 16).setWordWrapWidth(0);
       card.passive.setPosition(textX, -66).setWordWrapWidth(0);
@@ -1128,8 +1135,10 @@ export class TitleScene extends Phaser.Scene {
 
     card.frame.setSize(CLASS_CARD_BASE_WIDTH, cardBaseHeight);
     card.hit.setSize(CLASS_CARD_BASE_WIDTH, cardBaseHeight);
-    card.iconBg.setPosition(-116, top + cardBaseHeight / 2).setScale(shortCard ? 0.54 : 0.62);
-    card.icon.setPosition(-116, top + cardBaseHeight / 2).setDisplaySize(shortCard ? 44 : 52, shortCard ? 44 : 52);
+    card.iconBg.setPosition(-116, top + cardBaseHeight / 2).setScale(shortCard ? CLASS_ICON_SHORT_BG_SCALE : CLASS_ICON_COMPACT_BG_SCALE);
+    card.icon
+      .setPosition(-116, top + cardBaseHeight / 2)
+      .setDisplaySize(shortCard ? CLASS_ICON_SHORT_SIZE : CLASS_ICON_COMPACT_SIZE, shortCard ? CLASS_ICON_SHORT_SIZE : CLASS_ICON_COMPACT_SIZE);
     card.name.setPosition(4, top + (shortCard ? 15 : 18)).setFontSize(shortCard ? 17 : 19).setWordWrapWidth(166);
     card.archetype.setPosition(4, top + (shortCard ? 31 : 37)).setFontSize(shortCard ? 10 : 11).setWordWrapWidth(166);
     card.passive.setPosition(4, top + (shortCard ? 46 : 54)).setFontSize(shortCard ? 11 : 12).setWordWrapWidth(166);

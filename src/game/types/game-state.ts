@@ -21,7 +21,7 @@ export type WeatherId =
   | "golden_hour"
   | "restless_roots";
 
-export type CharacterClassId = "grass_toucher" | "femboy_slim" | "goth_girl_baddie" | "bard_de_wever";
+export type CharacterClassId = "grass_toucher" | "femboy_slim" | "goth_girl_baddie" | "bard_de_wever" | "chill_philosopher";
 
 export type AutomationDirectiveId = "balanced" | "growth" | "harvest" | "supplies" | "autopilot";
 
