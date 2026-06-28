@@ -55,8 +55,8 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
     id: "weather_jar",
     name: "Weather Jar",
     description: "Unlocks rotating weather effects for the field.",
-    cost: 42,
-    isUnlocked: (state) => state.seedShopPurchases.field_journal === true,
+    cost: 18,
+    isUnlocked: (state) => state.seedShopPurchases.seed_pouch === true,
   },
   {
     id: "compost_bin",

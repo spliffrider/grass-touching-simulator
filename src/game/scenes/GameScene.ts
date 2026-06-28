@@ -111,6 +111,9 @@ const REGROWING_GRASS_SCALE = 0.94;
 const BOARD_Y_OFFSET = 24;
 const MIN_BOARD_ZOOM = 0.45;
 const MAX_BOARD_ZOOM = 3.2;
+const LARGE_FIELD_INITIAL_ZOOM_TILE_THRESHOLD = 600;
+const LARGE_FIELD_INITIAL_VISIBLE_TILES_DESKTOP = 18;
+const LARGE_FIELD_INITIAL_VISIBLE_TILES_COMPACT = 10;
 const EXPANDED_BOARD_VIEWPORT_TILE_THRESHOLD = 80;
 const EXPANDED_BOARD_DESKTOP_WIDTH_RATIO = 0.78;
 const EXPANDED_BOARD_NARROW_WIDTH_RATIO = 0.86;
@@ -136,6 +139,10 @@ const JOURNAL_DISCOVERY_REFRESH_INTERVAL_MS = 1200;
 const PERF_PANEL_REFRESH_INTERVAL_MS = 500;
 const REGROW_FEEDBACK_INTERVAL_MS = 240;
 const MAX_REGROW_FEEDBACK_PER_BATCH = 6;
+const REGROW_FRAME_TILE_BUDGET = 72;
+const LARGE_FIELD_REGROW_FRAME_TILE_BUDGET = 42;
+const HUGE_FIELD_REGROW_FRAME_TILE_BUDGET = 32;
+const PRESSURE_REGROW_FRAME_TILE_BUDGET = 18;
 const PERFORMANCE_SAMPLE_INTERVAL_MS = 600;
 const PERF_LOW_FPS = 48;
 const PERF_CRITICAL_FPS = 32;
@@ -208,6 +215,12 @@ const HUD_CHIP_GAP = 8;
 const ACTION_BUTTON_WIDTH = 118;
 const ACTION_BUTTON_HEIGHT = 58;
 const ACTION_BUTTON_GAP = 10;
+const WORLD_MAP_TILE_THRESHOLD = 180;
+const WORLD_MAP_DESKTOP_SIZE = 176;
+const WORLD_MAP_COMPACT_SIZE = 146;
+const WORLD_MAP_HEADER_HEIGHT = 28;
+const WORLD_MAP_PADDING = 12;
+const WORLD_MAP_ARROW_STEP_TILES = 4;
 const TRIGGER_FEED_MAX_EVENTS = 6;
 const TRIGGER_FEED_EVENT_TTL_MS = 90000;
 const TRIGGER_FEED_REPEAT_WINDOW_MS = 12000;
@@ -724,6 +737,22 @@ export class GameScene extends Phaser.Scene {
   private boardBackdropGraphics?: Phaser.GameObjects.Graphics;
   private boardViewportMaskGraphics?: Phaser.GameObjects.Graphics;
   private boardViewportMask?: Phaser.Display.Masks.GeometryMask;
+  private worldMapRoot?: Phaser.GameObjects.Container;
+  private worldMapFrame?: OrnateFrame;
+  private worldMapBg?: Phaser.GameObjects.Rectangle;
+  private worldMapTitle?: Phaser.GameObjects.Text;
+  private worldMapGraphics?: Phaser.GameObjects.Graphics;
+  private worldMapViewportMarker?: Phaser.GameObjects.Rectangle;
+  private worldMapHitZone?: Phaser.GameObjects.Zone;
+  private worldMapRenderKey = "";
+  private worldMapDragging = false;
+  private worldMapContentX = 0;
+  private worldMapContentY = 0;
+  private worldMapContentWidth = 0;
+  private worldMapContentHeight = 0;
+  private worldMapFieldScale = 1;
+  private worldMapFieldOffsetX = 0;
+  private worldMapFieldOffsetY = 0;
   private ambientSpores?: Phaser.GameObjects.Particles.ParticleEmitter;
   private titleText!: Phaser.GameObjects.Text;
   private buildLabelText!: Phaser.GameObjects.Text;
@@ -1100,6 +1129,7 @@ export class GameScene extends Phaser.Scene {
     this.createTileTextures();
     this.createHeader();
     this.createBoardLayers();
+    this.createWorldMap();
     this.createPerfPanel();
     this.createSeasonVisuals();
     this.createWeatherVisuals();
@@ -1112,6 +1142,7 @@ export class GameScene extends Phaser.Scene {
     this.createAutomationPanel();
     this.createOptionsPanel();
     this.updateWeather(Date.now(), false);
+    this.applyInitialBoardView();
     this.renderAllTiles();
     this.layoutHeader();
     this.layoutSkillTree();
@@ -1265,6 +1296,7 @@ export class GameScene extends Phaser.Scene {
       this.pendingBoardTileKey = undefined;
       this.isBoardPanArmed = false;
       this.isPanningBoard = false;
+      this.worldMapDragging = false;
       this.stopPersistentTouch();
       this.draggingMusicVolume = false;
     });
@@ -1273,6 +1305,7 @@ export class GameScene extends Phaser.Scene {
       this.pendingBoardTileKey = undefined;
       this.isBoardPanArmed = false;
       this.isPanningBoard = false;
+      this.worldMapDragging = false;
       this.stopPersistentTouch();
       this.draggingMusicVolume = false;
     });
@@ -1280,6 +1313,8 @@ export class GameScene extends Phaser.Scene {
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handlePersistentTouchPointerMove(pointer));
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleMusicVolumeDrag(pointer));
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleBoardHover(pointer));
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleWorldMapDrag(pointer));
+    this.input.keyboard?.on("keydown", this.handleWorldMapKeyDown, this);
     window.addEventListener("pagehide", this.handlePageHide);
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.handleShutdown());
@@ -1302,7 +1337,7 @@ export class GameScene extends Phaser.Scene {
     this.profileScope("weather", () => this.updateWeather(now, true));
     const stats = this.profileScope("stats", () => this.getCachedRuntimeStats(now));
     this.profileScope("regrow", () => {
-      const regrown = updateRegrowth(this.state, stats, now);
+      const regrown = updateRegrowth(this.state, stats, now, this.getRegrowthFrameBudget());
       const showRegrowFeedback = regrown.length > 0 && now >= this.nextRegrowFeedbackAt;
       let regrowFeedbackCount = 0;
       if (showRegrowFeedback) {
@@ -1321,7 +1356,7 @@ export class GameScene extends Phaser.Scene {
         }
       }
 
-      if (regrown.length > 0) {
+      if (showRegrowFeedback) {
         this.audio.play("regrow");
       }
     });
@@ -1418,6 +1453,7 @@ export class GameScene extends Phaser.Scene {
   private handleShutdown(): void {
     window.removeEventListener("pagehide", this.handlePageHide);
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    this.input.keyboard?.off("keydown", this.handleWorldMapKeyDown, this);
     this.flushQueuedSave(true);
     this.music.stop();
     for (const emitter of this.burstEmitters.values()) {
@@ -2659,6 +2695,59 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
   }
 
+  private createWorldMap(): void {
+    this.worldMapRoot = this.add.container(0, 0).setDepth(31).setVisible(false);
+    this.worldMapFrame = createOrnateFrame(this, WORLD_MAP_DESKTOP_SIZE, WORLD_MAP_DESKTOP_SIZE, {
+      fillColor: UITheme.colors.panelBgDeep,
+      fillAlpha: 0.9,
+      insetAlpha: 0.14,
+      accentColor: UITheme.colors.bronze,
+      accentAlpha: 0.78,
+      glowAlpha: 0.05,
+      shadowAlpha: 0.38,
+      trim: 2,
+      cornerSize: 16,
+    });
+    this.worldMapBg = this.worldMapFrame.bg;
+    this.worldMapTitle = this.add.text(14, 9, "World Map", {
+      fontFamily: UITheme.text.fontFamily,
+      fontSize: "13px",
+      color: UITheme.colors.creamBright,
+      stroke: UITheme.text.stroke,
+      strokeThickness: 3,
+    });
+    this.worldMapGraphics = this.add.graphics();
+    this.worldMapViewportMarker = this.add
+      .rectangle(0, 0, 12, 12, 0xffef78, 0.12)
+      .setOrigin(0, 0)
+      .setStrokeStyle(2, 0xffef78, 0.95);
+    this.worldMapHitZone = this.add
+      .zone(0, 0, WORLD_MAP_DESKTOP_SIZE, WORLD_MAP_DESKTOP_SIZE)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    this.worldMapHitZone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (!this.worldMapRoot?.visible || this.hasBlockingOverlayOpen()) {
+        return;
+      }
+
+      this.worldMapDragging = true;
+      this.isBoardPanArmed = false;
+      this.isPanningBoard = false;
+      this.pendingBoardTileKey = undefined;
+      this.stopPersistentTouch();
+      this.hideHoverMarker();
+      this.handleWorldMapPointer(pointer);
+    });
+
+    this.worldMapRoot.add([
+      ...this.worldMapFrame.objects,
+      this.worldMapTitle,
+      this.worldMapGraphics,
+      this.worldMapViewportMarker,
+      this.worldMapHitZone,
+    ]);
+  }
+
   private createPerfPanel(): void {
     if (!this.perfOverlayEnabled) {
       return;
@@ -2929,6 +3018,7 @@ export class GameScene extends Phaser.Scene {
     this.layoutTriggerFeed();
     this.layoutSeasonVisuals();
     this.layoutWeatherVisuals();
+    this.layoutWorldMap();
   }
 
   private isMobilePortrait(): boolean {
@@ -3271,6 +3361,217 @@ export class GameScene extends Phaser.Scene {
 
   private getTriggerFeedVisibleLimit(): number {
     return this.isMobilePortrait() ? 3 : TRIGGER_FEED_MAX_EVENTS;
+  }
+
+  private shouldShowWorldMap(): boolean {
+    return (
+      this.fieldTileCount >= WORLD_MAP_TILE_THRESHOLD &&
+      this.cachedFieldBounds !== undefined &&
+      !this.hasBlockingOverlayOpen() &&
+      this.scale.width >= 420 &&
+      this.scale.height >= 460
+    );
+  }
+
+  private layoutWorldMap(): void {
+    if (!this.worldMapRoot || !this.worldMapFrame || !this.worldMapBg || !this.worldMapHitZone || !this.worldMapTitle) {
+      return;
+    }
+
+    const visible = this.shouldShowWorldMap();
+    this.worldMapRoot.setVisible(visible);
+    if (!visible) {
+      return;
+    }
+
+    const compact = this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH;
+    const size = compact ? WORLD_MAP_COMPACT_SIZE : WORLD_MAP_DESKTOP_SIZE;
+    const boardLeft = this.boardViewportWidth > 0 ? this.boardViewportX : this.boardAvailableLeft;
+    const boardBottom =
+      this.boardViewportHeight > 0
+        ? this.boardViewportY + this.boardViewportHeight
+        : this.scale.height - (Number.isFinite(this.mobileCommandDockTop) ? this.mobileCommandDockHeight : 0);
+    const bottomLimit = Math.min(
+      this.scale.height - 14,
+      Number.isFinite(this.mobileCommandDockTop) ? this.mobileCommandDockTop - 10 : this.scale.height - 14,
+      boardBottom - 12,
+    );
+    const x = Phaser.Math.Clamp(boardLeft + 12, 12, Math.max(12, this.scale.width - size - 12));
+    const y = Phaser.Math.Clamp(bottomLimit - size, this.boardTopY + 12, Math.max(this.boardTopY + 12, this.scale.height - size - 14));
+
+    this.worldMapRoot.setPosition(x, y);
+    this.worldMapFrame.setSize(size, size);
+    this.worldMapBg.setSize(size, size);
+    this.worldMapTitle.setPosition(14, compact ? 8 : 9).setFontSize(compact ? 12 : 13);
+    this.worldMapHitZone.setPosition(0, 0).setSize(size, size);
+    if (this.worldMapHitZone.input) {
+      this.worldMapHitZone.input.hitArea = new Phaser.Geom.Rectangle(0, 0, size, size);
+      this.worldMapHitZone.input.hitAreaCallback = Phaser.Geom.Rectangle.Contains;
+    }
+
+    this.worldMapContentX = WORLD_MAP_PADDING;
+    this.worldMapContentY = WORLD_MAP_HEADER_HEIGHT;
+    this.worldMapContentWidth = Math.max(1, size - WORLD_MAP_PADDING * 2);
+    this.worldMapContentHeight = Math.max(1, size - WORLD_MAP_HEADER_HEIGHT - WORLD_MAP_PADDING);
+    this.renderWorldMap();
+  }
+
+  private renderWorldMap(): void {
+    if (!this.worldMapGraphics || !this.worldMapRoot?.visible) {
+      return;
+    }
+
+    const bounds = this.cachedFieldBounds;
+    if (!bounds) {
+      return;
+    }
+
+    const scale = Math.min(this.worldMapContentWidth / bounds.width, this.worldMapContentHeight / bounds.height);
+    this.worldMapFieldScale = Math.max(1, scale);
+    this.worldMapFieldOffsetX = this.worldMapContentX + (this.worldMapContentWidth - bounds.width * this.worldMapFieldScale) / 2;
+    this.worldMapFieldOffsetY = this.worldMapContentY + (this.worldMapContentHeight - bounds.height * this.worldMapFieldScale) / 2;
+
+    const renderKey = [
+      bounds.minX,
+      bounds.maxX,
+      bounds.minY,
+      bounds.maxY,
+      this.fieldTileCount,
+      Math.round(this.worldMapContentWidth),
+      Math.round(this.worldMapContentHeight),
+      this.worldMapFieldScale.toFixed(3),
+    ].join(":");
+
+    if (renderKey !== this.worldMapRenderKey) {
+      this.worldMapRenderKey = renderKey;
+      this.worldMapGraphics.clear();
+      this.worldMapGraphics.fillStyle(0x041109, 0.56);
+      this.worldMapGraphics.fillRect(this.worldMapContentX, this.worldMapContentY, this.worldMapContentWidth, this.worldMapContentHeight);
+
+      const cellSize = Math.max(1, this.worldMapFieldScale - 0.35);
+      for (const tile of getFieldTiles(this.state)) {
+        const x = this.worldMapFieldOffsetX + (tile.x - bounds.minX) * this.worldMapFieldScale;
+        const y = this.worldMapFieldOffsetY + (tile.y - bounds.minY) * this.worldMapFieldScale;
+        const color =
+          tile.tier === "normal"
+            ? tile.trait === "lush"
+              ? 0x7bdc63
+              : tile.trait === "dewy"
+                ? 0x78d8b5
+                : 0x4fae4f
+            : this.getTierHighlightColor(tile.tier);
+        this.worldMapGraphics.fillStyle(color, tile.tier === "normal" ? 0.72 : 0.86);
+        this.worldMapGraphics.fillRect(x, y, cellSize, cellSize);
+      }
+
+      this.worldMapGraphics.lineStyle(1, 0xe0a36c, 0.32);
+      this.worldMapGraphics.strokeRect(this.worldMapContentX, this.worldMapContentY, this.worldMapContentWidth, this.worldMapContentHeight);
+    }
+
+    this.updateWorldMapViewportMarker();
+  }
+
+  private updateWorldMapViewportMarker(): void {
+    if (!this.worldMapViewportMarker || !this.worldMapRoot?.visible || !this.cachedFieldBounds || this.boardScale <= 0) {
+      return;
+    }
+
+    const bounds = this.cachedFieldBounds;
+    const viewport = this.getBoardViewportBounds(0);
+    const centerX = this.boardBaseCenterX + this.boardPanX;
+    const centerY = this.boardBaseCenterY + this.boardPanY;
+    const scaledStep = (TILE_SIZE + TILE_GAP) * this.boardScale;
+    const startX = centerX - this.boardScaledWidth / 2 + (TILE_SIZE * this.boardScale) / 2;
+    const startY = centerY - this.boardScaledHeight / 2 + (TILE_SIZE * this.boardScale) / 2;
+    const leftGrid = (viewport.left - startX) / scaledStep + bounds.minX;
+    const rightGrid = (viewport.right - startX) / scaledStep + bounds.minX;
+    const topGrid = (viewport.top - startY) / scaledStep + bounds.minY;
+    const bottomGrid = (viewport.bottom - startY) / scaledStep + bounds.minY;
+    const mapLeft = this.worldMapFieldOffsetX + (leftGrid - bounds.minX) * this.worldMapFieldScale;
+    const mapRight = this.worldMapFieldOffsetX + (rightGrid - bounds.minX) * this.worldMapFieldScale;
+    const mapTop = this.worldMapFieldOffsetY + (topGrid - bounds.minY) * this.worldMapFieldScale;
+    const mapBottom = this.worldMapFieldOffsetY + (bottomGrid - bounds.minY) * this.worldMapFieldScale;
+    const x = Phaser.Math.Clamp(Math.min(mapLeft, mapRight), this.worldMapContentX, this.worldMapContentX + this.worldMapContentWidth);
+    const y = Phaser.Math.Clamp(Math.min(mapTop, mapBottom), this.worldMapContentY, this.worldMapContentY + this.worldMapContentHeight);
+    const right = Phaser.Math.Clamp(Math.max(mapLeft, mapRight), this.worldMapContentX, this.worldMapContentX + this.worldMapContentWidth);
+    const bottom = Phaser.Math.Clamp(Math.max(mapTop, mapBottom), this.worldMapContentY, this.worldMapContentY + this.worldMapContentHeight);
+    this.worldMapViewportMarker
+      .setPosition(x, y)
+      .setSize(Math.max(8, right - x), Math.max(8, bottom - y))
+      .setFillStyle(0xffef78, 0.12)
+      .setStrokeStyle(2, 0xffef78, 0.95);
+  }
+
+  private handleWorldMapDrag(pointer: Phaser.Input.Pointer): void {
+    if (!this.worldMapDragging) {
+      return;
+    }
+
+    this.handleWorldMapPointer(pointer);
+  }
+
+  private handleWorldMapPointer(pointer: Phaser.Input.Pointer): void {
+    if (!this.worldMapRoot?.visible || !this.cachedFieldBounds || this.worldMapFieldScale <= 0) {
+      return;
+    }
+
+    const localX = pointer.x - this.worldMapRoot.x;
+    const localY = pointer.y - this.worldMapRoot.y;
+    const mapX = Phaser.Math.Clamp(localX, this.worldMapContentX, this.worldMapContentX + this.worldMapContentWidth);
+    const mapY = Phaser.Math.Clamp(localY, this.worldMapContentY, this.worldMapContentY + this.worldMapContentHeight);
+    const bounds = this.cachedFieldBounds;
+    const fieldX = bounds.minX + (mapX - this.worldMapFieldOffsetX) / this.worldMapFieldScale;
+    const fieldY = bounds.minY + (mapY - this.worldMapFieldOffsetY) / this.worldMapFieldScale;
+    this.centerBoardOnFieldPoint(fieldX, fieldY);
+  }
+
+  private handleWorldMapKeyDown(event: KeyboardEvent): void {
+    if (!this.shouldShowWorldMap() || this.hasBlockingOverlayOpen() || event.altKey || event.ctrlKey || event.metaKey) {
+      return;
+    }
+
+    const key = event.key;
+    if (key !== "ArrowUp" && key !== "ArrowDown" && key !== "ArrowLeft" && key !== "ArrowRight") {
+      return;
+    }
+
+    event.preventDefault();
+    const dx = key === "ArrowRight" ? WORLD_MAP_ARROW_STEP_TILES : key === "ArrowLeft" ? -WORLD_MAP_ARROW_STEP_TILES : 0;
+    const dy = key === "ArrowDown" ? WORLD_MAP_ARROW_STEP_TILES : key === "ArrowUp" ? -WORLD_MAP_ARROW_STEP_TILES : 0;
+    this.panBoardByFieldTiles(dx, dy);
+  }
+
+  private panBoardByFieldTiles(dx: number, dy: number): void {
+    if (this.boardScale <= 0) {
+      return;
+    }
+
+    const scaledStep = (TILE_SIZE + TILE_GAP) * this.boardScale;
+    this.boardPanX -= dx * scaledStep;
+    this.boardPanY -= dy * scaledStep;
+    this.clampBoardPan();
+    this.hideHoverMarker();
+    this.requestBoardLayout("pan");
+  }
+
+  private centerBoardOnFieldPoint(fieldX: number, fieldY: number): void {
+    const bounds = this.cachedFieldBounds;
+    if (!bounds || this.boardScale <= 0) {
+      return;
+    }
+
+    const targetX = Phaser.Math.Clamp(fieldX, bounds.minX, bounds.maxX);
+    const targetY = Phaser.Math.Clamp(fieldY, bounds.minY, bounds.maxY);
+    const scaledStep = (TILE_SIZE + TILE_GAP) * this.boardScale;
+    const targetScreenX = this.boardContentX + this.boardContentWidth / 2;
+    const targetScreenY = this.boardContentY + this.boardContentHeight / 2;
+    const centerX = targetScreenX - (targetX - bounds.minX) * scaledStep + this.boardScaledWidth / 2 - (TILE_SIZE * this.boardScale) / 2;
+    const centerY = targetScreenY - (targetY - bounds.minY) * scaledStep + this.boardScaledHeight / 2 - (TILE_SIZE * this.boardScale) / 2;
+    this.boardPanX = centerX - this.boardBaseCenterX;
+    this.boardPanY = centerY - this.boardBaseCenterY;
+    this.clampBoardPan();
+    this.hideHoverMarker();
+    this.requestBoardLayout("pan");
   }
 
   private renderTriggerFeed(force = false): void {
@@ -6224,11 +6525,12 @@ export class GameScene extends Phaser.Scene {
     this.lastAutomationIncomeFeedAt = 0;
     this.triggerFeedEvents = [];
     this.triggerFeedRenderKey = "";
+    this.worldMapRenderKey = "";
     this.music.setComboLevel(0);
     this.recentlyRegrownAt.clear();
     this.destroyAllPerfectTouchCues();
     this.clearMowerVisuals();
-    this.resetBoardView();
+    this.applyInitialBoardView();
     this.destroyAllTileViews();
     this.worldObjectViews.forEach((view) => view.container.destroy());
     this.worldObjectViews.clear();
@@ -6258,6 +6560,28 @@ export class GameScene extends Phaser.Scene {
     this.boardPanY = 0;
     this.isBoardPanArmed = false;
     this.isPanningBoard = false;
+  }
+
+  private applyInitialBoardView(): void {
+    this.boardZoom = this.getInitialBoardZoom();
+    this.boardPanX = 0;
+    this.boardPanY = 0;
+    this.isBoardPanArmed = false;
+    this.isPanningBoard = false;
+  }
+
+  private getInitialBoardZoom(): number {
+    const bounds = this.cachedFieldBounds;
+    if (!bounds || this.fieldTileCount < LARGE_FIELD_INITIAL_ZOOM_TILE_THRESHOLD) {
+      return 1;
+    }
+
+    const fieldLongSide = Math.max(bounds.width, bounds.height);
+    const targetVisibleTiles =
+      this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH
+        ? LARGE_FIELD_INITIAL_VISIBLE_TILES_COMPACT
+        : LARGE_FIELD_INITIAL_VISIBLE_TILES_DESKTOP;
+    return Phaser.Math.Clamp(fieldLongSide / targetVisibleTiles, 1, MAX_BOARD_ZOOM);
   }
 
   private renderAllTiles(): void {
@@ -6589,6 +6913,12 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    if (this.pendingBoardLayout) {
+      reason = this.getPreferredBoardLayoutReason(this.pendingBoardLayoutReason, reason);
+      this.pendingBoardLayout = false;
+      this.pendingBoardLayoutReason = "direct";
+    }
+
     this.cancelCommonRedrawQueue();
     if (this.shouldResetPositionBoundBoardVisuals(reason)) {
       this.resetFieldLayoutVisuals();
@@ -6721,6 +7051,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.layoutTriggerFeed();
+    this.profileScope("layout:worldMap", () => this.layoutWorldMap());
     this.profileScope("layout:hover", () => this.refreshHoverMarker());
     } finally {
       if (perfStart !== undefined) {
@@ -7064,6 +7395,27 @@ export class GameScene extends Phaser.Scene {
 
   private getCommonRedrawFrameBudgetMs(): number {
     return this.shouldThrottleBatchRedraw() ? PRESSURE_COMMON_REDRAW_FRAME_BUDGET_MS : COMMON_REDRAW_FRAME_BUDGET_MS;
+  }
+
+  private getRegrowthFrameBudget(): number {
+    if (
+      this.shouldThrottleBatchRedraw() ||
+      this.children.list.length >= DISPLAY_OBJECT_PRESSURE_LIMIT ||
+      this.frameSpikeCount > 0 ||
+      this.effectQuality <= 0.58
+    ) {
+      return PRESSURE_REGROW_FRAME_TILE_BUDGET;
+    }
+
+    if (this.fieldTileCount >= 2000) {
+      return HUGE_FIELD_REGROW_FRAME_TILE_BUDGET;
+    }
+
+    if (this.fieldTileCount >= 1000) {
+      return LARGE_FIELD_REGROW_FRAME_TILE_BUDGET;
+    }
+
+    return REGROW_FRAME_TILE_BUDGET;
   }
 
   private getMinimumBoardScale(): number {
@@ -12081,6 +12433,7 @@ export class GameScene extends Phaser.Scene {
     });
     this.milestoneText.setPosition(mobilePortrait ? 20 : 26, this.layoutGoalNudge(this.layoutComboBadge()));
     this.layoutTriggerFeed();
+    this.layoutWorldMap();
 
     if (this.skillTreeOpen && refreshPanels) {
       this.profileScope("ui:skillTree", () => this.refreshSkillTree());
@@ -13648,9 +14001,12 @@ export class GameScene extends Phaser.Scene {
   private showMessage(message: string, duration: number): void {
     const previousMilestoneHeight = this.milestoneText.height;
     this.setTextIfChanged(this.milestoneText, message);
-    if (Math.abs(this.milestoneText.height - previousMilestoneHeight) > 1) {
+    const heightDelta = this.milestoneText.height - previousMilestoneHeight;
+    if (Math.abs(heightDelta) > 1) {
       this.layoutHeader();
-      this.requestBoardLayout("ui");
+      if (heightDelta > 1) {
+        this.requestBoardLayout("ui");
+      }
     }
     this.time.delayedCall(duration, () => this.refreshUi());
   }

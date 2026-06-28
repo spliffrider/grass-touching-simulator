@@ -1,0 +1,108 @@
+{
+  "createdAt": "2026-06-28",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Capture the deep big-field optimization pass focused on fast regrowth bursts and transient UI layout jank.",
+  "currentUserGoal": "Make very large fields with many unlocked systems feel smoother when regrowth, automation, weather, and effects are busy.",
+  "importantConventions": [
+    "Read AGENTS.md first.",
+    "Read handoffs/LATEST.json, then the referenced latest handoff.",
+    "Performance-sensitive changes need npm run build and browser perf harness checks.",
+    "Respect unrelated dirty docs/media and the earlier Weather Jar tuning changes."
+  ],
+  "workCompleted": [
+    {
+      "summary": "Added a per-frame regrowth budget so large due-regrowth waves are spread over multiple frames instead of refreshing every matured tile at once.",
+      "files": [
+        "src/game/systems/FieldSystem.ts",
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Throttled regrow audio to the existing regrow visual-feedback cadence so split bursts do not produce a new sound every frame.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Stopped shorter transient milestone/status messages from moving the board upward and forcing an expensive full field layout on large visible boards.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Merged pending board layout reasons into direct layout calls so a layout that already happened can satisfy an outstanding ui/dirty/pan request instead of walking the board again next frame.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    }
+  ],
+  "verificationPerformed": [
+    {
+      "commandOrCheck": "npm run build",
+      "result": "Passed twice after the optimization edits; latest build produced dist/assets/index-CNN0g044.js."
+    },
+    {
+      "commandOrCheck": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "Passed after final edits; complete phase visibleTiles 1148, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 12, frameSpikes 0, displayObjects 302, activeTweens 21, hotspots hot none."
+    },
+    {
+      "commandOrCheck": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=2500",
+      "result": "Passed after final edits; complete phase visibleTiles 2301, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 19, frameSpikes 0, displayObjects 304, activeTweens 21, hotspots hot none."
+    },
+    {
+      "commandOrCheck": "Browser stress sample at http://127.0.0.1:5173/?stress&perf&tiles=2500 for about 18 seconds",
+      "result": "Improved versus baseline; before maxFrameDeltaMs 25, maxDirtyTiles 80, maxStaleTiles 80, maxDisplayObjects 552. Final sample maxFrameDeltaMs 13, frameSpikes 0, maxDirtyTiles 29, maxStaleTiles 29, maxDisplayObjects 292, maxActiveTweens 20."
+    },
+    {
+      "commandOrCheck": "Browser mobile perf harness at 390x844, http://127.0.0.1:5173/?perfHarness&tiles=2500",
+      "result": "Passed; complete phase visibleTiles 49, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 465, activeTweens 22, hotspots hot none. Viewport reset afterward."
+    },
+    {
+      "commandOrCheck": "git diff --check",
+      "result": "Passed with only existing line-ending warnings for dirty files."
+    }
+  ],
+  "currentGitStatusSummary": {
+    "modified": [
+      "AGENTS.md",
+      "docs/DESKTOP_MAC_SYNC_WORKFLOW.md",
+      "src/game/data/quests.ts",
+      "src/game/data/seed-shop.ts",
+      "src/game/scenes/GameScene.ts",
+      "src/game/systems/FieldSystem.ts",
+      "handoffs/LATEST.json"
+    ],
+    "deletedDueToMoveOrTrackedRemoval": [],
+    "untrackedImportant": [
+      "handoffs/HANDOFF_2026-06-28_REGROW_BURST_OPTIMIZATION.json"
+    ],
+    "untrackedPreExistingOrUnrelated": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategie\u00ebn voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "docs/phaser3-performance-tips.md",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ],
+    "note": "AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md were pre-existing tracked local modifications. src/game/data/quests.ts and src/game/data/seed-shop.ts are the earlier Weather Jar sooner tuning, not part of this perf pass."
+  },
+  "knownIssuesOrDesignQuestions": [
+    "Stress startup still does one intentional layout:ui after the initial layout when the Weather Jar badge becomes visible. It did not cause frame spikes in the sampled browser run, but startup layout is still expensive with all 2500 tiles visible.",
+    "Live stress hotspots after this pass are mostly ui:triggerFeed, occasional sprinkler/mutation system work, and normal regrow/render queued work. They stayed below spike thresholds in verification."
+  ],
+  "recommendedNextSteps": [
+    "Playtest the user's real large save and feel for choppiness during natural fast regrowth and automation bursts.",
+    "If another perf pass is needed, profile ui:triggerFeed and sprinkler/mutation one-shot updates under the user's save rather than broad refactors.",
+    "When shipping, stage only intended gameplay, Weather Jar, and handoff files; leave unrelated dirty docs/media alone unless the user says otherwise."
+  ],
+  "doNotRevert": [
+    "Do not remove the regrowth frame budget unless replacing it with another burst-smoothing mechanism.",
+    "Do not restore board relayout for shorter transient messages; it was causing expensive full-board layout churn on huge visible fields.",
+    "Do not revert the earlier Weather Jar sooner tuning in src/game/data/seed-shop.ts and src/game/data/quests.ts unless the user asks."
+  ],
+  "finalUserIntent": "Continue smoothing large-field gameplay, especially unlocked automation/regrowth/weather scenarios, while preserving Weather Jar's earlier availability."
+}

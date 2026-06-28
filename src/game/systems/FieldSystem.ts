@@ -347,8 +347,13 @@ export function setTileRegrowing(tile: FieldTile, state: GameState, stats: Runti
   getRegrowingTileKeySet(state).add(tileKey(tile.x, tile.y));
 }
 
-export function updateRegrowth(state: GameState, stats: RuntimeStats, now: number): FieldTile[] {
+export function updateRegrowth(state: GameState, stats: RuntimeStats, now: number, maxRegrown = Number.POSITIVE_INFINITY): FieldTile[] {
   const regrown: FieldTile[] = [];
+  const regrowLimit = Math.max(0, Math.floor(maxRegrown));
+  if (regrowLimit <= 0) {
+    return regrown;
+  }
+
   const keys = getRegrowingTileKeySet(state);
 
   for (const key of keys) {
@@ -366,6 +371,9 @@ export function updateRegrowth(state: GameState, stats: RuntimeStats, now: numbe
       tile.baseTouchValue = getGrassTier(tile.tier).touchValue;
       regrown.push(tile);
       keys.delete(key);
+      if (regrown.length >= regrowLimit) {
+        break;
+      }
     }
   }
 

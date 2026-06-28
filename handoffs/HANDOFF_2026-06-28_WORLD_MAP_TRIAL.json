@@ -1,0 +1,103 @@
+{
+  "createdAt": "2026-06-28",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Capture the large-field world map/minimap trial added after the rectangular field preview felt promising but not huge enough.",
+  "currentUserGoal": "Explore a larger unlocked world map where the main board is a movable visible region across the full field.",
+  "importantConventions": [
+    "Read AGENTS.md first.",
+    "Read handoffs/LATEST.json, then the referenced latest handoff.",
+    "Performance-sensitive UI changes need npm run build and perf harness checks.",
+    "Respect unrelated dirty docs/media and the earlier Weather Jar tuning changes."
+  ],
+  "workCompleted": [
+    {
+      "summary": "Added a compact World Map overlay for large fields. It draws the full field footprint with tiny color-coded cells and a bright marker for the current visible board region.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Added direct map navigation: click/drag the minimap to center the board on that region, and use arrow keys to move across the larger field by tile steps.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "The trial is live on the local dev server at http://127.0.0.1:5173/?stress&tiles=2500 with the rectangular stress field, maxed systems/items, and no save writes.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    }
+  ],
+  "verificationPerformed": [
+    {
+      "commandOrCheck": "npm run build",
+      "result": "Passed after world-map edits; latest build produced dist/assets/index-DVTsQhj7.js."
+    },
+    {
+      "commandOrCheck": "Manual browser trial at http://127.0.0.1:5173/?stress&tiles=2500",
+      "result": "Loaded with totalTiles 2500, visibleTiles 63, frameSpikes 0. World Map overlay was visible in the in-app browser after lowering the compact width threshold."
+    },
+    {
+      "commandOrCheck": "Arrow-key browser movement test",
+      "result": "ArrowRight plus ArrowDown moved the visible board region and minimap marker; sample stayed at frameSpikes 0, maxFrameDeltaMs 10."
+    },
+    {
+      "commandOrCheck": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "Passed with World Map active; complete phase visibleTiles 54, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 629, activeTweens 22, hotspots hot none."
+    },
+    {
+      "commandOrCheck": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=2500",
+      "result": "Passed with World Map active; complete phase visibleTiles 63, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 575, activeTweens 22, hotspots hot none."
+    },
+    {
+      "commandOrCheck": "git diff --check",
+      "result": "Passed with only existing line-ending warnings."
+    }
+  ],
+  "currentGitStatusSummary": {
+    "modified": [
+      "AGENTS.md",
+      "docs/DESKTOP_MAC_SYNC_WORKFLOW.md",
+      "handoffs/LATEST.json",
+      "src/game/data/quests.ts",
+      "src/game/data/seed-shop.ts",
+      "src/game/scenes/GameScene.ts",
+      "src/game/systems/FieldSystem.ts"
+    ],
+    "deletedDueToMoveOrTrackedRemoval": [],
+    "untrackedImportant": [
+      "docs/phaser3-performance-tips.md",
+      "handoffs/HANDOFF_2026-06-28_REGROW_BURST_OPTIMIZATION.json",
+      "handoffs/HANDOFF_2026-06-28_WORLD_MAP_TRIAL.json"
+    ],
+    "untrackedPreExistingOrUnrelated": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategie\u00ebn voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ],
+    "note": "AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md were pre-existing tracked local modifications. src/game/data/quests.ts and src/game/data/seed-shop.ts are the earlier Weather Jar sooner tuning. src/game/systems/FieldSystem.ts and part of GameScene.ts include the prior regrow-burst optimization."
+  },
+  "knownIssuesOrDesignQuestions": [
+    "The World Map overlay currently overlaps the lower-left playable board area in compact browser widths. This is acceptable for the trial but should be redesigned if kept.",
+    "The main board viewport still uses the existing board viewport dimensions; the map marker reflects that region. A later pass could make the main playable viewport a strict square crop.",
+    "The minimap redraws the field footprint when field bounds/count/size changes, not on every tile trait/tier change. That keeps it cheap but means tiny minimap colors are more footprint/overview than exact live state."
+  ],
+  "recommendedNextSteps": [
+    "Have the user try the trial and decide whether the map belongs bottom-left, beside the board, collapsible, or integrated into the right rail.",
+    "If the feel is good, add an intentional square main viewport mode for large fields and make the minimap marker square by design.",
+    "If shipping soon, stage only intended gameplay, Weather Jar, docs/phaser3-performance-tips.md if desired, and handoff files; leave unrelated dirty docs/media alone."
+  ],
+  "doNotRevert": [
+    "Do not remove the regrowth frame budget from the earlier optimization pass unless replacing it with another burst-smoothing mechanism.",
+    "Do not revert the earlier Weather Jar sooner tuning unless the user asks.",
+    "Do not treat the minimap placement as final UX; it is a live trial surface for the larger-world direction."
+  ],
+  "finalUserIntent": "Let the user play with the rectangular stress field plus World Map overlay, then decide whether to formalize large-field map navigation and square viewport mode."
+}

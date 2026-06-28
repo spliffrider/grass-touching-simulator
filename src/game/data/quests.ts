@@ -669,7 +669,7 @@ export const QUESTS: QuestDefinition[] = [
     name: "Sky In A Jar",
     description: "Buy the Weather Jar.",
     reward: { seeds: 5, gold: 2 },
-    prerequisiteQuestIds: ["field_journal_owner"],
+    prerequisiteQuestIds: ["seed_pouch_owner"],
     isComplete: (state) => state.seedShopPurchases.weather_jar === true,
     getProgress: (state) => (state.seedShopPurchases.weather_jar ? "Weather Jar bought" : "Not bought yet"),
   },

@@ -1,0 +1,96 @@
+{
+  "createdAt": "2026-06-28",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Capture the follow-up change that makes large saved fields load zoomed into a reasonable playable region instead of showing the entire huge field at tiny scale.",
+  "currentUserGoal": "Make big-field saves feel sane on entry after the world-map trial revealed that old saves could open with the full field looking comically tiny.",
+  "importantConventions": [
+    "Read AGENTS.md first.",
+    "Read handoffs/LATEST.json, then this referenced latest handoff.",
+    "Performance-sensitive UI/layout changes need npm run build and perf harness checks.",
+    "Respect unrelated dirty docs/media and earlier Weather Jar/performance changes."
+  ],
+  "workCompleted": [
+    {
+      "summary": "Added initial large-field zoom constants and an initial board-view helper in GameScene. Fields under 600 tiles still load at normal zoom; larger fields compute a zoom from their long side and clamp it to the existing max board zoom.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Applied the initial zoom during scene creation before first board layout/render, and when restarting a run from a supplied state. Manual reset-view behavior still uses the existing full-field zoom of 1.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Restored the browser trial to http://127.0.0.1:5173/?stress&perf&tiles=2500 after verification. The loaded stress view reported totalTiles 2500, visibleTiles 943, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 9, frameSpikes 0."
+    }
+  ],
+  "verificationPerformed": [
+    {
+      "commandOrCheck": "npm run build",
+      "result": "Passed after the initial-zoom change."
+    },
+    {
+      "commandOrCheck": "Manual browser stress check at http://127.0.0.1:5173/?stress&perf&tiles=2500",
+      "result": "Loaded as a closer playable board view rather than a tiny whole-field view; final sampled metrics were totalTiles 2500, visibleTiles 943, maxFrameDeltaMs 9, frameSpikes 0, layoutPasses 0, redraws 0, redrawQueued 0."
+    },
+    {
+      "commandOrCheck": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "Passed; complete phase visibleTiles 589, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 10, frameSpikes 0, displayObjects 305, activeTweens 21, hotspots hot none."
+    },
+    {
+      "commandOrCheck": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=2500",
+      "result": "Passed; complete phase visibleTiles 984, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 304, activeTweens 21, hotspots hot none."
+    },
+    {
+      "commandOrCheck": "git diff --check -- src/game/scenes/GameScene.ts",
+      "result": "Passed with only the existing LF-to-CRLF warning."
+    }
+  ],
+  "currentGitStatusSummary": {
+    "modified": [
+      "AGENTS.md",
+      "docs/DESKTOP_MAC_SYNC_WORKFLOW.md",
+      "handoffs/LATEST.json",
+      "src/game/data/quests.ts",
+      "src/game/data/seed-shop.ts",
+      "src/game/scenes/GameScene.ts",
+      "src/game/systems/FieldSystem.ts"
+    ],
+    "untrackedImportant": [
+      "docs/phaser3-performance-tips.md",
+      "handoffs/HANDOFF_2026-06-28_INITIAL_BIG_FIELD_ZOOM.json",
+      "handoffs/HANDOFF_2026-06-28_REGROW_BURST_OPTIMIZATION.json",
+      "handoffs/HANDOFF_2026-06-28_WORLD_MAP_TRIAL.json"
+    ],
+    "untrackedPreExistingOrUnrelated": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategie\u00ebn voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ],
+    "note": "AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md were pre-existing tracked local modifications. seed-shop/quests are earlier Weather Jar sooner tuning. FieldSystem and part of GameScene contain the earlier regrow-burst optimization. GameScene also contains the world-map trial and this initial big-field zoom follow-up."
+  },
+  "knownIssuesOrDesignQuestions": [
+    "The World Map overlay still overlaps the lower-left board area in some layouts; that remains a trial UX question from the previous handoff.",
+    "The main board viewport is not yet a strict square crop. This change only makes the initial scale more playable.",
+    "The initial zoom threshold and target visible tile counts are tuning values: 600 tiles, 18 desktop visible tiles by long side, 10 compact visible tiles by long side."
+  ],
+  "recommendedNextSteps": [
+    "Let the user try the stress page and decide if the initial zoom should be tighter or looser.",
+    "If the world-map direction sticks, design a permanent minimap location and square visible-field mode.",
+    "Before syncing/handoff to Mac, stage only intended gameplay/docs/handoff files and leave unrelated dirty docs/media alone."
+  ],
+  "doNotRevert": [
+    "Do not remove the earlier regrowth frame budget unless replacing it with another burst-smoothing mechanism.",
+    "Do not revert the earlier Weather Jar sooner tuning unless the user asks.",
+    "Do not treat the minimap placement as final UX; it is still a live trial surface."
+  ],
+  "finalUserIntent": "User wants large saves to load zoomed into a reasonable playable size while keeping the world-map navigation idea available for big fields."
+}
