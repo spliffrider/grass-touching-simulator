@@ -2,7 +2,6 @@ import Phaser from "phaser";
 import { DEFAULT_MUSIC_VOLUME, readStoredMusicVolume, writeStoredMusicVolume } from "../data/audio-settings";
 import {
   AUTOMATION_SYSTEMS,
-  getActiveAutomationPairSynergies,
   getAutomationOutputContext,
   getAutomationSystemDerivativeSupport,
   getAutomationSystemCost,
@@ -157,6 +156,10 @@ const AMBIENT_TRANSIENT_OBJECT_BUDGET = 18;
 const AMBIENT_POP_TEXT_BUDGET = 7;
 const AMBIENT_REWARD_ARC_SPRITE_BUDGET = 6;
 const AMBIENT_WORLD_ACTION_ARC_SPRITE_BUDGET = 10;
+const LARGE_FIELD_AMBIENT_BUDGET_TILE_COUNT = 1200;
+const HUGE_FIELD_AMBIENT_BUDGET_TILE_COUNT = 2000;
+const LARGE_FIELD_AMBIENT_BUDGET_SCALE = 0.62;
+const HUGE_FIELD_AMBIENT_BUDGET_SCALE = 0.42;
 const AUTO_TOUCH_VISUAL_CREDIT_LIMIT = 7;
 const AUTO_TOUCH_VISUAL_SAMPLE_LIMIT = 36;
 const AUTO_TOUCH_VISUAL_MIN_INTERVAL_MS = 110;
@@ -470,7 +473,7 @@ interface GoldStoreItemView {
 }
 
 type StoreMode = "automation" | "goods";
-type AutomationBuyMode = "single" | "boost";
+type AutomationBuyMode = "single" | "boost" | "max";
 type ComboTouchSource = "manual" | "sprinkler" | "field_mouse" | "meadow_rabbit" | "sheep";
 type TileClickSource = "manual" | "persistent" | "harness";
 type HudChipId = "touches" | "seeds" | "gold" | "auto" | "quest";
@@ -522,6 +525,7 @@ interface AutomationPurchasePlan {
   targetOwned: number;
   totalCost: number;
   milestone?: { owned: number; multiplier: number };
+  partialMilestone?: boolean;
 }
 
 interface QuestItemView {
@@ -552,6 +556,14 @@ interface AutomationDirectiveView {
   bg: Phaser.GameObjects.Rectangle;
   name: Phaser.GameObjects.Text;
   description: Phaser.GameObjects.Text;
+}
+
+interface AutomationManagerPurchaseNudge {
+  systemName: string;
+  cost: number;
+  delta: number;
+  affordable: boolean;
+  missing: number;
 }
 
 const QUEST_FILTERS: Array<{ id: QuestFilterId; label: string }> = [
@@ -742,6 +754,7 @@ export class GameScene extends Phaser.Scene {
   private triggerFeedCollapsed = false;
   private nextTriggerFeedId = 1;
   private triggerFeedRenderKey = "";
+  private triggerFeedDirty = false;
   private menuDockFrame!: OrnateFrame;
   private menuDockBg!: Phaser.GameObjects.Rectangle;
   private mobileCommandDockTop = Number.POSITIVE_INFINITY;
@@ -830,6 +843,9 @@ export class GameScene extends Phaser.Scene {
   private automationPanel!: Phaser.GameObjects.Rectangle;
   private automationTitleText!: Phaser.GameObjects.Text;
   private automationStatusText!: Phaser.GameObjects.Text;
+  private automationBestBuyText!: Phaser.GameObjects.Text;
+  private automationRouteBreakdownText!: Phaser.GameObjects.Text;
+  private automationSynergyText!: Phaser.GameObjects.Text;
   private automationBackButton!: Phaser.GameObjects.Container;
   private automationDirectiveViews = new Map<AutomationDirectiveId, AutomationDirectiveView>();
   private optionsRoot!: Phaser.GameObjects.Container;
@@ -1664,6 +1680,19 @@ export class GameScene extends Phaser.Scene {
     return Math.max(1, Math.floor(baseBudget * this.effectQuality));
   }
 
+  private getAmbientScaledBudget(baseBudget: number): number {
+    const scaledBudget = this.getScaledBudget(baseBudget);
+    if (this.fieldTileCount >= HUGE_FIELD_AMBIENT_BUDGET_TILE_COUNT) {
+      return Math.max(1, Math.floor(scaledBudget * HUGE_FIELD_AMBIENT_BUDGET_SCALE));
+    }
+
+    if (this.fieldTileCount >= LARGE_FIELD_AMBIENT_BUDGET_TILE_COUNT) {
+      return Math.max(1, Math.floor(scaledBudget * LARGE_FIELD_AMBIENT_BUDGET_SCALE));
+    }
+
+    return scaledBudget;
+  }
+
   private reserveTouchFlourish(isCrit = false): boolean {
     const now = Date.now();
     const objectPressure = this.children.list.length >= DISPLAY_OBJECT_PRESSURE_LIMIT;
@@ -1745,7 +1774,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.resetAmbientFeedbackBudget();
-    if (this.ambientTransientObjectsUsed + cost > this.getScaledBudget(AMBIENT_TRANSIENT_OBJECT_BUDGET)) {
+    if (this.ambientTransientObjectsUsed + cost > this.getAmbientScaledBudget(AMBIENT_TRANSIENT_OBJECT_BUDGET)) {
       return false;
     }
 
@@ -1763,7 +1792,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.resetAmbientFeedbackBudget();
-    if (this.ambientPopTextsUsed >= this.getScaledBudget(AMBIENT_POP_TEXT_BUDGET)) {
+    if (this.ambientPopTextsUsed >= this.getAmbientScaledBudget(AMBIENT_POP_TEXT_BUDGET)) {
       return false;
     }
 
@@ -1778,7 +1807,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.resetAmbientFeedbackBudget();
-    const remaining = this.getScaledBudget(AMBIENT_BURST_PARTICLE_BUDGET) - this.ambientBurstParticlesUsed;
+    const remaining = this.getAmbientScaledBudget(AMBIENT_BURST_PARTICLE_BUDGET) - this.ambientBurstParticlesUsed;
     const budgetedQuantity = Math.min(scaledQuantity, Math.max(0, remaining));
     this.ambientBurstParticlesUsed += budgetedQuantity;
     return budgetedQuantity;
@@ -1791,7 +1820,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.resetAmbientFeedbackBudget();
-    const remaining = this.getScaledBudget(AMBIENT_REWARD_ARC_SPRITE_BUDGET) - this.ambientRewardArcSpritesUsed;
+    const remaining = this.getAmbientScaledBudget(AMBIENT_REWARD_ARC_SPRITE_BUDGET) - this.ambientRewardArcSpritesUsed;
     const budgetedCount = Math.min(scaledCount, Math.max(0, remaining));
     this.ambientRewardArcSpritesUsed += budgetedCount;
     return budgetedCount;
@@ -1804,7 +1833,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.resetAmbientFeedbackBudget();
-    const remaining = this.getScaledBudget(AMBIENT_WORLD_ACTION_ARC_SPRITE_BUDGET) - this.ambientWorldActionArcSpritesUsed;
+    const remaining = this.getAmbientScaledBudget(AMBIENT_WORLD_ACTION_ARC_SPRITE_BUDGET) - this.ambientWorldActionArcSpritesUsed;
     const budgetedCount = Math.min(scaledCount, Math.max(0, remaining));
     this.ambientWorldActionArcSpritesUsed += budgetedCount;
     return budgetedCount;
@@ -3121,7 +3150,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private addTriggerFeedEvent(label: string, detail: string, icon: string, color: number, now = Date.now()): void {
+  private addTriggerFeedEvent(label: string, detail: string, icon: string, color: number, now = Date.now(), renderNow = true): void {
     const repeated = this.triggerFeedEvents.find(
       (event) =>
         event.label === label &&
@@ -3134,7 +3163,10 @@ export class GameScene extends Phaser.Scene {
       repeated.createdAt = now;
       repeated.count += 1;
       this.triggerFeedEvents = [repeated, ...this.triggerFeedEvents.filter((event) => event !== repeated)];
-      this.renderTriggerFeed(true);
+      this.triggerFeedDirty = true;
+      if (renderNow) {
+        this.renderTriggerFeed(true);
+      }
       return;
     }
 
@@ -3149,7 +3181,10 @@ export class GameScene extends Phaser.Scene {
     });
     this.nextTriggerFeedId += 1;
     this.triggerFeedEvents = this.triggerFeedEvents.slice(0, TRIGGER_FEED_MAX_EVENTS);
-    this.renderTriggerFeed(true);
+    this.triggerFeedDirty = true;
+    if (renderNow) {
+      this.renderTriggerFeed(true);
+    }
   }
 
   private addHazardTriggerFeedEvent(text: string): void {
@@ -3253,10 +3288,12 @@ export class GameScene extends Phaser.Scene {
       visibleEvents.map((event) => `${event.id}:${event.count}`).join(","),
       ageBucket,
     ].join("|");
-    if (!force && renderKey === this.triggerFeedRenderKey) {
+    const shouldForceRender = force || this.triggerFeedDirty;
+    if (!shouldForceRender && renderKey === this.triggerFeedRenderKey) {
       return;
     }
 
+    this.triggerFeedDirty = false;
     this.triggerFeedRenderKey = renderKey;
     this.setTextIfChanged(
       this.triggerFeedTitle,
@@ -4545,11 +4582,11 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive();
     this.automationPanel = this.add
-      .rectangle(0, 0, 560, 540, UITheme.colors.panelBg, 0.98)
+      .rectangle(0, 0, 620, 650, UITheme.colors.panelBg, 0.98)
       .setOrigin(0.5)
       .setStrokeStyle(5, UITheme.colors.bronze, 0.9);
     this.automationTitleText = this.add
-      .text(0, 0, "Automation", {
+      .text(0, 0, "Automation Manager", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "34px",
         color: UITheme.colors.creamBright,
@@ -4566,6 +4603,30 @@ export class GameScene extends Phaser.Scene {
         align: "center",
       })
       .setOrigin(0.5);
+    this.automationBestBuyText = this.add
+      .text(0, 0, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "15px",
+        color: UITheme.colors.cream,
+        align: "center",
+      })
+      .setOrigin(0.5, 0);
+    this.automationRouteBreakdownText = this.add
+      .text(0, 0, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "14px",
+        color: "#dfffc8",
+        align: "center",
+      })
+      .setOrigin(0.5, 0);
+    this.automationSynergyText = this.add
+      .text(0, 0, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "14px",
+        color: "#bff4ff",
+        align: "center",
+      })
+      .setOrigin(0.5, 0);
     this.automationBackButton = createTextButton(this, "Back", () => this.closeAutomationPanel(), 118, 44, 109);
 
     this.automationRoot.add([
@@ -4573,6 +4634,9 @@ export class GameScene extends Phaser.Scene {
       this.automationPanel,
       this.automationTitleText,
       this.automationStatusText,
+      this.automationBestBuyText,
+      this.automationRouteBreakdownText,
+      this.automationSynergyText,
       this.automationBackButton,
     ]);
 
@@ -4609,22 +4673,37 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const panelWidth = Math.min(580, this.scale.width - 36);
-    const panelHeight = Math.min(540, this.scale.height - 48);
+    const compact = this.scale.width < 560 || this.scale.height < 700;
+    const panelWidth = Math.min(640, this.scale.width - 28);
+    const panelHeight = Math.min(compact ? 760 : 650, this.scale.height - 40);
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
-    const rowWidth = Math.max(260, panelWidth - 72);
-    const compact = this.scale.width < 560 || this.scale.height < 640;
-    const rowHeight = compact ? 64 : 68;
-    const startY = centerY - panelHeight / 2 + 112;
+    const panelTop = centerY - panelHeight / 2;
+    const panelBottom = centerY + panelHeight / 2;
+    const rowWidth = Math.max(260, panelWidth - 56);
+    const rowHeight = compact ? 68 : 62;
+    const rowGap = compact ? 8 : 8;
+    const startY = panelTop + (compact ? 238 : 222);
 
     this.resizeInteractiveBackdrop(this.automationBackdrop);
     this.automationPanel.setPosition(centerX, centerY);
     this.automationPanel.setSize(panelWidth, panelHeight);
-    this.automationTitleText.setPosition(centerX, centerY - panelHeight / 2 + 38);
-    this.automationStatusText.setPosition(centerX, centerY - panelHeight / 2 + 76);
+    this.automationTitleText.setFontSize(compact ? 25 : 34);
+    this.automationTitleText.setPosition(centerX, panelTop + (compact ? 32 : 38));
+    this.automationStatusText.setFontSize(compact ? 12 : 15);
+    this.automationStatusText.setPosition(centerX, panelTop + (compact ? 64 : 76));
     this.automationStatusText.setWordWrapWidth(Math.max(260, panelWidth - 52));
-    this.automationBackButton.setPosition(centerX - 59, centerY + panelHeight / 2 - 58);
+    this.automationBestBuyText.setFontSize(compact ? 12 : 15);
+    this.automationBestBuyText.setPosition(centerX, panelTop + (compact ? 102 : 108));
+    this.automationBestBuyText.setWordWrapWidth(Math.max(250, panelWidth - 52));
+    this.automationRouteBreakdownText.setFontSize(compact ? 11 : 13);
+    this.automationRouteBreakdownText.setPosition(centerX, panelTop + (compact ? 142 : 144));
+    this.automationRouteBreakdownText.setWordWrapWidth(Math.max(250, panelWidth - 52));
+    this.automationSynergyText.setFontSize(compact ? 11 : 13);
+    this.automationSynergyText.setPosition(centerX, panelTop + (compact ? 184 : 176));
+    this.automationSynergyText.setWordWrapWidth(Math.max(250, panelWidth - 52));
+    this.automationBackButton.setScale(compact ? 0.9 : 1);
+    this.automationBackButton.setPosition(centerX - 59, panelBottom - (compact ? 54 : 58));
 
     for (const [index, directive] of AUTOMATION_DIRECTIVES.entries()) {
       const view = this.automationDirectiveViews.get(directive.id);
@@ -4633,13 +4712,14 @@ export class GameScene extends Phaser.Scene {
       }
 
       const rowX = centerX - rowWidth / 2;
-      const rowY = startY + index * (rowHeight + 10);
+      const rowY = startY + index * (rowHeight + rowGap);
       view.container.setPosition(rowX, rowY).setSize(rowWidth, rowHeight);
       view.bg.setSize(rowWidth, rowHeight);
       view.name.setPosition(16, 9);
-      view.description.setPosition(16, compact ? 31 : 36);
+      view.name.setFontSize(compact ? 16 : 18);
+      view.description.setPosition(16, compact ? 31 : 32);
       view.description.setWordWrapWidth(Math.max(210, rowWidth - 32));
-      view.description.setFontSize(compact ? 12 : 13);
+      view.description.setFontSize(compact ? 11 : 12);
     }
   }
 
@@ -4653,34 +4733,33 @@ export class GameScene extends Phaser.Scene {
     const resolvedDirectiveName = AUTOMATION_DIRECTIVES.find((directive) => directive.id === resolvedDirective)?.name ?? "Balanced";
     const stats = this.getCachedRuntimeStats();
     const directiveTuning = getAutomationDirectiveTuning(this.state);
-    const activeSynergyCount = getActiveAutomationPairSynergies(this.state, stats).length;
-    const helperTempoText =
-      directiveTuning.helperIntervalMultiplier < 1
-        ? `${Math.round((1 / directiveTuning.helperIntervalMultiplier - 1) * 100)}% faster helpers`
-        : directiveTuning.helperIntervalMultiplier > 1
-          ? `${Math.round((directiveTuning.helperIntervalMultiplier - 1) * 100)}% slower helpers`
-          : "normal helper tempo";
+    const automationOutputContext = getAutomationOutputContext(this.state, stats);
+    const totalAutomationOutput = getTotalAutomationTouchesPerMinute(this.state, stats, automationOutputContext);
+    const helperTempoText = this.getAutomationHelperTempoText(directiveTuning);
     this.automationStatusText.setText(
       [
         `${getAutomationUnitCount(this.state)} active units`,
-        formatGrassTouchesPerMinute(getTotalAutomationTouchesPerMinute(this.state, stats)),
-        activeSynergyCount > 0 ? `${activeSynergyCount} ecosystem synergies` : "",
-        `Directive: ${currentDirective.name}${currentDirective.id === "autopilot" ? ` -> ${resolvedDirectiveName}` : ""}, x${directiveTuning.touchOutputMultiplier.toFixed(
-          2,
-        )} output, ${helperTempoText}`,
+        formatGrassTouchesPerMinute(totalAutomationOutput),
+        `Lane: ${currentDirective.name}${currentDirective.id === "autopilot" ? ` -> ${resolvedDirectiveName}` : ""}`,
+        `x${directiveTuning.touchOutputMultiplier.toFixed(2)} output`,
+        helperTempoText,
         `${formatGrassTouches(this.state.automationStats.automatedGrassTouches)} auto touches`,
         `${this.state.automationStats.automationSupplyDrops} supplies`,
-        `Best auto streak ${this.state.automationStats.bestAutomationComboCount}`,
-        this.state.seedShopPurchases.quest_clipboard ? "Clipboard: claiming quests" : "",
+        `streak ${this.state.automationStats.bestAutomationComboCount}`,
       ]
         .filter(Boolean)
         .join(" | "),
     );
+    this.automationBestBuyText.setText(this.getAutomationManagerBestBuyLine(stats, automationOutputContext));
+    this.automationRouteBreakdownText.setText(this.getAutomationManagerRouteBreakdownLine(stats, automationOutputContext));
+    this.automationSynergyText.setText(this.getAutomationManagerSynergyLine(automationOutputContext));
 
     for (const view of this.automationDirectiveViews.values()) {
       const selected = view.directiveId === currentDirective.id;
       view.bg.setFillStyle(selected ? UITheme.colors.panelInset : UITheme.colors.panelBgDeep, selected ? 1 : 0.96);
       view.bg.setStrokeStyle(selected ? 4 : 2, selected ? UITheme.colors.glow : UITheme.colors.bronze, selected ? 0.96 : 0.82);
+      view.name.setText(this.getAutomationDirectiveLaneName(view.directiveId));
+      view.description.setText(this.getAutomationDirectiveLaneDescription(view.directiveId));
       view.name.setColor(selected ? UITheme.colors.creamBright : UITheme.colors.cream);
     }
 
@@ -5351,14 +5430,34 @@ export class GameScene extends Phaser.Scene {
   }
 
   private toggleAutomationBuyMode(): void {
-    this.automationBuyMode = this.automationBuyMode === "single" ? "boost" : "single";
-    this.setStoreStatus(
-      this.automationBuyMode === "boost"
-        ? "Automation purchases now target the next ownership boost."
-        : "Automation purchases now buy one helper at a time.",
-    );
+    const modes: AutomationBuyMode[] = ["single", "boost", "max"];
+    const currentIndex = Math.max(0, modes.indexOf(this.automationBuyMode));
+    this.automationBuyMode = modes[(currentIndex + 1) % modes.length];
+    this.setStoreStatus(this.getAutomationBuyModeStatus());
     this.audio.play("upgrade");
     this.refreshUi();
+  }
+
+  private getAutomationBuyModeLabel(): string {
+    switch (this.automationBuyMode) {
+      case "boost":
+        return "To Boost";
+      case "max":
+        return "Buy Max";
+      default:
+        return "Buy 1";
+    }
+  }
+
+  private getAutomationBuyModeStatus(): string {
+    switch (this.automationBuyMode) {
+      case "boost":
+        return "Automation purchases now target the next ownership boost.";
+      case "max":
+        return "Automation purchases now buy as many helpers as you can afford, stopping at the next boost.";
+      default:
+        return "Automation purchases now buy one helper at a time.";
+    }
   }
 
   private getDefaultStoreStatus(): string {
@@ -5371,8 +5470,22 @@ export class GameScene extends Phaser.Scene {
     system: AutomationSystemDefinition,
     owned = getAutomationSystemOwned(this.state, system.id),
   ): AutomationPurchasePlan {
-    const milestone = this.automationBuyMode === "boost" ? getNextAutomationSystemMilestone(this.state, system.id) : undefined;
+    const nextMilestone = getNextAutomationSystemMilestone(this.state, system.id);
+    if (this.automationBuyMode === "max" && nextMilestone) {
+      return this.getMaxAffordableAutomationPurchasePlan(system, owned, nextMilestone);
+    }
+
+    const milestone = this.automationBuyMode === "boost" ? nextMilestone : undefined;
     const targetOwned = milestone ? Math.max(owned + 1, milestone.owned) : owned + 1;
+    return this.createAutomationPurchasePlan(system, owned, targetOwned, milestone);
+  }
+
+  private createAutomationPurchasePlan(
+    system: AutomationSystemDefinition,
+    owned: number,
+    targetOwned: number,
+    milestone?: { owned: number; multiplier: number },
+  ): AutomationPurchasePlan {
     const quantity = Math.max(1, targetOwned - owned);
     let totalCost = 0;
 
@@ -5382,10 +5495,231 @@ export class GameScene extends Phaser.Scene {
 
     return {
       quantity,
+      targetOwned: owned + quantity,
+      totalCost,
+      milestone,
+      partialMilestone: milestone !== undefined && owned + quantity < milestone.owned,
+    };
+  }
+
+  private getMaxAffordableAutomationPurchasePlan(
+    system: AutomationSystemDefinition,
+    owned: number,
+    milestone: { owned: number; multiplier: number },
+  ): AutomationPurchasePlan {
+    let totalCost = 0;
+    let targetOwned = owned;
+
+    for (let currentOwned = owned; currentOwned < milestone.owned; currentOwned += 1) {
+      const nextCost = getAutomationSystemCost(system, currentOwned);
+      const previewCost = addGrassTouches(totalCost, nextCost);
+      if (!canAffordGrassTouches(this.state.grassTouches, previewCost)) {
+        break;
+      }
+
+      totalCost = previewCost;
+      targetOwned = currentOwned + 1;
+    }
+
+    if (targetOwned <= owned) {
+      return this.createAutomationPurchasePlan(system, owned, owned + 1, milestone);
+    }
+
+    return {
+      quantity: targetOwned - owned,
       targetOwned,
       totalCost,
       milestone,
+      partialMilestone: targetOwned < milestone.owned,
     };
+  }
+
+  private getAutomationPlanPurchaseText(plan: AutomationPurchasePlan): string {
+    if (plan.quantity <= 1) {
+      return plan.partialMilestone ? `Buy 1 toward ${plan.milestone?.owned}` : "Buy 1";
+    }
+
+    if (plan.partialMilestone) {
+      return `Buy +${plan.quantity} toward ${plan.milestone?.owned}`;
+    }
+
+    return `Buy +${plan.quantity}`;
+  }
+
+  private getAutomationHelperTempoText(tuning: ReturnType<typeof getAutomationDirectiveTuning>): string {
+    if (tuning.helperIntervalMultiplier < 1) {
+      return `${Math.round((1 / tuning.helperIntervalMultiplier - 1) * 100)}% faster helpers`;
+    }
+
+    if (tuning.helperIntervalMultiplier > 1) {
+      return `${Math.round((tuning.helperIntervalMultiplier - 1) * 100)}% slower helpers`;
+    }
+
+    return "normal helper tempo";
+  }
+
+  private getAutomationDirectiveRoleText(directiveId: AutomationDirectiveId): string {
+    switch (directiveId) {
+      case "growth":
+        return "Growth lane";
+      case "harvest":
+        return "Harvest lane";
+      case "supplies":
+        return "Supplies lane";
+      case "autopilot":
+        return "Adaptive lane";
+      default:
+        return "Balanced lane";
+    }
+  }
+
+  private getAutomationDirectiveLaneName(directiveId: AutomationDirectiveId): string {
+    const directive = AUTOMATION_DIRECTIVES.find((candidate) => candidate.id === directiveId);
+    if (!directive) {
+      return "Lane";
+    }
+
+    return directiveId === "autopilot" ? directive.name : `${directive.name} Lane`;
+  }
+
+  private getAutomationDirectiveLaneDescription(directiveId: AutomationDirectiveId): string {
+    const previewState: GameState = { ...this.state, automationDirectiveId: directiveId };
+    const tuning = getAutomationDirectiveTuning(previewState);
+    const resolvedDirectiveId = getResolvedAutomationDirectiveId(previewState);
+    const resolvedDirectiveName = AUTOMATION_DIRECTIVES.find((directive) => directive.id === resolvedDirectiveId)?.name ?? "Balanced";
+    const details = [`x${tuning.touchOutputMultiplier.toFixed(2)} output`, this.getAutomationHelperTempoText(tuning)];
+
+    if (tuning.helperTouchMultiplier !== 1) {
+      details.push(`helper touch x${tuning.helperTouchMultiplier.toFixed(2)}`);
+    }
+    if (tuning.helperTouchBonus > 0) {
+      details.push(`helper +${tuning.helperTouchBonus}`);
+    }
+    if (tuning.growthRegrowMultiplier < 1) {
+      details.push(`${Math.round((1 - tuning.growthRegrowMultiplier) * 100)}% faster regrow`);
+    }
+    if (tuning.supplyChanceBonus > 0) {
+      details.push(`supplies +${Math.round(tuning.supplyChanceBonus * 100)} pts`);
+    } else if (tuning.supplyChanceBonus < 0) {
+      details.push(`supplies ${Math.round(tuning.supplyChanceBonus * 100)} pts`);
+    }
+    if (directiveId === "autopilot") {
+      details.unshift(`now ${resolvedDirectiveName}`);
+    }
+
+    return `${this.getAutomationDirectiveRoleText(directiveId)} | ${details.slice(0, 4).join(" | ")}`;
+  }
+
+  private getAutomationSystemManagerOutput(
+    system: AutomationSystemDefinition,
+    stats: RuntimeStats,
+    context: ReturnType<typeof getAutomationOutputContext>,
+  ): number {
+    return (
+      getAutomationSystemTouchesPerMinute(this.state, system, stats, context) *
+      context.globalMultiplier *
+      getAutomationDirectiveTuning(this.state).touchOutputMultiplier
+    );
+  }
+
+  private getAutomationManagerBestPurchase(
+    stats: RuntimeStats,
+    context: ReturnType<typeof getAutomationOutputContext>,
+  ): AutomationManagerPurchaseNudge | undefined {
+    const currentTotalOutput = getTotalAutomationTouchesPerMinute(this.state, stats, context);
+    let bestAffordable:
+      | {
+          nudge: AutomationManagerPurchaseNudge;
+          score: number;
+        }
+      | undefined;
+    let closestLocked: AutomationManagerPurchaseNudge | undefined;
+
+    for (const system of AUTOMATION_SYSTEMS) {
+      if (!system.isUnlocked(this.state)) {
+        continue;
+      }
+
+      const owned = getAutomationSystemOwned(this.state, system.id);
+      const cost = getAutomationSystemCost(system, owned);
+      const previewState = getAutomationPreviewState(this.state, system.id, owned + 1);
+      const previewContext = getAutomationOutputContext(previewState, stats);
+      const previewTotalOutput = getTotalAutomationTouchesPerMinute(previewState, stats, previewContext);
+      const delta = Math.max(0, previewTotalOutput - currentTotalOutput);
+      const affordable = canAffordGrassTouches(this.state.grassTouches, cost);
+      const missing = getMissingGrassTouches(this.state.grassTouches, cost);
+      const nudge: AutomationManagerPurchaseNudge = {
+        systemName: system.name,
+        cost,
+        delta,
+        affordable,
+        missing,
+      };
+
+      if (affordable) {
+        const score = delta / Math.max(1, cost);
+        if (!bestAffordable || score > bestAffordable.score) {
+          bestAffordable = { nudge, score };
+        }
+      } else if (!closestLocked || missing < closestLocked.missing) {
+        closestLocked = nudge;
+      }
+    }
+
+    return bestAffordable?.nudge ?? closestLocked;
+  }
+
+  private getAutomationManagerBestBuyLine(stats: RuntimeStats, context: ReturnType<typeof getAutomationOutputContext>): string {
+    const bestPurchase = this.getAutomationManagerBestPurchase(stats, context);
+    if (!bestPurchase) {
+      return "Best buy: automation routes unlock as the lawn grows.";
+    }
+
+    if (bestPurchase.affordable) {
+      return `Best next buy: ${bestPurchase.systemName} for ${formatGrassTouches(bestPurchase.cost)} GT, +${formatGrassTouchesPerMinute(
+        bestPurchase.delta,
+      )}`;
+    }
+
+    return `Closest next buy: ${bestPurchase.systemName} needs ${formatGrassTouches(bestPurchase.missing)} more GT.`;
+  }
+
+  private getAutomationManagerRouteBreakdownLine(stats: RuntimeStats, context: ReturnType<typeof getAutomationOutputContext>): string {
+    const totalOutput = getTotalAutomationTouchesPerMinute(this.state, stats, context);
+    const maxRoutes = this.scale.width < 560 ? 2 : 3;
+    const topRoutes = AUTOMATION_SYSTEMS.map((system) => ({
+      name: system.name.replace(" Route", "").replace(" Shift", "").replace(" Crew", "").replace(" Patrol", "").replace(" Loop", "").replace(" Circuit", ""),
+      output: this.getAutomationSystemManagerOutput(system, stats, context),
+    }))
+      .filter((route) => route.output > 0)
+      .sort((left, right) => right.output - left.output)
+      .slice(0, maxRoutes);
+
+    if (topRoutes.length === 0) {
+      return "Top routes: no active routes yet.";
+    }
+
+    return `Top routes: ${topRoutes
+      .map((route) => {
+        const share = totalOutput > 0 ? Math.round((route.output / totalOutput) * 100) : 0;
+        return `${route.name} ${formatGrassTouchesPerMinute(route.output)} (${share}%)`;
+      })
+      .join(" | ")}`;
+  }
+
+  private getAutomationManagerSynergyLine(context: ReturnType<typeof getAutomationOutputContext>): string {
+    if (context.activePairSynergies.length > 0) {
+      const maxSynergies = this.scale.width < 560 ? 2 : 3;
+      const visibleSynergies = context.activePairSynergies
+        .slice(0, maxSynergies)
+        .map((synergy) => `${synergy.definition.name} x${synergy.multiplier.toFixed(2)}`);
+      const hiddenCount = context.activePairSynergies.length - visibleSynergies.length;
+      return `Synergies: ${visibleSynergies.join(" | ")}${hiddenCount > 0 ? ` | +${hiddenCount} more` : ""}`;
+    }
+
+    return this.getUpgradeLevel("ecosystem_loop") > 0
+      ? "Synergies: pair complementary route types to activate named bonuses."
+      : "Synergies: Ecosystem Loop unlocks named route pair bonuses.";
   }
 
   private getActiveStoreItemViews(): Map<string, GoldStoreItemView> {
@@ -5509,7 +5843,9 @@ export class GameScene extends Phaser.Scene {
       const purchaseLabel =
         this.automationBuyMode === "boost" && plan.quantity > 1
           ? `${plan.quantity} ${system.name} units to reach the next boost`
-          : system.name;
+          : this.automationBuyMode === "max" && plan.milestone
+            ? `the next ${system.name} unit toward boost ${plan.milestone.owned}`
+            : system.name;
       this.setStoreStatus(
         `${purchaseLabel} costs ${formatGrassTouches(plan.totalCost)} Grass Touches. You have ${formatGrassTouches(this.state.grassTouches)}.`,
       );
@@ -5533,7 +5869,9 @@ export class GameScene extends Phaser.Scene {
     const milestoneLabel = getAutomationSystemMilestoneLabel(this.state, system.id);
     const derivativeSupport = getAutomationSystemDerivativeSupport(this.state, system.id);
     const supportText = formatAutomationSupportText(derivativeSupport);
-    const bonusParts = [milestoneLabel, supportText].filter(Boolean);
+    const boostProgressText =
+      plan.milestone && plan.targetOwned < plan.milestone.owned ? `${plan.milestone.owned - plan.targetOwned} to next boost` : "";
+    const bonusParts = [milestoneLabel, supportText, boostProgressText].filter(Boolean);
     const statusMessage =
       system.id === "sprinkler" && owned === 0
         ? `${system.name} running x${plan.targetOwned}. Back on the field, click the sprinkler icon to place its coverage.`
@@ -5578,7 +5916,7 @@ export class GameScene extends Phaser.Scene {
       : "max boost";
     const buyLabel =
       plan.quantity > 1
-        ? `buy +${plan.quantity} to ${plan.targetOwned} (${formatAutomationOutputDelta(output, previewOutput)})`
+        ? `${this.getAutomationPlanPurchaseText(plan)} (${formatAutomationOutputDelta(output, previewOutput)})`
         : `buy ${formatAutomationOutputDelta(output, previewOutput)}`;
     this.setStoreStatus(
       `${system.name}: ${ownedText} | ${formatGrassTouchesPerMinute(output)} total | ${formatGrassTouchesPerMinute(
@@ -8842,7 +9180,7 @@ export class GameScene extends Phaser.Scene {
     const now = Date.now();
     if (now - this.lastAutomationIncomeFeedAt >= 8000) {
       this.lastAutomationIncomeFeedAt = now;
-      this.addTriggerFeedEvent("Auto income", `+${formatGrassTouches(result.gained)} touches`, "AI", 0xbff4ff, now);
+      this.addTriggerFeedEvent("Auto income", `+${formatGrassTouches(result.gained)} touches`, "AI", 0xbff4ff, now, false);
     }
     this.queueSave();
   }
@@ -9257,7 +9595,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     if (changed) {
-      this.addTriggerFeedEvent("Sprinkler fired", "watered nearby patches", "SP", 0xbff4ff);
+      this.addTriggerFeedEvent("Sprinkler fired", "watered nearby patches", "SP", 0xbff4ff, Date.now(), false);
       this.queueSave();
     }
   }
@@ -9282,7 +9620,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     if (changed) {
-      this.addTriggerFeedEvent("Companions helped", "field friends took action", "FR", 0xffef78);
+      this.addTriggerFeedEvent("Companions helped", "field friends took action", "FR", 0xffef78, Date.now(), false);
       this.queueSave();
     }
   }
@@ -12322,7 +12660,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const readyQuests = QUESTS.filter((quest) => isQuestClaimable(this.state, quest)).slice(0, QUEST_CLIPBOARD_MAX_CLAIMS);
+    const readyQuests = this.getClaimableQuests(QUEST_CLIPBOARD_MAX_CLAIMS);
 
     if (readyQuests.length === 0) {
       return;
@@ -12336,7 +12674,7 @@ export class GameScene extends Phaser.Scene {
     this.readyQuestKeys = this.getReadyQuestKeys();
     this.audio.play(readyQuests.length > 1 ? "milestone" : "seed");
     this.saveState();
-    this.refreshUi();
+    this.refreshUi(false);
     this.bumpResourceHud();
     this.playQuestRewardHudCelebration(this.combineQuestRewards(readyQuests));
     this.playButtonCelebration(this.questButton, 0xffef78, "seed-fleck");
@@ -12492,7 +12830,7 @@ export class GameScene extends Phaser.Scene {
     this.storeGoodsButton.setAlpha(this.storeMode === "goods" ? 1 : 0.72);
     setTextButtonText(this.storeAutomationButton, this.formatReadyMenuLabel(`${UI_ACTION_ICONS.automation} Auto`, readyAutomationCount));
     setTextButtonText(this.storeGoodsButton, this.formatReadyMenuLabel(`${UI_ACTION_ICONS.store} Goods`, readyGoodsCount));
-    setTextButtonText(this.storeAutomationBuyModeButton, this.automationBuyMode === "boost" ? "To Boost" : "Buy 1");
+    setTextButtonText(this.storeAutomationBuyModeButton, this.getAutomationBuyModeLabel());
     setTextButtonAttention(this.storeAutomationButton, readyAutomationCount > 0);
     setTextButtonAttention(this.storeGoodsButton, readyGoodsCount > 0);
   }
@@ -12563,14 +12901,14 @@ export class GameScene extends Phaser.Scene {
       } else if (!affordable) {
         view.status.setText(
           `Owned ${owned}${supportSuffix} | ${formatGrassTouchesPerMinute(output)} (${outputDelta}) | ${
-            plan.quantity > 1 ? `+${plan.quantity} to boost` : milestoneStatus
+            plan.quantity > 1 ? this.getAutomationPlanPurchaseText(plan) : milestoneStatus
           } | ${this.formatAffordabilityPreview(this.state.grassTouches, plan.totalCost, formatGrassTouches)}`,
         );
         view.status.setColor("#d6e6d0");
       } else {
         view.status.setText(
           `Owned ${owned}${supportSuffix} | ${formatGrassTouchesPerMinute(output)} (${outputDelta}) | ${
-            plan.quantity > 1 ? `Buy +${plan.quantity}` : milestoneStatus
+            plan.quantity > 1 ? this.getAutomationPlanPurchaseText(plan) : milestoneStatus
           } | Cost ${formatGrassTouches(plan.totalCost)}`,
         );
         view.status.setColor("#f4df6a");
@@ -12939,6 +13277,20 @@ export class GameScene extends Phaser.Scene {
 
   private getReadyQuestKeys(): Set<string> {
     return new Set(QUESTS.filter((quest) => isQuestClaimable(this.state, quest)).map((quest) => quest.id));
+  }
+
+  private getClaimableQuests(limit = QUESTS.length): QuestDefinition[] {
+    const quests: QuestDefinition[] = [];
+    for (const quest of QUESTS) {
+      if (isQuestClaimable(this.state, quest)) {
+        quests.push(quest);
+        if (quests.length >= limit) {
+          break;
+        }
+      }
+    }
+
+    return quests;
   }
 
   private checkReadyQuests(): void {

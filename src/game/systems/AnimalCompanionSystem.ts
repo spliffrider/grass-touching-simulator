@@ -8,7 +8,7 @@ import {
 } from "./AutomationDirectiveSystem";
 import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
 import { recordAutomationAction, recordAutomationSupplyDrop, recordAutomationTouch } from "./AutomationProgressSystem";
-import { getFieldTiles, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
+import { getFieldTiles, sampleGrownTiles, sampleRegrowingTiles, tileKey, touchTile } from "./FieldSystem";
 import { getTileHazard } from "./HazardSystem";
 import { getInventoryQuantity } from "./InventorySystem";
 import { getPlacementEntriesForObject, getPlacementSlotIndex } from "./PlacementSystem";
@@ -402,9 +402,10 @@ export class AnimalCompanionSystem {
     pastureTurnoverPower: number,
     growthRegrowMultiplier: number,
   ): boolean {
-    const regrowingTiles = Phaser.Utils.Array.Shuffle(getRegrowingTiles(state).filter((tile) => !hasActiveCactusHazard(state, tile))).slice(
-      0,
+    const regrowingTiles = sampleRegrowingTiles(
+      state,
       Math.min(1 + earthworms + (directiveId === "growth" ? 1 : 0) + (pastureTurnoverPower > 0 ? 1 : 0), 4),
+      (tile) => !hasActiveCactusHazard(state, tile),
     );
     if (regrowingTiles.length === 0) {
       return false;

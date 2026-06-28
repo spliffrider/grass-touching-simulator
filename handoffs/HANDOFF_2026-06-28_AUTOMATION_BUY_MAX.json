@@ -1,0 +1,68 @@
+{
+  "date": "2026-06-28",
+  "topic": "Automation Store Buy Max Mode",
+  "previousHandoff": "HANDOFF_2026-06-27_RENDER_TEXTURE_ERASER_FIX.json",
+  "currentGoal": "Start improving automation with a small, safe player-facing Store ergonomics slice.",
+  "sessionOutcome": {
+    "status": "implemented locally",
+    "committed": false,
+    "pushed": false,
+    "devServer": "http://127.0.0.1:5173/",
+    "latestLocalBuildAsset": "dist/assets/index-oTEZKVJf.js"
+  },
+  "workCompleted": [
+    "Reviewed the recent automation handoff, automation data, income/directive/milestone systems, quests, Store UI, and current dirty worktree notes.",
+    "Confirmed automation already has directives, Auto-Pilot, milestones, pair synergies, derivative support, automation quests, and best automation streak tracking.",
+    "Added a third Automation Store purchase mode: Buy Max.",
+    "Buy 1 still buys exactly one helper. To Boost still targets the full next ownership milestone. Buy Max buys as many units as the current Grass Touch balance can afford, stopping at the next ownership boost.",
+    "Added shared purchase-plan helpers so Store ready counts, row previews, hover/details text, click purchases, and post-purchase status use the same quantity/target/cost math.",
+    "Updated Store row/status copy to show partial progress toward a boost, e.g. Buy +N toward 25, and post-purchase text such as 3 to next boost."
+  ],
+  "filesChangedThisSession": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-28_AUTOMATION_BUY_MAX.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed; dist/assets/index-oTEZKVJf.js"
+    },
+    {
+      "command": "Browser smoke at http://127.0.0.1:5173/?stress&tiles=360, desktop viewport",
+      "result": "passed visually; Store opened, Buy 1 / To Boost / Buy Max labels fit, a Buy Max automation purchase applied the milestone target, and browser error logs were empty."
+    },
+    {
+      "command": "Browser smoke at http://127.0.0.1:5173/?stress&tiles=360, 390x844 viewport",
+      "result": "passed visually; mobile Store opened, To Boost and Buy Max labels/status lines fit, row text wrapped acceptably, and browser error logs were empty. Viewport was reset afterward."
+    },
+    {
+      "command": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "passed; status complete, visibleTiles 1203, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 16, frameSpikes 0, displayObjects 304, activeTweens 21, hotspots hot none, browser errors empty."
+    },
+    {
+      "command": "git diff --check -- src/game/scenes/GameScene.ts",
+      "result": "passed; Git printed the expected Windows LF-to-CRLF warning."
+    }
+  ],
+  "knownIssuesAndRisks": [
+    "This is an ergonomics slice, not a full automation rebalance. It does not change automation output math, helper intervals, quest thresholds, or directives.",
+    "In the stress save, Buy Max often matches To Boost because the save has enormous Grass Touch reserves. The partial-affordability behavior is implemented in the planner but should still get a normal-save feel check.",
+    "The Store still relies on compact text rows for detailed automation math. Future polish could make a richer automation manager panel instead of packing everything into the Store row."
+  ],
+  "currentGitStatus": [
+    "Modified by this session: src/game/scenes/GameScene.ts, handoffs/LATEST.json, handoffs/HANDOFF_2026-06-28_AUTOMATION_BUY_MAX.json.",
+    "Pre-existing unrelated tracked edits remain in AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md.",
+    "Pre-existing unrelated untracked docs/media/test artifacts remain untouched, including Dutch automation docs, GAME_SYSTEMS_REFERENCE CLAUDE.md, title-art artifacts, MIDI/AIF files, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "nextRecommendedSteps": [
+    "Play a normal early automation save and check whether Buy Max feels good when the player can afford some, but not all, units toward the next boost.",
+    "If continuing automation improvements, consider a dedicated automation manager panel that explains directives, active synergies, next boost, and best purchase target more clearly.",
+    "If this slice feels good, commit only src/game/scenes/GameScene.ts plus this handoff and LATEST.json; keep unrelated docs/media dirt out unless explicitly triaged."
+  ],
+  "doNotRevert": [
+    "Do not collapse AutomationBuyMode back to only Buy 1 / To Boost without replacing the partial-affordable purchase flow.",
+    "Do not make Buy Max buy unbounded units after the final milestone; it intentionally stops at the next ownership boost to keep Store refresh cheap and predictable.",
+    "Do not stage, clean, or revert unrelated AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, Dutch automation docs, GAME_SYSTEMS_REFERENCE CLAUDE.md, title-art artifacts, MIDI/AIF files, or old test handoff unless explicitly instructed."
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "date": "2026-06-28",
+  "topic": "Automation Manager And Lane Roles",
+  "previousHandoff": "HANDOFF_2026-06-28_AUTOMATION_BUY_MAX.json",
+  "currentGoal": "Start fleshing out automation directions 1 and 2: a clearer Automation Manager panel and better helper role/lane presentation.",
+  "sessionOutcome": {
+    "status": "implemented locally",
+    "committed": false,
+    "pushed": false,
+    "devServer": "http://127.0.0.1:5173/",
+    "latestLocalBuildAsset": "dist/assets/index-BxS-WjQ4.js"
+  },
+  "workCompleted": [
+    "Expanded the existing Automation panel into an Automation Manager instead of adding a separate overlay.",
+    "Added manager summary lines for active automation units, total automation output, current lane, output multiplier, helper tempo, automated touches, supplies, and best automation streak.",
+    "Added a best-next-buy nudge that scans unlocked automation routes and recommends the strongest next single-unit purchase by output-per-cost, or the closest unaffordable route if none can be bought.",
+    "Added a top-route contribution line showing the largest automation route contributors and their approximate share of total automation output.",
+    "Added a synergy line that lists active named ecosystem synergies, with compact mobile trimming.",
+    "Turned directive rows into explicit selectable lanes: Balanced Lane, Growth Lane, Harvest Lane, Supplies Lane, and Auto-Pilot.",
+    "Each lane row now shows live effect text from directive tuning, including output multiplier, helper tempo, regrow help, supply chance, helper touch multiplier/bonus, and Auto-Pilot's current resolved lane.",
+    "Kept automation output math, helper intervals, quests, scheduler behavior, and tile hot paths unchanged."
+  ],
+  "filesChangedThisSession": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-28_AUTOMATION_BUY_MAX.json",
+    "handoffs/HANDOFF_2026-06-28_AUTOMATION_MANAGER_LANES.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed; dist/assets/index-BxS-WjQ4.js"
+    },
+    {
+      "command": "Browser smoke at http://127.0.0.1:5173/?stress&tiles=360, desktop viewport",
+      "result": "passed visually; Automation Manager opened, manager summary/best-buy/top-routes/synergies/lane rows rendered, Growth and Auto-Pilot lane clicks updated the summary, and browser error logs were empty."
+    },
+    {
+      "command": "Browser smoke at http://127.0.0.1:5173/?stress&tiles=360, 390x844 viewport",
+      "result": "passed visually; Automation Manager fit phone width, lane rows wrapped cleanly, compact route/synergy trimming worked, browser error logs were empty, and viewport was reset afterward."
+    },
+    {
+      "command": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "passed; status complete, visibleTiles 1190, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 11, frameSpikes 0, displayObjects 304, activeTweens 21, hotspots hot none, browser errors empty."
+    },
+    {
+      "command": "git diff --check -- src/game/scenes/GameScene.ts handoffs/LATEST.json handoffs/HANDOFF_2026-06-28_AUTOMATION_BUY_MAX.json",
+      "result": "passed; Git printed expected Windows LF-to-CRLF warnings."
+    }
+  ],
+  "knownIssuesAndRisks": [
+    "Stress mode always shows the perf/debug overlay, which visually crosses the modal in stress screenshots. Normal play should not have that diagnostic overlay.",
+    "This is a readability and control slice. It does not yet add per-helper assignment, helper XP, contracts, local placement efficiency, or new automation balance.",
+    "Best-next-buy uses a simple single-unit output-per-cost heuristic. It is useful as a nudge, not a full optimizer for multi-buy or milestone jumps.",
+    "The manager still uses text-heavy Phaser rows. A later visual pass could replace dense text with richer icons, mini-bars, and route badges."
+  ],
+  "currentGitStatus": [
+    "Modified by this automation work: src/game/scenes/GameScene.ts, handoffs/LATEST.json, handoffs/HANDOFF_2026-06-28_AUTOMATION_BUY_MAX.json, handoffs/HANDOFF_2026-06-28_AUTOMATION_MANAGER_LANES.json.",
+    "Pre-existing unrelated tracked edits remain in AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md.",
+    "Pre-existing unrelated untracked docs/media/test artifacts remain untouched, including Dutch automation docs, GAME_SYSTEMS_REFERENCE CLAUDE.md, title-art artifacts, MIDI/AIF files, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "nextRecommendedSteps": [
+    "Play a normal save with early automation unlocked and judge whether the manager answers the player's first questions: what is active, what should I buy, and which lane should I run.",
+    "For direction 2 follow-up, consider per-route assignments or route weights so Sprinkler, helpers, and companions can lean individually into Harvest, Growth, Supplies, or Balanced behavior.",
+    "For direction 1 follow-up, add richer manager visuals: route contribution bars, active synergy badges, next milestone progress bars, and a direct Store jump/buy affordance.",
+    "If this slice feels good, commit only intended gameplay and handoff files; keep unrelated docs/media dirt out unless explicitly triaged."
+  ],
+  "doNotRevert": [
+    "Do not remove the Buy Max work from HANDOFF_2026-06-28_AUTOMATION_BUY_MAX.json when committing this manager slice; both are part of the current automation improvement batch.",
+    "Do not collapse the manager panel back to a single long status line without replacing the best-buy, top-route, synergy, and lane effect visibility.",
+    "Do not change automation output math or scheduler intervals as part of this UI slice unless a separate balance pass is requested.",
+    "Do not stage, clean, or revert unrelated AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, Dutch automation docs, GAME_SYSTEMS_REFERENCE CLAUDE.md, title-art artifacts, MIDI/AIF files, or old test handoff unless explicitly instructed."
+  ]
+}

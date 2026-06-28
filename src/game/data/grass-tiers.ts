@@ -99,13 +99,34 @@ export function getGrassTier(id: GrassTierId | undefined): GrassTierDefinition {
 }
 
 export function pickGrassTier(state: GameState, stats?: RuntimeStats): GrassTierDefinition {
-  const unlocked = GRASS_TIERS.filter((tier) => state.lifetimeGrassTouches >= tier.unlockAtLifetimeTouches);
-  const weighted = unlocked.flatMap((tier) => {
-    const multiplier = tier.id === "normal" ? 1 : (stats?.rareTierMultiplier ?? 1);
-    return Array.from({ length: Math.max(1, Math.round(tier.weight * multiplier)) }, () => tier);
-  });
+  const rareMultiplier = stats?.rareTierMultiplier ?? 1;
+  let totalWeight = 0;
 
-  return Phaser.Utils.Array.GetRandom(weighted);
+  for (const tier of GRASS_TIERS) {
+    if (state.lifetimeGrassTouches < tier.unlockAtLifetimeTouches) {
+      continue;
+    }
+
+    totalWeight += getRollWeight(tier, rareMultiplier);
+  }
+
+  let roll = Math.random() * Math.max(1, totalWeight);
+  for (const tier of GRASS_TIERS) {
+    if (state.lifetimeGrassTouches < tier.unlockAtLifetimeTouches) {
+      continue;
+    }
+
+    roll -= getRollWeight(tier, rareMultiplier);
+    if (roll <= 0) {
+      return tier;
+    }
+  }
+
+  return GRASS_TIERS[0];
+}
+
+function getRollWeight(tier: GrassTierDefinition, rareMultiplier: number): number {
+  return Math.max(1, Math.round(tier.weight * (tier.id === "normal" ? 1 : rareMultiplier)));
 }
 
 export function getNextGrassTier(state: GameState): GrassTierDefinition | undefined {

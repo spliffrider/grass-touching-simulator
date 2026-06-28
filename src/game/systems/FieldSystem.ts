@@ -138,6 +138,74 @@ export function getRegrowingTiles(state: GameState): FieldTile[] {
   return tiles;
 }
 
+export function getRandomRegrowingTile(
+  state: GameState,
+  isCandidate: (tile: FieldTile) => boolean = () => true,
+): FieldTile | undefined {
+  const keys = getRegrowingTileKeySet(state);
+  let selected: FieldTile | undefined;
+  let candidateCount = 0;
+
+  for (const key of keys) {
+    const tile = state.field[key];
+    if (!tile || tile.grassState !== "regrowing") {
+      keys.delete(key);
+      continue;
+    }
+
+    if (!isCandidate(tile)) {
+      continue;
+    }
+
+    candidateCount += 1;
+    if (Phaser.Math.Between(1, candidateCount) === 1) {
+      selected = tile;
+    }
+  }
+
+  return selected;
+}
+
+export function sampleRegrowingTiles(
+  state: GameState,
+  maxSamples: number,
+  isCandidate: (tile: FieldTile) => boolean = () => true,
+): FieldTile[] {
+  const sampleLimit = Math.max(0, Math.floor(maxSamples));
+  if (sampleLimit <= 0) {
+    return [];
+  }
+
+  const keys = getRegrowingTileKeySet(state);
+  const samples: FieldTile[] = [];
+  let candidateCount = 0;
+
+  for (const key of keys) {
+    const tile = state.field[key];
+    if (!tile || tile.grassState !== "regrowing") {
+      keys.delete(key);
+      continue;
+    }
+
+    if (!isCandidate(tile)) {
+      continue;
+    }
+
+    candidateCount += 1;
+    if (samples.length < sampleLimit) {
+      samples.push(tile);
+      continue;
+    }
+
+    const replacementIndex = Phaser.Math.Between(0, candidateCount - 1);
+    if (replacementIndex < sampleLimit) {
+      samples[replacementIndex] = tile;
+    }
+  }
+
+  return samples;
+}
+
 export function getFieldBounds(state: GameState): FieldBounds | undefined {
   const tiles = getFieldTiles(state);
   if (tiles.length === 0) {

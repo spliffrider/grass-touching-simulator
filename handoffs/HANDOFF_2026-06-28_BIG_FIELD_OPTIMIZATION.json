@@ -1,0 +1,86 @@
+{
+  "date": "2026-06-28",
+  "topic": "Big Field Optimization Pass",
+  "previousHandoff": "HANDOFF_2026-06-28_AUTOMATION_MANAGER_LANES.json",
+  "currentGoal": "Investigate and reduce choppy/laggy gameplay when the field gets very large.",
+  "sessionOutcome": {
+    "status": "implemented locally",
+    "committed": false,
+    "pushed": false,
+    "devServer": "http://127.0.0.1:5173/",
+    "latestLocalBuildAsset": "dist/assets/index-_clCWyxU.js"
+  },
+  "workCompleted": [
+    "Profiled before optimizing with desktop 1200/2500 perf harnesses, live 2500 stress sampling, and mobile 2500 harness.",
+    "Added allocation-light regrowing tile sampling helpers in FieldSystem: getRandomRegrowingTile and sampleRegrowingTiles.",
+    "Swapped sprinkler growth targeting and earthworm companion burrow targeting away from building/filtering/shuffling full regrowing tile arrays.",
+    "Replaced pickGrassTier's temporary weighted array allocation with a direct weighted roll that preserves the same integer weight distribution.",
+    "Added large-field ambient feedback budget scaling so helper bursts, transient objects, pop texts, reward arcs, and world-action arcs are capped more aggressively at 1200+ and 2000+ tiles.",
+    "Deferred automation-generated trigger-feed rendering to the regular UI cadence instead of force-rendering inside automation scheduler ticks.",
+    "Kept board layout, render texture sizing, save behavior, automation economics, and gameplay formulas unchanged apart from equivalent random sampling implementation details."
+  ],
+  "filesChangedThisSession": [
+    "src/game/data/grass-tiers.ts",
+    "src/game/systems/FieldSystem.ts",
+    "src/game/systems/SprinklerSystem.ts",
+    "src/game/systems/AnimalCompanionSystem.ts",
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-28_BIG_FIELD_OPTIMIZATION.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    {
+      "command": "npm run build",
+      "result": "passed; latest asset dist/assets/index-_clCWyxU.js"
+    },
+    {
+      "command": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "passed; status complete, complete phase visibleTiles 1204, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 12, frameSpikes 0, displayObjects 303, activeTweens 21, hotspots hot none"
+    },
+    {
+      "command": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=2500",
+      "result": "passed; status complete, complete phase visibleTiles 2301, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 21, frameSpikes 0, displayObjects 303, activeTweens 21, hotspots hot none"
+    },
+    {
+      "command": "Browser live stress at http://127.0.0.1:5173/?stress&perf&tiles=2500",
+      "result": "passed; 15 post-load samples, maxFrameDeltaMs 22, frameSpikes 0, maxDisplayObjects 631, maxActiveTweens 22, maxTileViews 58, maxDirtyTiles 58, maxRedrawQueued 49"
+    },
+    {
+      "command": "Browser mobile perf harness at 390x844, http://127.0.0.1:5173/?perfHarness&tiles=2500",
+      "result": "passed; status complete, visibleTiles 49, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 466, activeTweens 22, hotspots hot none; viewport reset afterward"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed; Git printed expected Windows LF-to-CRLF warnings"
+    }
+  ],
+  "profilingNotes": [
+    "Initial 2500 live stress showed periodic helper spikes: sprinkler around 13 ms and companions around 6 ms in hot summaries.",
+    "Regrow idle cost grew with field size because many regrown patches called pickGrassTier; direct weighted rolling reduced allocation pressure.",
+    "Final 2500 live stress still shows occasional UI trigger-feed hotspots, but frame spikes stayed at 0 and maxFrameDeltaMs stayed below the 34 ms spike threshold.",
+    "Desktop 2500 harness can show nearly every tile as visible when the board is fitted on a large viewport; mobile harness correctly culled to about 49 visible tiles."
+  ],
+  "knownIssuesAndRisks": [
+    "The remaining live-stress hotspots are mostly UI trigger-feed refresh and occasional helper visual work, not board layout or render texture resizing.",
+    "Ambient effects are intentionally less dense on very large fields. If the field feels too quiet visually at 2000+ tiles, tune LARGE_FIELD_AMBIENT_BUDGET_SCALE and HUGE_FIELD_AMBIENT_BUDGET_SCALE.",
+    "sampleRegrowingTiles uses reservoir sampling over the regrowing key set. It avoids array allocation/shuffle bursts but still iterates regrowing keys when a helper specifically asks for random regrowing tiles.",
+    "No balance changes were made to automation rates, rewards, quest rewards, or grass-tier weights."
+  ],
+  "currentGitStatus": [
+    "Modified by current automation/perf work: src/game/scenes/GameScene.ts, src/game/data/grass-tiers.ts, src/game/systems/FieldSystem.ts, src/game/systems/SprinklerSystem.ts, src/game/systems/AnimalCompanionSystem.ts, handoffs/LATEST.json, handoffs/HANDOFF_2026-06-28_AUTOMATION_BUY_MAX.json, handoffs/HANDOFF_2026-06-28_AUTOMATION_MANAGER_LANES.json, handoffs/HANDOFF_2026-06-28_BIG_FIELD_OPTIMIZATION.json.",
+    "Pre-existing unrelated tracked edits remain in AGENTS.md and docs/DESKTOP_MAC_SYNC_WORKFLOW.md.",
+    "Pre-existing unrelated untracked docs/media/test artifacts remain untouched, including Dutch automation docs, GAME_SYSTEMS_REFERENCE CLAUDE.md, title-art artifacts, MIDI/AIF files, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "nextRecommendedSteps": [
+    "Play the user's real large save with perf overlay enabled and compare live feel against stress harness numbers.",
+    "If choppiness persists in the real save, add finer markers around ui:triggerFeed, helper visual callbacks, and save/queue paths to separate UI text cost from helper particle/tween cost.",
+    "Consider deferring or coalescing trigger-feed text layout further if ui:triggerFeed remains above 3 ms in normal play.",
+    "Consider a later board viewport pass for desktop ultra-large fields where fitted zoom still makes most of the field visible."
+  ],
+  "doNotRevert": [
+    "Do not revert the automation manager and Buy Max edits in GameScene.ts while working this optimization branch; they are part of the same current uncommitted batch.",
+    "Do not restore pickGrassTier's weighted temporary array allocation; the direct weighted roll is behavior-equivalent and allocation-light.",
+    "Do not reintroduce full-array shuffle/filter targeting for helper regrowing-tile sampling.",
+    "Do not stage, clean, or revert unrelated AGENTS.md, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, Dutch automation docs, GAME_SYSTEMS_REFERENCE CLAUDE.md, title-art artifacts, MIDI/AIF files, or old test handoff unless explicitly instructed."
+  ]
+}

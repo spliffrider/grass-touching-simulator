@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-27",
-  "latestHandoff": "HANDOFF_2026-06-27_RENDER_TEXTURE_ERASER_FIX.json",
+  "updatedAt": "2026-06-28",
+  "latestHandoff": "HANDOFF_2026-06-28_BIG_FIELD_OPTIMIZATION.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

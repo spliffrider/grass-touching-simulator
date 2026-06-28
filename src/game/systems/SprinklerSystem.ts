@@ -8,7 +8,7 @@ import {
 } from "./AutomationDirectiveSystem";
 import { getAutomationIntervalMultiplier } from "./AutomationMilestoneSystem";
 import { recordAutomationAction, recordAutomationSupplyDrop, recordAutomationTouch } from "./AutomationProgressSystem";
-import { getFieldTiles, getRegrowingTiles, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
+import { getFieldTiles, getRandomRegrowingTile, sampleGrownTiles, tileKey, touchTile } from "./FieldSystem";
 import { getTileHazard } from "./HazardSystem";
 import type { FieldTile, GameState, GrassTierId, RuntimeStats, TileTrait, TouchResult } from "../types/game-state";
 
@@ -172,7 +172,7 @@ function getSprinklerRegrowingTargetTile(state: GameState, radius: number): Fiel
   const placedTile = placement ? state.field[placement.tileKey] : undefined;
 
   if (!placedTile) {
-    return Phaser.Utils.Array.GetRandom(getSafeRegrowingTiles(state));
+    return getRandomRegrowingTile(state, (tile) => !hasActiveCactusHazard(state, tile));
   }
 
   const localTiles: FieldTile[] = [];
@@ -185,15 +185,11 @@ function getSprinklerRegrowingTargetTile(state: GameState, radius: number): Fiel
     }
   }
 
-  return Phaser.Utils.Array.GetRandom(localTiles) ?? Phaser.Utils.Array.GetRandom(getSafeRegrowingTiles(state));
+  return Phaser.Utils.Array.GetRandom(localTiles) ?? getRandomRegrowingTile(state, (tile) => !hasActiveCactusHazard(state, tile));
 }
 
 function hasActiveCactusHazard(state: GameState, tile: FieldTile): boolean {
   return getTileHazard(state, tileKey(tile.x, tile.y))?.id === "cactus";
-}
-
-function getSafeRegrowingTiles(state: GameState): FieldTile[] {
-  return getRegrowingTiles(state).filter((tile) => !hasActiveCactusHazard(state, tile));
 }
 
 function getRandomSafeGrownTile(state: GameState): FieldTile | undefined {
