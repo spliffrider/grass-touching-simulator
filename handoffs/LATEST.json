@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-28",
-  "latestHandoff": "HANDOFF_2026-06-28_INITIAL_BIG_FIELD_ZOOM.json",
+  "latestHandoff": "HANDOFF_2026-06-28_PAN_ZOOM_PREVIEW_OPTIMIZATION.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

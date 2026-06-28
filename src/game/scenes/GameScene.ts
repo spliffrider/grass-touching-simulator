@@ -106,6 +106,7 @@ const getBoardVisualSize = (tileCount: number) =>
   tileCount * TILE_SIZE + Math.max(0, tileCount - 1) * TILE_GAP;
 const COMMON_TILE_ERASER_TEXTURE_KEY = "tile-common-eraser";
 const COMMON_TILE_ERASER_SIZE = TILE_SIZE + TILE_GAP;
+const COMMON_TILE_COMPOSITE_TEXTURE_PREFIX = "tile-common-composite";
 const REGROWING_GRASS_ALPHA = 0.6;
 const REGROWING_GRASS_SCALE = 0.94;
 const BOARD_Y_OFFSET = 24;
@@ -126,6 +127,7 @@ const COMPACT_LARGE_FIELD_MAX_WIDTH = 560;
 const TABLET_LARGE_FIELD_MIN_BOARD_SCALE = 1.12;
 const TABLET_LARGE_FIELD_MAX_WIDTH = 900;
 const BOARD_PAN_THRESHOLD_PX = 18;
+const BOARD_INTERACTION_PREVIEW_SETTLE_MS = 120;
 const TOUCH_SHAKE_COOLDOWN_MS = 140;
 const COMBO_SHAKE_BASE_DURATION_MS = 118;
 const COMBO_SHAKE_DURATION_PER_COUNT_MS = 3.2;
@@ -1030,6 +1032,12 @@ export class GameScene extends Phaser.Scene {
   private commonTileLayerWidth = 0;
   private commonTileLayerHeight = 0;
   private commonTileLayerDirty = false;
+  private commonLayerSnapshotStartX = 0;
+  private commonLayerSnapshotStartY = 0;
+  private commonLayerSnapshotStep = 0;
+  private commonLayerSnapshotValid = false;
+  private commonLayerPreviewActive = false;
+  private commonLayerPreviewRedrawAt = 0;
   private boardHitZone?: Phaser.GameObjects.Zone;
   private pendingBoardTileKey?: TileKey;
   private persistentTouchPointer?: Phaser.Input.Pointer;
@@ -1383,6 +1391,9 @@ export class GameScene extends Phaser.Scene {
       this.automationScheduler.update(delta, stats);
     });
     this.profileScope("layout:pending", () => {
+      if (this.commonLayerPreviewActive && now >= this.commonLayerPreviewRedrawAt && !this.isPanningBoard && !this.worldMapDragging) {
+        this.requestBoardLayout("direct");
+      }
       if (this.commonTileLayerDirty && !this.shouldDeferCommonRedrawWork()) {
         if (!this.tryQueueDirtyCommonRedraw()) {
           this.requestBoardLayout("dirty");
@@ -6973,12 +6984,28 @@ export class GameScene extends Phaser.Scene {
     const maxVisibleY = Phaser.Math.Clamp(Math.ceil((cullBounds.bottom - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
     const visibleCandidateCount = Math.max(0, maxVisibleX - minVisibleX + 1) * Math.max(0, maxVisibleY - minVisibleY + 1);
     const budgetCommonRedraw = this.shouldBudgetCommonRedraw(reason, visibleCandidateCount);
+    const useCommonLayerPreview =
+      this.shouldUseCommonLayerTransformPreview(reason) && this.applyCommonLayerTransformPreview(startX, startY, scaledStep);
     const queuedCommonRedrawEntries: CommonRedrawEntry[] = [];
     this.profileScope("layout:backdrop", () => {
       this.clearBoardBackdrop();
       this.drawBoardBackdrop(centerX, centerY, scaledStep, bounds);
-      this.layoutBoardLayers();
+      this.layoutBoardLayers(!useCommonLayerPreview);
     });
+
+    if (useCommonLayerPreview) {
+      this.profileScope("layout:tilePreview", () => this.positionExistingTileViews());
+      this.lastStressStats = { visibleTiles: Math.min(this.fieldTileCount, visibleCandidateCount), totalTiles: this.fieldTileCount };
+      this.profileScope("layout:objects", () => {
+        this.layoutPlacedWorldObjects();
+        this.layoutWorldObjects();
+      });
+
+      this.layoutTriggerFeed();
+      this.profileScope("layout:worldMap", () => this.layoutWorldMap());
+      this.profileScope("layout:hover", () => this.refreshHoverMarker());
+      return;
+    }
 
     this.profileScope("layout:tiles", () => {
       for (let gridY = minVisibleY; gridY <= maxVisibleY; gridY += 1) {
@@ -7044,6 +7071,7 @@ export class GameScene extends Phaser.Scene {
     if (budgetCommonRedraw) {
       this.scheduleCommonRedraw(queuedCommonRedrawEntries);
     }
+    this.commitCommonLayerSnapshot(startX, startY, scaledStep);
 
     this.profileScope("layout:objects", () => {
       this.layoutPlacedWorldObjects();
@@ -7143,18 +7171,22 @@ export class GameScene extends Phaser.Scene {
     return Math.max(BOARD_CONTENT_INSET_PX, 26 * this.boardScale);
   }
 
-  private layoutBoardLayers(): void {
+  private layoutBoardLayers(clearCommonLayer = true): void {
     if (this.commonTileLayer) {
-      this.profileScope("render:commonLayer", () => {
-        this.commonLayerRedrawCount += 1;
-        this.commonTileLayer?.setPosition(0, 0);
-        if (this.commonTileLayerWidth !== this.scale.width || this.commonTileLayerHeight !== this.scale.height) {
-          this.commonTileLayer?.resize(this.scale.width, this.scale.height);
-          this.commonTileLayerWidth = this.scale.width;
-          this.commonTileLayerHeight = this.scale.height;
-        }
-        this.commonTileLayer?.clear();
-      });
+      if (clearCommonLayer) {
+        this.profileScope("render:commonLayer", () => {
+          this.commonLayerRedrawCount += 1;
+          this.resetCommonLayerTransform();
+          if (this.commonTileLayerWidth !== this.scale.width || this.commonTileLayerHeight !== this.scale.height) {
+            this.commonTileLayer?.resize(this.scale.width, this.scale.height);
+            this.commonTileLayerWidth = this.scale.width;
+            this.commonTileLayerHeight = this.scale.height;
+          }
+          this.commonTileLayer?.clear();
+        });
+      } else if (this.commonTileLayerWidth !== this.scale.width || this.commonTileLayerHeight !== this.scale.height) {
+        this.commonLayerSnapshotValid = false;
+      }
     }
 
     if (this.boardHitZone) {
@@ -7178,6 +7210,56 @@ export class GameScene extends Phaser.Scene {
       this.boardViewportMaskGraphics.clear();
       this.boardViewportMaskGraphics.fillStyle(0xffffff, 1);
       this.boardViewportMaskGraphics.fillRect(maskX, maskY, maskWidth, maskHeight);
+    }
+  }
+
+  private resetCommonLayerTransform(): void {
+    this.commonTileLayer?.setPosition(0, 0).setScale(1);
+    this.commonLayerPreviewActive = false;
+  }
+
+  private shouldUseCommonLayerTransformPreview(reason: BoardLayoutReason): boolean {
+    return (
+      (reason === "pan" || reason === "zoom") &&
+      !this.usesLiveTileViews() &&
+      this.commonLayerSnapshotValid &&
+      this.commonLayerSnapshotStep > 0 &&
+      this.commonTileLayer !== undefined
+    );
+  }
+
+  private applyCommonLayerTransformPreview(startX: number, startY: number, scaledStep: number): boolean {
+    if (!this.commonTileLayer || !this.commonLayerSnapshotValid || this.commonLayerSnapshotStep <= 0 || scaledStep <= 0) {
+      return false;
+    }
+
+    const previewScale = scaledStep / this.commonLayerSnapshotStep;
+    if (!Number.isFinite(previewScale) || previewScale <= 0) {
+      return false;
+    }
+
+    this.commonTileLayer
+      .setScale(previewScale)
+      .setPosition(startX - this.commonLayerSnapshotStartX * previewScale, startY - this.commonLayerSnapshotStartY * previewScale);
+    this.commonLayerPreviewActive = true;
+    this.commonLayerPreviewRedrawAt = Date.now() + BOARD_INTERACTION_PREVIEW_SETTLE_MS;
+    return true;
+  }
+
+  private commitCommonLayerSnapshot(startX: number, startY: number, scaledStep: number): void {
+    this.commonLayerSnapshotStartX = startX;
+    this.commonLayerSnapshotStartY = startY;
+    this.commonLayerSnapshotStep = scaledStep;
+    this.commonLayerSnapshotValid = scaledStep > 0;
+    this.commonLayerPreviewActive = false;
+  }
+
+  private positionExistingTileViews(): void {
+    for (const [key, view] of this.tileViews) {
+      const tile = this.state.field[key];
+      if (tile) {
+        this.positionTileView(tile, view);
+      }
     }
   }
 
@@ -7457,6 +7539,17 @@ export class GameScene extends Phaser.Scene {
 
     const key = this.getTileKey(tile);
     const hazard = tile.grassState === "grown" ? getTileHazard(this.state, key) : undefined;
+    const compositeTexture = this.getCommonTileCompositeTextureKey(tile, hazard?.id);
+    if (compositeTexture) {
+      this.commonTileLayer.stamp(compositeTexture, undefined, x, y, {
+        scale: this.boardScale,
+        originX: 0.5,
+        originY: 0.5,
+      });
+      this.commonStampOpsSinceLastPerf += 1;
+      return;
+    }
+
     const baseTexture = this.getTileBaseTextureKey(tile, hazard?.id);
     const stampConfig = { scale: this.boardScale, originX: 0.5, originY: 0.5 };
     this.commonTileLayer.stamp(baseTexture, undefined, x, y, stampConfig);
@@ -7486,6 +7579,51 @@ export class GameScene extends Phaser.Scene {
       });
       this.commonStampOpsSinceLastPerf += 1;
     }
+  }
+
+  private getCommonTileCompositeTextureKey(tile: FieldTile, hazardId?: "cactus" | "weeds"): string | undefined {
+    const baseTexture = this.getTileBaseTextureKey(tile, hazardId);
+    const grassTexture = this.getGrassTextureKey(tile);
+    const grassScale = this.getGrassScale(tile);
+    const grassStateKey = tile.grassState === "grown" ? "grown" : "regrowing";
+    const hazardTexture = tile.grassState === "grown" && hazardId ? this.getHazardTextureKey(hazardId) : "none";
+    const key = [
+      COMMON_TILE_COMPOSITE_TEXTURE_PREFIX,
+      baseTexture,
+      grassTexture,
+      grassStateKey,
+      hazardTexture,
+      Math.round(grassScale * 1000),
+    ].join(":");
+
+    if (this.textures.exists(key)) {
+      return key;
+    }
+
+    const texture = this.textures.addDynamicTexture(key, COMMON_TILE_ERASER_SIZE, COMMON_TILE_ERASER_SIZE);
+    if (!texture) {
+      return undefined;
+    }
+
+    const center = COMMON_TILE_ERASER_SIZE / 2;
+    texture.clear();
+    texture.stamp(baseTexture, undefined, center, center, { originX: 0.5, originY: 0.5 });
+    texture.stamp(grassTexture, undefined, center, center, {
+      alpha: tile.grassState === "grown" ? 1 : REGROWING_GRASS_ALPHA,
+      scale: grassScale * (tile.grassState === "grown" ? 1 : REGROWING_GRASS_SCALE),
+      originX: 0.5,
+      originY: 0.5,
+    });
+
+    if (tile.grassState === "grown" && hazardId) {
+      texture.stamp(this.getHazardTextureKey(hazardId), undefined, center, center - 2, {
+        scale: 0.96,
+        originX: 0.5,
+        originY: 0.5,
+      });
+    }
+
+    return key;
   }
 
   private eraseCommonTileFootprint(tile: FieldTile, position = this.getTileScreenPosition(tile)): void {

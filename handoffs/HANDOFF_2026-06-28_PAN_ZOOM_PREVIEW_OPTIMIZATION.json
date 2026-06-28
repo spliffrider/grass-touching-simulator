@@ -1,0 +1,76 @@
+{
+  "createdAt": "2026-06-28",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Capture the hotfix for laggy pan and zoom interactions on large maps after the world-map launch.",
+  "currentUserGoal": "Make large-map panning and zooming feel smooth on the live large-field view.",
+  "workCompleted": [
+    {
+      "summary": "Added a transformed common-layer preview for batch-mode pan and zoom. During interaction the existing render-texture snapshot is translated/scaled cheaply, then a precise redraw is requested after input settles.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Added cached composite common-tile textures so settled batch redraws stamp one texture per tile instead of stamping base, grass, and hazard pieces separately.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    }
+  ],
+  "verificationPerformed": [
+    {
+      "commandOrCheck": "npm run build",
+      "result": "Passed after the pan/zoom preview and composite-tile changes."
+    },
+    {
+      "commandOrCheck": "Large viewport manual stress check at http://127.0.0.1:5173/?stress&perf&tiles=2500 with viewport 1720x1240",
+      "result": "Before this hotfix, arrow-pan around 475 visible tiles measured about 68ms layout and zoom-out near 1989 visible tiles measured about 118ms layout. After the hotfix, pan preview measured about 2ms with a settled redraw around 15ms; zoom preview measured about 1.5ms with a settled redraw around 32ms."
+    },
+    {
+      "commandOrCheck": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "Passed; complete phase visibleTiles 266, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 12, frameSpikes 0, displayObjects 306, activeTweens 22, hotspots hot none."
+    },
+    {
+      "commandOrCheck": "Browser perf harness at http://127.0.0.1:5173/?perfHarness&tiles=2500",
+      "result": "Passed; complete phase visibleTiles 500, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 13, frameSpikes 0, displayObjects 305, activeTweens 23, hotspots hot none."
+    },
+    {
+      "commandOrCheck": "git diff --check -- src/game/scenes/GameScene.ts",
+      "result": "Passed with only the existing LF-to-CRLF warning."
+    }
+  ],
+  "currentGitStatusSummary": {
+    "modifiedIntended": [
+      "src/game/scenes/GameScene.ts",
+      "handoffs/LATEST.json",
+      "handoffs/HANDOFF_2026-06-28_PAN_ZOOM_PREVIEW_OPTIMIZATION.json"
+    ],
+    "modifiedUnrelatedLocal": [
+      "AGENTS.md",
+      "docs/DESKTOP_MAC_SYNC_WORKFLOW.md"
+    ],
+    "untrackedUnrelatedLocal": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategie\u00ebn voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssuesOrDesignQuestions": [
+    "The first large-field layout still pays a one-time composite-texture creation cost in the perf overlay. The interaction path is substantially smoother; a future pass could prewarm composites gradually after load.",
+    "During active pan/zoom, newly entering edge tiles may appear from the previous transformed snapshot until the settled redraw catches up. This trades perfect per-frame redraw accuracy for smooth interaction."
+  ],
+  "recommendedNextSteps": [
+    "If the user still feels a hitch after releasing zoom, add background composite prewarming and/or async settled redraw.",
+    "Consider a stricter large-map minimum zoom now that the minimap provides whole-world context."
+  ],
+  "doNotRevert": [
+    "Do not remove the common-layer transform preview without replacing it; synchronous batch restamping was the source of the pan/zoom hitch.",
+    "Keep unrelated local AGENTS/docs edits separate from this hotfix commit unless the user explicitly asks to include them."
+  ]
+}
