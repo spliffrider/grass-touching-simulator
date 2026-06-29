@@ -1,0 +1,82 @@
+{
+  "createdAt": "2026-06-29",
+  "workspace": "/Users/henry/Documents/Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Capture the playing-field visual layout fix and deterministic field-shape harness after a reported grass tile overflow bug.",
+  "currentUserGoal": "Make the player field fit cleanly at different field sizes, catch edge cases visually, and prevent tiles/effects from spilling outside the playing field.",
+  "workCompleted": [
+    {
+      "summary": "Added a deterministic no-save field-shape harness through the fieldShape URL parameter. Supported shapes include single, row4, col4/column4, lshape, and rectN such as rect64, rect180, rect600, rect1200, and rect2500.",
+      "files": [
+        "src/game/scenes/GameScene.ts",
+        "src/game/scenes/TitleScene.ts"
+      ]
+    },
+    {
+      "summary": "Reworked board layout to use explicit available, viewport, and content rectangles. Small fields now compute scale against the real content inset, and pan is clamped from actual grid overflow instead of an unconditional 72px margin.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Replaced the compact/tablet large-field minimum scale with visible-tile targeting. Large fields on phones and desktop now start framed around a useful tile count instead of showing only a few oversized cells or nearly the whole 1200-tile field.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Kept board clipping as a guardrail on the content rect and applied the board mask to hover markers, board particle bursts, and tracked board transient effects.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    }
+  ],
+  "verificationPerformed": [
+    {
+      "commandOrCheck": "npm run build",
+      "result": "Passed after final layout, fieldShape harness, and masking changes."
+    },
+    {
+      "commandOrCheck": "git diff --check -- src/game/scenes/GameScene.ts src/game/scenes/TitleScene.ts",
+      "result": "Passed."
+    },
+    {
+      "commandOrCheck": "Visual checks in the in-app browser at phone viewport 393x690",
+      "result": "Checked fieldShape single, row4, col4, lshape, rect64, rect180, rect600, and rect1200. The original tall-column edge case and large-field cases stayed inside the board content area. rect600/rect1200 no longer render as only a handful of oversized cells."
+    },
+    {
+      "commandOrCheck": "Visual checks in the in-app browser at desktop viewport 1280x720",
+      "result": "Checked fieldShape col4, lshape, rect180, rect1200, and rect2500. Tiles stayed inside the board content area. Plain stress 1200 initial framing settled at about 228 visible tiles."
+    },
+    {
+      "commandOrCheck": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "Passed. Final complete phase: visibleTiles 228, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 17, frameSpikes 0, displayObjects 305, activeTweens 21, hotspots hot none."
+    }
+  ],
+  "currentGitStatusSummary": {
+    "modifiedIntended": [
+      "src/game/scenes/GameScene.ts",
+      "src/game/scenes/TitleScene.ts",
+      "handoffs/LATEST.json",
+      "handoffs/HANDOFF_2026-06-29_FIELD_LAYOUT_VISUAL_HARNESS.json"
+    ],
+    "modifiedUnrelatedLocal": [],
+    "untrackedUnrelatedLocal": []
+  },
+  "knownIssuesOrDesignQuestions": [
+    "The in-app browser sometimes snaps tablet-sized viewport requests back to 1280x720. Phone and desktop were verified; tablet should be checked on a reliable tablet/device viewport before shipping if possible.",
+    "Plain stress 1200 can still show a one-time initial layout/composite hotspot. This matches the prior known composite prewarm issue; the repeatable perf harness complete phase was clean.",
+    "fieldShape currently reuses the stress-mode game state, so it shows late-game store/dock/automation UI and the stress-mode message. This is useful for no-save testing, but a future visual QA mode could make the label cleaner."
+  ],
+  "recommendedNextSteps": [
+    "Run a real-device or reliable tablet viewport visual check for col4, rect180, rect600, and rect1200.",
+    "If initial large-field load hitch becomes visible to users, revisit gradual composite prewarming from the previous pan/zoom handoff.",
+    "Use fieldShape URLs for future board layout regressions before changing tile scale or masks."
+  ],
+  "doNotRevert": [
+    "Do not restore the unconditional 72px pan margin; it lets fitted fields be dragged into the board frame.",
+    "Do not restore compact/tablet minimum board scale as the large-field sizing policy; it caused oversized mobile large fields.",
+    "Keep the content-rect mask as a guardrail, but treat scale/content fit as the primary layout fix.",
+    "Keep the fieldShape harness available for deterministic visual regression checks."
+  ]
+}
