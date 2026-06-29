@@ -165,6 +165,13 @@ const AMBIENT_TRANSIENT_OBJECT_BUDGET = 18;
 const AMBIENT_POP_TEXT_BUDGET = 7;
 const AMBIENT_REWARD_ARC_SPRITE_BUDGET = 6;
 const AMBIENT_WORLD_ACTION_ARC_SPRITE_BUDGET = 10;
+const AMBIENT_VISUAL_EVENT_WINDOW_MS = 260;
+const AMBIENT_VISUAL_EVENT_BUDGET = 6;
+const LARGE_FIELD_AMBIENT_VISUAL_EVENT_BUDGET = 4;
+const HUGE_FIELD_AMBIENT_VISUAL_EVENT_BUDGET = 2;
+const PRESSURE_AMBIENT_VISUAL_EVENT_BUDGET = 1;
+const AMBIENT_COMPACT_VISIBLE_TILE_COUNT = 420;
+const AMBIENT_HEAVY_VISUAL_EVENT_COST = 2;
 const LARGE_FIELD_AMBIENT_BUDGET_TILE_COUNT = 1200;
 const HUGE_FIELD_AMBIENT_BUDGET_TILE_COUNT = 2000;
 const LARGE_FIELD_AMBIENT_BUDGET_SCALE = 0.62;
@@ -202,8 +209,12 @@ const COMPACT_PRESSURE_DIRTY_TILE_VIEW_LIMIT = 16;
 const COMMON_REDRAW_MOBILE_TILE_LIMIT = 160;
 const COMMON_REDRAW_FRAME_BUDGET_MS = 1.6;
 const COMMON_REDRAW_TILE_BUDGET = 8;
+const COMMON_REDRAW_LARGE_FRAME_BUDGET_MS = 2.2;
+const COMMON_REDRAW_LARGE_TILE_BUDGET = 22;
 const PRESSURE_COMMON_REDRAW_FRAME_BUDGET_MS = 0.9;
 const PRESSURE_COMMON_REDRAW_TILE_BUDGET = 4;
+const PRESSURE_COMMON_REDRAW_LARGE_FRAME_BUDGET_MS = 1.2;
+const PRESSURE_COMMON_REDRAW_LARGE_TILE_BUDGET = 12;
 const PANEL_UI_REFRESH_INTERVAL_MS = 1000;
 const WORLD_OBJECT_UI_REFRESH_INTERVAL_MS = 900;
 const HUD_GRASS_TOUCH_GROUPS_PER_LINE = 9;
@@ -1004,6 +1015,8 @@ export class GameScene extends Phaser.Scene {
   private ambientPopTextsUsed = 0;
   private ambientRewardArcSpritesUsed = 0;
   private ambientWorldActionArcSpritesUsed = 0;
+  private ambientVisualEventWindowAt = 0;
+  private ambientVisualEventsUsed = 0;
   private popTextPool: Phaser.GameObjects.Text[] = [];
   private activePopTexts = new Set<Phaser.GameObjects.Text>();
   private manualTouchWindowAt = 0;
@@ -1756,6 +1769,64 @@ export class GameScene extends Phaser.Scene {
     }
 
     return scaledBudget;
+  }
+
+  private shouldCompactAmbientFeedback(): boolean {
+    return (
+      this.isAmbientFeedbackActive() &&
+      (this.fieldTileCount >= LARGE_FIELD_AMBIENT_BUDGET_TILE_COUNT ||
+        this.lastVisibleTileKeys.size >= AMBIENT_COMPACT_VISIBLE_TILE_COUNT ||
+        this.boardScale < COMPACT_TILE_EFFECT_SCALE ||
+        this.isAmbientVisualPressureActive())
+    );
+  }
+
+  private isAmbientVisualPressureActive(): boolean {
+    return (
+      this.isBoardRenderBusy() ||
+      this.children.list.length >= DISPLAY_OBJECT_PRESSURE_LIMIT ||
+      this.frameSpikeCount > 0 ||
+      this.effectQuality <= 0.58 ||
+      this.activePopTexts.size >= Math.floor(MAX_ACTIVE_POP_TEXTS * 0.5)
+    );
+  }
+
+  private getAmbientVisualEventBudget(): number {
+    let budget = AMBIENT_VISUAL_EVENT_BUDGET;
+    if (this.fieldTileCount >= HUGE_FIELD_AMBIENT_BUDGET_TILE_COUNT) {
+      budget = HUGE_FIELD_AMBIENT_VISUAL_EVENT_BUDGET;
+    } else if (this.fieldTileCount >= LARGE_FIELD_AMBIENT_BUDGET_TILE_COUNT) {
+      budget = LARGE_FIELD_AMBIENT_VISUAL_EVENT_BUDGET;
+    }
+
+    if (this.isAmbientVisualPressureActive()) {
+      budget = Math.min(budget, PRESSURE_AMBIENT_VISUAL_EVENT_BUDGET);
+    }
+
+    return Math.max(1, Math.floor(budget * Math.max(0.65, this.effectQuality)));
+  }
+
+  private resetAmbientVisualEventBudget(now = Date.now()): void {
+    if (now - this.ambientVisualEventWindowAt < AMBIENT_VISUAL_EVENT_WINDOW_MS) {
+      return;
+    }
+
+    this.ambientVisualEventWindowAt = now;
+    this.ambientVisualEventsUsed = 0;
+  }
+
+  private reserveAmbientVisualEvent(cost = 1): boolean {
+    if (!this.isAmbientFeedbackActive()) {
+      return true;
+    }
+
+    this.resetAmbientVisualEventBudget();
+    if (this.ambientVisualEventsUsed + cost > this.getAmbientVisualEventBudget()) {
+      return false;
+    }
+
+    this.ambientVisualEventsUsed += cost;
+    return true;
   }
 
   private reserveTouchFlourish(isCrit = false): boolean {
@@ -7088,6 +7159,7 @@ export class GameScene extends Phaser.Scene {
     const maxVisibleY = Phaser.Math.Clamp(Math.ceil((cullBounds.bottom - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
     const visibleCandidateCount = Math.max(0, maxVisibleX - minVisibleX + 1) * Math.max(0, maxVisibleY - minVisibleY + 1);
     const budgetCommonRedraw = this.shouldBudgetCommonRedraw(reason, visibleCandidateCount);
+    const keepQueuedRedrawViews = budgetCommonRedraw && visibleCandidateCount <= COMMON_REDRAW_MOBILE_TILE_LIMIT;
     const useCommonLayerPreview =
       this.shouldUseCommonLayerTransformPreview(reason) && this.applyCommonLayerTransformPreview(startX, startY, scaledStep);
     const queuedCommonRedrawEntries: CommonRedrawEntry[] = [];
@@ -7126,7 +7198,9 @@ export class GameScene extends Phaser.Scene {
           visibleTiles += 1;
           this.lastVisibleTileKeys.add(key);
           if (budgetCommonRedraw) {
-            this.redrawTileViewKeys.add(key);
+            if (keepQueuedRedrawViews) {
+              this.redrawTileViewKeys.add(key);
+            }
             queuedCommonRedrawEntries.push({ key, x, y });
           }
 
@@ -7606,11 +7680,17 @@ export class GameScene extends Phaser.Scene {
       return false;
     }
 
-    if (visibleCandidateCount <= 0 || visibleCandidateCount > COMMON_REDRAW_MOBILE_TILE_LIMIT) {
+    if (visibleCandidateCount <= 0) {
       return false;
     }
 
-    return this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH || reason === "pan" || reason === "zoom";
+    return (
+      this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH ||
+      reason === "pan" ||
+      reason === "zoom" ||
+      reason === "dirty" ||
+      (this.commonLayerPreviewActive && visibleCandidateCount > COMMON_REDRAW_MOBILE_TILE_LIMIT)
+    );
   }
 
   private getDirtyTileViewLimit(): number {
@@ -7644,10 +7724,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getCommonRedrawTileBudget(): number {
+    if (this.commonRedrawQueue.length > COMMON_REDRAW_MOBILE_TILE_LIMIT) {
+      return this.shouldThrottleBatchRedraw() ? PRESSURE_COMMON_REDRAW_LARGE_TILE_BUDGET : COMMON_REDRAW_LARGE_TILE_BUDGET;
+    }
+
     return this.shouldThrottleBatchRedraw() ? PRESSURE_COMMON_REDRAW_TILE_BUDGET : COMMON_REDRAW_TILE_BUDGET;
   }
 
   private getCommonRedrawFrameBudgetMs(): number {
+    if (this.commonRedrawQueue.length > COMMON_REDRAW_MOBILE_TILE_LIMIT) {
+      return this.shouldThrottleBatchRedraw() ? PRESSURE_COMMON_REDRAW_LARGE_FRAME_BUDGET_MS : COMMON_REDRAW_LARGE_FRAME_BUDGET_MS;
+    }
+
     return this.shouldThrottleBatchRedraw() ? PRESSURE_COMMON_REDRAW_FRAME_BUDGET_MS : COMMON_REDRAW_FRAME_BUDGET_MS;
   }
 
@@ -11131,20 +11219,26 @@ export class GameScene extends Phaser.Scene {
     const y = position.y;
     const baseScale = this.boardScale;
     const fleckTexture = touchedTrait === "dewy" ? "dew-fleck" : "grass-fleck";
-    const compactEffects = this.boardScale < COMPACT_TILE_EFFECT_SCALE && !isCrit;
-    const showFlourish = !compactEffects && !this.isBoardLayoutBusy() && this.reserveTouchFlourish(isCrit);
+    const compactAmbientFeedback = this.shouldCompactAmbientFeedback();
+    if (!this.reserveAmbientVisualEvent(isCrit && !compactAmbientFeedback ? AMBIENT_HEAVY_VISUAL_EVENT_COST : 1)) {
+      return;
+    }
+
+    const compactEffects = (this.boardScale < COMPACT_TILE_EFFECT_SCALE || compactAmbientFeedback) && !isCrit;
+    const showFlourish = !compactEffects && !compactAmbientFeedback && !this.isBoardLayoutBusy() && this.reserveTouchFlourish(isCrit);
+    const touchBurstQuantity = isCrit ? (compactAmbientFeedback ? 16 : 38) : compactEffects ? 5 : 20;
 
     if (view && showFlourish) {
       this.resetBaseTilePose(view);
       this.addTileImpactPulse(x, y, baseScale, isCrit);
     }
 
-    this.emitBurst(fleckTexture, x, y - 4, isCrit ? 38 : compactEffects ? 8 : 20, isCrit ? 1.42 : 1.05, isCrit ? 0.3 : 0.42);
+    this.emitBurst(fleckTexture, x, y - 4, touchBurstQuantity, isCrit ? 1.42 : 1.05, isCrit ? 0.3 : 0.42);
     if (showFlourish) {
       this.emitBurst("dust-fleck", x, y + 12, 8, 0.8, 0.28);
     }
     if (isCrit) {
-      this.emitBurst("crit-fleck", x, y - 10, 24, 1.35, 0.18);
+      this.emitBurst("crit-fleck", x, y - 10, compactAmbientFeedback ? 10 : 24, 1.35, 0.18);
       if (showFlourish) {
         this.addCritFlash(x, y);
       }
@@ -11402,44 +11496,57 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const compactAmbientFeedback = this.shouldCompactAmbientFeedback();
+    if (!this.reserveAmbientVisualEvent(compactAmbientFeedback ? 1 : AMBIENT_HEAVY_VISUAL_EVENT_COST)) {
+      return;
+    }
+
     const x = position.x;
     const y = position.y;
-    this.spawnWorldActionArc("effect-water-drop", "sprinkler", x, y - 12 * this.boardScale, 4, 0xa8e8ff);
-    const showTransient = this.reserveAmbientTransientObject(2);
+    this.spawnWorldActionArc("effect-water-drop", "sprinkler", x, y - 12 * this.boardScale, compactAmbientFeedback ? 1 : 4, 0xa8e8ff);
+    const showTransient = this.reserveAmbientTransientObject(compactAmbientFeedback ? 1 : 2);
 
-    this.emitBurst("effect-water-drop", x, y - 14 * this.boardScale, 30, 1.28, 0.5);
+    this.emitBurst("effect-water-drop", x, y - 14 * this.boardScale, compactAmbientFeedback ? 8 : 30, 1.28, 0.5);
 
     if (showTransient) {
-      const ring = this.add
-        .ellipse(x, y, TILE_SIZE * 0.42 * this.boardScale, TILE_SIZE * 0.24 * this.boardScale, 0xa8e8ff, 0.22)
-        .setStrokeStyle(3, 0xd7fff2, 0.9)
-        .setDepth(38);
-      const sparkle = this.add
-        .star(x, y - 17 * this.boardScale, 6, TILE_SIZE * 0.08 * this.boardScale, TILE_SIZE * 0.33 * this.boardScale, 0xd7fff2, 0.78)
-        .setStrokeStyle(2, 0xffffff, 0.85)
-        .setDepth(39);
+      const ring = this.trackBoardTransient(
+        this.add
+          .ellipse(x, y, TILE_SIZE * 0.42 * this.boardScale, TILE_SIZE * 0.24 * this.boardScale, 0xa8e8ff, compactAmbientFeedback ? 0.16 : 0.22)
+          .setStrokeStyle(Math.max(1, compactAmbientFeedback ? 2 : 3), 0xd7fff2, compactAmbientFeedback ? 0.72 : 0.9)
+          .setDepth(38),
+      );
+      const sparkle = compactAmbientFeedback
+        ? undefined
+        : this.trackBoardTransient(
+            this.add
+              .star(x, y - 17 * this.boardScale, 6, TILE_SIZE * 0.08 * this.boardScale, TILE_SIZE * 0.33 * this.boardScale, 0xd7fff2, 0.78)
+              .setStrokeStyle(2, 0xffffff, 0.85)
+              .setDepth(39),
+          );
 
       this.tweens.add({
         targets: ring,
-        scaleX: 1.85,
-        scaleY: 1.45,
+        scaleX: compactAmbientFeedback ? 1.45 : 1.85,
+        scaleY: compactAmbientFeedback ? 1.24 : 1.45,
         alpha: 0,
-        duration: 420,
+        duration: compactAmbientFeedback ? 280 : 420,
         ease: "Sine.easeOut",
         onComplete: () => ring.destroy(),
       });
 
-      this.tweens.add({
-        targets: sparkle,
-        angle: 35,
-        scaleX: 1.32,
-        scaleY: 1.32,
-        y: sparkle.y - 7 * this.boardScale,
-        alpha: 0,
-        duration: 360,
-        ease: "Sine.easeOut",
-        onComplete: () => sparkle.destroy(),
-      });
+      if (sparkle) {
+        this.tweens.add({
+          targets: sparkle,
+          angle: 35,
+          scaleX: 1.32,
+          scaleY: 1.32,
+          y: sparkle.y - 7 * this.boardScale,
+          alpha: 0,
+          duration: 360,
+          ease: "Sine.easeOut",
+          onComplete: () => sparkle.destroy(),
+        });
+      }
     }
   }
 
@@ -11494,54 +11601,61 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const compactAmbientFeedback = this.shouldCompactAmbientFeedback();
+    if (!this.reserveAmbientVisualEvent(compactAmbientFeedback ? 1 : AMBIENT_HEAVY_VISUAL_EVENT_COST)) {
+      return;
+    }
+
     const x = position.x;
     const y = position.y;
+    const arcCount = (count: number) => (compactAmbientFeedback ? 1 : count);
+    const burstCount = (count: number) => (compactAmbientFeedback ? Math.max(3, Math.ceil(count * 0.42)) : count);
 
     if (action === "pollinate") {
-      this.spawnWorldActionArc("effect-pollen-fleck", "bee_hive", x, y - 12 * this.boardScale, 5, 0xffef78);
-      this.emitBurst("effect-pollen-fleck", x, y - 12 * this.boardScale, 14, 0.62, 0.1);
-      this.emitBurst("effect-bee-pixel", x - 5 * this.boardScale, y - 18 * this.boardScale, 6, 0.38, 0.02);
+      this.spawnWorldActionArc("effect-pollen-fleck", "bee_hive", x, y - 12 * this.boardScale, arcCount(5), 0xffef78);
+      this.emitBurst("effect-pollen-fleck", x, y - 12 * this.boardScale, burstCount(14), 0.62, 0.1);
+      this.emitBurst("effect-bee-pixel", x - 5 * this.boardScale, y - 18 * this.boardScale, burstCount(6), 0.38, 0.02);
       this.addCompanionPing(x, y - 18 * this.boardScale, 0xffef78, 0xffffff);
       return;
     }
 
     if (action === "scratch") {
-      this.spawnWorldActionArc("dust-fleck", "chicken", x, y + 8 * this.boardScale, 3, 0xfff1a8);
-      this.emitBurst("dust-fleck", x, y + 13 * this.boardScale, 16, 0.72, 0.25);
+      this.spawnWorldActionArc("dust-fleck", "chicken", x, y + 8 * this.boardScale, arcCount(3), 0xfff1a8);
+      this.emitBurst("dust-fleck", x, y + 13 * this.boardScale, burstCount(16), 0.72, 0.25);
       this.addScratchMarks(x, y);
       return;
     }
 
     if (action === "forage") {
-      this.spawnWorldActionArc("effect-gold-coin", "chicken", x, y - 7 * this.boardScale, 2, 0xffef78);
-      this.emitBurst("dust-fleck", x, y + 11 * this.boardScale, 12, 0.58, 0.22);
+      this.spawnWorldActionArc("effect-gold-coin", "chicken", x, y - 7 * this.boardScale, arcCount(2), 0xffef78);
+      this.emitBurst("dust-fleck", x, y + 11 * this.boardScale, burstCount(12), 0.58, 0.22);
       this.addCompanionPing(x, y - 12 * this.boardScale, 0xffef78, 0xffffff);
       return;
     }
 
     if (action === "scurry") {
-      this.spawnWorldActionArc("effect-gold-coin", "field_mouse", x, y - 5 * this.boardScale, 2, 0xffef78);
-      this.emitBurst("dust-fleck", x, y + 9 * this.boardScale, 10, 0.52, 0.24);
+      this.spawnWorldActionArc("effect-gold-coin", "field_mouse", x, y - 5 * this.boardScale, arcCount(2), 0xffef78);
+      this.emitBurst("dust-fleck", x, y + 9 * this.boardScale, burstCount(10), 0.52, 0.24);
       this.addCompanionPing(x, y - 11 * this.boardScale, 0xffef78, 0xffffff);
       return;
     }
 
     if (action === "hop") {
-      this.spawnWorldActionArc("effect-seed-kernel", "meadow_rabbit", x, y - 9 * this.boardScale, 2, 0xfff1a8);
-      this.emitBurst("grass-fleck", x, y - 2 * this.boardScale, 12, 0.62, 0.28);
+      this.spawnWorldActionArc("effect-seed-kernel", "meadow_rabbit", x, y - 9 * this.boardScale, arcCount(2), 0xfff1a8);
+      this.emitBurst("grass-fleck", x, y - 2 * this.boardScale, burstCount(12), 0.62, 0.28);
       this.addCompanionPing(x, y - 14 * this.boardScale, 0xdfffc8, 0xf7ffe8);
       return;
     }
 
     if (action === "burrow") {
-      this.spawnWorldActionArc("dust-fleck", "earthworm", x, y + 6 * this.boardScale, 5, 0xd7a36f);
-      this.emitBurst("dust-fleck", x, y + 13 * this.boardScale, 20, 0.82, 0.3);
+      this.spawnWorldActionArc("dust-fleck", "earthworm", x, y + 6 * this.boardScale, arcCount(5), 0xd7a36f);
+      this.emitBurst("dust-fleck", x, y + 13 * this.boardScale, burstCount(20), 0.82, 0.3);
       this.addCompanionPing(x, y - 10 * this.boardScale, 0xdfffc8, 0xf7ffe8);
       return;
     }
 
-    this.spawnWorldActionArc("grass-fleck", "sheep", x, y - 2 * this.boardScale, 4, 0xdfffc8);
-    this.emitBurst("grass-fleck", x, y - 3 * this.boardScale, 18, 0.86, 0.34);
+    this.spawnWorldActionArc("grass-fleck", "sheep", x, y - 2 * this.boardScale, arcCount(4), 0xdfffc8);
+    this.emitBurst("grass-fleck", x, y - 3 * this.boardScale, burstCount(18), 0.86, 0.34);
     this.addCompanionPing(x, y - 13 * this.boardScale, 0xdfffc8, 0xf7ffe8);
   }
 
@@ -11550,10 +11664,12 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const ping = this.add
-      .star(x, y, 5, TILE_SIZE * 0.07 * this.boardScale, TILE_SIZE * 0.28 * this.boardScale, color, 0.78)
-      .setStrokeStyle(2, strokeColor, 0.9)
-      .setDepth(38);
+    const ping = this.trackBoardTransient(
+      this.add
+        .star(x, y, 5, TILE_SIZE * 0.07 * this.boardScale, TILE_SIZE * 0.28 * this.boardScale, color, 0.78)
+        .setStrokeStyle(2, strokeColor, 0.9)
+        .setDepth(38),
+    );
 
     this.tweens.add({
       targets: ping,
@@ -11573,7 +11689,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const marks = this.add.graphics().setDepth(38);
+    const marks = this.trackBoardTransient(this.add.graphics().setDepth(38));
     const size = TILE_SIZE * this.boardScale;
     marks.lineStyle(Math.max(2, 3 * this.boardScale), 0xfff1a8, 0.9);
 
@@ -11711,7 +11827,8 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const budgetedQuantity = this.getBudgetedBurstQuantity(quantity);
+    const requestedQuantity = this.shouldCompactAmbientFeedback() ? Math.min(quantity, Math.max(2, Math.ceil(quantity * 0.5))) : quantity;
+    const budgetedQuantity = this.getBudgetedBurstQuantity(requestedQuantity);
     if (budgetedQuantity <= 0) {
       return;
     }

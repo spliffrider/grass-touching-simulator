@@ -1,0 +1,96 @@
+{
+  "createdAt": "2026-06-29T18:46:14+02:00",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Capture the huge-field ambient effect and zoom-out performance pass.",
+  "currentUserGoal": "Fix stalls when multiple sprinkler, companion, mutation, touch, and field-life effects happen on an absolutely huge field, while preserving room for more non-manual visual activity later.",
+  "workCompleted": [
+    {
+      "summary": "Added a short-window ambient visual event budget for huge and pressured fields so stacked helper/touch effects degrade to compact versions instead of drawing every full effect at once.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Compacted sprinkler and companion action visuals under ambient pressure: fewer arc sprites, smaller particle bursts, and tracked board transients for helper pings/scratch marks.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Reduced generic automated touch burst sizes when ambient feedback is compact, including large-field manual-touch budget paths.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Fixed a zoom-out edge case where large common-layer redraws could stamp more than a thousand visible tiles in one layout. Large redraws are now queued without creating thousands of temporary live tile views.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    }
+  ],
+  "verificationPerformed": [
+    {
+      "commandOrCheck": "npm run build",
+      "result": "Passed."
+    },
+    {
+      "commandOrCheck": "git diff --check -- src/game/scenes/GameScene.ts",
+      "result": "Passed with only the existing LF-to-CRLF warning."
+    },
+    {
+      "commandOrCheck": "Baseline live browser stress before fix, http://127.0.0.1:5173/?stress&perf&tiles=2500 with repeated arrow/scroll zoom interactions",
+      "result": "A zoom-out edge case reached visibleTiles 1269 and layout:tiles 112 ms / layout 114 ms in one sample."
+    },
+    {
+      "commandOrCheck": "Post-fix live browser stress, http://127.0.0.1:5173/?stress&perf&tiles=2500 with the same interaction pattern",
+      "result": "No frame spikes. After zooming out to visibleTiles 1269, displayObjects stayed around 296-303, tileViews stayed low, effect quality stayed 1, and hotspots stayed in low single-digit milliseconds except ordinary UI trigger-feed refreshes."
+    },
+    {
+      "commandOrCheck": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "Passed. Complete phase: visibleTiles 170, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 293, activeTweens 21, hotspots hot none."
+    },
+    {
+      "commandOrCheck": "http://127.0.0.1:5173/?perfHarness&tiles=2500",
+      "result": "Passed. Complete phase: visibleTiles 322, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 291, activeTweens 21, hotspots hot none."
+    },
+    {
+      "commandOrCheck": "Extra live browser stress, http://127.0.0.1:5173/?stress&perf&tiles=5000 with repeated arrow/scroll zoom interactions",
+      "result": "No frame spikes. Zoomed views reached visibleTiles 1479 and 2500 while displayObjects stayed around 297-306, effect quality stayed 1, and activeTweens stayed modest."
+    }
+  ],
+  "currentGitStatusSummary": {
+    "modifiedIntended": [
+      "src/game/scenes/GameScene.ts",
+      "handoffs/LATEST.json",
+      "handoffs/HANDOFF_2026-06-29_HUGE_FIELD_EFFECT_PERF.json"
+    ],
+    "modifiedUnrelatedLocal": [],
+    "untrackedUnrelatedLocal": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssuesOrDesignQuestions": [
+    "The trigger-feed UI can still be a low-single-digit hotspot when many feed rows update together. It did not cause frame spikes in this pass.",
+    "The live stress checks exercise synthetic stress state, not the user's exact saved field, but they cover larger visible-tile counts than the screenshot.",
+    "Adding more idle screen activity should route through the new ambient visual event budget instead of bypassing it."
+  ],
+  "recommendedNextSteps": [
+    "Use the new budgeted visual path for the next feature pass: sprinklers, companions, weather, and automation can add more idle visuals by reserving compact ambient events first.",
+    "If the next pass adds persistent sprinkler/companion animations, keep them pooled or emitter-based rather than creating many independent Phaser objects.",
+    "Manually play the user's real huge save for feel, especially zooming out fully while trigger feed, sprinkler, companions, and field-life visuals are active."
+  ],
+  "doNotRevert": [
+    "Do not restore full sprinkler/companion effect payloads for every ambient helper action on huge fields; that is the stall source this pass reduces.",
+    "Do not let large common-layer redraws create live tile views for every visible tile. That briefly pushed displayObjects above 7000 during an intermediate fix.",
+    "Keep large redraws queued after common-layer preview redraws so zoom-out redraw work is spread across frames."
+  ]
+}
