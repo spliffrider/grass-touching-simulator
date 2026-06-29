@@ -47,7 +47,8 @@ Treat it as a request to prepare the project for Mac mini continuation:
 1. Check `git status --short`.
 2. If the work was substantial, create a dated handoff in `handoffs/` and update
    `handoffs/LATEST.json`.
-3. Stage and commit only the intended project changes.
+3. Stage and commit only the intended project changes, including real handoff
+   artifacts that describe the session.
 4. Run `npm run sync:mac:handoff` from the Windows desktop checkout.
 5. Report the commit hash, Mac pull result, and any remaining unrelated local
    files.
@@ -67,8 +68,8 @@ needs to be committed, stashed, or discarded before syncing.
 Before shutting down the desktop:
 
 1. Finish or pause the current work.
-2. For a substantial session, create/update a handoff in `handoffs/` and update
-   `handoffs/LATEST.json`.
+2. For a substantial session, create/update a handoff in `handoffs/`, update
+   `handoffs/LATEST.json`, and include both in the commit.
 3. Commit the intended project changes.
 4. Push and pull on the Mac:
 
@@ -90,7 +91,8 @@ Use Codex Remote on the Mac mini. Start by asking Mac Codex to read:
 5. `docs/REMOTE_MAC_MINI_SETUP.md`
 
 Before ending Mac-side work, commit and push intended changes. For substantial
-work, write a new handoff and update `handoffs/LATEST.json`.
+work, write a new handoff, update `handoffs/LATEST.json`, and include both in
+the pushed commit.
 
 ## Back At The Desktop
 
