@@ -134,6 +134,7 @@ const COMBO_SHAKE_BASE_INTENSITY = 0.00175;
 const COMBO_SHAKE_INTENSITY_PER_COUNT = 0.00005;
 const COMBO_SHAKE_MAX_INTENSITY = 0.00425;
 const FULL_UI_REFRESH_INTERVAL_MS = 420;
+const FULL_UI_REFRESH_MAX_DEFER_MS = 2400;
 const READY_STATE_REFRESH_INTERVAL_MS = 520;
 const RUNTIME_STATS_CACHE_MS = 250;
 const JOURNAL_DISCOVERY_REFRESH_INTERVAL_MS = 1200;
@@ -222,6 +223,7 @@ const WORLD_MAP_COMPACT_SIZE = 146;
 const WORLD_MAP_HEADER_HEIGHT = 28;
 const WORLD_MAP_PADDING = 12;
 const WORLD_MAP_ARROW_STEP_TILES = 4;
+const WORLD_MAP_SIDE_RAIL_GAP = 12;
 const TRIGGER_FEED_MAX_EVENTS = 6;
 const TRIGGER_FEED_EVENT_TTL_MS = 90000;
 const TRIGGER_FEED_REPEAT_WINDOW_MS = 12000;
@@ -989,6 +991,8 @@ export class GameScene extends Phaser.Scene {
   private lowFpsSamples = 0;
   private highFpsSamples = 0;
   private weatherParticleQuality = 1;
+  private weatherParticleViewportWidth = 0;
+  private weatherParticleViewportHeight = 0;
   private queuedSaveElapsed = QUEUED_SAVE_INTERVAL_MS;
   private saveQueued = false;
   private saveDelayHandle?: number;
@@ -1166,6 +1170,7 @@ export class GameScene extends Phaser.Scene {
     this.readyQuestKeys = this.getReadyQuestKeys();
     this.refreshUi();
     this.layoutTiles();
+    this.time.delayedCall(260, () => this.prewarmGameplayBurstEmitters());
     this.startPerfHarness();
     this.startHazardHarness();
     this.addTriggerFeedEvent("Field online", this.stressMode ? `${this.fieldTileCount} patches in stress mode` : "watching automation", "OK", 0xb7eba5);
@@ -1438,10 +1443,12 @@ export class GameScene extends Phaser.Scene {
     this.panelUiRefreshElapsed += delta;
     this.worldObjectUiRefreshElapsed += delta;
     if (this.uiRefreshElapsed >= FULL_UI_REFRESH_INTERVAL_MS) {
-      this.uiRefreshElapsed = 0;
-      this.profileScope("ui", () => {
-        this.refreshUi(false);
-      });
+      if (!this.shouldDeferPeriodicUiRefresh() || this.uiRefreshElapsed >= FULL_UI_REFRESH_MAX_DEFER_MS) {
+        this.uiRefreshElapsed = 0;
+        this.profileScope("ui", () => {
+          this.refreshUi(false);
+        });
+      }
     }
 
     this.perfPanelElapsed += delta;
@@ -1556,6 +1563,10 @@ export class GameScene extends Phaser.Scene {
 
   private isBoardLayoutBusy(): boolean {
     return this.isPanningBoard || this.pendingBoardLayout || this.commonRedrawQueue.length > 0;
+  }
+
+  private shouldDeferPeriodicUiRefresh(): boolean {
+    return this.isBoardLayoutBusy() || this.commonLayerPreviewActive || this.worldMapDragging;
   }
 
   private scheduleBusySaveRetry(): void {
@@ -1802,11 +1813,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   private withManualTouchFeedbackBudget<T>(now: number, callback: () => T): T {
-    if (!this.isManualTouchPressureActive(now)) {
+    if (!this.shouldBudgetManualTouchFeedback(now)) {
       return callback();
     }
 
     return this.runWithAmbientFeedback(callback);
+  }
+
+  private shouldBudgetManualTouchFeedback(now: number): boolean {
+    return (
+      this.isManualTouchPressureActive(now) ||
+      this.fieldTileCount >= WORLD_MAP_TILE_THRESHOLD ||
+      this.isBoardRenderBusy() ||
+      this.children.list.length >= DISPLAY_OBJECT_PRESSURE_LIMIT ||
+      this.activePopTexts.size >= Math.floor(MAX_ACTIVE_POP_TEXTS * 0.5)
+    );
   }
 
   private resetAmbientFeedbackBudget(now = Date.now()): void {
@@ -3309,7 +3330,12 @@ export class GameScene extends Phaser.Scene {
     this.weatherBadgeBody.setWordWrapWidth(badgeWidth - 30);
     this.weatherBadge.setPosition(compact ? 26 : desktopBadgeX, compact ? this.optionsButton.y + 58 : 232);
 
-    if (this.state?.seedShopPurchases.weather_jar && this.state.activeWeatherId && this.activeWeatherVisualId === this.state.activeWeatherId) {
+    if (
+      this.state?.seedShopPurchases.weather_jar &&
+      this.state.activeWeatherId &&
+      this.activeWeatherVisualId === this.state.activeWeatherId &&
+      (this.weatherParticleViewportWidth !== this.scale.width || this.weatherParticleViewportHeight !== this.scale.height)
+    ) {
       this.createWeatherParticleEffect(this.state.activeWeatherId);
     }
   }
@@ -3442,9 +3468,25 @@ export class GameScene extends Phaser.Scene {
       this.fieldTileCount >= WORLD_MAP_TILE_THRESHOLD &&
       this.cachedFieldBounds !== undefined &&
       !this.hasBlockingOverlayOpen() &&
-      this.scale.width >= 420 &&
-      this.scale.height >= 460
+      !this.isMobilePortrait() &&
+      this.scale.width >= 760 &&
+      this.scale.height >= 520
     );
+  }
+
+  private shouldReserveWorldMapRail(): boolean {
+    return this.shouldShowWorldMap();
+  }
+
+  private getWorldMapSize(): number {
+    return this.scale.width >= TABLET_LARGE_FIELD_MAX_WIDTH ? WORLD_MAP_COMPACT_SIZE : Math.max(118, Math.min(WORLD_MAP_COMPACT_SIZE, this.scale.width * 0.2));
+  }
+
+  private getWorldMapRailPosition(size: number): { x: number; y: number } {
+    const menuRailLeft = this.scale.width - (ACTION_BUTTON_WIDTH + 24) - 12;
+    const x = Phaser.Math.Clamp(menuRailLeft - size - WORLD_MAP_SIDE_RAIL_GAP, 12, Math.max(12, this.scale.width - size - 12));
+    const y = 18;
+    return { x, y };
   }
 
   private layoutWorldMap(): void {
@@ -3459,19 +3501,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     const compact = this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH;
-    const size = compact ? WORLD_MAP_COMPACT_SIZE : WORLD_MAP_DESKTOP_SIZE;
-    const boardLeft = this.boardViewportWidth > 0 ? this.boardViewportX : this.boardAvailableLeft;
-    const boardBottom =
-      this.boardViewportHeight > 0
-        ? this.boardViewportY + this.boardViewportHeight
-        : this.scale.height - (Number.isFinite(this.mobileCommandDockTop) ? this.mobileCommandDockHeight : 0);
-    const bottomLimit = Math.min(
-      this.scale.height - 14,
-      Number.isFinite(this.mobileCommandDockTop) ? this.mobileCommandDockTop - 10 : this.scale.height - 14,
-      boardBottom - 12,
-    );
-    const x = Phaser.Math.Clamp(boardLeft + 12, 12, Math.max(12, this.scale.width - size - 12));
-    const y = Phaser.Math.Clamp(bottomLimit - size, this.boardTopY + 12, Math.max(this.boardTopY + 12, this.scale.height - size - 14));
+    const size = this.getWorldMapSize();
+    const { x, y } = this.getWorldMapRailPosition(size);
 
     this.worldMapRoot.setPosition(x, y);
     this.worldMapFrame.setSize(size, size);
@@ -7074,9 +7105,7 @@ export class GameScene extends Phaser.Scene {
         this.layoutWorldObjects();
       });
 
-      this.layoutTriggerFeed();
-      this.profileScope("layout:worldMap", () => this.layoutWorldMap());
-      this.profileScope("layout:hover", () => this.refreshHoverMarker());
+      this.layoutBoardAncillaryUi(reason);
       return;
     }
 
@@ -7151,9 +7180,7 @@ export class GameScene extends Phaser.Scene {
       this.layoutWorldObjects();
     });
 
-    this.layoutTriggerFeed();
-    this.profileScope("layout:worldMap", () => this.layoutWorldMap());
-    this.profileScope("layout:hover", () => this.refreshHoverMarker());
+    this.layoutBoardAncillaryUi(reason);
     } finally {
       if (perfStart !== undefined) {
         const duration = performance.now() - perfStart;
@@ -7161,6 +7188,17 @@ export class GameScene extends Phaser.Scene {
         this.recordPerfScope(`layout:${reason}`, duration);
       }
     }
+  }
+
+  private layoutBoardAncillaryUi(reason: BoardLayoutReason): void {
+    if (reason === "pan" || reason === "zoom") {
+      this.profileScope("layout:worldMapMarker", () => this.updateWorldMapViewportMarker());
+    } else {
+      this.layoutTriggerFeed();
+      this.profileScope("layout:worldMap", () => this.layoutWorldMap());
+    }
+
+    this.profileScope("layout:hover", () => this.refreshHoverMarker());
   }
 
   private shouldResetPositionBoundBoardVisuals(reason: BoardLayoutReason): boolean {
@@ -7255,11 +7293,10 @@ export class GameScene extends Phaser.Scene {
 
     const weatherActive =
       this.state.seedShopPurchases.weather_jar && this.state.activeWeatherId && this.scale.width >= TABLET_LARGE_FIELD_MAX_WIDTH;
-    if ((!this.weatherBadge?.visible && !weatherActive) || !this.weatherBadgeBg) {
-      return 0;
-    }
+    const weatherBottom = (!this.weatherBadge?.visible && !weatherActive) || !this.weatherBadgeBg ? 0 : this.weatherBadge.y + this.weatherBadgeBg.height;
+    const worldMapBottom = this.shouldReserveWorldMapRail() ? 18 + this.getWorldMapSize() : 0;
 
-    return this.weatherBadge.y + this.weatherBadgeBg.height;
+    return Math.max(weatherBottom, worldMapBottom);
   }
 
   private getBoardBackdropPad(): number {
@@ -10772,6 +10809,8 @@ export class GameScene extends Phaser.Scene {
   private createWeatherParticleEffect(weatherId: WeatherId): void {
     this.weatherParticles?.destroy();
     this.weatherParticles = undefined;
+    this.weatherParticleViewportWidth = this.scale.width;
+    this.weatherParticleViewportHeight = this.scale.height;
 
     if (weatherId === "calm") {
       return;
@@ -11644,6 +11683,27 @@ export class GameScene extends Phaser.Scene {
   private resetBaseTilePose(view: TileView): void {
     view.base.setPosition(view.label.x, view.label.y);
     view.base.setScale(this.boardScale);
+  }
+
+  private prewarmGameplayBurstEmitters(): void {
+    const textures = [
+      "grass-fleck",
+      "dew-fleck",
+      "dust-fleck",
+      "crit-fleck",
+      "seed-fleck",
+      "effect-water-drop",
+      "effect-pollen-fleck",
+      "effect-bee-pixel",
+      "effect-gold-coin",
+      "effect-seed-kernel",
+    ];
+
+    for (const texture of textures) {
+      if (this.textures.exists(texture)) {
+        this.getBurstEmitter(texture);
+      }
+    }
   }
 
   private emitBurst(texture: string, x: number, y: number, quantity: number, _speedScale: number, _gravityScale: number): void {
@@ -12609,6 +12669,7 @@ export class GameScene extends Phaser.Scene {
     const automationUnitCount = this.profileScope("calc:autoUnits", () => getAutomationUnitCount(this.state));
     const refreshPanels = forcePanels || this.panelUiRefreshElapsed >= PANEL_UI_REFRESH_INTERVAL_MS;
     const refreshWorldObjects = forcePanels || this.worldObjectUiRefreshElapsed >= WORLD_OBJECT_UI_REFRESH_INTERVAL_MS;
+    const refreshFloatingLayout = forcePanels || refreshPanels;
     if (refreshPanels) {
       this.panelUiRefreshElapsed = 0;
     }
@@ -12624,12 +12685,19 @@ export class GameScene extends Phaser.Scene {
 
     this.setTextIfChanged(this.titleText, "Grass Touching Simulator");
     this.setVisibleIfChanged(this.ambientSpores, !overlayOpen);
-    this.profileScope("ui:weatherVisuals", () => {
-      this.layoutSeasonVisuals();
-      this.refreshWeatherVisuals();
-    });
+    if (refreshFloatingLayout) {
+      this.profileScope("ui:weatherVisuals", () => {
+        this.layoutSeasonVisuals();
+        this.layoutWeatherVisuals();
+        this.refreshWeatherVisuals();
+      });
+    } else {
+      this.profileScope("ui:weatherText", () => this.refreshWeatherVisuals());
+    }
     this.profileScope("ui:hudChips", () => this.refreshHudChips(automationTouchesPerMinute, automationUnitCount, readyQuestCount));
-    this.profileScope("ui:triggerFeed", () => this.renderTriggerFeed());
+    if (refreshFloatingLayout || this.triggerFeedDirty) {
+      this.profileScope("ui:triggerFeed", () => this.renderTriggerFeed());
+    }
     this.profileScope("ui:combo", () => this.refreshComboBadge());
     setTextButtonText(this.skillButton, this.formatActionMenuLabel(UI_ACTION_ICONS.skills, mobilePortrait ? "Skill" : "Skills", readyUnlockCounts.skill));
     setTextButtonText(this.questButton, this.formatActionMenuLabel(UI_ACTION_ICONS.quests, mobilePortrait ? "Quest" : "Quests", readyQuestCount));
@@ -12703,8 +12771,12 @@ export class GameScene extends Phaser.Scene {
       );
     });
     this.milestoneText.setPosition(mobilePortrait ? 20 : 26, this.layoutGoalNudge(this.layoutComboBadge()));
-    this.layoutTriggerFeed();
-    this.layoutWorldMap();
+    if (refreshFloatingLayout) {
+      this.layoutTriggerFeed();
+      this.layoutWorldMap();
+    } else {
+      this.updateWorldMapViewportMarker();
+    }
 
     if (this.skillTreeOpen && refreshPanels) {
       this.profileScope("ui:skillTree", () => this.refreshSkillTree());

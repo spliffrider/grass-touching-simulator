@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-29",
-  "latestHandoff": "HANDOFF_2026-06-29_FIELD_LAYOUT_VISUAL_HARNESS.json",
+  "latestHandoff": "HANDOFF_2026-06-29_MAP_UI_PERFORMANCE_PASS.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

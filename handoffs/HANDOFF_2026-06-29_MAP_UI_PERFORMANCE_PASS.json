@@ -1,0 +1,107 @@
+{
+  "createdAt": "2026-06-29",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Capture the world-map placement fix and follow-up interaction performance pass after reports of map overlap, pan/zoom lag, and touch-effect hitches.",
+  "currentUserGoal": "Move the world map out of the playing field and make pan, zoom, arrow-key movement, and on-touch feedback feel smoother on large fields.",
+  "workCompleted": [
+    {
+      "summary": "Moved the world map from the lower-left board area to the top-right floating UI rail beside the Skills/Quests command buttons, and hid it on phone-sized portrait views where it would compete with the board.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Kept pan and zoom layouts from re-laying static floating UI. Interaction layouts now update the world-map viewport marker and hover marker without redoing trigger-feed/map layout.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Deferred periodic full UI refresh while board layout, common-layer preview, common redraw, or map dragging is active, so decorative refresh work does not land in the middle of movement.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Stopped weather particle effects from being destroyed and recreated during ordinary weather layout; they now rebuild only when weather changes, quality changes, or viewport dimensions change.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Prewarmed common gameplay burst emitters shortly after startup and applied the existing ambient feedback budget to manual touches on large fields to reduce mid-play effect allocation and burst pressure.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    }
+  ],
+  "verificationPerformed": [
+    {
+      "commandOrCheck": "npm run build",
+      "result": "Passed."
+    },
+    {
+      "commandOrCheck": "git diff --check -- src/game/scenes/GameScene.ts",
+      "result": "Passed with only the existing LF-to-CRLF warning."
+    },
+    {
+      "commandOrCheck": "Browser visual check at 1212x900, http://127.0.0.1:5173/?stress&perf&tiles=1200",
+      "result": "World map no longer overlaps the board; it sits in the top-right UI rail beside the command buttons."
+    },
+    {
+      "commandOrCheck": "Baseline vs final repeated interaction automation at 1212x900: arrow-key pans, wheel zooms, and tap burst on ?stress&perf&tiles=1200",
+      "result": "Baseline after interaction: maxFrameDeltaMs 8, frameSpikes 0, hotspots included ui 5.5ms and ui:triggerFeed 2.2ms. Final: maxFrameDeltaMs 7, frameSpikes 0, hotspots included ui 1.2ms with no trigger-feed hotspot."
+    },
+    {
+      "commandOrCheck": "http://127.0.0.1:5173/?perfHarness&tiles=1200 at default viewport",
+      "result": "Passed. Complete phase: visibleTiles 228, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 292, activeTweens 21, hotspots hot none. Pan phase hotspot improved to ui 1.5ms from a previous 5.1ms post-map-fix run."
+    },
+    {
+      "commandOrCheck": "http://127.0.0.1:5173/?perfHarness&tiles=1200 at phone viewport 393x690",
+      "result": "Passed. Complete phase: visibleTiles 99, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 8, frameSpikes 0, displayObjects 884, activeTweens 19, hotspots hot none."
+    },
+    {
+      "commandOrCheck": "http://127.0.0.1:5173/?perfHarness&tiles=2500 at desktop viewport 1280x720",
+      "result": "Passed. Complete phase: visibleTiles 322, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 290, activeTweens 21, hotspots hot none."
+    },
+    {
+      "commandOrCheck": "Field-shape visual checks",
+      "result": "Checked col4 and rect1200 at phone viewport 393x690, and col4 and rect1200 at desktop viewport 1212x900. Phone map is hidden; desktop large-field map is outside the board; small and large shapes stay inside the board content area."
+    }
+  ],
+  "currentGitStatusSummary": {
+    "modifiedIntended": [
+      "src/game/scenes/GameScene.ts",
+      "handoffs/LATEST.json",
+      "handoffs/HANDOFF_2026-06-29_MAP_UI_PERFORMANCE_PASS.json"
+    ],
+    "modifiedUnrelatedLocal": [],
+    "untrackedUnrelatedLocal": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssuesOrDesignQuestions": [
+    "Phone 1200-tile harness remains in viewport-live-tile mode and reports displayObjects around 884. It is spike-free in this pass, but a future mobile-specific object-count pass could reduce that pressure.",
+    "Large stress pages can still show a one-time initial layout/composite hotspot during startup. The repeatable complete phases and interaction checks are clean.",
+    "The world map is hidden below 760px wide and on mobile portrait. If a future design needs a phone minimap, it should probably be a modal or compact toggle rather than a floating board overlay."
+  ],
+  "recommendedNextSteps": [
+    "Play manually on the desktop for feel, especially repeated arrow-key panning and mouse-wheel zooming.",
+    "If phone display-object pressure becomes visible, investigate reducing viewport-live tile object parts or switching compact large fields to a more batch-like path.",
+    "Consider adding a tiny perf harness phase that repeats multiple arrow-key pans, since the current harness only samples one pan."
+  ],
+  "doNotRevert": [
+    "Do not move the world map back into the board content area; it caused direct tile overlap.",
+    "Keep weather particle recreation guarded by viewport/weather/quality changes. Recreating particles during ordinary UI layout was a hidden hitch source.",
+    "Keep pan/zoom ancillary UI work marker-only unless static UI actually needs layout.",
+    "Keep burst emitter prewarming or replace it with another strategy that avoids first-touch emitter creation during gameplay."
+  ]
+}
