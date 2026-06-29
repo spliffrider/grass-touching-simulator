@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-29",
-  "latestHandoff": "HANDOFF_2026-06-29_HUGE_FIELD_EFFECT_PERF.json",
+  "latestHandoff": "HANDOFF_2026-06-29_SKILL_TREE_MAP.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

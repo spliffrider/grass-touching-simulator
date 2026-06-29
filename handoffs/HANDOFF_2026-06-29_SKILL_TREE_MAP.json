@@ -1,0 +1,100 @@
+{
+  "createdAt": "2026-06-29T19:31:30+02:00",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Capture the expanded skill tree map UX pass.",
+  "currentUserGoal": "Make the skill tree feel huge instead of cramped, add a minimap like the playing field, show skills more zoomed in, add a hover visual on skill nodes, and add a crisp satisfying sound when selecting/upgrading a skill.",
+  "workCompleted": [
+    {
+      "summary": "Converted the skill tree from a fit-to-panel diagram into a clipped, pannable, wheel-zoomable skill map layer with its own camera.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Added a lightweight skill minimap that draws visible skill nodes, connections, selected/available state, and the current viewport marker.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Added a pooled hover ring visual for skill nodes and cleaned up hover/drag state when closing the skill tree.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Added a dedicated crisp skill selection sound cue and plays it when node/button selection attempts happen.",
+      "files": [
+        "src/game/systems/AudioSystem.ts",
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Fixed a mobile header spacing edge case where long skill resource text could crowd the status line and map.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    }
+  ],
+  "verificationPerformed": [
+    {
+      "commandOrCheck": "npm run build",
+      "result": "Passed after implementation and again after the mobile spacing tweak."
+    },
+    {
+      "commandOrCheck": "git diff --check -- src/game/scenes/GameScene.ts src/game/systems/AudioSystem.ts",
+      "result": "Passed with only the existing LF-to-CRLF warning."
+    },
+    {
+      "commandOrCheck": "Browser stress check at http://127.0.0.1:5173/?stress&perf&tiles=1200",
+      "result": "Skill tree opened as a large clipped map with right-side detail panel and minimap. Hover ring was visible. Drag and wheel zoom updated the skill camera and minimap marker. Stress stats after interaction: frameSpikes 0, displayObjects 297, activeTweens 11, redrawQueued 0."
+    },
+    {
+      "commandOrCheck": "Browser visual check at 1088x912 stress viewport",
+      "result": "Tall desktop skill tree layout looked spacious, with a large zoomed skill map, minimap, readable detail panel, and no normal UI overlap."
+    },
+    {
+      "commandOrCheck": "Browser visual check at 390x844 stress viewport",
+      "result": "Mobile skill tree header/resource/status stack no longer overlaps; the map, minimap, detail panel, and prestige/reset buttons remain usable. The debug perf overlay can still cross the map in stress mode only."
+    },
+    {
+      "commandOrCheck": "http://127.0.0.1:5173/?perfHarness&tiles=1200",
+      "result": "Passed. Final complete phase: visibleTiles 228, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 287, activeTweens 21, hotspots hot none. SkillOpen: frameSpikes 0, displayObjects 285, activeTweens 11. SkillSelect: frameSpikes 0, displayObjects 285, activeTweens 11."
+    }
+  ],
+  "currentGitStatusSummary": {
+    "modifiedIntended": [
+      "src/game/scenes/GameScene.ts",
+      "src/game/systems/AudioSystem.ts",
+      "handoffs/LATEST.json",
+      "handoffs/HANDOFF_2026-06-29_SKILL_TREE_MAP.json"
+    ],
+    "modifiedUnrelatedLocal": [],
+    "untrackedUnrelatedLocal": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssuesOrDesignQuestions": [
+    "The skill minimap is visual-only for now; dragging the main map and wheel zooming are implemented, but clicking the minimap to jump the camera is not.",
+    "The stress perf overlay can visually cover the top of the skill map on narrow/mobile debug runs. This is debug-only and not normal gameplay UI.",
+    "The new skill map camera focuses the selected or ready skill on open. Hovering another visible node updates selection/minimap state but does not auto-pan the camera."
+  ],
+  "recommendedNextSteps": [
+    "Manually try the skill tree on the user's real save after deploying, especially panning/zooming between far branches.",
+    "Consider making the skill minimap clickable/drag-to-jump if players expect the same behavior as the world map.",
+    "If more skill branches are added, keep the minimap draw lightweight and avoid per-frame redraws."
+  ],
+  "doNotRevert": [
+    "Do not restore the old fit-entire-tree layout; the user explicitly wanted the skill tree to feel huge and zoomed in.",
+    "Keep skill map pan/zoom work isolated to the skill overlay so board zoom/pan cannot happen underneath while the skill tree is open.",
+    "Keep skill hover visuals pooled on existing node objects instead of creating new graphics on every hover."
+  ]
+}

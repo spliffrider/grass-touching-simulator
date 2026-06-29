@@ -4,6 +4,7 @@ type SoundName =
   | "touch"
   | "regrow"
   | "upgrade"
+  | "skill_select"
   | "milestone"
   | "blocked"
   | "seed"
@@ -159,6 +160,9 @@ export class AudioSystem {
       case "upgrade":
         this.playUpgrade();
         break;
+      case "skill_select":
+        this.playSkillSelect();
+        break;
       case "milestone":
         this.playMilestone();
         break;
@@ -284,6 +288,14 @@ export class AudioSystem {
     this.playNoiseSweep(0.08, 1750 + Math.random() * 450, 0.035, now);
     this.playArp([320, 420, 560, 760], now, 0.052, 0.075, "triangle");
     this.playTone(1140, 0.08, 0.028, "sine", now + 0.18);
+  }
+
+  private playSkillSelect(): void {
+    const now = this.now();
+    this.playNoiseSweep(0.035, 4300 + Math.random() * 900, 0.038, now);
+    this.playTone(620 + Math.random() * 30, 0.034, 0.036, "square", now);
+    this.playTone(1240 + Math.random() * 55, 0.048, 0.032, "triangle", now + 0.018);
+    this.playTone(1860 + Math.random() * 90, 0.04, 0.022, "sine", now + 0.05);
   }
 
   private playUnlock(): void {
