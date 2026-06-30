@@ -1,0 +1,108 @@
+{
+  "date": "2026-06-30",
+  "topic": "whole tile mobile board view",
+  "currentUserGoal": "Fix the mobile playing field visual so edge and bottom tiles are not shown as half/cropped tiles.",
+  "changesMade": [
+    "Delayed the expanded board viewport on mobile and narrow layouts so small/early fields no longer switch into large-field framing at 5 tiles wide or tall.",
+    "Added a compact-board content mask bleed that gives tile composites and grid hints breathing room around the nominal field bounds.",
+    "Kept the bleed disabled for expanded/large fields so large-field viewport culling and pan behavior remain unchanged."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-30_WHOLE_TILE_BOARD_VIEW.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run build passed; local production asset dist/assets/index-BwSqvSn7.js.",
+    "git diff --check passed.",
+    "Headless Chrome mobile viewport 390x844, ?fieldShape=rect13: compact board shows full edge/bottom tiles.",
+    "Headless Chrome mobile viewport 390x844, ?fieldShape=rect25: taller compact board shows full edge/bottom tiles.",
+    "Headless Chrome mobile viewport 390x844, ?perfHarness&tiles=1200 completed with no frame spikes."
+  ],
+  "perfHarness390x844": [
+    {
+      "phase": "idle",
+      "visibleTiles": 132,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 853,
+      "activeTweens": 20
+    },
+    {
+      "phase": "tapBurst",
+      "visibleTiles": 132,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 851,
+      "activeTweens": 16
+    },
+    {
+      "phase": "skillOpen",
+      "visibleTiles": 132,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 855,
+      "activeTweens": 21
+    },
+    {
+      "phase": "skillSelect",
+      "visibleTiles": 132,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 847,
+      "activeTweens": 13
+    },
+    {
+      "phase": "pan",
+      "visibleTiles": 143,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 957,
+      "activeTweens": 21
+    },
+    {
+      "phase": "complete",
+      "visibleTiles": 132,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 917,
+      "activeTweens": 22
+    }
+  ],
+  "currentGitStatus": [
+    "Expected modified files before commit: src/game/scenes/GameScene.ts, handoffs/LATEST.json, and this handoff file.",
+    "Unrelated untracked docs/assets remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The in-app browser automation timed out after the first visual screenshot, so verification used local headless Chrome through CDP.",
+    "Actual iOS Safari testing is still needed on the user's real save after deployment."
+  ],
+  "nextRecommendedSteps": [
+    "Deploy production and have the user hard refresh on iPhone.",
+    "Test the user's real field at current size, then after the next field spread, and confirm no edge/bottom grass tile appears half-clipped.",
+    "If large-field panning later shows objectionable partial tiles, treat that as a separate viewport snapping/design pass."
+  ],
+  "doNotRevert": [
+    "Keep the compact-board mask bleed around small fields; tile composites are slightly larger than the nominal field bounds.",
+    "Do not restore the old min(viewport)/96 mobile expanded-board trigger without a visual regression test at 390x844.",
+    "Keep large-field culling behavior unchanged unless profiling says otherwise."
+  ]
+}

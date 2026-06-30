@@ -130,7 +130,12 @@ const EXPANDED_BOARD_VIEWPORT_TILE_THRESHOLD = 80;
 const EXPANDED_BOARD_DESKTOP_WIDTH_RATIO = 0.78;
 const EXPANDED_BOARD_NARROW_WIDTH_RATIO = 0.86;
 const EXPANDED_BOARD_MOBILE_WIDTH_RATIO = 0.95;
+const EXPANDED_BOARD_DESKTOP_SIDE_THRESHOLD = 6;
+const EXPANDED_BOARD_NARROW_SIDE_THRESHOLD = 7;
+const EXPANDED_BOARD_MOBILE_SIDE_THRESHOLD = 8;
 const BOARD_CONTENT_INSET_PX = 22;
+const BOARD_COMPACT_MASK_BLEED_MIN_PX = 6;
+const BOARD_COMPACT_MASK_BLEED_MAX_PX = 14;
 const DESKTOP_BOARD_RIGHT_UI_RESERVE = 154;
 const DESKTOP_BOARD_FLOATING_UI_GAP = 14;
 const COMPACT_LARGE_FIELD_MAX_WIDTH = 560;
@@ -7828,6 +7833,8 @@ export class GameScene extends Phaser.Scene {
     const naturalWidth = this.boardScaledWidth + contentInset * 2;
     const naturalHeight = this.boardScaledHeight + contentInset * 2;
     const expanded = this.shouldUseExpandedBoardViewport(bounds);
+    const contentMaskBleed = this.getBoardContentMaskBleed(bounds, expanded, contentInset);
+    const maskInset = Math.max(0, contentInset - contentMaskBleed);
     const minWidth = expanded ? this.boardAvailableWidth * this.getExpandedBoardWidthRatio() : naturalWidth;
     const minHeight = expanded ? this.boardAvailableHeight * 0.92 : naturalHeight;
     const width = Math.min(this.boardAvailableWidth, Math.max(naturalWidth, minWidth));
@@ -7847,20 +7854,45 @@ export class GameScene extends Phaser.Scene {
     };
     this.setBoardViewportRect(viewportRect);
     this.setBoardContentRect({
-      x: viewportRect.x + contentInset,
-      y: viewportRect.y + contentInset,
-      width: Math.max(1, viewportRect.width - contentInset * 2),
-      height: Math.max(1, viewportRect.height - contentInset * 2),
+      x: viewportRect.x + maskInset,
+      y: viewportRect.y + maskInset,
+      width: Math.max(1, viewportRect.width - maskInset * 2),
+      height: Math.max(1, viewportRect.height - maskInset * 2),
     });
   }
 
   private shouldUseExpandedBoardViewport(bounds: FieldBounds): boolean {
+    const sideThreshold = this.getExpandedBoardSideThreshold();
     return (
       this.fieldTileCount >= EXPANDED_BOARD_VIEWPORT_TILE_THRESHOLD ||
       bounds.width >= 12 ||
       bounds.height >= 12 ||
-      Math.max(bounds.width, bounds.height) >= Math.min(this.scale.width, this.scale.height) / 96
+      Math.max(bounds.width, bounds.height) >= sideThreshold
     );
+  }
+
+  private getExpandedBoardSideThreshold(): number {
+    const viewportBasedThreshold = Math.ceil(Math.min(this.scale.width, this.scale.height) / 96);
+    const deviceThreshold = this.isMobilePortrait()
+      ? EXPANDED_BOARD_MOBILE_SIDE_THRESHOLD
+      : this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH
+        ? EXPANDED_BOARD_NARROW_SIDE_THRESHOLD
+        : EXPANDED_BOARD_DESKTOP_SIDE_THRESHOLD;
+
+    return Math.max(deviceThreshold, viewportBasedThreshold);
+  }
+
+  private getBoardContentMaskBleed(bounds: FieldBounds, expanded: boolean, contentInset: number): number {
+    if (expanded || bounds.width >= 12 || bounds.height >= 12 || this.fieldTileCount >= EXPANDED_BOARD_VIEWPORT_TILE_THRESHOLD) {
+      return 0;
+    }
+
+    const desiredBleed = Phaser.Math.Clamp(
+      TILE_GAP * this.boardScale + 4,
+      BOARD_COMPACT_MASK_BLEED_MIN_PX,
+      BOARD_COMPACT_MASK_BLEED_MAX_PX,
+    );
+    return Math.min(Math.max(0, contentInset - 4), desiredBleed);
   }
 
   private getExpandedBoardWidthRatio(): number {
