@@ -20,8 +20,8 @@ const NOISE_BUFFER_SECONDS = 0.5;
 const TOUCH_SOUND_MIN_INTERVAL_MS = 42;
 const TOUCH_SOUND_BUSY_INTERVAL_MS = 68;
 const SFX_MASTER_GAIN = 0.64;
-const TOUCH_TRANSIENT_GAIN = 1.35;
-const TOUCH_CRUNCH_GAIN = 1.42;
+const TOUCH_TRANSIENT_GAIN = 1.24;
+const TOUCH_CRUNCH_GAIN = 1.7;
 
 export class AudioSystem {
   private context?: AudioContext;
@@ -239,20 +239,20 @@ export class AudioSystem {
 
     const now = this.now();
     const tierProfile = {
-      normal: { low: 116, brush: 720, snap: 1900, volume: 1, tone: 245, duration: 1 },
-      thick: { low: 92, brush: 560, snap: 1400, volume: 1.16, tone: 190, duration: 1.18 },
-      clover: { low: 150, brush: 980, snap: 2500, volume: 0.94, tone: 360, duration: 0.92 },
-      golden: { low: 185, brush: 1180, snap: 3100, volume: 1.08, tone: 520, duration: 1 },
-      wildflower: { low: 138, brush: 920, snap: 2350, volume: 1.02, tone: 430, duration: 0.96 },
-      moss: { low: 74, brush: 430, snap: 1100, volume: 1.18, tone: 165, duration: 1.25 },
-      mushroom: { low: 86, brush: 520, snap: 1250, volume: 1.14, tone: 220, duration: 1.2 },
-      crystal: { low: 210, brush: 1350, snap: 3600, volume: 1.04, tone: 720, duration: 0.92 },
-      frost: { low: 170, brush: 1550, snap: 3900, volume: 0.98, tone: 820, duration: 0.9 },
+      normal: { low: 86, brush: 520, snap: 1120, volume: 1.08, tone: 172, duration: 1.08 },
+      thick: { low: 70, brush: 410, snap: 880, volume: 1.2, tone: 140, duration: 1.24 },
+      clover: { low: 118, brush: 650, snap: 1400, volume: 1, tone: 250, duration: 0.98 },
+      golden: { low: 138, brush: 760, snap: 1640, volume: 1.1, tone: 340, duration: 1 },
+      wildflower: { low: 108, brush: 620, snap: 1360, volume: 1.04, tone: 290, duration: 1 },
+      moss: { low: 58, brush: 340, snap: 720, volume: 1.22, tone: 118, duration: 1.32 },
+      mushroom: { low: 66, brush: 380, snap: 820, volume: 1.18, tone: 142, duration: 1.26 },
+      crystal: { low: 156, brush: 880, snap: 2050, volume: 1.04, tone: 520, duration: 0.95 },
+      frost: { low: 132, brush: 920, snap: 2200, volume: 1, tone: 570, duration: 0.94 },
     } satisfies Record<GrassTierId, { low: number; brush: number; snap: number; volume: number; tone: number; duration: number }>;
     const traitProfile = {
       normal: { brushOffset: 0, snapOffset: 0, volume: 1, extraPing: 0 },
-      dewy: { brushOffset: 260, snapOffset: 480, volume: 0.9, extraPing: 780 },
-      lush: { brushOffset: -120, snapOffset: 180, volume: 1.12, extraPing: 440 },
+      dewy: { brushOffset: 140, snapOffset: 220, volume: 0.94, extraPing: 520 },
+      lush: { brushOffset: -70, snapOffset: 90, volume: 1.14, extraPing: 340 },
     } satisfies Record<TileTrait, { brushOffset: number; snapOffset: number; volume: number; extraPing: number }>;
     const tierSound = tierProfile[tier];
     const traitSound = traitProfile[trait];
@@ -260,13 +260,13 @@ export class AudioSystem {
     const comboPitch = 1 + Math.min(40, Math.max(0, comboCount)) * 0.006;
     const volume = tierSound.volume * traitSound.volume * critBoost * TOUCH_TRANSIENT_GAIN;
 
-    this.playNoiseSweep(0.2 * tierSound.duration, (tierSound.brush + traitSound.brushOffset + Math.random() * 320) * comboPitch, 0.28 * volume, now);
-    this.playNoiseSweep(0.11, (tierSound.snap + traitSound.snapOffset + Math.random() * 720) * comboPitch, 0.12 * volume, now + 0.014);
-    this.playCrunchTransient((tierSound.snap + traitSound.snapOffset + 1650 + Math.random() * 820) * comboPitch, 0.115 * volume, now + 0.002);
-    this.playCrunchTransient((tierSound.snap + traitSound.snapOffset + 2950 + Math.random() * 1100) * comboPitch, 0.072 * volume, now + 0.028);
-    this.playTone((tierSound.low + Math.random() * 26) * comboPitch, 0.06, 0.062 * volume, "sine", now);
-    this.playTone((tierSound.tone + Math.random() * 75) * comboPitch, 0.075, 0.07 * volume, "triangle", now + 0.018);
-    this.playTone((1180 + Math.random() * 180) * comboPitch, 0.046, 0.046 * volume, "square", now + 0.006);
+    this.playNoiseSweep(0.24 * tierSound.duration, (tierSound.brush + traitSound.brushOffset + Math.random() * 170) * comboPitch, 0.34 * volume, now);
+    this.playNoiseSweep(0.13, (tierSound.snap + traitSound.snapOffset + Math.random() * 320) * comboPitch, 0.17 * volume, now + 0.014);
+    this.playCrunchTransient((tierSound.snap + traitSound.snapOffset + 380 + Math.random() * 260) * comboPitch, 0.15 * volume, now + 0.002);
+    this.playCrunchTransient((tierSound.snap + traitSound.snapOffset + 860 + Math.random() * 420) * comboPitch, 0.095 * volume, now + 0.03);
+    this.playTone((tierSound.low + Math.random() * 18) * comboPitch, 0.065, 0.06 * volume, "sine", now);
+    this.playTone((tierSound.tone + Math.random() * 38) * comboPitch, 0.085, 0.072 * volume, "triangle", now + 0.018);
+    this.playTone((720 + Math.random() * 95) * comboPitch, 0.05, 0.048 * volume, "square", now + 0.006);
 
     if (traitSound.extraPing > 0) {
       this.playTone((traitSound.extraPing + Math.random() * 80) * comboPitch, 0.055, 0.032 * volume, trait === "dewy" ? "sine" : "triangle", now + 0.04);
@@ -303,10 +303,10 @@ export class AudioSystem {
     const low = 98 * tierLift;
     const root = 196 * tierLift;
 
-    this.playNoiseSweep(0.24, 820 * traitSpark, 0.18, now);
-    this.playNoiseSweep(0.1, 2700 * traitSpark, 0.092, now + 0.016);
-    this.playCrunchTransient(4100 * traitSpark, 0.11, now + 0.01);
-    this.playCrunchTransient(5600 * traitSpark, 0.07, now + 0.038);
+    this.playNoiseSweep(0.28, 560 * traitSpark, 0.22, now);
+    this.playNoiseSweep(0.13, 1450 * traitSpark, 0.13, now + 0.016);
+    this.playCrunchTransient(1680 * traitSpark, 0.14, now + 0.01);
+    this.playCrunchTransient(2300 * traitSpark, 0.09, now + 0.04);
     this.playTone(low, 0.19, 0.08, "sine", now);
     this.playTone(root, 0.17, 0.072, "triangle", now + 0.012);
     this.playTone(root * 1.5, 0.14, 0.052, "triangle", now + 0.035);
@@ -502,11 +502,12 @@ export class AudioSystem {
     const noise = this.createNoiseSource();
     const filter = this.context!.createBiquadFilter();
     const gain = this.context!.createGain();
-    const duration = 0.034;
+    const duration = 0.052;
 
-    filter.type = "highpass";
-    filter.frequency.setValueAtTime(Math.max(1400, frequency), startAt);
-    filter.Q.value = 0.72;
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(Math.max(560, Math.min(2800, frequency)), startAt);
+    filter.frequency.exponentialRampToValueAtTime(Math.max(480, frequency * 0.72), startAt + duration);
+    filter.Q.value = 1.25;
     gain.gain.setValueAtTime(0.0001, startAt);
     gain.gain.exponentialRampToValueAtTime(volume * TOUCH_CRUNCH_GAIN, startAt + 0.004);
     gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
@@ -561,7 +562,7 @@ export class AudioSystem {
 
   private createFallbackGrassDataUri(): string {
     const sampleRate = 22050;
-    const durationSeconds = 0.09;
+    const durationSeconds = 0.12;
     const sampleCount = Math.floor(sampleRate * durationSeconds);
     const bytesPerSample = 2;
     const dataSize = sampleCount * bytesPerSample;
@@ -599,18 +600,23 @@ export class AudioSystem {
     writeUint32(dataSize);
 
     let previousNoise = 0;
+    let bodyState = 0;
+    let gritState = 0;
     for (let i = 0; i < sampleCount; i += 1) {
       const t = i / sampleRate;
       const random = Math.random() * 2 - 1;
-      const highPassedNoise = random - previousNoise * 0.68;
+      bodyState = bodyState * 0.72 + random * 0.28;
+      gritState = gritState * 0.35 + random * 0.65;
+      const lowerScrape = bodyState - previousNoise * 0.3;
+      const midGrit = gritState - bodyState * 0.48;
       previousNoise = random;
-      const bodyEnvelope = Math.exp(-t * 38);
-      const snapEnvelope = Math.exp(-t * 86);
-      const scratch = highPassedNoise * bodyEnvelope * 0.58;
-      const snap = highPassedNoise * snapEnvelope * 0.36;
-      const click = Math.sin(2 * Math.PI * 1550 * t) * snapEnvelope * 0.22;
-      const air = Math.sin(2 * Math.PI * 3600 * t) * Math.exp(-t * 96) * 0.12;
-      const value = Math.max(-1, Math.min(1, scratch + snap + click + air));
+      const bodyEnvelope = Math.exp(-t * 25);
+      const snapEnvelope = Math.exp(-t * 58);
+      const scratch = lowerScrape * bodyEnvelope * 0.82;
+      const snap = midGrit * snapEnvelope * 0.42;
+      const woodClick = Math.sin(2 * Math.PI * 760 * t) * snapEnvelope * 0.2;
+      const tooth = Math.sin(2 * Math.PI * 1320 * t) * Math.exp(-t * 72) * 0.13;
+      const value = Math.tanh((scratch + snap + woodClick + tooth) * 1.55);
       view.setInt16(offset, Math.round(value * 32767), true);
       offset += 2;
     }

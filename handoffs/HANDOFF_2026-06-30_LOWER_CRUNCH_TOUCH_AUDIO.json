@@ -1,0 +1,39 @@
+{
+  "date": "2026-06-30",
+  "topic": "lower crunch grass touch audio",
+  "currentUserGoal": "Retune the now-working grass touch SFX because it sounds bad on mobile; user specifically wants it lower pitched and more crunchy.",
+  "changesMade": [
+    "Lowered grass touch WebAudio tier profiles so normal/thick/moss/mushroom touches emphasize low-mid scrape instead of high snap.",
+    "Changed crunch transients from high-pass hiss to lower band-pass crunch with longer decay.",
+    "Retuned the HTML audio fallback sample from bright/papery crackle to a lower 120ms scrape with woody click and mid grit.",
+    "Kept SFX volume, fallback pooling, and touch rate limiting unchanged."
+  ],
+  "filesTouched": [
+    "src/game/systems/AudioSystem.ts",
+    "handoffs/HANDOFF_2026-06-30_LOWER_CRUNCH_TOUCH_AUDIO.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run build",
+    "git diff --check",
+    "Browser perf harness at 390x844, ?perfHarness&tiles=1200: status complete, tapBurst visibleTiles 156, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 12ms, frameSpikes 0, displayObjects 870, activeTweens 15."
+  ],
+  "currentGitStatus": [
+    "Expected modified files before commit: src/game/systems/AudioSystem.ts, handoffs/LATEST.json, and this handoff file.",
+    "Unrelated untracked docs/assets remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "Desktop browser testing cannot judge the exact phone speaker tone. Real mobile feedback is still required.",
+    "If the new version is now too low/dull, raise the fallback tooth oscillator or band-pass cap slightly rather than restoring the old high-pass hiss."
+  ],
+  "nextRecommendedSteps": [
+    "Deploy production and ask the user to hard refresh on mobile.",
+    "Have the user compare normal touch, first touch, crit, and SFX slider preview.",
+    "Use user language for next pass: too muddy, too clicky, too sharp, too quiet, or still not crunchy enough."
+  ],
+  "doNotRevert": [
+    "Do not remove the HTML-audio fallback added for mobile playback.",
+    "Do not restore the previous high-pass-only crunch unless phone testing says the lower band-pass version is too dull.",
+    "Keep touch rate limiting and fallback pooling intact."
+  ]
+}
