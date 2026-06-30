@@ -1,0 +1,44 @@
+{
+  "date": "2026-06-30",
+  "topic": "mobile haptics",
+  "currentUserGoal": "Add haptic vibration feedback for mobile play, keep it optional in Options, and make sure the mobile hot path stays performant.",
+  "changesMade": [
+    "Added a small HapticsSystem wrapper around navigator.vibrate with support checks, visibility checks, cue-specific patterns, and cooldowns.",
+    "Added persisted haptics settings using grassTouching.hapticsEnabled, defaulting to enabled.",
+    "Added an in-game Options toggle that shows Haptics: On/Off when supported and Haptics: N/A when the browser does not expose vibration support.",
+    "Added haptic cues for grass touches, first touch, crits, perfect touches, regrowing/blocked taps, hazard interactions, world-object placement, skill upgrade success/failure, and milestone celebrations.",
+    "Kept haptics out of perf/hazard harness touches by passing the harness source through hazard handling.",
+    "Adjusted the in-game Options layout on narrow mobile widths so the new haptics button and track selector fit cleanly."
+  ],
+  "filesTouched": [
+    "src/game/data/haptics-settings.ts",
+    "src/game/systems/HapticsSystem.ts",
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-30_MOBILE_HAPTICS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run build",
+    "git diff --check",
+    "Browser visual smoke at 390x844: Options panel displays Music, SFX, Haptics, Track, and Back controls without overlap.",
+    "Browser perf harness at 390x844, ?perfHarness&tiles=1200: status complete, visibleTiles stayed viewport-capped at 121-143, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 12ms or lower, frameSpikes 0, displayObjects 845-860 after overlays settled, activeTweens 13-21, hotspots stayed in normal frame/update/UI ranges."
+  ],
+  "currentGitStatus": [
+    "Expected modified files before commit: src/game/scenes/GameScene.ts plus new haptics settings/system files and handoff updates.",
+    "Unrelated untracked docs/assets remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "Actual vibration depends on browser support for navigator.vibrate. Unsupported browsers will show Haptics: N/A and no-op safely.",
+    "Desktop browser testing cannot physically verify phone vibration hardware."
+  ],
+  "nextRecommendedSteps": [
+    "Deploy production and have the user hard refresh on a phone.",
+    "On Android Chrome or another browser with Vibration API support, confirm normal grass taps feel subtle while crit/perfect/milestone cues are distinct.",
+    "On iOS Safari, confirm the game remains stable and the Options menu clearly reports haptics availability if the browser does not expose vibration support."
+  ],
+  "doNotRevert": [
+    "Do not remove the support check around navigator.vibrate; unsupported mobile browsers must no-op safely.",
+    "Do not trigger haptics from perf or hazard harness paths.",
+    "Do not remove cue cooldowns; persistent touch should never spam the vibration motor."
+  ]
+}

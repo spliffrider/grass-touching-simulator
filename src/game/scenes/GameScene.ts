@@ -7,6 +7,7 @@ import {
   writeStoredMusicVolume,
   writeStoredSfxVolume,
 } from "../data/audio-settings";
+import { DEFAULT_HAPTICS_ENABLED, readStoredHapticsEnabled, writeStoredHapticsEnabled } from "../data/haptics-settings";
 import {
   AUTOMATION_SYSTEMS,
   getAutomationOutputContext,
@@ -84,6 +85,7 @@ import { AudioSystem } from "../systems/AudioSystem";
 import { ChiptuneMusicSystem, DEFAULT_GAME_TRACK_ID, TRACK_IDS } from "../systems/ChiptuneMusicSystem";
 import { ComboSystem, type ComboResult } from "../systems/ComboSystem";
 import { DropSystem, type DropFeedback } from "../systems/DropSystem";
+import { HapticsSystem, type HapticCue } from "../systems/HapticsSystem";
 import { HazardSystem, getHazardStatusText, getPrickedRemainingMs, getTileHazard, type MowerEvent } from "../systems/HazardSystem";
 import { MutationSystem, type MutationEvent } from "../systems/MutationSystem";
 import { loadGame, resetSave, saveGame } from "../systems/SaveSystem";
@@ -955,6 +957,7 @@ export class GameScene extends Phaser.Scene {
   private optionsSfxVolumeFill!: Phaser.GameObjects.Rectangle;
   private optionsSfxVolumeHit!: Phaser.GameObjects.Rectangle;
   private optionsSfxVolumeKnob!: Phaser.GameObjects.Arc;
+  private optionsHapticsButton!: Phaser.GameObjects.Container;
   private optionsTrackLabel!: Phaser.GameObjects.Text;
   private optionsTrackLeftBtn!: Phaser.GameObjects.Container;
   private optionsTrackRightBtn!: Phaser.GameObjects.Container;
@@ -976,6 +979,7 @@ export class GameScene extends Phaser.Scene {
   private mutations = new MutationSystem();
   private audio = new AudioSystem();
   private music = new ChiptuneMusicSystem();
+  private haptics = new HapticsSystem();
   private skillTreeOpen = false;
   private questLogOpen = false;
   private journalOpen = false;
@@ -988,6 +992,7 @@ export class GameScene extends Phaser.Scene {
   private selectedQuestFilter: QuestFilterId = "all";
   private musicVolume = DEFAULT_MUSIC_VOLUME;
   private sfxVolume = DEFAULT_SFX_VOLUME;
+  private hapticsEnabled = DEFAULT_HAPTICS_ENABLED;
   private draggingMusicVolume = false;
   private draggingSfxVolume = false;
   private musicVolumeSliderX = 0;
@@ -1204,8 +1209,10 @@ export class GameScene extends Phaser.Scene {
     this.mutations.reset();
     this.musicVolume = readStoredMusicVolume();
     this.sfxVolume = readStoredSfxVolume();
+    this.hapticsEnabled = readStoredHapticsEnabled();
     this.music.setVolume(this.musicVolume);
     this.audio.setVolume(this.sfxVolume);
+    this.haptics.setEnabled(this.hapticsEnabled);
     this.music.setTrack(this.state.selectedTrackId || DEFAULT_GAME_TRACK_ID);
     this.updateJournalDiscoveries();
     this.saveState();
@@ -1568,6 +1575,7 @@ export class GameScene extends Phaser.Scene {
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     this.input.keyboard?.off("keydown", this.handleWorldMapKeyDown, this);
     this.flushQueuedSave(true);
+    this.haptics.cancel();
     this.music.stop();
     for (const emitter of this.burstEmitters.values()) {
       emitter.destroy();
@@ -2438,7 +2446,7 @@ export class GameScene extends Phaser.Scene {
         seenHazards: [...this.state.journal.seenHazardIds],
       });
 
-      checks.cactusTouchHandled = this.handleHazardTileClicked(cactusTile);
+      checks.cactusTouchHandled = this.handleHazardTileClicked(cactusTile, "harness");
       const postPrickStats = this.getCachedRuntimeStats(Date.now());
       const prickedRemainingMs = getPrickedRemainingMs(this.state);
       checks.cactusCleared = this.state.tileHazards[cactusKey] === undefined;
@@ -2457,7 +2465,7 @@ export class GameScene extends Phaser.Scene {
         seenHazards: [...this.state.journal.seenHazardIds],
       });
 
-      checks.weedFirstPullHandled = this.handleHazardTileClicked(weedTile);
+      checks.weedFirstPullHandled = this.handleHazardTileClicked(weedTile, "harness");
       const pulledWeed = this.state.tileHazards[weedKey];
       checks.weedStrengthReduced = pulledWeed?.id === "weeds" && pulledWeed.strength === 1;
       capture("afterWeedPull", {
@@ -2467,7 +2475,7 @@ export class GameScene extends Phaser.Scene {
       });
 
       const seedsBeforeWeedClear = this.state.seeds;
-      checks.weedSecondPullHandled = this.handleHazardTileClicked(weedTile);
+      checks.weedSecondPullHandled = this.handleHazardTileClicked(weedTile, "harness");
       checks.weedCleared = this.state.tileHazards[weedKey] === undefined;
       checks.weedStatsRecorded = this.state.hazardStats.weedsPulled === 2 && this.state.hazardStats.weedsCleared === 1;
       capture("afterWeedClear", {
@@ -5269,6 +5277,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.optionsTrackLeftBtn = createTextButton(this, "<", () => this.cycleTrack(-1), 44, 38, 111);
     this.optionsTrackRightBtn = createTextButton(this, ">", () => this.cycleTrack(1), 44, 38, 111);
+    this.optionsHapticsButton = createTextButton(this, "Haptics: On", () => this.toggleHaptics(), 190, 38, 111);
 
     this.optionsBackButton = createTextButton(this, "Back", () => this.closeOptions(), 118, 44, 111);
 
@@ -5290,6 +5299,7 @@ export class GameScene extends Phaser.Scene {
       this.optionsSfxVolumeFill,
       this.optionsSfxVolumeHit,
       this.optionsSfxVolumeKnob,
+      this.optionsHapticsButton,
       this.optionsTrackLabel,
       this.optionsTrackLeftBtn,
       this.optionsTrackRightBtn,
@@ -5300,17 +5310,23 @@ export class GameScene extends Phaser.Scene {
 
   private layoutOptionsPanel(): void {
     const panelWidth = Math.min(500, this.scale.width - 36);
-    const panelHeight = Math.min(340, this.scale.height - 48);
+    const panelHeight = Math.min(386, this.scale.height - 48);
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
+    const compact = panelHeight < 370;
     const trackWidth = Math.max(190, panelWidth - 120);
     const trackX = centerX - trackWidth / 2;
     const titleY = centerY - panelHeight / 2 + 38;
-    const musicLabelY = centerY - 78;
-    const musicTrackY = centerY - 45;
-    const sfxLabelY = centerY - 10;
-    const sfxTrackY = centerY + 23;
-    const trackLabelY = centerY + 74;
+    const musicLabelY = centerY - (compact ? 96 : 112);
+    const musicTrackY = centerY - (compact ? 67 : 81);
+    const sfxLabelY = centerY - (compact ? 30 : 42);
+    const sfxTrackY = centerY - (compact ? 1 : 11);
+    const hapticsY = centerY + (compact ? 47 : 45);
+    const trackLabelY = centerY + (compact ? 88 : 93);
+    const trackSelectorHalfWidth = Math.min(155, panelWidth / 2 - 30);
+    const trackLeftX = centerX - trackSelectorHalfWidth;
+    const trackRightX = centerX + trackSelectorHalfWidth - 44;
+    const trackLabelMaxWidth = Math.max(150, trackRightX - trackLeftX - 60);
 
     this.resizeInteractiveBackdrop(this.optionsBackdrop);
     this.optionsPanel?.setPosition(centerX, centerY);
@@ -5332,13 +5348,16 @@ export class GameScene extends Phaser.Scene {
     this.optionsSfxVolumeHit?.setPosition(centerX, sfxTrackY);
     this.optionsSfxVolumeHit?.setSize(trackWidth + 36, 44);
     this.optionsSfxVolumeKnob?.setPosition(trackX + trackWidth * this.sfxVolume, sfxTrackY);
+    this.optionsHapticsButton?.setPosition(centerX - 95, hapticsY - 19);
     
     // Position track selector
+    this.optionsTrackLabel?.setFontSize(panelWidth < 390 ? 15 : 18);
+    this.optionsTrackLabel?.setWordWrapWidth(trackLabelMaxWidth);
     this.optionsTrackLabel?.setPosition(centerX, trackLabelY);
-    this.optionsTrackLeftBtn?.setPosition(centerX - 155, trackLabelY - 19);
-    this.optionsTrackRightBtn?.setPosition(centerX + 111, trackLabelY - 19);
+    this.optionsTrackLeftBtn?.setPosition(trackLeftX, trackLabelY - 19);
+    this.optionsTrackRightBtn?.setPosition(trackRightX, trackLabelY - 19);
 
-    this.optionsBackButton?.setPosition(centerX - 59, centerY + panelHeight / 2 - 58);
+    this.optionsBackButton?.setPosition(centerX - 59, centerY + panelHeight / 2 - (compact ? 42 : 54));
     this.musicVolumeSliderX = trackX;
     this.musicVolumeSliderWidth = trackWidth;
     this.sfxVolumeSliderX = trackX;
@@ -5382,8 +5401,23 @@ export class GameScene extends Phaser.Scene {
   private refreshOptionsPanel(): void {
     this.optionsMusicVolumeLabel?.setText(`Music volume: ${Math.round(this.musicVolume * 100)}%`);
     this.optionsSfxVolumeLabel?.setText(`SFX volume: ${Math.round(this.sfxVolume * 100)}%`);
+    if (this.optionsHapticsButton) {
+      const hapticsSupported = this.haptics.isSupported();
+      setTextButtonText(this.optionsHapticsButton, hapticsSupported ? `Haptics: ${this.hapticsEnabled ? "On" : "Off"}` : "Haptics: N/A");
+      setTextButtonEnabled(this.optionsHapticsButton, hapticsSupported);
+    }
     this.optionsTrackLabel?.setText(`Track: ${this.music.getCurrentTrackName()}`);
     this.layoutOptionsPanel();
+  }
+
+  private toggleHaptics(): void {
+    this.hapticsEnabled = writeStoredHapticsEnabled(!this.hapticsEnabled);
+    this.haptics.setEnabled(this.hapticsEnabled);
+    this.audio.play(this.hapticsEnabled ? "upgrade" : "blocked");
+    if (this.hapticsEnabled) {
+      this.haptics.pulse("upgrade");
+    }
+    this.refreshOptionsPanel();
   }
 
   private cycleTrack(direction: number): void {
@@ -5401,6 +5435,14 @@ export class GameScene extends Phaser.Scene {
 
   private hasTouchScreen(): boolean {
     return navigator.maxTouchPoints > 0;
+  }
+
+  private playHaptic(cue: HapticCue, source?: TileClickSource): void {
+    if (source === "harness") {
+      return;
+    }
+
+    this.haptics.pulse(cue);
   }
 
   private createAutomationPanel(): void {
@@ -9504,7 +9546,7 @@ export class GameScene extends Phaser.Scene {
       this.clearTileInfo();
     }
 
-    if (this.handleHazardTileClicked(tile)) {
+    if (this.handleHazardTileClicked(tile, source)) {
       return;
     }
 
@@ -9520,6 +9562,7 @@ export class GameScene extends Phaser.Scene {
       this.popAtTile(tile, "regrowing", "#fff2b2");
       this.playBlockedTileFeedback(tile);
       this.audio.play("blocked");
+      this.playHaptic("blocked", source);
       return;
     }
 
@@ -9571,11 +9614,13 @@ export class GameScene extends Phaser.Scene {
     this.profileScope("touch:audioShake", () => {
       if (firstManualGrassTouch) {
         this.playFirstTouchSound(touchedTier.id, touchedTrait);
+        this.playHaptic("firstTouch", source);
         return;
       }
 
       this.shakeForGrassTouch(touchedTier.id, touchedTrait, touch.isCrit);
       this.playMixedGrassTouch(touchedTier.id, touchedTrait, touch.isCrit, combo.count);
+      this.playHaptic(perfectTouchBonus > 0 ? "perfect" : touch.isCrit ? "crit" : "touch", source);
     });
     this.profileScope("touch:aoe", () => this.tryComboAoeTouch(tile, stats, combo.count, now));
     this.queueSave();
@@ -9586,7 +9631,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private handleHazardTileClicked(tile: FieldTile): boolean {
+  private handleHazardTileClicked(tile: FieldTile, source: TileClickSource): boolean {
     const key = this.getTileKey(tile);
     if (!getTileHazard(this.state, key)) {
       return false;
@@ -9625,6 +9670,7 @@ export class GameScene extends Phaser.Scene {
       this.emitSeedBurst(tile);
     }
     this.audio.play(result.sound);
+    this.playHaptic(result.hazardId === "cactus" ? "blocked" : result.cleared ? "upgrade" : "touch", source);
     this.refreshUi(false);
     this.queueSave();
     return true;
@@ -9688,6 +9734,7 @@ export class GameScene extends Phaser.Scene {
     if (occupiedBy && occupiedBy.placementKey !== placementKey) {
       this.popAtTile(tile, `${this.getWorldObjectLabel(occupiedBy.objectId)} already here`, "#fff2b2");
       this.audio.play("blocked");
+      this.playHaptic("blocked");
       return;
     }
 
@@ -9695,6 +9742,7 @@ export class GameScene extends Phaser.Scene {
     if (!placeWorldObject(this.state, objectId, key, placementKey)) {
       this.popAtTile(tile, "cannot place here", "#fff2b2");
       this.audio.play("blocked");
+      this.playHaptic("blocked");
       return;
     }
 
@@ -9717,6 +9765,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.playPlacementFeedback(tile, objectId);
     this.audio.play("upgrade");
+    this.playHaptic("upgrade");
     this.saveState();
     this.refreshUi();
   }
@@ -14651,6 +14700,7 @@ export class GameScene extends Phaser.Scene {
     if (!upgrade || !this.isSkillVisible(upgradeId) || !canUnlockUpgrade(this.state, upgrade)) {
       this.setSkillStatus("That skill has not sprouted yet.");
       this.audio.play("blocked");
+      this.playHaptic("blocked");
       return false;
     }
 
@@ -14658,6 +14708,7 @@ export class GameScene extends Phaser.Scene {
     if (level >= upgrade.maxLevel) {
       this.setSkillStatus("That skill is fully grown.");
       this.audio.play("blocked");
+      this.playHaptic("blocked");
       return false;
     }
 
@@ -14670,6 +14721,7 @@ export class GameScene extends Phaser.Scene {
         )} more.`,
       );
       this.audio.play("blocked");
+      this.playHaptic("blocked");
       return false;
     }
 
@@ -14678,6 +14730,7 @@ export class GameScene extends Phaser.Scene {
     this.invalidateRuntimeStats();
     this.setSkillStatus(`${upgrade.name} upgraded to ${level + 1}/${upgrade.maxLevel}.`);
     this.audio.play("upgrade");
+    this.playHaptic("upgrade");
     this.saveState();
     return true;
   }
@@ -14703,6 +14756,7 @@ export class GameScene extends Phaser.Scene {
         this.showMessage(milestone.message, 3200);
         this.playMilestoneCelebration();
         this.audio.play("milestone");
+        this.playHaptic("milestone");
         this.queueSave();
       }
     }
