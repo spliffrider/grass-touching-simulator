@@ -1713,7 +1713,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playMixedGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean, comboCount = 0): void {
-    if (this.shouldMuteGrassTouchAudio()) {
+    if (this.shouldUseMobileGrassTouchAudio()) {
+      const played = this.audio.playMobileGrassTouch(isCrit, comboCount);
+      if (played) {
+        this.music.duckForSfx(isCrit ? 0.72 : 0.78, 0.14);
+      }
       return;
     }
 
@@ -1724,7 +1728,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playFirstTouchSound(tier: GrassTierId, trait: TileTrait): void {
-    if (this.shouldMuteGrassTouchAudio()) {
+    if (this.shouldUseMobileGrassTouchAudio()) {
+      const played = this.audio.playMobileGrassTouch(false, 0, true);
+      if (played) {
+        this.music.duckForSfx(0.78, 0.18);
+      }
       return;
     }
 
@@ -5462,7 +5470,7 @@ export class GameScene extends Phaser.Scene {
     return navigator.maxTouchPoints > 0;
   }
 
-  private shouldMuteGrassTouchAudio(): boolean {
+  private shouldUseMobileGrassTouchAudio(): boolean {
     return this.hasTouchScreen();
   }
 

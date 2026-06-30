@@ -1,0 +1,42 @@
+{
+  "date": "2026-06-30",
+  "topic": "mobile soft grass touch audio",
+  "currentUserGoal": "Restore mobile grass touch sound without the harsh phone-speaker crunch; use a softer brush-style SFX path while keeping desktop audio unchanged.",
+  "changesMade": [
+    "Added a dedicated mobile grass touch audio path in AudioSystem with its own small HTMLAudio pool and six generated soft brush WAV variants.",
+    "Mobile/touch devices now call playMobileGrassTouch instead of muting grass touch audio or using the full desktop crunch stack.",
+    "First mobile touch forces a soft sample so the first interaction does not feel silent; subsequent taps keep the existing tap-rate limiter.",
+    "Desktop grass touch and fallback WebAudio behavior were left unchanged."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/systems/AudioSystem.ts",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-06-30_MOBILE_SOFT_GRASS_AUDIO.json"
+  ],
+  "verificationRun": [
+    "npm run build passed; production asset: dist/assets/index-i0tBm6oO.js.",
+    "git diff --check passed, with only existing Windows LF-to-CRLF warnings.",
+    "Chrome CDP mobile/touch audio check against http://127.0.0.1:4174/?fieldShape=rect12&mobileAudioTest=1: maxTouchPoints=5, constructed=8 data-WAV audio players, uniqueSources=6, playCalls=3, volume=0.76, playbackRate approximately 0.92-0.95. One headless autoplay rejection was observed, which is expected outside a real mobile gesture, but the game path invoked playback.",
+    "Chrome CDP mobile perf harness against http://127.0.0.1:4174/?perfHarness&tiles=1200 completed. Across idle/tapBurst/skillOpen/skillSelect/storeOpen/pan/zoom/saveStringify/complete: maxFrameDeltaMs=17, frameSpikes=0, layoutPasses=0, redraws=0, redrawQueued=0; visibleTiles stayed viewport-culled from 99 to 143."
+  ],
+  "currentGitStatusBeforeCommit": [
+    "Modified: src/game/scenes/GameScene.ts",
+    "Modified: src/game/systems/AudioSystem.ts",
+    "Untracked unrelated files still present and untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "Real phone speakers remain the final quality judge for the softer mobile brush samples.",
+    "Headless Chrome can reject HTMLAudio playback despite the code path invoking play; live mobile testing is still needed."
+  ],
+  "nextRecommendedSteps": [
+    "After deployment, test on iPhone Safari and Android Chrome with SFX volume at 100%, background music around 40-60%, then rapid-tap and swipe the field.",
+    "If the sound is still too sharp, reduce mobile leafGain/dryGain or lower mobile playbackRate further.",
+    "If the sound is too soft, raise the mobile volume multiplier in playMobileGrassTouchAudio from 0.76 toward 0.85 before making the samples brighter."
+  ],
+  "doNotRevert": [
+    "Do not restore the touch-device mute gate for grass audio.",
+    "Do not route mobile taps back through the full desktop WebAudio crunch stack; that was the harsh path the user disliked.",
+    "Do not touch the unrelated untracked docs/artifacts listed in git status."
+  ]
+}

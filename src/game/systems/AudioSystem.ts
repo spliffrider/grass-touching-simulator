@@ -24,6 +24,8 @@ const TOUCH_TRANSIENT_GAIN = 1.24;
 const TOUCH_CRUNCH_GAIN = 1.7;
 const FALLBACK_GRASS_VARIANT_COUNT = 7;
 const FALLBACK_GRASS_AUDIO_POOL_SIZE = 10;
+const MOBILE_GRASS_VARIANT_COUNT = 6;
+const MOBILE_GRASS_AUDIO_POOL_SIZE = 8;
 
 export class AudioSystem {
   private context?: AudioContext;
@@ -38,6 +40,9 @@ export class AudioSystem {
   private fallbackGrassAudios: HTMLAudioElement[] = [];
   private fallbackGrassAudioIndex = 0;
   private fallbackGrassDataUris: string[] = [];
+  private mobileGrassAudios: HTMLAudioElement[] = [];
+  private mobileGrassAudioIndex = 0;
+  private mobileGrassDataUris: string[] = [];
 
   setVolume(volume: number): void {
     this.volume = Math.max(0, Math.min(1, volume));
@@ -184,6 +189,20 @@ export class AudioSystem {
 
     this.playFirstTouchNow(tier, trait);
     return true;
+  }
+
+  playMobileGrassTouch(isCrit = false, comboCount = 0, force = false): boolean {
+    if (this.volume <= 0) {
+      return false;
+    }
+
+    if (force) {
+      this.lastGrassTouchSoundAt = performance.now();
+    } else if (!this.shouldPlayGrassTouchSound(isCrit, comboCount)) {
+      return false;
+    }
+
+    return this.playMobileGrassTouchAudio(isCrit);
   }
 
   private playNow(name: SoundName): void {
@@ -542,6 +561,27 @@ export class AudioSystem {
     return true;
   }
 
+  private playMobileGrassTouchAudio(isCrit: boolean): boolean {
+    const audio = this.getMobileGrassAudio();
+    if (!audio) {
+      return false;
+    }
+
+    audio.volume = Math.min(1, this.volume * (isCrit ? 0.84 : 0.76));
+    try {
+      audio.playbackRate = isCrit ? 0.98 + Math.random() * 0.08 : 0.88 + Math.random() * 0.09;
+    } catch {
+      // Playback-rate changes are optional; the source variants provide the core texture.
+    }
+    try {
+      audio.currentTime = 0;
+    } catch {
+      // Some mobile browsers reject seeking until metadata is ready; playback can still proceed.
+    }
+    void audio.play().catch(() => undefined);
+    return true;
+  }
+
   private getFallbackGrassAudio(): HTMLAudioElement | undefined {
     if (typeof Audio === "undefined") {
       return undefined;
@@ -570,6 +610,120 @@ export class AudioSystem {
     }
 
     return this.fallbackGrassDataUris;
+  }
+
+  private getMobileGrassAudio(): HTMLAudioElement | undefined {
+    if (typeof Audio === "undefined") {
+      return undefined;
+    }
+
+    if (this.mobileGrassAudios.length === 0) {
+      const sources = this.getMobileGrassDataUris();
+      this.mobileGrassAudios = Array.from({ length: MOBILE_GRASS_AUDIO_POOL_SIZE }, (_, index) => {
+        const source = sources[index % sources.length];
+        const audio = new Audio(source);
+        audio.preload = "auto";
+        audio.load();
+        return audio;
+      });
+      this.mobileGrassAudioIndex = Math.floor(Math.random() * this.mobileGrassAudios.length);
+    }
+
+    const audio = this.mobileGrassAudios[this.mobileGrassAudioIndex];
+    this.mobileGrassAudioIndex = (this.mobileGrassAudioIndex + 1) % this.mobileGrassAudios.length;
+    return audio;
+  }
+
+  private getMobileGrassDataUris(): string[] {
+    if (this.mobileGrassDataUris.length === 0) {
+      this.mobileGrassDataUris = Array.from({ length: MOBILE_GRASS_VARIANT_COUNT }, (_, index) => this.createMobileGrassDataUri(index));
+    }
+
+    return this.mobileGrassDataUris;
+  }
+
+  private createMobileGrassDataUri(variantIndex: number): string {
+    const profile = [
+      { duration: 0.11, bodyFreq: 132, bodyDecay: 14, leafDecay: 24, bodySmoothing: 0.91, leafSmoothing: 0.66, bodyGain: 1.08, leafGain: 0.22, toneGain: 0.12, dryGain: 0.012, dryChance: 0.984, drive: 1.1 },
+      { duration: 0.125, bodyFreq: 104, bodyDecay: 12, leafDecay: 20, bodySmoothing: 0.94, leafSmoothing: 0.72, bodyGain: 1.16, leafGain: 0.18, toneGain: 0.13, dryGain: 0.008, dryChance: 0.988, drive: 1.08 },
+      { duration: 0.1, bodyFreq: 156, bodyDecay: 17, leafDecay: 28, bodySmoothing: 0.88, leafSmoothing: 0.6, bodyGain: 0.98, leafGain: 0.27, toneGain: 0.1, dryGain: 0.018, dryChance: 0.98, drive: 1.12 },
+      { duration: 0.118, bodyFreq: 88, bodyDecay: 11, leafDecay: 19, bodySmoothing: 0.95, leafSmoothing: 0.74, bodyGain: 1.2, leafGain: 0.16, toneGain: 0.14, dryGain: 0.007, dryChance: 0.99, drive: 1.06 },
+      { duration: 0.096, bodyFreq: 176, bodyDecay: 18, leafDecay: 31, bodySmoothing: 0.86, leafSmoothing: 0.58, bodyGain: 0.9, leafGain: 0.31, toneGain: 0.09, dryGain: 0.024, dryChance: 0.977, drive: 1.14 },
+      { duration: 0.13, bodyFreq: 116, bodyDecay: 13, leafDecay: 22, bodySmoothing: 0.93, leafSmoothing: 0.7, bodyGain: 1.12, leafGain: 0.2, toneGain: 0.13, dryGain: 0.01, dryChance: 0.986, drive: 1.08 },
+    ][variantIndex % MOBILE_GRASS_VARIANT_COUNT];
+    const sampleRate = 22050;
+    const sampleCount = Math.floor(sampleRate * profile.duration);
+    const bytesPerSample = 2;
+    const dataSize = sampleCount * bytesPerSample;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    const writeString = (value: string) => {
+      for (let i = 0; i < value.length; i += 1) {
+        view.setUint8(offset, value.charCodeAt(i));
+        offset += 1;
+      }
+    };
+    const writeUint16 = (value: number) => {
+      view.setUint16(offset, value, true);
+      offset += 2;
+    };
+    const writeUint32 = (value: number) => {
+      view.setUint32(offset, value, true);
+      offset += 4;
+    };
+
+    writeString("RIFF");
+    writeUint32(36 + dataSize);
+    writeString("WAVE");
+    writeString("fmt ");
+    writeUint32(16);
+    writeUint16(1);
+    writeUint16(1);
+    writeUint32(sampleRate);
+    writeUint32(sampleRate * bytesPerSample);
+    writeUint16(bytesPerSample);
+    writeUint16(16);
+    writeString("data");
+    writeUint32(dataSize);
+
+    let seed = (0x6d2b79f5 ^ ((variantIndex + 3) * 0x27d4eb2d)) >>> 0;
+    const random = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 0x100000000;
+    };
+    const phase = random() * Math.PI * 2;
+    let bodyState = 0;
+    let leafState = 0;
+    let dryState = 0;
+
+    for (let i = 0; i < sampleCount; i += 1) {
+      const t = i / sampleRate;
+      const attack = Math.min(1, t / 0.01);
+      const raw = random() * 2 - 1;
+      bodyState = bodyState * profile.bodySmoothing + raw * (1 - profile.bodySmoothing);
+      leafState = leafState * profile.leafSmoothing + raw * (1 - profile.leafSmoothing);
+      dryState = dryState * 0.7 + raw * 0.3;
+      const bodyEnvelope = attack * Math.exp(-t * profile.bodyDecay);
+      const leafEnvelope = attack * Math.exp(-t * profile.leafDecay);
+      const dryEnvelope = attack * Math.exp(-t * 54);
+      const softBrush = bodyState * bodyEnvelope * profile.bodyGain;
+      const leafRub = (leafState - bodyState * 0.62) * leafEnvelope * profile.leafGain;
+      const bodyTone = Math.sin(2 * Math.PI * profile.bodyFreq * t + phase) * bodyEnvelope * profile.toneGain;
+      const dryAccent = random() > profile.dryChance ? dryState * dryEnvelope * profile.dryGain : 0;
+      const value = Math.tanh((softBrush + leafRub + bodyTone + dryAccent) * profile.drive);
+      view.setInt16(offset, Math.round(value * 32767), true);
+      offset += 2;
+    }
+
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < bytes.length; i += 1) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+
+    return `data:audio/wav;base64,${btoa(binary)}`;
   }
 
   private createFallbackGrassDataUri(variantIndex: number): string {
