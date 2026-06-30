@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-06-29",
-  "latestHandoff": "HANDOFF_2026-06-29_SKILL_TREE_MAP.json",
+  "updatedAt": "2026-06-30",
+  "latestHandoff": "HANDOFF_2026-06-30_MOBILE_PERF.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

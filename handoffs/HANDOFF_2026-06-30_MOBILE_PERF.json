@@ -1,0 +1,108 @@
+{
+  "createdAt": "2026-06-30T19:34:22+02:00",
+  "workspace": "C:\\Users\\rafbu\\OneDrive\\Documenten\\Grass Touching Simulator",
+  "project": "Grass Touching Simulator",
+  "handoffPurpose": "Capture the mobile-focused performance optimization pass.",
+  "currentUserGoal": "Mobile users report that the game runs poorly; run a mobile-focused optimization session while keeping PC performance healthy.",
+  "workCompleted": [
+    {
+      "summary": "Profiled the 1200-tile perf harness at phone, large-phone, tablet, and desktop viewport sizes before changing hot paths.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Changed large-field initial zoom for phones and narrow/tablet layouts from 10 target visible tiles to 8, reducing the initial visible live tile count on mobile.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Made per-tile text labels optional on compact/narrow viewports. Desktop still creates labels for hover, while phones/tablets avoid one hidden Phaser Text object per visible tile.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    },
+    {
+      "summary": "Added stable x/y anchors to TileView so label-less mobile tile views still use correct effect and tween coordinates.",
+      "files": [
+        "src/game/scenes/GameScene.ts"
+      ]
+    }
+  ],
+  "verificationPerformed": [
+    {
+      "commandOrCheck": "npm run build",
+      "result": "Passed after optional-label changes and again after adding stable TileView anchors."
+    },
+    {
+      "commandOrCheck": "git diff --check -- src/game/scenes/GameScene.ts",
+      "result": "Passed with only the existing LF-to-CRLF warning."
+    },
+    {
+      "commandOrCheck": "Control harness, old settings, exact 390x844, ?perfHarness&tiles=1200",
+      "result": "Idle visibleTiles 182, displayObjects 1380; pan visibleTiles 210, displayObjects 1552; frameSpikes 0."
+    },
+    {
+      "commandOrCheck": "Final harness, exact 390x844, ?perfHarness&tiles=1200",
+      "result": "Idle visibleTiles 132, displayObjects 853; tapBurst visibleTiles 156, displayObjects 870; pan visibleTiles 143, displayObjects 971; complete visibleTiles 110, displayObjects 806; frameSpikes 0, redrawQueued 0."
+    },
+    {
+      "commandOrCheck": "Control harness, old settings, exact 430x932, ?perfHarness&tiles=1200",
+      "result": "Idle visibleTiles 208, displayObjects 1476; pan visibleTiles 221, displayObjects 1618; frameSpikes 0."
+    },
+    {
+      "commandOrCheck": "Final harness, exact 430x932, ?perfHarness&tiles=1200",
+      "result": "Idle visibleTiles 154, displayObjects 955; pan visibleTiles 143, displayObjects 970; complete visibleTiles 108, displayObjects 795; frameSpikes 0, redrawQueued 0."
+    },
+    {
+      "commandOrCheck": "Control harness, old settings, exact 820x1180, ?perfHarness&tiles=1200",
+      "result": "Idle visibleTiles 208, displayObjects 1536; pan visibleTiles 224, displayObjects 1636; frameSpikes 0."
+    },
+    {
+      "commandOrCheck": "Final harness, exact 820x1180, ?perfHarness&tiles=1200",
+      "result": "Idle visibleTiles 154, displayObjects 955; pan visibleTiles 143, displayObjects 971; complete visibleTiles 108, displayObjects 796; frameSpikes 0, redrawQueued 0."
+    },
+    {
+      "commandOrCheck": "Final desktop harness, exact 1280x720, ?perfHarness&tiles=1200",
+      "result": "Batch mode stayed healthy: idle visibleTiles 228, tileViews 31, displayObjects 261; complete visibleTiles 170, tileViews 0, displayObjects 294; frameSpikes 0, redrawQueued 0."
+    },
+    {
+      "commandOrCheck": "Mobile screenshot smoke check at exact 390x844, ?stress&perf&tiles=1200",
+      "result": "Board and mobile controls rendered correctly with closer large-field zoom."
+    }
+  ],
+  "currentGitStatusSummary": {
+    "modifiedIntended": [
+      "src/game/scenes/GameScene.ts",
+      "handoffs/LATEST.json",
+      "handoffs/HANDOFF_2026-06-30_MOBILE_PERF.json"
+    ],
+    "modifiedUnrelatedLocal": [],
+    "untrackedUnrelatedLocal": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssuesOrDesignQuestions": [
+    "The in-app browser automation repeatedly timed out after a hot reload, so final browser perf checks were run through a temporary headless Chrome DevTools Protocol harness instead.",
+    "Phones and tablets no longer create per-tile hover text labels on compact/narrow viewports. Tile info still uses the existing tile info panel; desktop hover labels remain intact.",
+    "Actual physical mobile hardware should still be tested after deploy, especially older Android devices and Safari/iOS."
+  ],
+  "recommendedNextSteps": [
+    "Deploy or preview on a real phone and compare the felt panning/tapping smoothness against the pre-optimization build.",
+    "If mobile still feels heavy, next profile target should be mobile UI refresh/text setting and weather/automation visual budgets, not board layout.",
+    "Consider adding a checked-in CDP perf script if repeated exact mobile viewport harness runs are useful."
+  ],
+  "doNotRevert": [
+    "Do not restore the old phone/tablet large-field target of 10 visible tiles without re-profiling; it raised mobile visible tile and display object counts substantially.",
+    "Keep compact/narrow tile labels optional unless replacing them with a cheaper mobile-specific hover/info affordance.",
+    "Keep TileView x/y anchors as the stable source for tile effect coordinates; base sprites can be tweened and should not be used as persistent anchors."
+  ]
+}

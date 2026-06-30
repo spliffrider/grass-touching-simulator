@@ -114,8 +114,8 @@ const MIN_BOARD_ZOOM = 0.45;
 const MAX_BOARD_ZOOM = 6;
 const LARGE_FIELD_INITIAL_ZOOM_TILE_THRESHOLD = 600;
 const LARGE_FIELD_INITIAL_VISIBLE_TILES_DESKTOP = 8;
-const LARGE_FIELD_INITIAL_VISIBLE_TILES_TABLET = 10;
-const LARGE_FIELD_INITIAL_VISIBLE_TILES_PHONE = 10;
+const LARGE_FIELD_INITIAL_VISIBLE_TILES_TABLET = 8;
+const LARGE_FIELD_INITIAL_VISIBLE_TILES_PHONE = 8;
 const EXPANDED_BOARD_VIEWPORT_TILE_THRESHOLD = 80;
 const EXPANDED_BOARD_DESKTOP_WIDTH_RATIO = 0.78;
 const EXPANDED_BOARD_NARROW_WIDTH_RATIO = 0.86;
@@ -455,9 +455,11 @@ interface TileView {
   base: Phaser.GameObjects.Image;
   grass: Phaser.GameObjects.Image;
   hazard: Phaser.GameObjects.Image;
-  label: Phaser.GameObjects.Text;
+  label?: Phaser.GameObjects.Text;
   outline: Phaser.GameObjects.Rectangle;
   glint: Phaser.GameObjects.Star;
+  x: number;
+  y: number;
   key?: TileKey;
 }
 
@@ -7277,7 +7279,13 @@ export class GameScene extends Phaser.Scene {
     view.hazard.setVisible(false).setInteractive({ useHandCursor: true });
     view.outline.setVisible(false);
     view.glint.setVisible(false);
-    view.label.setVisible(false);
+    if (this.shouldCreateTileLabelView()) {
+      this.ensureTileViewLabel(view).setVisible(false);
+    } else if (view.label) {
+      this.tweens.killTweensOf(view.label);
+      view.label.destroy();
+      view.label = undefined;
+    }
     this.tileViews.set(key, view);
     this.refreshTile(tile);
     this.positionTileView(tile, view);
@@ -7311,22 +7319,14 @@ export class GameScene extends Phaser.Scene {
       .setStrokeStyle(1, 0xffffff, 0.9)
       .setVisible(false);
 
-    const label = this.add
-      .text(0, 0, "", {
-        fontFamily: "Trebuchet MS, Arial",
-        fontSize: "13px",
-        color: "#f7ffe8",
-        stroke: "#17491f",
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5);
+    const label = this.shouldCreateTileLabelView() ? this.createTileViewLabel() : undefined;
 
-    const view: TileView = { base, grass, hazard, label, outline, glint };
+    const view: TileView = { base, grass, hazard, label, outline, glint, x: 0, y: 0 };
     if (this.boardViewportMask) {
       base.setMask(this.boardViewportMask);
       grass.setMask(this.boardViewportMask);
       hazard.setMask(this.boardViewportMask);
-      label.setMask(this.boardViewportMask);
+      label?.setMask(this.boardViewportMask);
       outline.setMask(this.boardViewportMask);
       glint.setMask(this.boardViewportMask);
     }
@@ -7342,17 +7342,60 @@ export class GameScene extends Phaser.Scene {
     return view;
   }
 
+  private shouldCreateTileLabelView(): boolean {
+    return this.scale.width >= TABLET_LARGE_FIELD_MAX_WIDTH;
+  }
+
+  private createTileViewLabel(): Phaser.GameObjects.Text {
+    const label = this.add
+      .text(0, 0, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "13px",
+        color: "#f7ffe8",
+        stroke: "#17491f",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setVisible(false);
+
+    if (this.boardViewportMask) {
+      label.setMask(this.boardViewportMask);
+    }
+
+    return label;
+  }
+
+  private ensureTileViewLabel(view: TileView): Phaser.GameObjects.Text {
+    if (!view.label) {
+      view.label = this.createTileViewLabel();
+    }
+
+    return view.label;
+  }
+
+  private getTileViewAnchor(view: TileView): { x: number; y: number } {
+    return { x: view.x, y: view.y };
+  }
+
+  private getTileViewParts(
+    view: TileView,
+  ): Array<Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle | Phaser.GameObjects.Star | Phaser.GameObjects.Text> {
+    return [view.base, view.grass, view.hazard, view.outline, view.glint, ...(view.label ? [view.label] : [])];
+  }
+
   private destroyTileView(key: TileKey, view: TileView): void {
-    this.tweens.killTweensOf([view.base, view.grass, view.hazard, view.label, view.outline, view.glint]);
+    this.tweens.killTweensOf(this.getTileViewParts(view));
     this.dirtyTileViewKeys.delete(key);
     this.redrawTileViewKeys.delete(key);
     view.key = undefined;
+    view.x = 0;
+    view.y = 0;
     view.base.disableInteractive().setVisible(false).setAlpha(1).clearTint();
     view.grass.disableInteractive().setVisible(false).setAlpha(1).clearTint();
     view.hazard.disableInteractive().setVisible(false).setAlpha(1).clearTint();
     view.outline.setVisible(false).setAlpha(1);
     view.glint.setVisible(false).setAlpha(1);
-    view.label.setVisible(false).setAlpha(1).setText("");
+    view.label?.setVisible(false).setAlpha(1).setText("");
     this.tileViews.delete(key);
     if (this.tileViewPool.length >= TILE_VIEW_POOL_LIMIT) {
       this.destroyTileViewObjects(view);
@@ -7379,13 +7422,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private destroyTileViewObjects(view: TileView): void {
-    this.tweens.killTweensOf([view.base, view.grass, view.hazard, view.label, view.outline, view.glint]);
+    this.tweens.killTweensOf(this.getTileViewParts(view));
     view.base.destroy();
     view.grass.destroy();
     view.hazard.destroy();
     view.outline.destroy();
     view.glint.destroy();
-    view.label.destroy();
+    view.label?.destroy();
   }
 
   private handleTileViewClicked(view: TileView): void {
@@ -7551,7 +7594,7 @@ export class GameScene extends Phaser.Scene {
           }
 
           this.positionTileView(tile, view, x, y);
-          view.label.setVisible(key === this.hoveredTileKey);
+          view.label?.setVisible(key === this.hoveredTileKey);
         }
       }
 
@@ -8215,24 +8258,26 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    view.x = position.x;
+    view.y = position.y;
     view.base.setPosition(position.x, position.y);
     view.outline.setPosition(position.x, position.y);
     view.grass.setPosition(position.x, position.y);
     view.hazard.setPosition(position.x, position.y - 2 * this.boardScale);
     view.glint.setPosition(position.x + 19 * this.boardScale, position.y - 20 * this.boardScale);
-    view.label.setPosition(position.x, position.y);
+    view.label?.setPosition(position.x, position.y);
     view.base.setScale(this.boardScale);
     view.outline.setScale(this.boardScale);
     view.grass.setScale(this.boardScale * this.getGrassScale(tile));
     view.hazard.setScale(this.boardScale * 0.96);
     view.glint.setScale(this.boardScale);
-    view.label.setScale(this.boardScale);
+    view.label?.setScale(this.boardScale);
   }
 
   private getTileVisualPosition(tile: FieldTile): { x: number; y: number } | undefined {
     const view = this.tileViews.get(this.getTileKey(tile));
     if (view) {
-      return { x: view.label.x, y: view.label.y };
+      return this.getTileViewAnchor(view);
     }
 
     const position = this.getTileScreenPosition(tile);
@@ -9920,8 +9965,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.destroyPerfectTouchCue(key);
-    const x = view.label.x;
-    const y = view.label.y;
+    const { x, y } = this.getTileViewAnchor(view);
     const ring = this.add
       .ellipse(x, y, TILE_SIZE * 0.94 * this.boardScale, TILE_SIZE * 0.62 * this.boardScale, 0xffef78, 0.2)
       .setStrokeStyle(Math.max(2, 3 * this.boardScale), 0xffef78, 0.96)
@@ -10037,7 +10081,8 @@ export class GameScene extends Phaser.Scene {
     this.popAtTile(originTile, `AOE ${touchedTiles} tiles +${gainedTouches}`, "#bff4ff");
     const view = this.tileViews.get(this.getTileKey(originTile));
     if (view) {
-      this.emitBurst("dew-fleck", view.label.x, view.label.y - 6, 36, 1.25, 0.28);
+      const { x, y } = this.getTileViewAnchor(view);
+      this.emitBurst("dew-fleck", x, y - 6, 36, 1.25, 0.28);
     }
   }
 
@@ -10947,7 +10992,8 @@ export class GameScene extends Phaser.Scene {
 
     const view = this.tileViews.get(this.getTileKey(tile));
     if (view) {
-      this.emitBurst("crit-fleck", view.label.x, view.label.y - 12, 26, 1.1 + Math.min(1, combo.thresholdReached / 40), 0.16);
+      const { x, y } = this.getTileViewAnchor(view);
+      this.emitBurst("crit-fleck", x, y - 12, 26, 1.1 + Math.min(1, combo.thresholdReached / 40), 0.16);
     }
   }
 
@@ -11080,8 +11126,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const x = view.label.x;
-    const y = view.label.y;
+    const { x, y } = this.getTileViewAnchor(view);
 
     if (this.state.characterClassId === "femboy_slim" && (touch.isCrit || touch.doubled)) {
       this.emitBurst("class-slash-fleck", x, y - 12, touch.isCrit ? 22 : 12, touch.isCrit ? 1.2 : 0.9, 0.08);
@@ -11411,7 +11456,9 @@ export class GameScene extends Phaser.Scene {
     view.outline.setStrokeStyle(tier.id === "golden" || tier.id === "crystal" || tier.id === "frost" ? 5 : 4, highlightColor, tier.id === "normal" ? 0 : 0.82);
     this.setVisibleIfChanged(view.glint, isGrown && rareTier);
     view.glint.setFillStyle(highlightColor, tier.id === "normal" ? 0 : 0.88);
-    this.setTextIfChanged(view.label, isGrown ? this.getTileLabel(tile, tier.label, hazard?.id) : "...");
+    if (view.label) {
+      this.setTextIfChanged(view.label, isGrown ? this.getTileLabel(tile, tier.label, hazard?.id) : "...");
+    }
     view.base.setTexture(this.getTileBaseTextureKey(tile, isGrown ? hazard?.id : undefined));
 
     if (keepLiveUntilCommonRedraw || !this.needsTileView(tile, key)) {
@@ -11720,8 +11767,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const x = view.label.x;
-    const y = view.label.y;
+    const { x, y } = this.getTileViewAnchor(view);
     this.popAtTile(tile, `PERFECT +${bonusTouches}`, "#ffef78");
     this.emitBurst("crit-fleck", x, y - 10, 34, 1.28, 0.18);
     this.emitBurst("dew-fleck", x, y - 3, 22, 0.95, 0.25);
@@ -12102,8 +12148,7 @@ export class GameScene extends Phaser.Scene {
 
     this.tweens.killTweensOf(view.base);
     this.resetBaseTilePose(view);
-    const x = view.label.x;
-    const y = view.label.y;
+    const { x, y } = this.getTileViewAnchor(view);
     this.tweens.add({
       targets: view.base,
       x: x + 4 * this.boardScale,
@@ -12119,7 +12164,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resetBaseTilePose(view: TileView): void {
-    view.base.setPosition(view.label.x, view.label.y);
+    const { x, y } = this.getTileViewAnchor(view);
+    view.base.setPosition(x, y);
     view.base.setScale(this.boardScale);
   }
 
@@ -12462,7 +12508,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resetTileViewTweenState(view: TileView): void {
-    const parts = [view.base, view.grass, view.hazard, view.outline, view.glint, view.label];
+    const parts = this.getTileViewParts(view);
     this.tweens.killTweensOf(parts);
     for (const part of parts) {
       part.setAlpha(1);
@@ -14646,7 +14692,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const dropDistance = Math.max(86, 210 * this.boardScale);
-    const parts = [view.base, view.outline, view.grass, view.label];
+    const parts = [view.base, view.outline, view.grass, ...(view.label ? [view.label] : [])];
 
     this.tweens.killTweensOf(parts);
 
