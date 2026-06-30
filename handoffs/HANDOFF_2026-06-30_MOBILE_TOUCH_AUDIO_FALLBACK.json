@@ -1,0 +1,43 @@
+{
+  "date": "2026-06-30",
+  "topic": "mobile grass touch audio fallback",
+  "currentUserGoal": "Fix grass touching SFX being completely inaudible/nonfunctional on mobile. User clarified this is not a background-mix issue; the grass touch SFX appears not to play at all.",
+  "changesMade": [
+    "Added a tiny generated HTMLAudioElement fallback for grass touch sounds so mobile browsers have a second playback path if the WebAudio SFX context is not producing audible output.",
+    "Kept the existing WebAudio synthesized grass touch path, but now normal running grass touches also trigger the fallback path.",
+    "Avoided double fallback playback when WebAudio resumes asynchronously after a suspended mobile audio context.",
+    "Added fallback audio pooling to allow repeated taps without waiting for one HTML audio element to finish.",
+    "Kept fallback playback tied to SFX volume and grass-touch rate limiting.",
+    "Made the WebAudio touch crunch brighter and more phone-speaker-forward with short high-pass crunch transients.",
+    "Increased music ducking only around grass-touch SFX so the fixed tap sound has room when music is enabled."
+  ],
+  "filesTouched": [
+    "src/game/systems/AudioSystem.ts",
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-30_MOBILE_TOUCH_AUDIO_FALLBACK.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run build",
+    "git diff --check",
+    "Browser perf harness at 390x844, ?perfHarness&tiles=1200: status complete, visibleTiles 132-143 during active phases, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 12ms or lower, frameSpikes 0, displayObjects 846-958, activeTweens 11-21, tapBurst hotspot stayed in normal frame/update/UI/combo ranges."
+  ],
+  "currentGitStatus": [
+    "Expected modified files before commit: src/game/systems/AudioSystem.ts, src/game/scenes/GameScene.ts, handoffs/LATEST.json, and this handoff file.",
+    "Unrelated untracked docs/assets remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "Desktop browser testing cannot physically verify the user's specific phone speaker/browser behavior.",
+    "If the user still hears no grass touch after this fallback, next debugging should check the phone's SFX slider/localStorage state and whether HTMLAudioElement.play is being rejected on-device."
+  ],
+  "nextRecommendedSteps": [
+    "Deploy production and have the user hard refresh on mobile.",
+    "On phone, set Options SFX volume to 100%, music around 20-40%, then tap multiple different grown grass tiles.",
+    "If still silent, test whether dragging the SFX slider produces the touch preview; that uses the same grass-touch sound path."
+  ],
+  "doNotRevert": [
+    "Do not remove the grass-touch fallback path until the mobile SFX issue is confirmed fixed on real devices.",
+    "Do not remove touch sound rate limiting; fallback audio is pooled but should still avoid spam during persistent touch.",
+    "Do not treat this as only a volume/mix issue unless device testing proves the fallback path plays but is too quiet."
+  ]
+}

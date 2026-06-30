@@ -20,7 +20,8 @@ const NOISE_BUFFER_SECONDS = 0.5;
 const TOUCH_SOUND_MIN_INTERVAL_MS = 42;
 const TOUCH_SOUND_BUSY_INTERVAL_MS = 68;
 const SFX_MASTER_GAIN = 0.64;
-const TOUCH_TRANSIENT_GAIN = 0.94;
+const TOUCH_TRANSIENT_GAIN = 1.35;
+const TOUCH_CRUNCH_GAIN = 1.42;
 
 export class AudioSystem {
   private context?: AudioContext;
@@ -32,6 +33,9 @@ export class AudioSystem {
   private noiseBufferSampleRate = 0;
   private lastGrassTouchSoundAt = 0;
   private volume = DEFAULT_SFX_VOLUME;
+  private fallbackGrassAudios: HTMLAudioElement[] = [];
+  private fallbackGrassAudioIndex = 0;
+  private fallbackGrassDataUri?: string;
 
   setVolume(volume: number): void {
     this.volume = Math.max(0, Math.min(1, volume));
@@ -109,13 +113,26 @@ export class AudioSystem {
   }
 
   playGrassTouch(tier: GrassTierId = "normal", trait: TileTrait = "normal", isCrit = false, comboCount = 0): boolean {
-    this.unlock();
-
-    if (!this.context || !this.master) {
+    if (this.volume <= 0) {
       return false;
     }
 
+    this.unlock();
+
+    if (!this.context || !this.master) {
+      if (!this.shouldPlayGrassTouchSound(isCrit, comboCount)) {
+        return false;
+      }
+
+      return this.playFallbackGrassTouch(isCrit);
+    }
+
     if (this.context.state !== "running" || !this.unlocked) {
+      if (!this.shouldPlayGrassTouchSound(isCrit, comboCount)) {
+        return false;
+      }
+
+      this.playFallbackGrassTouch(isCrit);
       this.resumePromise ??= this.context
         .resume()
         .then(() => {
@@ -124,11 +141,7 @@ export class AudioSystem {
         .finally(() => {
           this.resumePromise = undefined;
         });
-      void this.resumePromise.then(() => {
-        if (this.shouldPlayGrassTouchSound(isCrit, comboCount)) {
-          this.playGrassTouchNow(tier, trait, isCrit, comboCount);
-        }
-      });
+      void this.resumePromise.then(() => this.playGrassTouchNow(tier, trait, isCrit, comboCount, false));
       return true;
     }
 
@@ -141,13 +154,20 @@ export class AudioSystem {
   }
 
   playFirstTouch(tier: GrassTierId = "normal", trait: TileTrait = "normal"): boolean {
-    this.unlock();
-
-    if (!this.context || !this.master) {
+    if (this.volume <= 0) {
       return false;
     }
 
+    this.unlock();
+
+    if (!this.context || !this.master) {
+      this.lastGrassTouchSoundAt = performance.now();
+      return this.playFallbackGrassTouch(false);
+    }
+
     if (this.context.state !== "running" || !this.unlocked) {
+      this.lastGrassTouchSoundAt = performance.now();
+      this.playFallbackGrassTouch(false);
       this.resumePromise ??= this.context
         .resume()
         .then(() => {
@@ -156,7 +176,7 @@ export class AudioSystem {
         .finally(() => {
           this.resumePromise = undefined;
         });
-      void this.resumePromise.then(() => this.playFirstTouchNow(tier, trait));
+      void this.resumePromise.then(() => this.playFirstTouchNow(tier, trait, false));
       return true;
     }
 
@@ -212,7 +232,11 @@ export class AudioSystem {
     }
   }
 
-  private playGrassTouchNow(tier: GrassTierId, trait: TileTrait, isCrit: boolean, comboCount: number): void {
+  private playGrassTouchNow(tier: GrassTierId, trait: TileTrait, isCrit: boolean, comboCount: number, includeFallback = true): void {
+    if (includeFallback) {
+      this.playFallbackGrassTouch(isCrit);
+    }
+
     const now = this.now();
     const tierProfile = {
       normal: { low: 116, brush: 720, snap: 1900, volume: 1, tone: 245, duration: 1 },
@@ -236,10 +260,13 @@ export class AudioSystem {
     const comboPitch = 1 + Math.min(40, Math.max(0, comboCount)) * 0.006;
     const volume = tierSound.volume * traitSound.volume * critBoost * TOUCH_TRANSIENT_GAIN;
 
-    this.playNoiseSweep(0.18 * tierSound.duration, (tierSound.brush + traitSound.brushOffset + Math.random() * 280) * comboPitch, 0.22 * volume, now);
-    this.playNoiseSweep(0.09, (tierSound.snap + traitSound.snapOffset + Math.random() * 620) * comboPitch, 0.085 * volume, now + 0.018);
-    this.playTone((tierSound.low + Math.random() * 26) * comboPitch, 0.06, 0.075 * volume, "sine", now);
-    this.playTone((tierSound.tone + Math.random() * 75) * comboPitch, 0.065, 0.048 * volume, "triangle", now + 0.02);
+    this.playNoiseSweep(0.2 * tierSound.duration, (tierSound.brush + traitSound.brushOffset + Math.random() * 320) * comboPitch, 0.28 * volume, now);
+    this.playNoiseSweep(0.11, (tierSound.snap + traitSound.snapOffset + Math.random() * 720) * comboPitch, 0.12 * volume, now + 0.014);
+    this.playCrunchTransient((tierSound.snap + traitSound.snapOffset + 1650 + Math.random() * 820) * comboPitch, 0.115 * volume, now + 0.002);
+    this.playCrunchTransient((tierSound.snap + traitSound.snapOffset + 2950 + Math.random() * 1100) * comboPitch, 0.072 * volume, now + 0.028);
+    this.playTone((tierSound.low + Math.random() * 26) * comboPitch, 0.06, 0.062 * volume, "sine", now);
+    this.playTone((tierSound.tone + Math.random() * 75) * comboPitch, 0.075, 0.07 * volume, "triangle", now + 0.018);
+    this.playTone((1180 + Math.random() * 180) * comboPitch, 0.046, 0.046 * volume, "square", now + 0.006);
 
     if (traitSound.extraPing > 0) {
       this.playTone((traitSound.extraPing + Math.random() * 80) * comboPitch, 0.055, 0.032 * volume, trait === "dewy" ? "sine" : "triangle", now + 0.04);
@@ -260,20 +287,26 @@ export class AudioSystem {
     }
   }
 
-  private playFirstTouchNow(tier: GrassTierId, trait: TileTrait): void {
+  private playFirstTouchNow(tier: GrassTierId, trait: TileTrait, includeFallback = true): void {
     if (!this.context || !this.master || this.context.state !== "running") {
       return;
     }
 
     this.lastGrassTouchSoundAt = performance.now();
+    if (includeFallback) {
+      this.playFallbackGrassTouch(false);
+    }
+
     const now = this.now();
     const tierLift = tier === "crystal" || tier === "frost" ? 1.18 : tier === "golden" ? 1.12 : tier === "moss" || tier === "mushroom" ? 0.92 : 1;
     const traitSpark = trait === "dewy" ? 1.16 : trait === "lush" ? 1.08 : 1;
     const low = 98 * tierLift;
     const root = 196 * tierLift;
 
-    this.playNoiseSweep(0.22, 760 * traitSpark, 0.13, now);
-    this.playNoiseSweep(0.08, 2450 * traitSpark, 0.058, now + 0.018);
+    this.playNoiseSweep(0.24, 820 * traitSpark, 0.18, now);
+    this.playNoiseSweep(0.1, 2700 * traitSpark, 0.092, now + 0.016);
+    this.playCrunchTransient(4100 * traitSpark, 0.11, now + 0.01);
+    this.playCrunchTransient(5600 * traitSpark, 0.07, now + 0.038);
     this.playTone(low, 0.19, 0.08, "sine", now);
     this.playTone(root, 0.17, 0.072, "triangle", now + 0.012);
     this.playTone(root * 1.5, 0.14, 0.052, "triangle", now + 0.035);
@@ -463,6 +496,132 @@ export class AudioSystem {
     gain.connect(this.master!);
     noise.start(startAt);
     noise.stop(startAt + duration + 0.01);
+  }
+
+  private playCrunchTransient(frequency: number, volume: number, startAt: number): void {
+    const noise = this.createNoiseSource();
+    const filter = this.context!.createBiquadFilter();
+    const gain = this.context!.createGain();
+    const duration = 0.034;
+
+    filter.type = "highpass";
+    filter.frequency.setValueAtTime(Math.max(1400, frequency), startAt);
+    filter.Q.value = 0.72;
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(volume * TOUCH_CRUNCH_GAIN, startAt + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.master!);
+    noise.start(startAt);
+    noise.stop(startAt + duration + 0.01);
+  }
+
+  private playFallbackGrassTouch(isCrit: boolean): boolean {
+    const audio = this.getFallbackGrassAudio();
+    if (!audio) {
+      return false;
+    }
+
+    audio.volume = Math.min(1, this.volume * (isCrit ? 1 : 0.88));
+    try {
+      audio.currentTime = 0;
+    } catch {
+      // Some mobile browsers reject seeking until metadata is ready; playback can still proceed.
+    }
+    void audio.play().catch(() => undefined);
+    return true;
+  }
+
+  private getFallbackGrassAudio(): HTMLAudioElement | undefined {
+    if (typeof Audio === "undefined") {
+      return undefined;
+    }
+
+    if (this.fallbackGrassAudios.length === 0) {
+      const source = this.getFallbackGrassDataUri();
+      this.fallbackGrassAudios = Array.from({ length: 5 }, () => {
+        const audio = new Audio(source);
+        audio.preload = "auto";
+        audio.load();
+        return audio;
+      });
+    }
+
+    const audio = this.fallbackGrassAudios[this.fallbackGrassAudioIndex];
+    this.fallbackGrassAudioIndex = (this.fallbackGrassAudioIndex + 1) % this.fallbackGrassAudios.length;
+    return audio;
+  }
+
+  private getFallbackGrassDataUri(): string {
+    this.fallbackGrassDataUri ??= this.createFallbackGrassDataUri();
+    return this.fallbackGrassDataUri;
+  }
+
+  private createFallbackGrassDataUri(): string {
+    const sampleRate = 22050;
+    const durationSeconds = 0.09;
+    const sampleCount = Math.floor(sampleRate * durationSeconds);
+    const bytesPerSample = 2;
+    const dataSize = sampleCount * bytesPerSample;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    const writeString = (value: string) => {
+      for (let i = 0; i < value.length; i += 1) {
+        view.setUint8(offset, value.charCodeAt(i));
+        offset += 1;
+      }
+    };
+    const writeUint16 = (value: number) => {
+      view.setUint16(offset, value, true);
+      offset += 2;
+    };
+    const writeUint32 = (value: number) => {
+      view.setUint32(offset, value, true);
+      offset += 4;
+    };
+
+    writeString("RIFF");
+    writeUint32(36 + dataSize);
+    writeString("WAVE");
+    writeString("fmt ");
+    writeUint32(16);
+    writeUint16(1);
+    writeUint16(1);
+    writeUint32(sampleRate);
+    writeUint32(sampleRate * bytesPerSample);
+    writeUint16(bytesPerSample);
+    writeUint16(16);
+    writeString("data");
+    writeUint32(dataSize);
+
+    let previousNoise = 0;
+    for (let i = 0; i < sampleCount; i += 1) {
+      const t = i / sampleRate;
+      const random = Math.random() * 2 - 1;
+      const highPassedNoise = random - previousNoise * 0.68;
+      previousNoise = random;
+      const bodyEnvelope = Math.exp(-t * 38);
+      const snapEnvelope = Math.exp(-t * 86);
+      const scratch = highPassedNoise * bodyEnvelope * 0.58;
+      const snap = highPassedNoise * snapEnvelope * 0.36;
+      const click = Math.sin(2 * Math.PI * 1550 * t) * snapEnvelope * 0.22;
+      const air = Math.sin(2 * Math.PI * 3600 * t) * Math.exp(-t * 96) * 0.12;
+      const value = Math.max(-1, Math.min(1, scratch + snap + click + air));
+      view.setInt16(offset, Math.round(value * 32767), true);
+      offset += 2;
+    }
+
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < bytes.length; i += 1) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+
+    return `data:audio/wav;base64,${btoa(binary)}`;
   }
 
   private createNoiseSource(): AudioBufferSourceNode {

@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-30",
-  "latestHandoff": "HANDOFF_2026-06-30_MOBILE_HAPTICS.json",
+  "latestHandoff": "HANDOFF_2026-06-30_MOBILE_TOUCH_AUDIO_FALLBACK.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

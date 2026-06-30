@@ -1708,14 +1708,14 @@ export class GameScene extends Phaser.Scene {
   private playMixedGrassTouch(tier: GrassTierId, trait: TileTrait, isCrit: boolean, comboCount = 0): void {
     const played = this.audio.playGrassTouch(tier, trait, isCrit, comboCount);
     if (played) {
-      this.music.duckForSfx(isCrit ? 0.78 : comboCount >= 5 ? 0.82 : 0.86, isCrit ? 0.22 : 0.16);
+      this.music.duckForSfx(isCrit ? 0.54 : comboCount >= 5 ? 0.62 : 0.58, isCrit ? 0.28 : 0.24);
     }
   }
 
   private playFirstTouchSound(tier: GrassTierId, trait: TileTrait): void {
     const played = this.audio.playFirstTouch(tier, trait);
     if (played) {
-      this.music.duckForSfx(0.72, 0.3);
+      this.music.duckForSfx(0.5, 0.34);
     }
   }
 
