@@ -1,0 +1,48 @@
+{
+  "date": "2026-07-01",
+  "topic": "final mobile audio test sync",
+  "currentUserGoal": "Confirm the mobile audio/test-tab work is live, sync the desktop state to the Mac mini, and leave a final handoff for continuation.",
+  "changesMade": [
+    "Confirmed production is serving the mobile Test tab build.",
+    "Confirmed the live mobile test URL responds: https://grasstouchingsimulator.com/?mobileTest=audio&v=soft-mobile-audio-1.",
+    "Prepared this final handoff so the Mac mini can continue from the current mobile testing state.",
+    "No gameplay code changed in this final handoff commit."
+  ],
+  "latestAppCommits": [
+    "7075a28 Add mobile test mode tab",
+    "1fb358f Add soft mobile grass touch audio",
+    "4229589 Hide map overlays from panels"
+  ],
+  "filesTouched": [
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-07-01_FINAL_MOBILE_AUDIO_TEST_SYNC.json"
+  ],
+  "verificationRun": [
+    "Production root https://grasstouchingsimulator.com returned asset index-CIoff0Q4.js.",
+    "Production mobile test URL returned HTTP 200 and referenced index-CIoff0Q4.js.",
+    "Vercel deployment dpl_FZkHua5YppaASbpEhd7bJMjMWVYb was ready and aliased to grasstouchingsimulator.com during the previous deploy.",
+    "node scripts/sync-mac-mini.mjs status completed before this handoff: desktop HEAD was 7075a28 and Mac HEAD was 9354581, so the Mac needed a pull.",
+    "Previous mobile verification for 7075a28: npm run build passed, direct ?mobileTest=audio entry worked, Test tab navigation worked, and mobile perf harness completed with frameSpikes=0, layoutPasses=0, redraws=0, redrawQueued=0."
+  ],
+  "currentGitStatusBeforeCommit": [
+    "No tracked source changes before this handoff file was created.",
+    "Untracked unrelated files still present and untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "Real iPhone Safari and Android Chrome remain the final judgment for the mobile grass touch SFX feel.",
+    "The mobile Test tab uses a tighter five-button row in early mobile UI; if it feels cramped on physical iPhones, consider an icon-only test tab or a small test chip above the dock.",
+    "Mobile test mode temporarily shows SFX 100% and music 50%; saved volume settings are not overwritten unless the user moves sliders."
+  ],
+  "nextRecommendedSteps": [
+    "On phone, open the normal production site, tap the T/Test tab, and confirm the URL becomes ?mobileTest=audio&v=soft-mobile-audio-1.",
+    "In test mode, check slow grass taps, rapid taps, swipe/drag, music balance, SFX audibility, and Android haptics.",
+    "If the mobile SFX is still too harsh, reduce mobile leafGain/dryGain in AudioSystem or lower the mobile playback rate before raising volume.",
+    "If continuing from the Mac mini, read AGENTS.md, handoffs/LATEST.json, this handoff, docs/DESKTOP_MAC_SYNC_WORKFLOW.md, and docs/REMOTE_MAC_MINI_SETUP.md."
+  ],
+  "doNotRevert": [
+    "Do not remove ?mobileTest=audio direct entry from TitleScene.",
+    "Do not route mobile grass taps through the full desktop WebAudio crunch stack.",
+    "Do not make mobile test mode persist temporary test volume settings by default.",
+    "Do not touch the unrelated untracked docs/artifacts listed in git status."
+  ]
+}
