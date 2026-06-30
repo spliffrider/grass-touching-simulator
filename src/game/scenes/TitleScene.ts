@@ -27,6 +27,8 @@ const OPTIONS_TRACK_BASE_WIDTH = 320;
 const OPTIONS_TRACK_BASE_HEIGHT = 12;
 const OPTIONS_HIT_BASE_WIDTH = 350;
 const OPTIONS_HIT_BASE_HEIGHT = 44;
+const MOBILE_TEST_MODE_PARAM = "mobileTest";
+const MOBILE_TEST_MODE_VALUE = "audio";
 const GRASS_TOUCHER_CREDITS = ["Sad choupbese", "KaviaarSocialist", "Echarnus", "Overtilted", "entry 3 test"] as const;
 
 interface TitleButton {
@@ -140,6 +142,13 @@ export class TitleScene extends Phaser.Scene {
 
   create(): void {
     this.titleReady = true;
+    if (this.isMobileTestModeRequested()) {
+      this.titleReady = false;
+      this.scale.off("resize", this.layoutTitleHandler);
+      this.scene.start("GameScene");
+      return;
+    }
+
     if (this.isStressModeRequested()) {
       this.titleReady = false;
       this.scale.off("resize", this.layoutTitleHandler);
@@ -265,6 +274,11 @@ export class TitleScene extends Phaser.Scene {
   private isStressModeRequested(): boolean {
     const params = new URLSearchParams(window.location.search);
     return params.has("stress") || params.has("perfHarness") || params.has("hazardHarness") || params.has("fieldShape");
+  }
+
+  private isMobileTestModeRequested(): boolean {
+    const value = new URLSearchParams(window.location.search).get(MOBILE_TEST_MODE_PARAM)?.trim().toLowerCase();
+    return value === MOBILE_TEST_MODE_VALUE || value === "1" || value === "true";
   }
 
   private playMenuTheme(): void {

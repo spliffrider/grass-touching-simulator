@@ -1,0 +1,44 @@
+{
+  "date": "2026-06-30",
+  "topic": "mobile test tab",
+  "currentUserGoal": "Add a separate Test tab on the mobile UI that enters the mobile audio testing protocol URL/mode.",
+  "changesMade": [
+    "Added a mobile-only Test tab to the bottom command dock.",
+    "The Test tab navigates to ?mobileTest=audio&v=soft-mobile-audio-1.",
+    "Mobile test mode sets a runtime-only test mix of SFX 100% and music 50%, marks document.documentElement.dataset.grassMobileTestMode as audio, and shows a short test prompt.",
+    "The title scene now treats ?mobileTest=audio like a direct game-entry URL so shared test links open straight into GameScene, without enabling stress mode.",
+    "Adjusted mobile dock sizing so the five-tab early-game dock fits in one row; unlocked extra tabs still wrap naturally."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/scenes/TitleScene.ts",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-06-30_MOBILE_TEST_TAB.json"
+  ],
+  "verificationRun": [
+    "npm run build passed; production asset from local build: dist/assets/index-BAhqb-ZR.js.",
+    "git diff --check passed, with only the normal Windows LF-to-CRLF warning.",
+    "Direct URL check against built preview: http://127.0.0.1:4175/?mobileTest=audio&v=soft-mobile-audio-1 loaded a 390x844 game canvas and set grassMobileTestMode=audio.",
+    "Mobile tab click check against built preview: starting from http://127.0.0.1:4175/?fieldShape=rect12, tapping the bottom-right Test tab navigated to ?mobileTest=audio&v=soft-mobile-audio-1 and set grassMobileTestMode=audio.",
+    "Mobile perf harness against http://127.0.0.1:4175/?perfHarness&tiles=1200 completed. Across phases, frameSpikes=0, layoutPasses=0, redraws=0, redrawQueued=0; maxFrameDeltaMs was 17-18 and visibleTiles stayed viewport-culled from 90 to 143."
+  ],
+  "currentGitStatusBeforeCommit": [
+    "Modified: src/game/scenes/GameScene.ts",
+    "Modified: src/game/scenes/TitleScene.ts",
+    "Untracked unrelated files still present and untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "Real iPhone Safari is still the final judge for how readable the five-tab one-row dock feels.",
+    "The test mix is runtime-only; opening Options while in mobile test mode shows the temporary 100/50 volumes, but saved volume preferences are not overwritten unless the user changes sliders."
+  ],
+  "nextRecommendedSteps": [
+    "After deployment, open the live game on mobile and tap the Test tab. Confirm the URL becomes https://grasstouchingsimulator.com/?mobileTest=audio&v=soft-mobile-audio-1.",
+    "Use the active test mode to check: slow taps, rapid taps, swipe/drag, SFX audibility, music balance, and haptic feel on Android.",
+    "If the dock feels too small on iPhone, consider a compact icon-only fifth tab or a small test chip above the dock."
+  ],
+  "doNotRevert": [
+    "Do not remove ?mobileTest=audio direct entry from TitleScene; it makes shared test links useful on fresh devices.",
+    "Do not make mobile test mode persist volume settings by default.",
+    "Do not touch the unrelated untracked docs/artifacts listed in git status."
+  ]
+}

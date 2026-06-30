@@ -258,6 +258,9 @@ const TRIGGER_FEED_REPEAT_WINDOW_MS = 12000;
 const TRIGGER_FEED_WIDTH = 246;
 const TRIGGER_FEED_ROW_HEIGHT = 54;
 const MOBILE_COMMAND_DOCK_PADDING = 10;
+const MOBILE_TEST_MODE_PARAM = "mobileTest";
+const MOBILE_TEST_MODE_VALUE = "audio";
+const MOBILE_TEST_URL_VERSION = "soft-mobile-audio-1";
 const UI_ACTION_ICONS = {
   skills: "SK",
   quests: "Q",
@@ -266,6 +269,7 @@ const UI_ACTION_ICONS = {
   automation: "AI",
   journal: "J",
   options: "OP",
+  test: "T",
 } as const;
 
 function formatAutomationSupportUnits(support: number): string {
@@ -855,6 +859,7 @@ export class GameScene extends Phaser.Scene {
   private autoButton!: Phaser.GameObjects.Container;
   private journalButton!: Phaser.GameObjects.Container;
   private optionsButton!: Phaser.GameObjects.Container;
+  private testButton!: Phaser.GameObjects.Container;
   private skillRoot!: Phaser.GameObjects.Container;
   private skillBackdrop!: Phaser.GameObjects.Rectangle;
   private skillBackdropPattern!: Phaser.GameObjects.Image;
@@ -1103,6 +1108,7 @@ export class GameScene extends Phaser.Scene {
   private lastHoverPointerX = Number.NaN;
   private lastHoverPointerY = Number.NaN;
   private stressMode = false;
+  private mobileTestModeEnabled = false;
   private perfOverlayEnabled = false;
   private perfHarnessEnabled = false;
   private hazardHarnessEnabled = false;
@@ -1202,6 +1208,8 @@ export class GameScene extends Phaser.Scene {
   create(data?: { newGame?: boolean; characterClassId?: CharacterClassId; stressMode?: boolean }): void {
     this.hazardHarnessEnabled = this.isHazardHarnessRequested();
     this.perfHarnessEnabled = this.isPerfHarnessRequested();
+    this.mobileTestModeEnabled = this.isMobileTestModeRequested();
+    document.documentElement.dataset.grassMobileTestMode = this.mobileTestModeEnabled ? MOBILE_TEST_MODE_VALUE : "";
     const fieldShapeHarnessEnabled = this.isDebugFieldShapeRequested();
     this.stressMode = data?.stressMode === true || this.isStressModeRequested();
     this.perfOverlayEnabled = (this.stressMode && !fieldShapeHarnessEnabled) || this.isPerfOverlayRequested() || this.perfHarnessEnabled;
@@ -1217,6 +1225,10 @@ export class GameScene extends Phaser.Scene {
     this.musicVolume = readStoredMusicVolume();
     this.sfxVolume = readStoredSfxVolume();
     this.hapticsEnabled = readStoredHapticsEnabled();
+    if (this.mobileTestModeEnabled) {
+      this.musicVolume = 0.5;
+      this.sfxVolume = 1;
+    }
     this.music.setVolume(this.musicVolume);
     this.audio.setVolume(this.sfxVolume);
     this.haptics.setEnabled(this.hapticsEnabled);
@@ -1255,9 +1267,16 @@ export class GameScene extends Phaser.Scene {
     this.startPerfHarness();
     this.startHazardHarness();
     this.addTriggerFeedEvent("Field online", this.stressMode ? `${this.fieldTileCount} patches in stress mode` : "watching automation", "OK", 0xb7eba5);
+    if (this.mobileTestModeEnabled) {
+      this.addTriggerFeedEvent("Mobile audio test", "SFX 100%, music 50%", UI_ACTION_ICONS.test, 0xffef78);
+    }
     this.showMessage(
-      this.stressMode ? "Stress mode: big field, busy systems, no save writes." : "Touch the grass. Let it regrow. Become reasonable.",
-      3600,
+      this.mobileTestModeEnabled
+        ? "Mobile test: SFX 100%, music 50%. Tap slowly, then rapid swipe."
+        : this.stressMode
+          ? "Stress mode: big field, busy systems, no save writes."
+          : "Touch the grass. Let it regrow. Become reasonable.",
+      this.mobileTestModeEnabled ? 5200 : 3600,
     );
 
     this.scale.on("resize", () => {
@@ -2172,8 +2191,27 @@ export class GameScene extends Phaser.Scene {
     return new URLSearchParams(window.location.search).has("perfHarness");
   }
 
+  private isMobileTestModeRequested(): boolean {
+    const value = new URLSearchParams(window.location.search).get(MOBILE_TEST_MODE_PARAM)?.trim().toLowerCase();
+    return value === MOBILE_TEST_MODE_VALUE || value === "1" || value === "true";
+  }
+
   private isHazardHarnessRequested(): boolean {
     return new URLSearchParams(window.location.search).has("hazardHarness");
+  }
+
+  private openMobileTestMode(): void {
+    this.audio.play("skill_select");
+
+    if (this.mobileTestModeEnabled) {
+      this.showMessage("Mobile audio test mode is already active.", 1800);
+      return;
+    }
+
+    const url = new URL(window.location.origin + window.location.pathname);
+    url.searchParams.set(MOBILE_TEST_MODE_PARAM, MOBILE_TEST_MODE_VALUE);
+    url.searchParams.set("v", MOBILE_TEST_URL_VERSION);
+    window.location.assign(url.toString());
   }
 
   private getStressTileCount(): number {
@@ -2780,6 +2818,7 @@ export class GameScene extends Phaser.Scene {
     this.autoButton = createTextButton(this, "Auto", () => this.openAutomationPanel(), ACTION_BUTTON_WIDTH, ACTION_BUTTON_HEIGHT, 20);
     this.journalButton = createTextButton(this, "Journal", () => this.openJournal(), ACTION_BUTTON_WIDTH, ACTION_BUTTON_HEIGHT, 20);
     this.optionsButton = createTextButton(this, "Options", () => this.openOptions(), ACTION_BUTTON_WIDTH, ACTION_BUTTON_HEIGHT, 20);
+    this.testButton = createTextButton(this, "Test", () => this.openMobileTestMode(), ACTION_BUTTON_WIDTH, ACTION_BUTTON_HEIGHT, 20);
   }
 
   private createHudChip(
@@ -3360,10 +3399,11 @@ export class GameScene extends Phaser.Scene {
 
   private layoutMenuButtons(): void {
     const mobilePortrait = this.isMobilePortrait();
-    const buttonScale = mobilePortrait ? 0.74 : 1;
+    let buttonScale = mobilePortrait ? 0.74 : 1;
     const buttonWidth = Number(this.skillButton.getData("baseWidth") ?? ACTION_BUTTON_WIDTH);
     const buttonHeight = Number(this.skillButton.getData("baseHeight") ?? ACTION_BUTTON_HEIGHT);
     const storeUnlocked = this.isStoreUnlocked();
+    const showMobileTestButton = mobilePortrait;
     const visibleButtons = [
       this.skillButton,
       this.questButton,
@@ -3372,29 +3412,36 @@ export class GameScene extends Phaser.Scene {
       getAutomationUnitCount(this.state) > 0 ? this.autoButton : undefined,
       this.state.seedShopPurchases.field_journal === true ? this.journalButton : undefined,
       this.optionsButton,
+      showMobileTestButton ? this.testButton : undefined,
     ].filter((button): button is Phaser.GameObjects.Container => button !== undefined);
 
     this.storeButton.setVisible(storeUnlocked);
     this.autoButton.setVisible(getAutomationUnitCount(this.state) > 0);
     this.journalButton.setVisible(this.state.seedShopPurchases.field_journal === true);
+    this.testButton.setVisible(showMobileTestButton);
 
     if (mobilePortrait) {
-      const columns = Math.min(4, visibleButtons.length);
+      const columns = Math.min(visibleButtons.length <= 5 ? 5 : 4, visibleButtons.length);
       const rows = Math.ceil(visibleButtons.length / columns);
+      const gap = columns >= 5 ? 4 : 7;
+      const dockX = columns >= 5 ? 4 : 10;
+      const dockPadding = columns >= 5 ? 7 : MOBILE_COMMAND_DOCK_PADDING;
+      const availableWidth = this.scale.width - dockX * 2 - dockPadding * 2;
+      buttonScale = Math.min(buttonScale, (availableWidth - Math.max(0, columns - 1) * gap) / Math.max(1, columns * buttonWidth));
+      buttonScale = Phaser.Math.Clamp(buttonScale, 0.56, 0.74);
       const scaledButtonWidth = buttonWidth * buttonScale;
       const scaledButtonHeight = buttonHeight * buttonScale;
-      const gap = 7;
-      const dockHeight = rows * scaledButtonHeight + Math.max(0, rows - 1) * gap + MOBILE_COMMAND_DOCK_PADDING * 2;
+      const dockHeight = rows * scaledButtonHeight + Math.max(0, rows - 1) * gap + dockPadding * 2;
       const dockTop = Math.max(12, this.scale.height - dockHeight - 8);
       this.mobileCommandDockTop = dockTop;
       this.mobileCommandDockHeight = dockHeight;
       this.menuDockBg
-        .setPosition(10, dockTop)
-        .setSize(this.scale.width - 20, dockHeight)
+        .setPosition(dockX, dockTop)
+        .setSize(this.scale.width - dockX * 2, dockHeight)
         .setFillStyle(UITheme.colors.panelBgDeep, 0.86)
         .setStrokeStyle(2, UITheme.colors.bronze, 0.66);
-      this.menuDockFrame.setPosition(10, dockTop);
-      this.menuDockFrame.setSize(this.scale.width - 20, dockHeight);
+      this.menuDockFrame.setPosition(dockX, dockTop);
+      this.menuDockFrame.setSize(this.scale.width - dockX * 2, dockHeight);
       this.menuDockFrame.setVisible(!this.hasBlockingOverlayOpen());
 
       visibleButtons.forEach((button, index) => {
@@ -3403,7 +3450,7 @@ export class GameScene extends Phaser.Scene {
         const rowCount = row === rows - 1 ? visibleButtons.length - row * columns : columns;
         const rowWidth = rowCount * scaledButtonWidth + Math.max(0, rowCount - 1) * gap;
         const x = (this.scale.width - rowWidth) / 2 + column * (scaledButtonWidth + gap);
-        const y = dockTop + MOBILE_COMMAND_DOCK_PADDING + row * (scaledButtonHeight + gap);
+        const y = dockTop + dockPadding + row * (scaledButtonHeight + gap);
         button.setScale(buttonScale);
         button.setPosition(x, y);
       });
@@ -13421,6 +13468,7 @@ export class GameScene extends Phaser.Scene {
     setTextButtonText(this.autoButton, this.formatActionMenuLabel(UI_ACTION_ICONS.automation, "Auto"));
     setTextButtonText(this.journalButton, this.formatActionMenuLabel(UI_ACTION_ICONS.journal, mobilePortrait ? "Log" : "Journal"));
     setTextButtonText(this.optionsButton, this.formatActionMenuLabel(UI_ACTION_ICONS.options, mobilePortrait ? "Opts" : "Options"));
+    setTextButtonText(this.testButton, this.formatActionMenuLabel(UI_ACTION_ICONS.test, this.mobileTestModeEnabled ? "Testing" : "Test"));
     this.profileScope("ui:buttons", () => this.refreshMenuButtonAttention(currentReadyQuestKeys, readyUnlockKeys));
     this.profileScope("ui:goalNudge", () =>
       this.refreshGoalNudge(
@@ -13578,6 +13626,7 @@ export class GameScene extends Phaser.Scene {
       this.isStoreUnlocked() && readyUnlockList.some((key) => key.startsWith("automation:") || key.startsWith("gold:")),
     );
     setTextButtonAttention(this.questButton, currentReadyQuestKeys.size > 0);
+    setTextButtonAttention(this.testButton, this.mobileTestModeEnabled);
   }
 
   private setReadyItemAttention(
