@@ -1,0 +1,95 @@
+{
+  "date": "2026-06-30",
+  "topic": "mobile grass touch audio muted",
+  "currentUserGoal": "User says the mobile grass touch sound still sounds too harsh/bad and wants to get rid of that sound on mobile.",
+  "changesMade": [
+    "Muted grass-touch audio on touch devices by short-circuiting the normal and first-touch grass audio wrappers.",
+    "Left the rest of the SFX layer intact so menus, options, quests, and other non-grass-touch feedback can still play.",
+    "Prevented music ducking from triggering for muted mobile grass touches."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-30_MOBILE_TOUCH_AUDIO_MUTED.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run build passed; local production asset dist/assets/index-Cj6Fib0S.js.",
+    "git diff --check passed.",
+    "Headless Chrome mobile/touch instrumentation with maxTouchPoints 5: tapping grass created 0 fallback audio players and 0 fallback audio sources.",
+    "Headless Chrome mobile viewport 390x844, ?perfHarness&tiles=1200 completed with no frame spikes."
+  ],
+  "perfHarness390x844": [
+    {
+      "phase": "idle",
+      "visibleTiles": 132,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 853,
+      "activeTweens": 20
+    },
+    {
+      "phase": "tapBurst",
+      "visibleTiles": 144,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 851,
+      "activeTweens": 17
+    },
+    {
+      "phase": "skillOpen",
+      "visibleTiles": 144,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 851,
+      "activeTweens": 17
+    },
+    {
+      "phase": "pan",
+      "visibleTiles": 143,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 962,
+      "activeTweens": 21
+    },
+    {
+      "phase": "complete",
+      "visibleTiles": 120,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 855,
+      "activeTweens": 19
+    }
+  ],
+  "currentGitStatus": [
+    "Expected modified files before commit: src/game/scenes/GameScene.ts, handoffs/LATEST.json, and this handoff file.",
+    "Unrelated untracked docs/assets remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "Desktop grass-touch audio remains enabled. If the user later wants it removed everywhere, remove/disable the wrappers unconditionally.",
+    "The previous mobile fallback variant code remains in AudioSystem for non-touch/fallback contexts but is no longer reached by grass taps on phones."
+  ],
+  "nextRecommendedSteps": [
+    "Deploy production and have the user hard refresh on iPhone.",
+    "Ask the user to confirm grass tapping is now silent on mobile while other SFX still work.",
+    "If they want phone tapping to have feedback later, use haptics/visual juice instead of speaker audio."
+  ],
+  "doNotRevert": [
+    "Do not re-enable mobile grass-touch audio without explicit user approval; the phone speaker tone was judged too harsh.",
+    "Keep other SFX and haptics intact unless the user asks for a broader mobile mute mode."
+  ]
+}
