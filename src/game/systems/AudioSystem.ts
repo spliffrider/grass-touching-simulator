@@ -1,3 +1,4 @@
+import { DEFAULT_SFX_VOLUME } from "../data/audio-settings";
 import type { GrassTierId, TileTrait } from "../types/game-state";
 
 type SoundName =
@@ -18,8 +19,8 @@ type SoundName =
 const NOISE_BUFFER_SECONDS = 0.5;
 const TOUCH_SOUND_MIN_INTERVAL_MS = 42;
 const TOUCH_SOUND_BUSY_INTERVAL_MS = 68;
-const SFX_MASTER_GAIN = 0.5;
-const TOUCH_TRANSIENT_GAIN = 0.84;
+const SFX_MASTER_GAIN = 0.64;
+const TOUCH_TRANSIENT_GAIN = 0.94;
 
 export class AudioSystem {
   private context?: AudioContext;
@@ -30,6 +31,12 @@ export class AudioSystem {
   private noiseBuffer?: AudioBuffer;
   private noiseBufferSampleRate = 0;
   private lastGrassTouchSoundAt = 0;
+  private volume = DEFAULT_SFX_VOLUME;
+
+  setVolume(volume: number): void {
+    this.volume = Math.max(0, Math.min(1, volume));
+    this.applyVolume();
+  }
 
   unlock(): void {
     const AudioContextCtor = window.AudioContext ?? window.webkitAudioContext;
@@ -41,7 +48,7 @@ export class AudioSystem {
       this.context = new AudioContextCtor();
       this.master = this.context.createGain();
       this.limiter = this.context.createDynamicsCompressor();
-      this.master.gain.value = SFX_MASTER_GAIN;
+      this.master.gain.value = this.getMasterGainTarget();
       this.limiter.threshold.value = -10;
       this.limiter.knee.value = 18;
       this.limiter.ratio.value = 12;
@@ -64,6 +71,18 @@ export class AudioSystem {
     }
 
     this.unlocked = true;
+  }
+
+  private applyVolume(): void {
+    if (!this.master || !this.context) {
+      return;
+    }
+
+    this.master.gain.setTargetAtTime(this.getMasterGainTarget(), this.context.currentTime, 0.05);
+  }
+
+  private getMasterGainTarget(): number {
+    return SFX_MASTER_GAIN * this.volume;
   }
 
   play(name: SoundName): void {

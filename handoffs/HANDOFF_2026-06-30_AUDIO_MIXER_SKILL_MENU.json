@@ -1,0 +1,49 @@
+{
+  "date": "2026-06-30",
+  "topic": "audio mixer and mobile skill menu responsiveness",
+  "currentUserGoal": "Separate background music from sound effects, make the grass touch crunch louder, add options sliders for both layers, and reduce mobile lag while navigating/upgrading through the skill menu.",
+  "changesMade": [
+    "Added persisted SFX volume settings alongside music volume settings.",
+    "Fixed a storage default bug where missing localStorage values were read as 0 instead of the intended defaults.",
+    "Changed default music volume to 62% and default SFX volume to 100%.",
+    "Raised SFX headroom and grass touch transient gain so touch crunch is more audible on phones.",
+    "Split the in-game Options panel into Music volume and SFX volume sliders, with an SFX preview tick on slider touch.",
+    "Reduced skill menu drag work by throttling minimap redraws during map panning and doing a final minimap update on release.",
+    "Reduced redundant skill purchase work by removing duplicate full layout/UI refreshes from the low-level upgrade helper.",
+    "Added a cached upgrade lookup map for hot skill-tree visibility, detail, and connection redraw paths."
+  ],
+  "filesTouched": [
+    "src/game/data/audio-settings.ts",
+    "src/game/systems/AudioSystem.ts",
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-30_AUDIO_MIXER_SKILL_MENU.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run build",
+    "git diff --check",
+    "Browser perf harness at 390x844, ?perfHarness&tiles=1200 before skill optimization: skillOpen had ui:skillTree around 0.4ms and no frame spikes.",
+    "Browser perf harness at 390x844, ?perfHarness&tiles=1200 after skill optimization: no frame spikes, skillOpen remained around ui:skillTree 0.4ms, skillSelect showed no skill-tree hotspot.",
+    "Mobile visual smoke at 390x844: Options panel displays Music volume 62% and SFX volume 100% on a fresh profile.",
+    "Mobile interaction smoke: tapping the SFX slider writes grassTouching.sfxVolume independently of music volume.",
+    "Mobile visual smoke: Skill screen opens at 390x844 and map drag leaves the minimap stable."
+  ],
+  "currentGitStatus": [
+    "Modified hotfix files are expected before commit.",
+    "Unrelated untracked docs/assets remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "Actual iOS audio loudness still needs user/device confirmation because Windows cannot audibly verify Safari speaker output.",
+    "Perf harness does not simulate repeated real skill purchases; the code path was optimized by reducing redundant refresh/layout calls and mobile drag graphics redraws."
+  ],
+  "nextRecommendedSteps": [
+    "Deploy production and have the user hard refresh on iPhone.",
+    "On iOS, test Options sliders: set Music around 40-60% and SFX 100%, then tap grass repeatedly.",
+    "In the skill menu, drag around and buy several affordable skills quickly to validate the reduced sticky feeling on device."
+  ],
+  "doNotRevert": [
+    "Do not restore the old audio storage reader behavior; missing storage must use defaults, not 0.",
+    "Do not reintroduce full layoutSkillTree plus multiple refreshUi calls from buyUpgrade; skill purchase UI updates should stay owned by the click handler.",
+    "Do not redraw the skill minimap on every pointermove while dragging."
+  ]
+}

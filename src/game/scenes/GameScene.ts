@@ -1,5 +1,12 @@
 import Phaser from "phaser";
-import { DEFAULT_MUSIC_VOLUME, readStoredMusicVolume, writeStoredMusicVolume } from "../data/audio-settings";
+import {
+  DEFAULT_MUSIC_VOLUME,
+  DEFAULT_SFX_VOLUME,
+  readStoredMusicVolume,
+  readStoredSfxVolume,
+  writeStoredMusicVolume,
+  writeStoredSfxVolume,
+} from "../data/audio-settings";
 import {
   AUTOMATION_SYSTEMS,
   getAutomationOutputContext,
@@ -102,6 +109,7 @@ import { createOrnateFrame, type OrnateFrame, UITheme } from "../ui/theme";
 
 const TILE_SIZE = 58;
 const TILE_GAP = 8;
+const UPGRADE_BY_ID = new Map(UPGRADES.map((upgrade) => [upgrade.id, upgrade]));
 const getBoardVisualSize = (tileCount: number) =>
   tileCount * TILE_SIZE + Math.max(0, tileCount - 1) * TILE_GAP;
 const COMMON_TILE_ERASER_TEXTURE_KEY = "tile-common-eraser";
@@ -862,6 +870,7 @@ export class GameScene extends Phaser.Scene {
   private skillMapDragStartY = 0;
   private skillMapCameraStartX = 0;
   private skillMapCameraStartY = 0;
+  private skillMinimapDragRefreshAt = 0;
   private skillMapNeedsFocus = true;
   private skillTitleText!: Phaser.GameObjects.Text;
   private skillResourceText!: Phaser.GameObjects.Text;
@@ -936,11 +945,16 @@ export class GameScene extends Phaser.Scene {
   private optionsBackdrop!: Phaser.GameObjects.Rectangle;
   private optionsPanel!: Phaser.GameObjects.Rectangle;
   private optionsTitleText!: Phaser.GameObjects.Text;
-  private optionsVolumeLabel!: Phaser.GameObjects.Text;
-  private optionsVolumeTrack!: Phaser.GameObjects.Rectangle;
-  private optionsVolumeFill!: Phaser.GameObjects.Rectangle;
-  private optionsVolumeHit!: Phaser.GameObjects.Rectangle;
-  private optionsVolumeKnob!: Phaser.GameObjects.Arc;
+  private optionsMusicVolumeLabel!: Phaser.GameObjects.Text;
+  private optionsMusicVolumeTrack!: Phaser.GameObjects.Rectangle;
+  private optionsMusicVolumeFill!: Phaser.GameObjects.Rectangle;
+  private optionsMusicVolumeHit!: Phaser.GameObjects.Rectangle;
+  private optionsMusicVolumeKnob!: Phaser.GameObjects.Arc;
+  private optionsSfxVolumeLabel!: Phaser.GameObjects.Text;
+  private optionsSfxVolumeTrack!: Phaser.GameObjects.Rectangle;
+  private optionsSfxVolumeFill!: Phaser.GameObjects.Rectangle;
+  private optionsSfxVolumeHit!: Phaser.GameObjects.Rectangle;
+  private optionsSfxVolumeKnob!: Phaser.GameObjects.Arc;
   private optionsTrackLabel!: Phaser.GameObjects.Text;
   private optionsTrackLeftBtn!: Phaser.GameObjects.Container;
   private optionsTrackRightBtn!: Phaser.GameObjects.Container;
@@ -973,9 +987,13 @@ export class GameScene extends Phaser.Scene {
   private optionsOpen = false;
   private selectedQuestFilter: QuestFilterId = "all";
   private musicVolume = DEFAULT_MUSIC_VOLUME;
+  private sfxVolume = DEFAULT_SFX_VOLUME;
   private draggingMusicVolume = false;
+  private draggingSfxVolume = false;
   private musicVolumeSliderX = 0;
   private musicVolumeSliderWidth = 1;
+  private sfxVolumeSliderX = 0;
+  private sfxVolumeSliderWidth = 1;
   private readyUnlockKeys = new Set<string>();
   private readyQuestKeys = new Set<string>();
   private selectedSkillId = UPGRADES[0].id;
@@ -1185,7 +1203,9 @@ export class GameScene extends Phaser.Scene {
     this.hazards.reset();
     this.mutations.reset();
     this.musicVolume = readStoredMusicVolume();
+    this.sfxVolume = readStoredSfxVolume();
     this.music.setVolume(this.musicVolume);
+    this.audio.setVolume(this.sfxVolume);
     this.music.setTrack(this.state.selectedTrackId || DEFAULT_GAME_TRACK_ID);
     this.updateJournalDiscoveries();
     this.saveState();
@@ -1373,9 +1393,13 @@ export class GameScene extends Phaser.Scene {
       this.isBoardPanArmed = false;
       this.isPanningBoard = false;
       this.worldMapDragging = false;
+      if (this.skillMapDragging) {
+        this.layoutSkillMinimap();
+      }
       this.skillMapDragging = false;
       this.stopPersistentTouch();
       this.draggingMusicVolume = false;
+      this.draggingSfxVolume = false;
     });
 
     this.input.on("pointerupoutside", () => {
@@ -1383,13 +1407,18 @@ export class GameScene extends Phaser.Scene {
       this.isBoardPanArmed = false;
       this.isPanningBoard = false;
       this.worldMapDragging = false;
+      if (this.skillMapDragging) {
+        this.layoutSkillMinimap();
+      }
       this.skillMapDragging = false;
       this.stopPersistentTouch();
       this.draggingMusicVolume = false;
+      this.draggingSfxVolume = false;
     });
 
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handlePersistentTouchPointerMove(pointer));
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleMusicVolumeDrag(pointer));
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleSfxVolumeDrag(pointer));
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleBoardHover(pointer));
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleWorldMapDrag(pointer));
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleSkillMapDrag(pointer));
@@ -4262,7 +4291,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private focusSkillMapOnSelected(): void {
-    const upgrade = UPGRADES.find((candidate) => candidate.id === this.selectedSkillId) ?? UPGRADES[0];
+    const upgrade = UPGRADE_BY_ID.get(this.selectedSkillId) ?? UPGRADES[0];
     const point = this.getSkillTreePoint(upgrade, this.skillMapContentScale, 0, 0);
     this.skillMapCameraX = point.x - this.skillMapViewportWidth / (this.skillMapScale * 2);
     this.skillMapCameraY = point.y - this.skillMapViewportHeight / (this.skillMapScale * 2);
@@ -4306,6 +4335,7 @@ export class GameScene extends Phaser.Scene {
     this.skillMapDragStartY = pointer.y;
     this.skillMapCameraStartX = this.skillMapCameraX;
     this.skillMapCameraStartY = this.skillMapCameraY;
+    this.skillMinimapDragRefreshAt = 0;
   }
 
   private handleSkillMapDrag(pointer: Phaser.Input.Pointer): void {
@@ -4317,7 +4347,11 @@ export class GameScene extends Phaser.Scene {
     this.skillMapCameraY = this.skillMapCameraStartY - (pointer.y - this.skillMapDragStartY) / this.skillMapScale;
     this.clampSkillMapCamera();
     this.applySkillMapCamera();
-    this.layoutSkillMinimap();
+    const now = performance.now();
+    if (now >= this.skillMinimapDragRefreshAt) {
+      this.skillMinimapDragRefreshAt = now + 80;
+      this.layoutSkillMinimap();
+    }
   }
 
   private zoomSkillMap(deltaY: number, pointerX: number, pointerY: number): void {
@@ -4380,7 +4414,7 @@ export class GameScene extends Phaser.Scene {
 
       const start = this.getSkillTreePoint(upgrade, this.skillMapContentScale, 0, 0);
       for (const prerequisiteId of upgrade.prerequisiteIds ?? []) {
-        const prerequisite = UPGRADES.find((candidate) => candidate.id === prerequisiteId);
+        const prerequisite = UPGRADE_BY_ID.get(prerequisiteId);
         if (!prerequisite || !this.isSkillVisible(prerequisite.id)) {
           continue;
         }
@@ -5190,20 +5224,40 @@ export class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setShadow(0, 3, "#020805", 3, false, true);
-    this.optionsVolumeLabel = this.add
+    this.optionsMusicVolumeLabel = this.add
       .text(0, 0, "", {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "18px",
         color: UITheme.colors.mutedGreen,
       })
       .setOrigin(0.5);
-    this.optionsVolumeTrack = this.add.rectangle(0, 0, 320, 12, UITheme.colors.bronzeDark, 1).setOrigin(0, 0.5);
-    this.optionsVolumeFill = this.add.rectangle(0, 0, 220, 12, UITheme.colors.bronzeLight, 1).setOrigin(0, 0.5);
-    this.optionsVolumeHit = this.add
+    this.optionsMusicVolumeTrack = this.add.rectangle(0, 0, 320, 12, UITheme.colors.bronzeDark, 1).setOrigin(0, 0.5);
+    this.optionsMusicVolumeFill = this.add.rectangle(0, 0, 220, 12, UITheme.colors.bronzeLight, 1).setOrigin(0, 0.5);
+    this.optionsMusicVolumeHit = this.add
       .rectangle(0, 0, 350, 44, 0xffffff, 0.001)
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
-    this.optionsVolumeKnob = this.add.circle(0, 0, 14, 0xf2e8d5, 1).setStrokeStyle(4, UITheme.colors.bronze, 0.92).setInteractive({ useHandCursor: true });
+    this.optionsMusicVolumeKnob = this.add
+      .circle(0, 0, 14, 0xf2e8d5, 1)
+      .setStrokeStyle(4, UITheme.colors.bronze, 0.92)
+      .setInteractive({ useHandCursor: true });
+    this.optionsSfxVolumeLabel = this.add
+      .text(0, 0, "", {
+        fontFamily: "Trebuchet MS, Arial",
+        fontSize: "18px",
+        color: UITheme.colors.mutedGreen,
+      })
+      .setOrigin(0.5);
+    this.optionsSfxVolumeTrack = this.add.rectangle(0, 0, 320, 12, UITheme.colors.bronzeDark, 1).setOrigin(0, 0.5);
+    this.optionsSfxVolumeFill = this.add.rectangle(0, 0, 220, 12, 0xb7eba5, 1).setOrigin(0, 0.5);
+    this.optionsSfxVolumeHit = this.add
+      .rectangle(0, 0, 350, 44, 0xffffff, 0.001)
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    this.optionsSfxVolumeKnob = this.add
+      .circle(0, 0, 14, 0xf7ffe8, 1)
+      .setStrokeStyle(4, 0xb7eba5, 0.92)
+      .setInteractive({ useHandCursor: true });
     
     // Track selector
     this.optionsTrackLabel = this.add
@@ -5218,17 +5272,24 @@ export class GameScene extends Phaser.Scene {
 
     this.optionsBackButton = createTextButton(this, "Back", () => this.closeOptions(), 118, 44, 111);
 
-    this.optionsVolumeHit.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startMusicVolumeDrag(pointer));
-    this.optionsVolumeKnob.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startMusicVolumeDrag(pointer));
+    this.optionsMusicVolumeHit.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startMusicVolumeDrag(pointer));
+    this.optionsMusicVolumeKnob.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startMusicVolumeDrag(pointer));
+    this.optionsSfxVolumeHit.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startSfxVolumeDrag(pointer));
+    this.optionsSfxVolumeKnob.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startSfxVolumeDrag(pointer));
     this.optionsRoot.add([
       this.optionsBackdrop,
       this.optionsPanel,
       this.optionsTitleText,
-      this.optionsVolumeLabel,
-      this.optionsVolumeTrack,
-      this.optionsVolumeFill,
-      this.optionsVolumeHit,
-      this.optionsVolumeKnob,
+      this.optionsMusicVolumeLabel,
+      this.optionsMusicVolumeTrack,
+      this.optionsMusicVolumeFill,
+      this.optionsMusicVolumeHit,
+      this.optionsMusicVolumeKnob,
+      this.optionsSfxVolumeLabel,
+      this.optionsSfxVolumeTrack,
+      this.optionsSfxVolumeFill,
+      this.optionsSfxVolumeHit,
+      this.optionsSfxVolumeKnob,
       this.optionsTrackLabel,
       this.optionsTrackLeftBtn,
       this.optionsTrackRightBtn,
@@ -5239,26 +5300,38 @@ export class GameScene extends Phaser.Scene {
 
   private layoutOptionsPanel(): void {
     const panelWidth = Math.min(500, this.scale.width - 36);
-    const panelHeight = Math.min(280, this.scale.height - 48);
+    const panelHeight = Math.min(340, this.scale.height - 48);
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
     const trackWidth = Math.max(190, panelWidth - 120);
     const trackX = centerX - trackWidth / 2;
-    const trackY = centerY - 12;
-    const trackLabelY = centerY + 32;
+    const titleY = centerY - panelHeight / 2 + 38;
+    const musicLabelY = centerY - 78;
+    const musicTrackY = centerY - 45;
+    const sfxLabelY = centerY - 10;
+    const sfxTrackY = centerY + 23;
+    const trackLabelY = centerY + 74;
 
     this.resizeInteractiveBackdrop(this.optionsBackdrop);
     this.optionsPanel?.setPosition(centerX, centerY);
     this.optionsPanel?.setSize(panelWidth, panelHeight);
-    this.optionsTitleText?.setPosition(centerX, centerY - panelHeight / 2 + 38);
-    this.optionsVolumeLabel?.setPosition(centerX, centerY - 45);
-    this.optionsVolumeTrack?.setPosition(trackX, trackY);
-    this.optionsVolumeTrack?.setSize(trackWidth, 12);
-    this.optionsVolumeFill?.setPosition(trackX, trackY);
-    this.optionsVolumeFill?.setSize(trackWidth * this.musicVolume, 12);
-    this.optionsVolumeHit?.setPosition(centerX, trackY);
-    this.optionsVolumeHit?.setSize(trackWidth + 36, 44);
-    this.optionsVolumeKnob?.setPosition(trackX + trackWidth * this.musicVolume, trackY);
+    this.optionsTitleText?.setPosition(centerX, titleY);
+    this.optionsMusicVolumeLabel?.setPosition(centerX, musicLabelY);
+    this.optionsMusicVolumeTrack?.setPosition(trackX, musicTrackY);
+    this.optionsMusicVolumeTrack?.setSize(trackWidth, 12);
+    this.optionsMusicVolumeFill?.setPosition(trackX, musicTrackY);
+    this.optionsMusicVolumeFill?.setSize(trackWidth * this.musicVolume, 12);
+    this.optionsMusicVolumeHit?.setPosition(centerX, musicTrackY);
+    this.optionsMusicVolumeHit?.setSize(trackWidth + 36, 44);
+    this.optionsMusicVolumeKnob?.setPosition(trackX + trackWidth * this.musicVolume, musicTrackY);
+    this.optionsSfxVolumeLabel?.setPosition(centerX, sfxLabelY);
+    this.optionsSfxVolumeTrack?.setPosition(trackX, sfxTrackY);
+    this.optionsSfxVolumeTrack?.setSize(trackWidth, 12);
+    this.optionsSfxVolumeFill?.setPosition(trackX, sfxTrackY);
+    this.optionsSfxVolumeFill?.setSize(trackWidth * this.sfxVolume, 12);
+    this.optionsSfxVolumeHit?.setPosition(centerX, sfxTrackY);
+    this.optionsSfxVolumeHit?.setSize(trackWidth + 36, 44);
+    this.optionsSfxVolumeKnob?.setPosition(trackX + trackWidth * this.sfxVolume, sfxTrackY);
     
     // Position track selector
     this.optionsTrackLabel?.setPosition(centerX, trackLabelY);
@@ -5268,6 +5341,8 @@ export class GameScene extends Phaser.Scene {
     this.optionsBackButton?.setPosition(centerX - 59, centerY + panelHeight / 2 - 58);
     this.musicVolumeSliderX = trackX;
     this.musicVolumeSliderWidth = trackWidth;
+    this.sfxVolumeSliderX = trackX;
+    this.sfxVolumeSliderWidth = trackWidth;
   }
 
   private resizeInteractiveBackdrop(backdrop: Phaser.GameObjects.Rectangle | undefined): void {
@@ -5305,7 +5380,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshOptionsPanel(): void {
-    this.optionsVolumeLabel?.setText(`Music volume: ${Math.round(this.musicVolume * 100)}%`);
+    this.optionsMusicVolumeLabel?.setText(`Music volume: ${Math.round(this.musicVolume * 100)}%`);
+    this.optionsSfxVolumeLabel?.setText(`SFX volume: ${Math.round(this.sfxVolume * 100)}%`);
     this.optionsTrackLabel?.setText(`Track: ${this.music.getCurrentTrackName()}`);
     this.layoutOptionsPanel();
   }
@@ -5523,7 +5599,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private isSkillVisible(upgradeId: string): boolean {
-    const upgrade = UPGRADES.find((candidate) => candidate.id === upgradeId);
+    const upgrade = UPGRADE_BY_ID.get(upgradeId);
     if (!upgrade) {
       return false;
     }
@@ -5803,7 +5879,7 @@ export class GameScene extends Phaser.Scene {
       const prerequisiteIds = upgrade.prerequisiteIds ?? [];
 
       for (const prerequisiteId of prerequisiteIds) {
-        const prerequisite = UPGRADES.find((candidate) => candidate.id === prerequisiteId);
+        const prerequisite = UPGRADE_BY_ID.get(prerequisiteId);
         if (!prerequisite) {
           continue;
         }
@@ -5919,7 +5995,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       const primaryPrerequisiteId = (upgrade.prerequisiteIds ?? [])[0];
-      const primaryPrerequisite = UPGRADES.find((candidate) => candidate.id === primaryPrerequisiteId);
+      const primaryPrerequisite = primaryPrerequisiteId ? UPGRADE_BY_ID.get(primaryPrerequisiteId) : undefined;
 
       if (!primaryPrerequisite || !this.isSkillVisible(primaryPrerequisite.id)) {
         continue;
@@ -5963,7 +6039,7 @@ export class GameScene extends Phaser.Scene {
 
     this.selectedSkillId = upgradeId;
     if (this.skillTreeOpen) {
-      this.profileScope("ui:skillTree", () => this.refreshSkillTree());
+      this.profileScope("ui:skillTree", () => this.refreshSkillTree(false));
     } else {
       this.refreshUi();
     }
@@ -5981,7 +6057,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private startSkillHoverVisual(upgradeId: string): void {
-    const upgrade = UPGRADES.find((candidate) => candidate.id === upgradeId);
+    const upgrade = UPGRADE_BY_ID.get(upgradeId);
     const view = this.skillNodeViews.get(upgradeId);
     if (!upgrade || !view || !view.container.visible) {
       return;
@@ -6072,10 +6148,10 @@ export class GameScene extends Phaser.Scene {
     this.stopSkillHoverTremble(upgradeId);
     const upgraded = this.buyUpgrade(upgradeId);
     this.bumpSkillNode(upgradeId, upgraded);
+    this.refreshSkillPanelAfterUpgrade(upgraded);
     if (upgraded) {
       this.playSkillRevealFeedback(visibleBefore, upgradeId);
     }
-    this.refreshUi();
   }
 
   private upgradeSelectedSkill(): void {
@@ -6085,10 +6161,20 @@ export class GameScene extends Phaser.Scene {
     this.stopSkillHoverTremble(this.selectedSkillId);
     const upgraded = this.buyUpgrade(this.selectedSkillId);
     this.bumpSkillNode(this.selectedSkillId, upgraded);
+    this.refreshSkillPanelAfterUpgrade(upgraded);
     if (upgraded) {
       this.playSkillRevealFeedback(visibleBefore, this.selectedSkillId);
     }
-    this.refreshUi();
+  }
+
+  private refreshSkillPanelAfterUpgrade(redrawMapLines: boolean): void {
+    if (redrawMapLines) {
+      this.drawSkillLines(this.skillMapContentScale, 0, 0);
+    }
+
+    this.setTextIfChanged(this.skillResourceText, this.getSkillResourceText());
+    this.refreshPrestigeButton();
+    this.profileScope("ui:skillTree", () => this.refreshSkillTree());
   }
 
   private openSkillTree(): void {
@@ -6110,10 +6196,12 @@ export class GameScene extends Phaser.Scene {
     this.skillMapDragging = false;
     this.skillRoot.setVisible(true);
     this.layoutSkillTree();
+    this.profileScope("ui:skillTree", () => this.refreshSkillTree(false));
     this.disarmReset();
     this.disarmPrestige();
     this.audio.play("upgrade");
-    this.refreshUi();
+    this.panelUiRefreshElapsed = 0;
+    this.refreshUi(false);
   }
 
   private closeSkillTree(): void {
@@ -6589,6 +6677,7 @@ export class GameScene extends Phaser.Scene {
   private closeOptions(): void {
     this.optionsOpen = false;
     this.draggingMusicVolume = false;
+    this.draggingSfxVolume = false;
     this.optionsRoot?.setVisible(false);
     this.refreshUi();
   }
@@ -6607,12 +6696,35 @@ export class GameScene extends Phaser.Scene {
     this.setMusicVolumeFromPointer(pointer);
   }
 
+  private startSfxVolumeDrag(pointer: Phaser.Input.Pointer): void {
+    this.draggingSfxVolume = true;
+    this.setSfxVolumeFromPointer(pointer, true);
+  }
+
+  private handleSfxVolumeDrag(pointer: Phaser.Input.Pointer): void {
+    if (!this.draggingSfxVolume || !this.optionsOpen) {
+      return;
+    }
+
+    this.setSfxVolumeFromPointer(pointer);
+  }
+
   private setMusicVolumeFromPointer(pointer: Phaser.Input.Pointer): void {
     const nextVolume = Phaser.Math.Clamp((pointer.x - this.musicVolumeSliderX) / this.musicVolumeSliderWidth, 0, 1);
     this.musicVolume = writeStoredMusicVolume(nextVolume);
     this.music.setVolume(this.musicVolume);
     if (this.musicVolume > 0) {
       this.music.start(this.musicVolume);
+    }
+    this.refreshOptionsPanel();
+  }
+
+  private setSfxVolumeFromPointer(pointer: Phaser.Input.Pointer, preview = false): void {
+    const nextVolume = Phaser.Math.Clamp((pointer.x - this.sfxVolumeSliderX) / this.sfxVolumeSliderWidth, 0, 1);
+    this.sfxVolume = writeStoredSfxVolume(nextVolume);
+    this.audio.setVolume(this.sfxVolume);
+    if (preview && this.sfxVolume > 0) {
+      this.audio.play("touch");
     }
     this.refreshOptionsPanel();
   }
@@ -13272,7 +13384,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private refreshSkillTree(): void {
+  private refreshSkillTree(refreshMinimap = true): void {
     for (const upgrade of UPGRADES) {
       const view = this.skillNodeViews.get(upgrade.id);
       if (!view) {
@@ -13338,7 +13450,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.refreshSkillDetail();
-    this.layoutSkillMinimap();
+    if (refreshMinimap) {
+      this.layoutSkillMinimap();
+    }
   }
 
   private refreshMenuButtonAttention(currentReadyQuestKeys = this.getReadyQuestKeys(), readyUnlockKeys = this.getReadyUnlockKeys()): void {
@@ -14165,7 +14279,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshSkillDetail(): void {
-    const upgrade = UPGRADES.find((candidate) => candidate.id === this.selectedSkillId) ?? UPGRADES[0];
+    const upgrade = UPGRADE_BY_ID.get(this.selectedSkillId) ?? UPGRADES[0];
     if (!this.isSkillVisible(upgrade.id)) {
       this.selectedSkillId = UPGRADES[0].id;
       this.refreshSkillDetail();
@@ -14178,7 +14292,7 @@ export class GameScene extends Phaser.Scene {
     const unlocked = canUnlockUpgrade(this.state, upgrade);
     const missingPrerequisites = (upgrade.prerequisiteIds ?? [])
       .filter((id) => (this.state.upgrades[id]?.level ?? 0) === 0)
-      .map((id) => UPGRADES.find((candidate) => candidate.id === id)?.name ?? id);
+      .map((id) => UPGRADE_BY_ID.get(id)?.name ?? id);
 
     this.setTextIfChanged(this.skillDetailTitle, upgrade.name);
     this.setTextIfChanged(this.skillDetailCategory, `${this.getUpgradeBranch(upgrade.id)} branch`);
@@ -14533,11 +14647,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private buyUpgrade(upgradeId: string): boolean {
-    const upgrade = UPGRADES.find((candidate) => candidate.id === upgradeId);
+    const upgrade = UPGRADE_BY_ID.get(upgradeId);
     if (!upgrade || !this.isSkillVisible(upgradeId) || !canUnlockUpgrade(this.state, upgrade)) {
       this.setSkillStatus("That skill has not sprouted yet.");
       this.audio.play("blocked");
-      this.refreshUi();
       return false;
     }
 
@@ -14545,7 +14658,6 @@ export class GameScene extends Phaser.Scene {
     if (level >= upgrade.maxLevel) {
       this.setSkillStatus("That skill is fully grown.");
       this.audio.play("blocked");
-      this.refreshUi();
       return false;
     }
 
@@ -14558,7 +14670,6 @@ export class GameScene extends Phaser.Scene {
         )} more.`,
       );
       this.audio.play("blocked");
-      this.refreshUi();
       return false;
     }
 
@@ -14568,8 +14679,6 @@ export class GameScene extends Phaser.Scene {
     this.setSkillStatus(`${upgrade.name} upgraded to ${level + 1}/${upgrade.maxLevel}.`);
     this.audio.play("upgrade");
     this.saveState();
-    this.layoutSkillTree();
-    this.refreshUi();
     return true;
   }
 
