@@ -1,0 +1,112 @@
+{
+  "date": "2026-06-30",
+  "topic": "mobile tile padding and touch audio variants",
+  "currentUserGoal": "User reports mobile tiles are still chopped and grass touch audio still sounds like one repeated SFX; fix both and deploy for phone testing.",
+  "changesMade": [
+    "Increased compact mobile board content inset so early fields scale down slightly and keep more real space between grass tiles and the rounded board frame.",
+    "Expanded compact board mask bleed from a small edge allowance to a wider safe area so tile art and feedback are not cropped at the frame.",
+    "Replaced the single mobile fallback grass-touch WAV with seven generated lower crunchy scrape variants.",
+    "Expanded the mobile fallback audio pool to ten HTMLAudio players sourced from the seven variants and added slight playback-rate variation per touch."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/systems/AudioSystem.ts",
+    "handoffs/HANDOFF_2026-06-30_MOBILE_TILE_AUDIO_VARIANTS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run build passed; local production asset dist/assets/index-DHkGerue.js.",
+    "git diff --check passed.",
+    "Headless Chrome mobile viewport 390x844, ?fieldShape=rect10 visual check: bottom/edge tiles have clear frame padding.",
+    "Headless Chrome mobile viewport 390x844, ?fieldShape=rect12 visual check: full 4x3 early field has no chopped bottom row.",
+    "Headless Chrome mobile viewport 390x844, ?fieldShape=rect25 visual check: denser field remains inside the board frame.",
+    "Headless Chrome mobile instrumentation after a touch created 10 fallback HTMLAudio players from 7 unique WAV data sources.",
+    "Headless Chrome mobile viewport 390x844, ?perfHarness&tiles=1200 completed with no frame spikes."
+  ],
+  "perfHarness390x844": [
+    {
+      "phase": "idle",
+      "visibleTiles": 132,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 853,
+      "activeTweens": 20
+    },
+    {
+      "phase": "tapBurst",
+      "visibleTiles": 143,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 861,
+      "activeTweens": 27
+    },
+    {
+      "phase": "skillOpen",
+      "visibleTiles": 143,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 853,
+      "activeTweens": 19
+    },
+    {
+      "phase": "skillSelect",
+      "visibleTiles": 143,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 18,
+      "frameSpikes": 0,
+      "displayObjects": 845,
+      "activeTweens": 11
+    },
+    {
+      "phase": "pan",
+      "visibleTiles": 132,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 18,
+      "frameSpikes": 0,
+      "displayObjects": 917,
+      "activeTweens": 21
+    },
+    {
+      "phase": "complete",
+      "visibleTiles": 99,
+      "layoutPasses": 0,
+      "redraws": 0,
+      "redrawQueued": 0,
+      "maxFrameDeltaMs": 17,
+      "frameSpikes": 0,
+      "displayObjects": 751,
+      "activeTweens": 20
+    }
+  ],
+  "currentGitStatus": [
+    "Expected modified files before commit: src/game/scenes/GameScene.ts, src/game/systems/AudioSystem.ts, handoffs/LATEST.json, and this handoff file.",
+    "Unrelated untracked docs/assets remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "Desktop/headless tests can verify variant creation and layout, but exact phone speaker timbre still needs real iPhone/Android feedback.",
+    "The in-app browser automation was unreliable earlier, so visual/perf verification used one-off local headless Chrome via CDP."
+  ],
+  "nextRecommendedSteps": [
+    "Deploy production and have the user hard refresh on iPhone.",
+    "Ask for feedback separately on visual cropping and sound language: too dull, too clicky, too loud, too quiet, or finally crunchy enough.",
+    "If the user still sees chopped tiles, capture their exact board tile count/shape and add a matching fieldShape harness case before the next layout pass."
+  ],
+  "doNotRevert": [
+    "Keep multiple HTMLAudio fallback variants; using one data URI makes mobile touch audio feel repeated.",
+    "Keep the larger mobile compact inset unless real phone testing says the board now feels too small.",
+    "Keep large-field viewport culling behavior measured with perf harness after any further board layout changes."
+  ]
+}

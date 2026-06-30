@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-30",
-  "latestHandoff": "HANDOFF_2026-06-30_WHOLE_TILE_BOARD_VIEW.json",
+  "latestHandoff": "HANDOFF_2026-06-30_MOBILE_TILE_AUDIO_VARIANTS.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

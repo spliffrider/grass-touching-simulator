@@ -135,7 +135,9 @@ const EXPANDED_BOARD_NARROW_SIDE_THRESHOLD = 7;
 const EXPANDED_BOARD_MOBILE_SIDE_THRESHOLD = 8;
 const BOARD_CONTENT_INSET_PX = 22;
 const BOARD_COMPACT_MASK_BLEED_MIN_PX = 6;
-const BOARD_COMPACT_MASK_BLEED_MAX_PX = 14;
+const BOARD_COMPACT_MASK_BLEED_MAX_PX = 30;
+const BOARD_CONTENT_INSET_SCALE = 26;
+const BOARD_MOBILE_COMPACT_CONTENT_INSET_SCALE = 38;
 const DESKTOP_BOARD_RIGHT_UI_RESERVE = 154;
 const DESKTOP_BOARD_FLOATING_UI_GAP = 14;
 const COMPACT_LARGE_FIELD_MAX_WIDTH = 560;
@@ -7888,7 +7890,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const desiredBleed = Phaser.Math.Clamp(
-      TILE_GAP * this.boardScale + 4,
+      TILE_GAP * this.boardScale + 16,
       BOARD_COMPACT_MASK_BLEED_MIN_PX,
       BOARD_COMPACT_MASK_BLEED_MAX_PX,
     );
@@ -7937,7 +7939,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getBoardContentInsetForScale(scale: number): number {
-    return Math.max(BOARD_CONTENT_INSET_PX, 26 * scale);
+    const scaledInset = (this.isMobilePortrait() ? BOARD_MOBILE_COMPACT_CONTENT_INSET_SCALE : BOARD_CONTENT_INSET_SCALE) * scale;
+    return Math.max(BOARD_CONTENT_INSET_PX, scaledInset);
   }
 
   private getMaxBoardScaleForAvailableSpace(boardWidth: number, boardHeight: number): number {

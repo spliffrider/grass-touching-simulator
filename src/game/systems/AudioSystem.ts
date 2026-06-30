@@ -22,6 +22,8 @@ const TOUCH_SOUND_BUSY_INTERVAL_MS = 68;
 const SFX_MASTER_GAIN = 0.64;
 const TOUCH_TRANSIENT_GAIN = 1.24;
 const TOUCH_CRUNCH_GAIN = 1.7;
+const FALLBACK_GRASS_VARIANT_COUNT = 7;
+const FALLBACK_GRASS_AUDIO_POOL_SIZE = 10;
 
 export class AudioSystem {
   private context?: AudioContext;
@@ -35,7 +37,7 @@ export class AudioSystem {
   private volume = DEFAULT_SFX_VOLUME;
   private fallbackGrassAudios: HTMLAudioElement[] = [];
   private fallbackGrassAudioIndex = 0;
-  private fallbackGrassDataUri?: string;
+  private fallbackGrassDataUris: string[] = [];
 
   setVolume(volume: number): void {
     this.volume = Math.max(0, Math.min(1, volume));
@@ -525,7 +527,12 @@ export class AudioSystem {
       return false;
     }
 
-    audio.volume = Math.min(1, this.volume * (isCrit ? 1 : 0.88));
+    audio.volume = Math.min(1, this.volume * (isCrit ? 1 : 0.96));
+    try {
+      audio.playbackRate = isCrit ? 1.02 + Math.random() * 0.08 : 0.86 + Math.random() * 0.13;
+    } catch {
+      // Playback-rate changes are only seasoning; the pre-rendered variants still carry the crunch.
+    }
     try {
       audio.currentTime = 0;
     } catch {
@@ -541,13 +548,15 @@ export class AudioSystem {
     }
 
     if (this.fallbackGrassAudios.length === 0) {
-      const source = this.getFallbackGrassDataUri();
-      this.fallbackGrassAudios = Array.from({ length: 5 }, () => {
+      const sources = this.getFallbackGrassDataUris();
+      this.fallbackGrassAudios = Array.from({ length: FALLBACK_GRASS_AUDIO_POOL_SIZE }, (_, index) => {
+        const source = sources[index % sources.length];
         const audio = new Audio(source);
         audio.preload = "auto";
         audio.load();
         return audio;
       });
+      this.fallbackGrassAudioIndex = Math.floor(Math.random() * this.fallbackGrassAudios.length);
     }
 
     const audio = this.fallbackGrassAudios[this.fallbackGrassAudioIndex];
@@ -555,14 +564,26 @@ export class AudioSystem {
     return audio;
   }
 
-  private getFallbackGrassDataUri(): string {
-    this.fallbackGrassDataUri ??= this.createFallbackGrassDataUri();
-    return this.fallbackGrassDataUri;
+  private getFallbackGrassDataUris(): string[] {
+    if (this.fallbackGrassDataUris.length === 0) {
+      this.fallbackGrassDataUris = Array.from({ length: FALLBACK_GRASS_VARIANT_COUNT }, (_, index) => this.createFallbackGrassDataUri(index));
+    }
+
+    return this.fallbackGrassDataUris;
   }
 
-  private createFallbackGrassDataUri(): string {
-    const sampleRate = 22050;
-    const durationSeconds = 0.12;
+  private createFallbackGrassDataUri(variantIndex: number): string {
+    const profile = [
+      { duration: 0.13, bodyFreq: 112, clickFreq: 620, toothFreq: 980, lateClickFreq: 760, bodyDecay: 19, snapDecay: 54, lateClickAt: 0.028, lateClickDecay: 62, bodySmoothing: 0.78, bodyGain: 0.86, gritGain: 0.48, clickGain: 0.2, toothGain: 0.09, lateClickGain: 0.12, drive: 1.68 },
+      { duration: 0.15, bodyFreq: 84, clickFreq: 440, toothFreq: 720, lateClickFreq: 560, bodyDecay: 15, snapDecay: 42, lateClickAt: 0.036, lateClickDecay: 48, bodySmoothing: 0.84, bodyGain: 0.98, gritGain: 0.4, clickGain: 0.18, toothGain: 0.07, lateClickGain: 0.1, drive: 1.72 },
+      { duration: 0.12, bodyFreq: 132, clickFreq: 700, toothFreq: 1120, lateClickFreq: 880, bodyDecay: 22, snapDecay: 70, lateClickAt: 0.022, lateClickDecay: 74, bodySmoothing: 0.7, bodyGain: 0.74, gritGain: 0.58, clickGain: 0.22, toothGain: 0.11, lateClickGain: 0.13, drive: 1.62 },
+      { duration: 0.16, bodyFreq: 72, clickFreq: 360, toothFreq: 660, lateClickFreq: 500, bodyDecay: 13, snapDecay: 36, lateClickAt: 0.044, lateClickDecay: 44, bodySmoothing: 0.88, bodyGain: 1.04, gritGain: 0.34, clickGain: 0.14, toothGain: 0.06, lateClickGain: 0.1, drive: 1.78 },
+      { duration: 0.135, bodyFreq: 96, clickFreq: 520, toothFreq: 860, lateClickFreq: 690, bodyDecay: 17, snapDecay: 50, lateClickAt: 0.03, lateClickDecay: 58, bodySmoothing: 0.8, bodyGain: 0.92, gritGain: 0.46, clickGain: 0.19, toothGain: 0.08, lateClickGain: 0.11, drive: 1.7 },
+      { duration: 0.145, bodyFreq: 124, clickFreq: 580, toothFreq: 930, lateClickFreq: 820, bodyDecay: 18, snapDecay: 60, lateClickAt: 0.025, lateClickDecay: 68, bodySmoothing: 0.76, bodyGain: 0.82, gritGain: 0.55, clickGain: 0.21, toothGain: 0.1, lateClickGain: 0.14, drive: 1.66 },
+      { duration: 0.155, bodyFreq: 78, clickFreq: 410, toothFreq: 760, lateClickFreq: 610, bodyDecay: 14, snapDecay: 40, lateClickAt: 0.04, lateClickDecay: 50, bodySmoothing: 0.86, bodyGain: 1.0, gritGain: 0.38, clickGain: 0.16, toothGain: 0.07, lateClickGain: 0.11, drive: 1.76 },
+    ][variantIndex % FALLBACK_GRASS_VARIANT_COUNT];
+    const sampleRate = 24000;
+    const durationSeconds = profile.duration;
     const sampleCount = Math.floor(sampleRate * durationSeconds);
     const bytesPerSample = 2;
     const dataSize = sampleCount * bytesPerSample;
@@ -599,24 +620,35 @@ export class AudioSystem {
     writeString("data");
     writeUint32(dataSize);
 
-    let previousNoise = 0;
+    let seed = (0x9e3779b9 ^ ((variantIndex + 1) * 0x85ebca6b)) >>> 0;
+    const random = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 0x100000000;
+    };
+    const phase = random() * Math.PI * 2;
+    let previousBody = 0;
     let bodyState = 0;
     let gritState = 0;
     for (let i = 0; i < sampleCount; i += 1) {
       const t = i / sampleRate;
-      const random = Math.random() * 2 - 1;
-      bodyState = bodyState * 0.72 + random * 0.28;
-      gritState = gritState * 0.35 + random * 0.65;
-      const lowerScrape = bodyState - previousNoise * 0.3;
-      const midGrit = gritState - bodyState * 0.48;
-      previousNoise = random;
-      const bodyEnvelope = Math.exp(-t * 25);
-      const snapEnvelope = Math.exp(-t * 58);
-      const scratch = lowerScrape * bodyEnvelope * 0.82;
-      const snap = midGrit * snapEnvelope * 0.42;
-      const woodClick = Math.sin(2 * Math.PI * 760 * t) * snapEnvelope * 0.2;
-      const tooth = Math.sin(2 * Math.PI * 1320 * t) * Math.exp(-t * 72) * 0.13;
-      const value = Math.tanh((scratch + snap + woodClick + tooth) * 1.55);
+      const raw = random() * 2 - 1;
+      bodyState = bodyState * profile.bodySmoothing + raw * (1 - profile.bodySmoothing);
+      gritState = gritState * 0.38 + raw * 0.62;
+      const lowerScrape = bodyState - previousBody * 0.22;
+      const midGrit = gritState - bodyState * 0.52;
+      previousBody = bodyState;
+      const bodyEnvelope = Math.exp(-t * profile.bodyDecay);
+      const snapEnvelope = Math.exp(-t * profile.snapDecay);
+      const lateT = t - profile.lateClickAt;
+      const lateEnvelope = lateT > 0 ? Math.exp(-lateT * profile.lateClickDecay) : 0;
+      const scratch = lowerScrape * bodyEnvelope * profile.bodyGain;
+      const bristle = midGrit * snapEnvelope * profile.gritGain;
+      const bodyTone = Math.sin(2 * Math.PI * profile.bodyFreq * t + phase) * bodyEnvelope * 0.16;
+      const woodClick = Math.sin(2 * Math.PI * profile.clickFreq * t) * snapEnvelope * profile.clickGain;
+      const tooth = Math.sin(2 * Math.PI * profile.toothFreq * t) * Math.exp(-t * 72) * profile.toothGain;
+      const lateClick = lateEnvelope > 0 ? Math.sin(2 * Math.PI * profile.lateClickFreq * lateT) * lateEnvelope * profile.lateClickGain : 0;
+      const crackle = random() > 0.965 ? (random() * 2 - 1) * snapEnvelope * 0.13 : 0;
+      const value = Math.tanh((scratch + bristle + bodyTone + woodClick + tooth + lateClick + crackle) * profile.drive);
       view.setInt16(offset, Math.round(value * 32767), true);
       offset += 2;
     }
