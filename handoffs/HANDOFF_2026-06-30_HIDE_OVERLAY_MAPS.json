@@ -1,0 +1,35 @@
+{
+  "date": "2026-06-30",
+  "topic": "hide maps on overlay screens",
+  "currentUserGoal": "User says the world map should not be visible in the skill selection screen, shop, or settings/audio setup screen.",
+  "changesMade": [
+    "Disabled and cleared the skill-tree minimap graphic so the map rectangle no longer appears inside the Skills overlay.",
+    "Kept the gameplay World Map gated behind the existing blocking-overlay state, which already covers Skills, Seed Shop, Gold Store, Automation, Quest Log, Journal, and Options."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-06-30_HIDE_OVERLAY_MAPS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run build passed; local production asset dist/assets/index-4gnWQt10.js.",
+    "git diff --check passed.",
+    "Headless Chrome mobile viewport 390x844: opened Skills screen and confirmed the minimap rectangle is gone from the skill tree panel."
+  ],
+  "currentGitStatus": [
+    "Expected modified files before commit: src/game/scenes/GameScene.ts, handoffs/LATEST.json, and this handoff file.",
+    "Unrelated untracked docs/assets remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The skill-tree minimap drawing code remains in place but is disabled by shouldShowSkillMinimap returning false, so it can be intentionally restored later if desired.",
+    "The gameplay World Map remains available during gameplay on eligible desktop/tablet viewports."
+  ],
+  "nextRecommendedSteps": [
+    "Deploy production and have the user hard refresh on iPhone.",
+    "Ask the user to check Skills, Seed/Shop, and Options screens for any remaining map overlay bleed-through."
+  ],
+  "doNotRevert": [
+    "Do not re-enable the skill minimap on mobile/overlay screens without user approval.",
+    "Keep the gameplay World Map hidden while any blocking overlay is open."
+  ]
+}

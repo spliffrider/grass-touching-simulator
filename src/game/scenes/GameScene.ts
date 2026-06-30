@@ -3977,7 +3977,7 @@ export class GameScene extends Phaser.Scene {
     this.skillMapLayer = this.add.container(0, 0).setMask(this.skillMapViewportMask!);
     this.skillLineGraphics = this.add.graphics();
     this.skillMapLayer.add(this.skillLineGraphics);
-    this.skillMinimapGraphics = this.add.graphics();
+    this.skillMinimapGraphics = this.add.graphics().setVisible(false);
 
     this.skillTitleText = this.add.text(0, 0, "Grass Skill Tree", {
       fontFamily: "Trebuchet MS, Arial",
@@ -4404,10 +4404,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   private layoutSkillMinimap(): void {
-    if (!this.skillMinimapGraphics || !this.skillRoot?.visible) {
+    if (!this.skillMinimapGraphics) {
       return;
     }
 
+    this.skillMinimapGraphics.clear();
+    this.skillMinimapGraphics.setVisible(false);
+    if (!this.skillRoot?.visible || !this.shouldShowSkillMinimap()) {
+      return;
+    }
+
+    this.skillMinimapGraphics.setVisible(true);
     const miniWidth = Math.round(Math.min(SKILL_MINIMAP_WIDTH, Math.max(108, this.skillMapViewportWidth * 0.28)));
     const miniHeight = Math.round(Math.min(SKILL_MINIMAP_HEIGHT, Math.max(86, this.skillMapViewportHeight * 0.26)));
     const x = Math.round(this.skillMapViewportX + this.skillMapViewportWidth - miniWidth - 14);
@@ -4420,7 +4427,6 @@ export class GameScene extends Phaser.Scene {
     const offsetX = contentX + (contentWidth - this.skillMapWorldWidth * miniScale) / 2;
     const offsetY = contentY + (contentHeight - this.skillMapWorldHeight * miniScale) / 2;
 
-    this.skillMinimapGraphics.clear();
     this.skillMinimapGraphics.fillStyle(0x020805, 0.58);
     this.skillMinimapGraphics.fillRoundedRect(x + 4, y + 5, miniWidth, miniHeight, 8);
     this.skillMinimapGraphics.fillStyle(0x06190f, 0.9);
@@ -4477,6 +4483,10 @@ export class GameScene extends Phaser.Scene {
     this.skillMinimapGraphics.fillRect(markerX, markerY, Math.max(8, markerRight - markerX), Math.max(8, markerBottom - markerY));
     this.skillMinimapGraphics.lineStyle(2, 0xffef78, 0.95);
     this.skillMinimapGraphics.strokeRect(markerX, markerY, Math.max(8, markerRight - markerX), Math.max(8, markerBottom - markerY));
+  }
+
+  private shouldShowSkillMinimap(): boolean {
+    return false;
   }
 
   private createQuestLog(): void {

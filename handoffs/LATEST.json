@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-30",
-  "latestHandoff": "HANDOFF_2026-06-30_MOBILE_TOUCH_AUDIO_MUTED.json",
+  "latestHandoff": "HANDOFF_2026-06-30_HIDE_OVERLAY_MAPS.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",
