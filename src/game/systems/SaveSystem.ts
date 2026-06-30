@@ -1,4 +1,4 @@
-import { MAX_FIELD_TILES, createInitialState } from "./FieldSystem";
+import { MAX_FIELD_TILES, createInitialState, tileKey } from "./FieldSystem";
 import { isAutomationDirectiveId } from "./AutomationDirectiveSystem";
 import { DEFAULT_GAME_TRACK_ID, TRACK_IDS } from "./ChiptuneMusicSystem";
 import { createAutomationStatsState } from "./AutomationProgressSystem";
@@ -32,6 +32,7 @@ const SAVE_KEY = "grass-touching-simulator.save.v1";
 const VALID_GRASS_TIERS = ["normal", "thick", "clover", "golden", "wildflower", "moss", "mushroom", "crystal", "frost"] as const;
 const LEGACY_DEFAULT_GAME_TRACK_ID = "cozy_meadow";
 const GRASSLANDS_GROOVE_DEFAULT_SAVE_VERSION = 14;
+const EARLY_FIELD_COMPACT_TILE_LIMIT = 4;
 
 type SaveProfiler = <T>(name: string, callback: () => T) => T;
 
@@ -150,7 +151,66 @@ function normalizeField(value: unknown, fallback: Record<TileKey, FieldTile>): R
     tileCount += 1;
   }
 
-  return Object.keys(field).length > 0 ? field : fallback;
+  const normalizedField = Object.keys(field).length > 0 ? field : fallback;
+  return compactEarlyLineField(normalizedField);
+}
+
+function compactEarlyLineField(field: Record<TileKey, FieldTile>): Record<TileKey, FieldTile> {
+  const tiles = Object.values(field);
+  if (tiles.length <= 1 || tiles.length > EARLY_FIELD_COMPACT_TILE_LIMIT) {
+    return field;
+  }
+
+  const bounds = getTileBounds(tiles);
+  if (!bounds) {
+    return field;
+  }
+
+  const longSide = Math.max(bounds.width, bounds.height);
+  if ((bounds.width !== 1 && bounds.height !== 1) || longSide < 3) {
+    return field;
+  }
+
+  const compacted: Record<TileKey, FieldTile> = {};
+  const targetCoordinates = [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 0, y: 1 },
+    { x: 1, y: 1 },
+  ];
+  const sortedTiles = [...tiles].sort((a, b) => a.y - b.y || a.x - b.x);
+
+  sortedTiles.forEach((tile, index) => {
+    const coordinate = targetCoordinates[index] ?? { x: index % 2, y: Math.floor(index / 2) };
+    const compactedTile = { ...tile, x: coordinate.x, y: coordinate.y };
+    compacted[tileKey(coordinate.x, coordinate.y)] = compactedTile;
+  });
+
+  return compacted;
+}
+
+function getTileBounds(tiles: FieldTile[]): { width: number; height: number } | undefined {
+  if (tiles.length === 0) {
+    return undefined;
+  }
+
+  let minX = tiles[0].x;
+  let maxX = tiles[0].x;
+  let minY = tiles[0].y;
+  let maxY = tiles[0].y;
+
+  for (let index = 1; index < tiles.length; index += 1) {
+    const tile = tiles[index];
+    minX = Math.min(minX, tile.x);
+    maxX = Math.max(maxX, tile.x);
+    minY = Math.min(minY, tile.y);
+    maxY = Math.max(maxY, tile.y);
+  }
+
+  return {
+    width: maxX - minX + 1,
+    height: maxY - minY + 1,
+  };
 }
 
 function readRecord<T>(value: unknown): Record<string, T> {

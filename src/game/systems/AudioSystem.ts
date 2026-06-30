@@ -19,7 +19,7 @@ const NOISE_BUFFER_SECONDS = 0.5;
 const TOUCH_SOUND_MIN_INTERVAL_MS = 42;
 const TOUCH_SOUND_BUSY_INTERVAL_MS = 68;
 const SFX_MASTER_GAIN = 0.5;
-const TOUCH_TRANSIENT_GAIN = 0.76;
+const TOUCH_TRANSIENT_GAIN = 0.84;
 
 export class AudioSystem {
   private context?: AudioContext;

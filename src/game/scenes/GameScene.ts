@@ -1279,19 +1279,19 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer, gameObjects: Phaser.GameObjects.GameObject[]) => {
-      this.audio.unlock();
-      this.music.start(this.musicVolume);
-
       if (this.hasBlockingOverlayOpen()) {
+        this.music.start(this.musicVolume);
         return;
       }
 
       const boardOnly = gameObjects.length > 0 && gameObjects.every((gameObject) => gameObject === this.boardHitZone);
       if (gameObjects.length > 0 && !boardOnly) {
+        this.music.start(this.musicVolume);
         return;
       }
 
       if (!this.isPointerInsideBoardViewport(pointer)) {
+        this.music.start(this.musicVolume);
         return;
       }
 
@@ -1311,8 +1311,12 @@ export class GameScene extends Phaser.Scene {
         if (tile) {
           this.handleTileClicked(tile);
           this.startPersistentTouch(pointer, touchedTileKey);
+          this.music.start(this.musicVolume);
+          return;
         }
       }
+
+      this.music.start(this.musicVolume);
     });
 
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {

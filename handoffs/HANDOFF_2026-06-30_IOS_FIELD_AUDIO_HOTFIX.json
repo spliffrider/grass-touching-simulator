@@ -1,0 +1,41 @@
+{
+  "date": "2026-06-30",
+  "topic": "iOS early field shape and touch audio hotfix",
+  "currentUserGoal": "Fix the iOS screenshot issue where the first expanded field could render as a tall one-column strip, and restore the crunchy grass touch sound on mobile.",
+  "changesMade": [
+    "Changed first field expansion from one random organic runner into a compact 2x2 first-spread cluster.",
+    "Added save migration normalization for early 1x3 or 1x4 fields so existing affected mobile saves load as a compact 2x2/near-square field.",
+    "Moved GameScene board tap handling so grass touch SFX gets the iOS gesture before music starts.",
+    "Raised the grass touch transient gain from 0.76 to 0.84 for better phone-speaker crunch."
+  ],
+  "filesTouched": [
+    "src/game/systems/FieldSystem.ts",
+    "src/game/systems/SaveSystem.ts",
+    "src/game/scenes/GameScene.ts",
+    "src/game/systems/AudioSystem.ts",
+    "handoffs/HANDOFF_2026-06-30_IOS_FIELD_AUDIO_HOTFIX.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run build",
+    "git diff --check",
+    "Headless Chrome/CDP smoke at 390x844 with a seeded bad 1x4 save: Continue into game rendered a compact 2x2 board.",
+    "Headless Chrome/CDP smoke at 390x844 with a seeded 7-touch single-tile save: one tile tap triggered First Sprouts and rendered a compact 2x2 board."
+  ],
+  "currentGitStatus": [
+    "Modified hotfix files are expected before commit.",
+    "Unrelated untracked docs/assets remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "iOS audio could not be audibly verified from Windows headless Chrome; code path now prioritizes SFX before music on tile taps and increases touch transient gain."
+  ],
+  "nextRecommendedSteps": [
+    "Deploy production and ask for an iPhone hard refresh before testing.",
+    "On iOS Safari, confirm an affected 8-touch save loads as 2x2 and repeated tile taps have the crunchy touch SFX.",
+    "If crunch is still weak on real devices, inspect Web Audio unlock behavior directly on iOS and consider a combined unlock-plus-immediate-SFX helper."
+  ],
+  "doNotRevert": [
+    "Do not revert the mobile perf commit 176e41a or unrelated untracked user documents.",
+    "Do not reintroduce bare audio.unlock() before board tile handling; iOS should give the tap gesture to grass SFX first."
+  ]
+}

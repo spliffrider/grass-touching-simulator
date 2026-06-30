@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-06-30",
-  "latestHandoff": "HANDOFF_2026-06-30_MOBILE_PERF.json",
+  "latestHandoff": "HANDOFF_2026-06-30_IOS_FIELD_AUDIO_HOTFIX.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

@@ -17,6 +17,7 @@ const NEIGHBORS = [
 const regrowingTileKeysByState = new WeakMap<GameState, Set<TileKey>>();
 const fieldTileCacheByState = new WeakMap<GameState, FieldTile[]>();
 export const MAX_FIELD_TILES = 2500;
+const FIRST_SPREAD_CLUSTER_MIN_TILES = 3;
 
 interface ExpansionCandidate {
   x: number;
@@ -399,11 +400,19 @@ function getRegrowingTileKeySet(state: GameState): Set<TileKey> {
 
 export function expandField(state: GameState, tileCount: number, stats: RuntimeStats): FieldTile[] {
   const added: FieldTile[] = [];
-  const currentTileCount = getFieldTiles(state).length;
+  const initialTiles = getFieldTiles(state);
+  const currentTileCount = initialTiles.length;
   const remainingCapacity = Math.max(0, MAX_FIELD_TILES - currentTileCount);
   const tilesToAdd = Math.min(tileCount, remainingCapacity);
   if (tilesToAdd <= 0) {
     return added;
+  }
+
+  if (currentTileCount === 1 && tilesToAdd >= FIRST_SPREAD_CLUSTER_MIN_TILES) {
+    added.push(...addFirstSpreadCluster(state, initialTiles[0], tilesToAdd, stats));
+    if (added.length > 0) {
+      fieldTileCacheByState.delete(state);
+    }
   }
 
   let bounds = getFieldBounds(state);
@@ -417,7 +426,7 @@ export function expandField(state: GameState, tileCount: number, stats: RuntimeS
     candidates.set(tileKey(candidate.x, candidate.y), candidate);
   }
 
-  for (let i = 0; i < tilesToAdd; i += 1) {
+  for (let i = added.length; i < tilesToAdd; i += 1) {
     const candidateList = [...candidates.values()];
     if (candidateList.length === 0) {
       break;
@@ -434,9 +443,7 @@ export function expandField(state: GameState, tileCount: number, stats: RuntimeS
     const shouldKeepGrowingRunner = runnerCandidates.length > 0 && Math.random() < (balanceAxis ? 0.52 : 0.72);
     const pool = shouldKeepGrowingRunner ? runnerCandidates : candidateList;
     const chosen = pickOrganicCandidate(pool, growthDirection, lastDirection, lastTile, balanceAxis, bounds);
-    const trait = Math.random() < stats.dewChance ? "dewy" : "normal";
-    const tier = pickGrassTier(state, stats).id;
-    const tile = createTile(chosen.x, chosen.y, trait, tier);
+    const tile = createExpansionTile(state, stats, chosen.x, chosen.y);
     state.field[tileKey(tile.x, tile.y)] = tile;
     candidates.delete(tileKey(tile.x, tile.y));
     addExpansionCandidatesFromTile(state, candidates, tile, center);
@@ -456,6 +463,43 @@ export function expandField(state: GameState, tileCount: number, stats: RuntimeS
   }
 
   return added;
+}
+
+function addFirstSpreadCluster(state: GameState, origin: FieldTile | undefined, tileCount: number, stats: RuntimeStats): FieldTile[] {
+  if (!origin) {
+    return [];
+  }
+
+  const xDirection = Math.random() < 0.5 ? -1 : 1;
+  const yDirection = Math.random() < 0.5 ? -1 : 1;
+  const coordinates = [
+    { x: origin.x + xDirection, y: origin.y },
+    { x: origin.x, y: origin.y + yDirection },
+    { x: origin.x + xDirection, y: origin.y + yDirection },
+  ];
+  const added: FieldTile[] = [];
+
+  for (const coordinate of coordinates) {
+    if (added.length >= tileCount) {
+      break;
+    }
+
+    if (state.field[tileKey(coordinate.x, coordinate.y)]) {
+      continue;
+    }
+
+    const tile = createExpansionTile(state, stats, coordinate.x, coordinate.y);
+    state.field[tileKey(tile.x, tile.y)] = tile;
+    added.push(tile);
+  }
+
+  return added;
+}
+
+function createExpansionTile(state: GameState, stats: RuntimeStats, x: number, y: number): FieldTile {
+  const trait = Math.random() < stats.dewChance ? "dewy" : "normal";
+  const tier = pickGrassTier(state, stats).id;
+  return createTile(x, y, trait, tier);
 }
 
 function pickRegrownTrait(stats: RuntimeStats, tile: FieldTile): TileTrait {
