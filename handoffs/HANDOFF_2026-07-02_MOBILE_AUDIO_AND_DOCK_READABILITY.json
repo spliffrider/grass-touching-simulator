@@ -1,0 +1,49 @@
+{
+  "date": "2026-07-02",
+  "topic": "mobile audio and dock readability",
+  "currentUserGoal": "Soften the harsh mobile grass-touch sound and make the bottom mobile UI buttons much more readable.",
+  "changesMade": [
+    "Reduced mobile grass-touch HTMLAudio playback volume and slightly lowered playback rates so taps feel less sharp on phone speakers.",
+    "Rebuilt the generated mobile grass tap WAV profiles around warmer, more heavily smoothed brush noise, much smaller leaf/dry-noise accents, gentler attack/release edges, and lower drive.",
+    "Bumped the mobile test URL version from soft-mobile-audio-1 to soft-mobile-audio-2.",
+    "Changed the mobile action dock from a cramped five-column row to larger three-column/two-row layout for the early mobile button set.",
+    "Changed mobile action labels from two-line icon-over-label text to single-line labels such as SK Skill 1, Q Quest 1, and T Testing."
+  ],
+  "filesTouched": [
+    "src/game/systems/AudioSystem.ts",
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-07-02_MOBILE_AUDIO_AND_DOCK_READABILITY.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run build passed.",
+    "Started local Vite server on http://127.0.0.1:5173/.",
+    "Browser mobile viewport check at 390x844 loaded http://127.0.0.1:5173/?mobileTest=audio&v=soft-mobile-audio-2 with document.documentElement.dataset.grassMobileTestMode=audio and a 390x844 canvas.",
+    "Visual mobile screenshot showed the bottom dock in two rows with readable single-line labels: SK Skill 1, Q Quest 1, SE Seed, OP Opts, T Testing.",
+    "Mobile perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200 completed with frameSpikes=0, layoutPasses=0, redraws=0, redrawQueued=0, and tileMode=viewport across phases."
+  ],
+  "currentGitStatus": [
+    "Modified: src/game/scenes/GameScene.ts",
+    "Modified: src/game/systems/AudioSystem.ts",
+    "New handoff pending: handoffs/HANDOFF_2026-07-02_MOBILE_AUDIO_AND_DOCK_READABILITY.json",
+    "Updated handoff pointer pending: handoffs/LATEST.json",
+    "Pre-existing unrelated untracked files still present and untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "The mobile tap sound is still ultimately a generated noise-based sample; physical iPhone Safari and Android Chrome remain the final judgment for whether it is soft enough.",
+    "The larger mobile dock reserves more vertical space, but the perf harness preserved viewport culling and did not introduce layout/redraw churn.",
+    "The local Vite server was left running on port 5173 for immediate testing."
+  ],
+  "nextRecommendedSteps": [
+    "Open http://127.0.0.1:5173/?mobileTest=audio&v=soft-mobile-audio-2 locally or deploy the branch and test the same query on production.",
+    "On a real phone, compare slow taps, rapid taps, and swipe/drag against the previous harsh sound.",
+    "If the SFX still reads as white noise, reduce mobile leafGain again or remove dryAccent entirely from createMobileGrassDataUri.",
+    "If the two-row dock feels too tall on the smallest phones, consider icon-only labels for secondary tabs, but keep the current readable single-line labels as the baseline."
+  ],
+  "doNotRevert": [
+    "Do not restore the mobile five-column dock row; it caused unreadable labels on phone screenshots.",
+    "Do not restore the mobile two-line action labels unless the buttons are redesigned to provide more text area.",
+    "Do not route mobile grass taps through the full desktop WebAudio crunch stack.",
+    "Do not touch or remove the unrelated untracked docs/assets listed in git status."
+  ]
+}

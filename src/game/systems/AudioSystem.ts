@@ -567,9 +567,9 @@ export class AudioSystem {
       return false;
     }
 
-    audio.volume = Math.min(1, this.volume * (isCrit ? 0.84 : 0.76));
+    audio.volume = Math.min(1, this.volume * (isCrit ? 0.62 : 0.5));
     try {
-      audio.playbackRate = isCrit ? 0.98 + Math.random() * 0.08 : 0.88 + Math.random() * 0.09;
+      audio.playbackRate = isCrit ? 0.94 + Math.random() * 0.06 : 0.82 + Math.random() * 0.08;
     } catch {
       // Playback-rate changes are optional; the source variants provide the core texture.
     }
@@ -644,12 +644,12 @@ export class AudioSystem {
 
   private createMobileGrassDataUri(variantIndex: number): string {
     const profile = [
-      { duration: 0.11, bodyFreq: 132, bodyDecay: 14, leafDecay: 24, bodySmoothing: 0.91, leafSmoothing: 0.66, bodyGain: 1.08, leafGain: 0.22, toneGain: 0.12, dryGain: 0.012, dryChance: 0.984, drive: 1.1 },
-      { duration: 0.125, bodyFreq: 104, bodyDecay: 12, leafDecay: 20, bodySmoothing: 0.94, leafSmoothing: 0.72, bodyGain: 1.16, leafGain: 0.18, toneGain: 0.13, dryGain: 0.008, dryChance: 0.988, drive: 1.08 },
-      { duration: 0.1, bodyFreq: 156, bodyDecay: 17, leafDecay: 28, bodySmoothing: 0.88, leafSmoothing: 0.6, bodyGain: 0.98, leafGain: 0.27, toneGain: 0.1, dryGain: 0.018, dryChance: 0.98, drive: 1.12 },
-      { duration: 0.118, bodyFreq: 88, bodyDecay: 11, leafDecay: 19, bodySmoothing: 0.95, leafSmoothing: 0.74, bodyGain: 1.2, leafGain: 0.16, toneGain: 0.14, dryGain: 0.007, dryChance: 0.99, drive: 1.06 },
-      { duration: 0.096, bodyFreq: 176, bodyDecay: 18, leafDecay: 31, bodySmoothing: 0.86, leafSmoothing: 0.58, bodyGain: 0.9, leafGain: 0.31, toneGain: 0.09, dryGain: 0.024, dryChance: 0.977, drive: 1.14 },
-      { duration: 0.13, bodyFreq: 116, bodyDecay: 13, leafDecay: 22, bodySmoothing: 0.93, leafSmoothing: 0.7, bodyGain: 1.12, leafGain: 0.2, toneGain: 0.13, dryGain: 0.01, dryChance: 0.986, drive: 1.08 },
+      { duration: 0.142, bodyFreq: 118, bodyDecay: 10.5, leafDecay: 15.5, bodySmoothing: 0.982, leafSmoothing: 0.93, bodyGain: 0.88, leafGain: 0.055, toneGain: 0.105, dryGain: 0.002, dryChance: 0.997, drive: 0.84 },
+      { duration: 0.156, bodyFreq: 96, bodyDecay: 9.4, leafDecay: 14.2, bodySmoothing: 0.986, leafSmoothing: 0.945, bodyGain: 0.94, leafGain: 0.045, toneGain: 0.115, dryGain: 0.0015, dryChance: 0.998, drive: 0.8 },
+      { duration: 0.132, bodyFreq: 138, bodyDecay: 11.8, leafDecay: 17.5, bodySmoothing: 0.978, leafSmoothing: 0.91, bodyGain: 0.82, leafGain: 0.065, toneGain: 0.095, dryGain: 0.0025, dryChance: 0.996, drive: 0.86 },
+      { duration: 0.164, bodyFreq: 84, bodyDecay: 8.7, leafDecay: 13.6, bodySmoothing: 0.988, leafSmoothing: 0.952, bodyGain: 0.98, leafGain: 0.04, toneGain: 0.12, dryGain: 0.0012, dryChance: 0.9985, drive: 0.78 },
+      { duration: 0.126, bodyFreq: 152, bodyDecay: 12.6, leafDecay: 18.8, bodySmoothing: 0.974, leafSmoothing: 0.9, bodyGain: 0.78, leafGain: 0.075, toneGain: 0.085, dryGain: 0.003, dryChance: 0.9955, drive: 0.88 },
+      { duration: 0.15, bodyFreq: 108, bodyDecay: 10.1, leafDecay: 15.1, bodySmoothing: 0.984, leafSmoothing: 0.936, bodyGain: 0.9, leafGain: 0.05, toneGain: 0.11, dryGain: 0.0018, dryChance: 0.9975, drive: 0.82 },
     ][variantIndex % MOBILE_GRASS_VARIANT_COUNT];
     const sampleRate = 22050;
     const sampleCount = Math.floor(sampleRate * profile.duration);
@@ -700,19 +700,21 @@ export class AudioSystem {
 
     for (let i = 0; i < sampleCount; i += 1) {
       const t = i / sampleRate;
-      const attack = Math.min(1, t / 0.01);
+      const attack = Math.min(1, t / 0.018);
+      const release = Math.min(1, (profile.duration - t) / 0.024);
+      const edgeEnvelope = attack * release;
       const raw = random() * 2 - 1;
       bodyState = bodyState * profile.bodySmoothing + raw * (1 - profile.bodySmoothing);
       leafState = leafState * profile.leafSmoothing + raw * (1 - profile.leafSmoothing);
-      dryState = dryState * 0.7 + raw * 0.3;
-      const bodyEnvelope = attack * Math.exp(-t * profile.bodyDecay);
-      const leafEnvelope = attack * Math.exp(-t * profile.leafDecay);
-      const dryEnvelope = attack * Math.exp(-t * 54);
+      dryState = dryState * 0.82 + raw * 0.18;
+      const bodyEnvelope = edgeEnvelope * Math.exp(-t * profile.bodyDecay);
+      const leafEnvelope = edgeEnvelope * Math.exp(-t * profile.leafDecay);
+      const dryEnvelope = edgeEnvelope * Math.exp(-t * 58);
       const softBrush = bodyState * bodyEnvelope * profile.bodyGain;
-      const leafRub = (leafState - bodyState * 0.62) * leafEnvelope * profile.leafGain;
+      const leafRub = (leafState - bodyState * 0.35) * leafEnvelope * profile.leafGain;
       const bodyTone = Math.sin(2 * Math.PI * profile.bodyFreq * t + phase) * bodyEnvelope * profile.toneGain;
       const dryAccent = random() > profile.dryChance ? dryState * dryEnvelope * profile.dryGain : 0;
-      const value = Math.tanh((softBrush + leafRub + bodyTone + dryAccent) * profile.drive);
+      const value = Math.tanh((softBrush + leafRub + bodyTone + dryAccent) * profile.drive) * 0.82;
       view.setInt16(offset, Math.round(value * 32767), true);
       offset += 2;
     }

@@ -260,7 +260,7 @@ const TRIGGER_FEED_ROW_HEIGHT = 54;
 const MOBILE_COMMAND_DOCK_PADDING = 10;
 const MOBILE_TEST_MODE_PARAM = "mobileTest";
 const MOBILE_TEST_MODE_VALUE = "audio";
-const MOBILE_TEST_URL_VERSION = "soft-mobile-audio-1";
+const MOBILE_TEST_URL_VERSION = "soft-mobile-audio-2";
 const UI_ACTION_ICONS = {
   skills: "SK",
   quests: "Q",
@@ -3399,7 +3399,7 @@ export class GameScene extends Phaser.Scene {
 
   private layoutMenuButtons(): void {
     const mobilePortrait = this.isMobilePortrait();
-    let buttonScale = mobilePortrait ? 0.74 : 1;
+    let buttonScale = 1;
     const buttonWidth = Number(this.skillButton.getData("baseWidth") ?? ACTION_BUTTON_WIDTH);
     const buttonHeight = Number(this.skillButton.getData("baseHeight") ?? ACTION_BUTTON_HEIGHT);
     const storeUnlocked = this.isStoreUnlocked();
@@ -3421,14 +3421,14 @@ export class GameScene extends Phaser.Scene {
     this.testButton.setVisible(showMobileTestButton);
 
     if (mobilePortrait) {
-      const columns = Math.min(visibleButtons.length <= 5 ? 5 : 4, visibleButtons.length);
+      const columns = Math.min(visibleButtons.length <= 3 ? visibleButtons.length : visibleButtons.length <= 6 ? 3 : 4, visibleButtons.length);
       const rows = Math.ceil(visibleButtons.length / columns);
-      const gap = columns >= 5 ? 4 : 7;
-      const dockX = columns >= 5 ? 4 : 10;
-      const dockPadding = columns >= 5 ? 7 : MOBILE_COMMAND_DOCK_PADDING;
+      const gap = columns >= 4 ? 6 : 8;
+      const dockX = 6;
+      const dockPadding = 8;
       const availableWidth = this.scale.width - dockX * 2 - dockPadding * 2;
       buttonScale = Math.min(buttonScale, (availableWidth - Math.max(0, columns - 1) * gap) / Math.max(1, columns * buttonWidth));
-      buttonScale = Phaser.Math.Clamp(buttonScale, 0.56, 0.74);
+      buttonScale = Phaser.Math.Clamp(buttonScale, 0.72, 1);
       const scaledButtonWidth = buttonWidth * buttonScale;
       const scaledButtonHeight = buttonHeight * buttonScale;
       const dockHeight = rows * scaledButtonHeight + Math.max(0, rows - 1) * gap + dockPadding * 2;
@@ -13303,7 +13303,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private formatActionMenuLabel(icon: string, baseLabel: string, readyCount = 0): string {
-    return `${icon}\n${this.formatReadyMenuLabel(baseLabel, readyCount)}`;
+    const readyLabel = this.formatReadyMenuLabel(baseLabel, readyCount);
+    return this.isMobilePortrait() ? `${icon} ${readyLabel}` : `${icon}\n${readyLabel}`;
   }
 
   private formatAffordabilityPreview(current: number, cost: number, formatValue: (value: number) => string, unitLabel = ""): string {

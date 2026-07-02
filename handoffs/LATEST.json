@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-01",
-  "latestHandoff": "HANDOFF_2026-07-01_FINAL_MOBILE_AUDIO_TEST_SYNC.json",
+  "updatedAt": "2026-07-02",
+  "latestHandoff": "HANDOFF_2026-07-02_MOBILE_AUDIO_AND_DOCK_READABILITY.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",
