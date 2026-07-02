@@ -1,0 +1,42 @@
+{
+  "date": "2026-07-02",
+  "topic": "desktop touch audio soften",
+  "currentUserGoal": "Fix the still-harsh grass touching SFX on the live desktop/web app while keeping the improved mobile sound feel.",
+  "changesMade": [
+    "Stopped the normal running WebAudio grass touch path from layering the generated fallback sample on top of every touch.",
+    "Reduced desktop/web grass touch transient and crunch gain so the sound reads more like a soft brush than amplified white noise.",
+    "Lowered high-frequency snap and crunch filters, softened filter Q, slowed noise attack slightly, and replaced the small square overtone with a quieter sine overtone.",
+    "Reduced first-touch and crit accent noise levels so browser unlock and crit taps are less sharp.",
+    "Softened the generated fallback sample used before WebAudio is running by lowering grit, clicks, crackle, drive, playback rate, and volume."
+  ],
+  "filesTouched": [
+    "src/game/systems/AudioSystem.ts",
+    "handoffs/HANDOFF_2026-07-02_DESKTOP_TOUCH_AUDIO_SOFTEN.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run build passed locally and produced dist/assets/index-CWCsZEWx.js.",
+    "npx vercel --prod --yes completed successfully.",
+    "Production deployment dpl_5Kodg2HFBnB41btYgYcAYvush5BA is READY and aliased to https://grasstouchingsimulator.com.",
+    "Live smoke check for https://grasstouchingsimulator.com/?v=desktop-soft-audio-1 confirmed the page serves index-CWCsZEWx.js."
+  ],
+  "currentGitStatus": [
+    "Modified: src/game/systems/AudioSystem.ts",
+    "New handoff pending: handoffs/HANDOFF_2026-07-02_DESKTOP_TOUCH_AUDIO_SOFTEN.json",
+    "Updated handoff pointer pending: handoffs/LATEST.json",
+    "Pre-existing unrelated untracked files still present and untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "Audio perception still needs a human listen test on the real devices; code/build/deploy verification cannot judge tone quality directly.",
+    "If desktop sound now feels too quiet, raise TOUCH_TRANSIENT_GAIN slightly before adding back any crunchy high-frequency layers."
+  ],
+  "nextRecommendedSteps": [
+    "Test https://grasstouchingsimulator.com/?v=desktop-soft-audio-1 on desktop and iPhone Safari with sound enabled.",
+    "If one platform still feels too sharp, tune the WebAudio and fallback paths separately rather than sharing the harsh fallback again."
+  ],
+  "doNotRevert": [
+    "Do not restore includeFallback=true for playGrassTouchNow or playFirstTouchNow; that reintroduces the double-layered harsh touch sound.",
+    "Do not restore the old high gain values TOUCH_TRANSIENT_GAIN=1.24 or TOUCH_CRUNCH_GAIN=1.7.",
+    "Do not touch or remove the unrelated untracked docs/assets listed in git status."
+  ]
+}

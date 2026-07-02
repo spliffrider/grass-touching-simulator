@@ -20,8 +20,8 @@ const NOISE_BUFFER_SECONDS = 0.5;
 const TOUCH_SOUND_MIN_INTERVAL_MS = 42;
 const TOUCH_SOUND_BUSY_INTERVAL_MS = 68;
 const SFX_MASTER_GAIN = 0.64;
-const TOUCH_TRANSIENT_GAIN = 1.24;
-const TOUCH_CRUNCH_GAIN = 1.7;
+const TOUCH_TRANSIENT_GAIN = 0.74;
+const TOUCH_CRUNCH_GAIN = 0.52;
 const FALLBACK_GRASS_VARIANT_COUNT = 7;
 const FALLBACK_GRASS_AUDIO_POOL_SIZE = 10;
 const MOBILE_GRASS_VARIANT_COUNT = 6;
@@ -253,7 +253,7 @@ export class AudioSystem {
     }
   }
 
-  private playGrassTouchNow(tier: GrassTierId, trait: TileTrait, isCrit: boolean, comboCount: number, includeFallback = true): void {
+  private playGrassTouchNow(tier: GrassTierId, trait: TileTrait, isCrit: boolean, comboCount: number, includeFallback = false): void {
     if (includeFallback) {
       this.playFallbackGrassTouch(isCrit);
     }
@@ -277,30 +277,30 @@ export class AudioSystem {
     } satisfies Record<TileTrait, { brushOffset: number; snapOffset: number; volume: number; extraPing: number }>;
     const tierSound = tierProfile[tier];
     const traitSound = traitProfile[trait];
-    const critBoost = isCrit ? 1.22 : 1;
+    const critBoost = isCrit ? 1.12 : 1;
     const comboPitch = 1 + Math.min(40, Math.max(0, comboCount)) * 0.006;
     const volume = tierSound.volume * traitSound.volume * critBoost * TOUCH_TRANSIENT_GAIN;
 
-    this.playNoiseSweep(0.24 * tierSound.duration, (tierSound.brush + traitSound.brushOffset + Math.random() * 170) * comboPitch, 0.34 * volume, now);
-    this.playNoiseSweep(0.13, (tierSound.snap + traitSound.snapOffset + Math.random() * 320) * comboPitch, 0.17 * volume, now + 0.014);
-    this.playCrunchTransient((tierSound.snap + traitSound.snapOffset + 380 + Math.random() * 260) * comboPitch, 0.15 * volume, now + 0.002);
-    this.playCrunchTransient((tierSound.snap + traitSound.snapOffset + 860 + Math.random() * 420) * comboPitch, 0.095 * volume, now + 0.03);
-    this.playTone((tierSound.low + Math.random() * 18) * comboPitch, 0.065, 0.06 * volume, "sine", now);
-    this.playTone((tierSound.tone + Math.random() * 38) * comboPitch, 0.085, 0.072 * volume, "triangle", now + 0.018);
-    this.playTone((720 + Math.random() * 95) * comboPitch, 0.05, 0.048 * volume, "square", now + 0.006);
+    this.playNoiseSweep(0.26 * tierSound.duration, (tierSound.brush + traitSound.brushOffset + Math.random() * 120) * comboPitch, 0.18 * volume, now);
+    this.playNoiseSweep(0.11, (tierSound.snap + traitSound.snapOffset + Math.random() * 220) * 0.74 * comboPitch, 0.055 * volume, now + 0.018);
+    this.playCrunchTransient((tierSound.snap + traitSound.snapOffset + 220 + Math.random() * 160) * 0.72 * comboPitch, 0.045 * volume, now + 0.004);
+    this.playCrunchTransient((tierSound.snap + traitSound.snapOffset + 420 + Math.random() * 180) * 0.62 * comboPitch, 0.018 * volume, now + 0.032);
+    this.playTone((tierSound.low + Math.random() * 18) * comboPitch, 0.07, 0.05 * volume, "sine", now);
+    this.playTone((tierSound.tone + Math.random() * 38) * comboPitch, 0.09, 0.058 * volume, "triangle", now + 0.018);
+    this.playTone((620 + Math.random() * 80) * comboPitch, 0.052, 0.014 * volume, "sine", now + 0.014);
 
     if (traitSound.extraPing > 0) {
-      this.playTone((traitSound.extraPing + Math.random() * 80) * comboPitch, 0.055, 0.032 * volume, trait === "dewy" ? "sine" : "triangle", now + 0.04);
+      this.playTone((traitSound.extraPing + Math.random() * 80) * comboPitch, 0.055, 0.02 * volume, trait === "dewy" ? "sine" : "triangle", now + 0.04);
     }
 
     if (tier === "golden") {
-      this.playTone((880 + Math.random() * 130) * comboPitch, 0.12, 0.04 * critBoost, "sine", now + 0.055);
-      this.playTone((1320 + Math.random() * 160) * comboPitch, 0.1, 0.025 * critBoost, "sine", now + 0.1);
+      this.playTone((880 + Math.random() * 130) * comboPitch, 0.12, 0.026 * critBoost, "sine", now + 0.055);
+      this.playTone((1320 + Math.random() * 160) * comboPitch, 0.1, 0.016 * critBoost, "sine", now + 0.1);
     }
 
     if (tier === "crystal" || tier === "frost") {
-      this.playTone((1560 + Math.random() * 180) * comboPitch, 0.075, 0.034 * critBoost, "sine", now + 0.045);
-      this.playTone((2320 + Math.random() * 220) * comboPitch, 0.055, 0.02 * critBoost, "sine", now + 0.092);
+      this.playTone((1560 + Math.random() * 180) * comboPitch, 0.075, 0.022 * critBoost, "sine", now + 0.045);
+      this.playTone((2320 + Math.random() * 220) * comboPitch, 0.055, 0.012 * critBoost, "sine", now + 0.092);
     }
 
     if (isCrit) {
@@ -308,7 +308,7 @@ export class AudioSystem {
     }
   }
 
-  private playFirstTouchNow(tier: GrassTierId, trait: TileTrait, includeFallback = true): void {
+  private playFirstTouchNow(tier: GrassTierId, trait: TileTrait, includeFallback = false): void {
     if (!this.context || !this.master || this.context.state !== "running") {
       return;
     }
@@ -324,16 +324,16 @@ export class AudioSystem {
     const low = 98 * tierLift;
     const root = 196 * tierLift;
 
-    this.playNoiseSweep(0.28, 560 * traitSpark, 0.22, now);
-    this.playNoiseSweep(0.13, 1450 * traitSpark, 0.13, now + 0.016);
-    this.playCrunchTransient(1680 * traitSpark, 0.14, now + 0.01);
-    this.playCrunchTransient(2300 * traitSpark, 0.09, now + 0.04);
-    this.playTone(low, 0.19, 0.08, "sine", now);
-    this.playTone(root, 0.17, 0.072, "triangle", now + 0.012);
-    this.playTone(root * 1.5, 0.14, 0.052, "triangle", now + 0.035);
-    this.playArp([392, 523.25, 659.25, 783.99].map((frequency) => frequency * tierLift), now + 0.055, 0.042, 0.052, "triangle");
-    this.playTone(1567.98 * tierLift * traitSpark, 0.12, 0.034, "sine", now + 0.18);
-    this.playTone(2349.32 * tierLift * traitSpark, 0.08, 0.02, "sine", now + 0.235);
+    this.playNoiseSweep(0.3, 520 * traitSpark, 0.12, now);
+    this.playNoiseSweep(0.12, 980 * traitSpark, 0.045, now + 0.018);
+    this.playCrunchTransient(1180 * traitSpark, 0.04, now + 0.012);
+    this.playCrunchTransient(1480 * traitSpark, 0.016, now + 0.044);
+    this.playTone(low, 0.19, 0.065, "sine", now);
+    this.playTone(root, 0.17, 0.055, "triangle", now + 0.012);
+    this.playTone(root * 1.5, 0.14, 0.034, "triangle", now + 0.035);
+    this.playArp([392, 523.25, 659.25, 783.99].map((frequency) => frequency * tierLift), now + 0.055, 0.042, 0.028, "triangle");
+    this.playTone(1567.98 * tierLift * traitSpark, 0.12, 0.02, "sine", now + 0.18);
+    this.playTone(2349.32 * tierLift * traitSpark, 0.08, 0.012, "sine", now + 0.235);
   }
 
   private shouldPlayGrassTouchSound(isCrit: boolean, comboCount: number): boolean {
@@ -411,10 +411,10 @@ export class AudioSystem {
   private playCritAccent(startAt: number): void {
     const now = this.now();
     const start = Math.max(now, startAt);
-    this.playNoiseSweep(0.1, 2400 + Math.random() * 800, 0.08, start);
-    this.playTone(220, 0.055, 0.07, "triangle", start);
-    this.playTone(660, 0.08, 0.075, "triangle", start + 0.035);
-    this.playTone(990, 0.1, 0.06, "sine", start + 0.085);
+    this.playNoiseSweep(0.09, 1600 + Math.random() * 450, 0.035, start);
+    this.playTone(220, 0.055, 0.052, "triangle", start);
+    this.playTone(660, 0.08, 0.052, "triangle", start + 0.035);
+    this.playTone(990, 0.1, 0.036, "sine", start + 0.085);
   }
 
   private playMilestone(): void {
@@ -506,10 +506,10 @@ export class AudioSystem {
 
     filter.type = "bandpass";
     filter.frequency.setValueAtTime(frequency, startAt);
-    filter.frequency.exponentialRampToValueAtTime(Math.max(90, frequency * 0.58), startAt + duration);
-    filter.Q.value = 0.9;
+    filter.frequency.exponentialRampToValueAtTime(Math.max(80, frequency * 0.45), startAt + duration);
+    filter.Q.value = 0.48;
     gain.gain.setValueAtTime(0.0001, startAt);
-    gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.012);
+    gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.018);
     gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
 
     noise.connect(filter);
@@ -523,14 +523,14 @@ export class AudioSystem {
     const noise = this.createNoiseSource();
     const filter = this.context!.createBiquadFilter();
     const gain = this.context!.createGain();
-    const duration = 0.052;
+    const duration = 0.04;
 
     filter.type = "bandpass";
-    filter.frequency.setValueAtTime(Math.max(560, Math.min(2800, frequency)), startAt);
-    filter.frequency.exponentialRampToValueAtTime(Math.max(480, frequency * 0.72), startAt + duration);
-    filter.Q.value = 1.25;
+    filter.frequency.setValueAtTime(Math.max(420, Math.min(1600, frequency)), startAt);
+    filter.frequency.exponentialRampToValueAtTime(Math.max(320, Math.min(1300, frequency * 0.52)), startAt + duration);
+    filter.Q.value = 0.6;
     gain.gain.setValueAtTime(0.0001, startAt);
-    gain.gain.exponentialRampToValueAtTime(volume * TOUCH_CRUNCH_GAIN, startAt + 0.004);
+    gain.gain.exponentialRampToValueAtTime(volume * TOUCH_CRUNCH_GAIN, startAt + 0.006);
     gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
 
     noise.connect(filter);
@@ -546,9 +546,9 @@ export class AudioSystem {
       return false;
     }
 
-    audio.volume = Math.min(1, this.volume * (isCrit ? 1 : 0.96));
+    audio.volume = Math.min(1, this.volume * (isCrit ? 0.62 : 0.5));
     try {
-      audio.playbackRate = isCrit ? 1.02 + Math.random() * 0.08 : 0.86 + Math.random() * 0.13;
+      audio.playbackRate = isCrit ? 0.96 + Math.random() * 0.05 : 0.78 + Math.random() * 0.08;
     } catch {
       // Playback-rate changes are only seasoning; the pre-rendered variants still carry the crunch.
     }
@@ -730,13 +730,13 @@ export class AudioSystem {
 
   private createFallbackGrassDataUri(variantIndex: number): string {
     const profile = [
-      { duration: 0.13, bodyFreq: 112, clickFreq: 620, toothFreq: 980, lateClickFreq: 760, bodyDecay: 19, snapDecay: 54, lateClickAt: 0.028, lateClickDecay: 62, bodySmoothing: 0.78, bodyGain: 0.86, gritGain: 0.48, clickGain: 0.2, toothGain: 0.09, lateClickGain: 0.12, drive: 1.68 },
-      { duration: 0.15, bodyFreq: 84, clickFreq: 440, toothFreq: 720, lateClickFreq: 560, bodyDecay: 15, snapDecay: 42, lateClickAt: 0.036, lateClickDecay: 48, bodySmoothing: 0.84, bodyGain: 0.98, gritGain: 0.4, clickGain: 0.18, toothGain: 0.07, lateClickGain: 0.1, drive: 1.72 },
-      { duration: 0.12, bodyFreq: 132, clickFreq: 700, toothFreq: 1120, lateClickFreq: 880, bodyDecay: 22, snapDecay: 70, lateClickAt: 0.022, lateClickDecay: 74, bodySmoothing: 0.7, bodyGain: 0.74, gritGain: 0.58, clickGain: 0.22, toothGain: 0.11, lateClickGain: 0.13, drive: 1.62 },
-      { duration: 0.16, bodyFreq: 72, clickFreq: 360, toothFreq: 660, lateClickFreq: 500, bodyDecay: 13, snapDecay: 36, lateClickAt: 0.044, lateClickDecay: 44, bodySmoothing: 0.88, bodyGain: 1.04, gritGain: 0.34, clickGain: 0.14, toothGain: 0.06, lateClickGain: 0.1, drive: 1.78 },
-      { duration: 0.135, bodyFreq: 96, clickFreq: 520, toothFreq: 860, lateClickFreq: 690, bodyDecay: 17, snapDecay: 50, lateClickAt: 0.03, lateClickDecay: 58, bodySmoothing: 0.8, bodyGain: 0.92, gritGain: 0.46, clickGain: 0.19, toothGain: 0.08, lateClickGain: 0.11, drive: 1.7 },
-      { duration: 0.145, bodyFreq: 124, clickFreq: 580, toothFreq: 930, lateClickFreq: 820, bodyDecay: 18, snapDecay: 60, lateClickAt: 0.025, lateClickDecay: 68, bodySmoothing: 0.76, bodyGain: 0.82, gritGain: 0.55, clickGain: 0.21, toothGain: 0.1, lateClickGain: 0.14, drive: 1.66 },
-      { duration: 0.155, bodyFreq: 78, clickFreq: 410, toothFreq: 760, lateClickFreq: 610, bodyDecay: 14, snapDecay: 40, lateClickAt: 0.04, lateClickDecay: 50, bodySmoothing: 0.86, bodyGain: 1.0, gritGain: 0.38, clickGain: 0.16, toothGain: 0.07, lateClickGain: 0.11, drive: 1.76 },
+      { duration: 0.142, bodyFreq: 112, clickFreq: 500, toothFreq: 760, lateClickFreq: 620, bodyDecay: 12.5, snapDecay: 38, lateClickAt: 0.034, lateClickDecay: 44, bodySmoothing: 0.92, bodyGain: 0.82, gritGain: 0.09, clickGain: 0.045, toothGain: 0.018, lateClickGain: 0.03, drive: 0.94 },
+      { duration: 0.158, bodyFreq: 86, clickFreq: 390, toothFreq: 640, lateClickFreq: 520, bodyDecay: 10.8, snapDecay: 32, lateClickAt: 0.042, lateClickDecay: 38, bodySmoothing: 0.94, bodyGain: 0.9, gritGain: 0.075, clickGain: 0.04, toothGain: 0.016, lateClickGain: 0.026, drive: 0.9 },
+      { duration: 0.134, bodyFreq: 132, clickFreq: 560, toothFreq: 820, lateClickFreq: 690, bodyDecay: 14.2, snapDecay: 46, lateClickAt: 0.028, lateClickDecay: 52, bodySmoothing: 0.9, bodyGain: 0.76, gritGain: 0.11, clickGain: 0.052, toothGain: 0.021, lateClickGain: 0.034, drive: 0.98 },
+      { duration: 0.166, bodyFreq: 74, clickFreq: 340, toothFreq: 560, lateClickFreq: 470, bodyDecay: 9.8, snapDecay: 30, lateClickAt: 0.05, lateClickDecay: 36, bodySmoothing: 0.952, bodyGain: 0.95, gritGain: 0.06, clickGain: 0.034, toothGain: 0.014, lateClickGain: 0.025, drive: 0.88 },
+      { duration: 0.146, bodyFreq: 98, clickFreq: 460, toothFreq: 700, lateClickFreq: 590, bodyDecay: 11.8, snapDecay: 36, lateClickAt: 0.036, lateClickDecay: 42, bodySmoothing: 0.93, bodyGain: 0.86, gritGain: 0.085, clickGain: 0.043, toothGain: 0.017, lateClickGain: 0.028, drive: 0.92 },
+      { duration: 0.152, bodyFreq: 124, clickFreq: 520, toothFreq: 760, lateClickFreq: 660, bodyDecay: 13.2, snapDecay: 42, lateClickAt: 0.031, lateClickDecay: 48, bodySmoothing: 0.91, bodyGain: 0.78, gritGain: 0.1, clickGain: 0.048, toothGain: 0.019, lateClickGain: 0.032, drive: 0.96 },
+      { duration: 0.162, bodyFreq: 80, clickFreq: 370, toothFreq: 620, lateClickFreq: 540, bodyDecay: 10.2, snapDecay: 32, lateClickAt: 0.046, lateClickDecay: 39, bodySmoothing: 0.946, bodyGain: 0.92, gritGain: 0.07, clickGain: 0.038, toothGain: 0.015, lateClickGain: 0.027, drive: 0.9 },
     ][variantIndex % FALLBACK_GRASS_VARIANT_COUNT];
     const sampleRate = 24000;
     const durationSeconds = profile.duration;
@@ -789,9 +789,9 @@ export class AudioSystem {
       const t = i / sampleRate;
       const raw = random() * 2 - 1;
       bodyState = bodyState * profile.bodySmoothing + raw * (1 - profile.bodySmoothing);
-      gritState = gritState * 0.38 + raw * 0.62;
-      const lowerScrape = bodyState - previousBody * 0.22;
-      const midGrit = gritState - bodyState * 0.52;
+      gritState = gritState * 0.62 + raw * 0.38;
+      const lowerScrape = bodyState - previousBody * 0.14;
+      const midGrit = gritState - bodyState * 0.34;
       previousBody = bodyState;
       const bodyEnvelope = Math.exp(-t * profile.bodyDecay);
       const snapEnvelope = Math.exp(-t * profile.snapDecay);
@@ -799,12 +799,12 @@ export class AudioSystem {
       const lateEnvelope = lateT > 0 ? Math.exp(-lateT * profile.lateClickDecay) : 0;
       const scratch = lowerScrape * bodyEnvelope * profile.bodyGain;
       const bristle = midGrit * snapEnvelope * profile.gritGain;
-      const bodyTone = Math.sin(2 * Math.PI * profile.bodyFreq * t + phase) * bodyEnvelope * 0.16;
+      const bodyTone = Math.sin(2 * Math.PI * profile.bodyFreq * t + phase) * bodyEnvelope * 0.14;
       const woodClick = Math.sin(2 * Math.PI * profile.clickFreq * t) * snapEnvelope * profile.clickGain;
       const tooth = Math.sin(2 * Math.PI * profile.toothFreq * t) * Math.exp(-t * 72) * profile.toothGain;
       const lateClick = lateEnvelope > 0 ? Math.sin(2 * Math.PI * profile.lateClickFreq * lateT) * lateEnvelope * profile.lateClickGain : 0;
-      const crackle = random() > 0.965 ? (random() * 2 - 1) * snapEnvelope * 0.13 : 0;
-      const value = Math.tanh((scratch + bristle + bodyTone + woodClick + tooth + lateClick + crackle) * profile.drive);
+      const crackle = random() > 0.988 ? (random() * 2 - 1) * snapEnvelope * 0.035 : 0;
+      const value = Math.tanh((scratch + bristle + bodyTone + woodClick + tooth + lateClick + crackle) * profile.drive) * 0.82;
       view.setInt16(offset, Math.round(value * 32767), true);
       offset += 2;
     }
