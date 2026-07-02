@@ -1,0 +1,49 @@
+{
+  "date": "2026-07-02",
+  "topic": "mobile board zoom and pan arrows",
+  "currentUserGoal": "Make grass tiles larger on mobile and add touchscreen pan arrows around the board so players can scroll the zoomed field.",
+  "changesMade": [
+    "Added an expanded-mobile board zoom multiplier so mobile fields that use the wide viewport no longer fall back to desktop scale.",
+    "Kept compact non-expanded mobile boards clamped to fit while zooming expanded fields to require natural panning.",
+    "Added four pooled Phaser canvas pan controls on the board edge for mobile portrait: up, down, left, and right.",
+    "Arrow controls pan through the existing boardPanX/boardPanY path via panBoardByFieldTiles, preserving culling, clamping, dirty tile behavior, and world-map marker updates.",
+    "Arrow controls support press-and-hold repeat and fade/disable at board edges.",
+    "Bumped the mobile test URL version to soft-mobile-audio-2-board-pan-1."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-07-02_MOBILE_BOARD_ZOOM_PAN_ARROWS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run build passed after the board changes.",
+    "Browser visual check at 390x844 on http://127.0.0.1:5173/?fieldShape=rect64&mobileTest=audio&v=board-pan-arrows-2 showed larger tiles and all four edge arrows.",
+    "Browser click check tapped the right edge arrow at 390x844; the board panned, the right arrow faded at the edge, and no grass touch was fired.",
+    "Browser visual check at 390x844 on http://127.0.0.1:5173/?fieldShape=rect25&mobileTest=audio&v=board-pan-arrows-1 showed compact fields still fit with larger readable tiles and no unnecessary arrows.",
+    "Mobile perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200 completed with frameSpikes=0, layoutPasses=0, redraws=0, redrawQueued=0, tileMode=viewport, visibleTiles from 56 down to 36, displayObjects from 369 to 392, and activeTweens from 11 to 25 across phases.",
+    "npm run build passed again after bumping MOBILE_TEST_URL_VERSION to soft-mobile-audio-2-board-pan-1."
+  ],
+  "currentGitStatus": [
+    "Modified: src/game/scenes/GameScene.ts",
+    "New handoff pending: handoffs/HANDOFF_2026-07-02_MOBILE_BOARD_ZOOM_PAN_ARROWS.json",
+    "Updated handoff pointer pending: handoffs/LATEST.json",
+    "Pre-existing unrelated untracked files still present and untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "The exact comfort level of the new mobile zoom should still be judged on real iPhone Safari and Android Chrome.",
+    "The arrows intentionally overlay the board edge; if they feel too visually loud on a real phone, reduce BOARD_PAN_CONTROL_SIZE alpha or move them further into the border.",
+    "The local Vite server was used for verification and should be stopped before final handoff if no longer needed."
+  ],
+  "nextRecommendedSteps": [
+    "Deploy to production and test https://grasstouchingsimulator.com/?mobileTest=audio&v=soft-mobile-audio-2-board-pan-1 on a real phone.",
+    "Check whether tapping and holding each arrow feels natural, especially near field edges.",
+    "If the field feels too zoomed on mid-game phones, reduce MOBILE_BOARD_EXPANDED_ZOOM slightly from 1.92.",
+    "If vertical scrolling still appears too late for some organic field shapes, consider a shape-aware minimum zoom for fields with both width and height near the expanded threshold."
+  ],
+  "doNotRevert": [
+    "Do not remove the readable two-row mobile dock from the previous handoff.",
+    "Do not restore expanded mobile boards to desktop scale; that caused tiny tiles in the user's phone screenshot.",
+    "Do not replace the arrow controls with DOM buttons outside the canvas unless the board layout is redesigned around them.",
+    "Do not touch or remove the unrelated untracked docs/assets listed in git status."
+  ]
+}

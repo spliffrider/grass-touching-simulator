@@ -122,6 +122,8 @@ const REGROWING_GRASS_SCALE = 0.94;
 const BOARD_Y_OFFSET = 24;
 const MIN_BOARD_ZOOM = 0.45;
 const MAX_BOARD_ZOOM = 6;
+const MOBILE_BOARD_COMPACT_ZOOM = 1.22;
+const MOBILE_BOARD_EXPANDED_ZOOM = 1.92;
 const LARGE_FIELD_INITIAL_ZOOM_TILE_THRESHOLD = 600;
 const LARGE_FIELD_INITIAL_VISIBLE_TILES_DESKTOP = 8;
 const LARGE_FIELD_INITIAL_VISIBLE_TILES_TABLET = 8;
@@ -143,6 +145,9 @@ const DESKTOP_BOARD_FLOATING_UI_GAP = 14;
 const COMPACT_LARGE_FIELD_MAX_WIDTH = 560;
 const TABLET_LARGE_FIELD_MAX_WIDTH = 900;
 const BOARD_PAN_THRESHOLD_PX = 18;
+const BOARD_PAN_CONTROL_SIZE = 48;
+const BOARD_PAN_CONTROL_MARGIN = 28;
+const BOARD_PAN_CONTROL_STEP_TILES = 3;
 const BOARD_INTERACTION_PREVIEW_SETTLE_MS = 120;
 const TOUCH_SHAKE_COOLDOWN_MS = 140;
 const COMBO_SHAKE_BASE_DURATION_MS = 118;
@@ -260,7 +265,7 @@ const TRIGGER_FEED_ROW_HEIGHT = 54;
 const MOBILE_COMMAND_DOCK_PADDING = 10;
 const MOBILE_TEST_MODE_PARAM = "mobileTest";
 const MOBILE_TEST_MODE_VALUE = "audio";
-const MOBILE_TEST_URL_VERSION = "soft-mobile-audio-2";
+const MOBILE_TEST_URL_VERSION = "soft-mobile-audio-2-board-pan-1";
 const UI_ACTION_ICONS = {
   skills: "SK",
   quests: "Q",
@@ -482,6 +487,16 @@ interface TileView {
   x: number;
   y: number;
   key?: TileKey;
+}
+
+type BoardPanDirection = "up" | "down" | "left" | "right";
+
+interface BoardPanControlView {
+  container: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Rectangle;
+  arrow: Phaser.GameObjects.Graphics;
+  hit: Phaser.GameObjects.Zone;
+  direction: BoardPanDirection;
 }
 
 interface SkillNodeView {
@@ -792,6 +807,8 @@ export class GameScene extends Phaser.Scene {
   private boardBackdropGraphics?: Phaser.GameObjects.Graphics;
   private boardViewportMaskGraphics?: Phaser.GameObjects.Graphics;
   private boardViewportMask?: Phaser.Display.Masks.GeometryMask;
+  private boardPanControls: Partial<Record<BoardPanDirection, BoardPanControlView>> = {};
+  private boardPanHoldEvent?: Phaser.Time.TimerEvent;
   private worldMapRoot?: Phaser.GameObjects.Container;
   private worldMapFrame?: OrnateFrame;
   private worldMapBg?: Phaser.GameObjects.Rectangle;
@@ -1415,6 +1432,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on("pointerup", () => {
+      this.stopBoardPanControl();
       if (this.isBoardPanArmed && !this.isPanningBoard && this.pendingBoardTileKey && !this.hasBlockingOverlayOpen()) {
         const tile = this.state.field[this.pendingBoardTileKey];
         if (tile) {
@@ -3004,6 +3022,79 @@ export class GameScene extends Phaser.Scene {
       .setDepth(32)
       .setVisible(false);
     this.hoverMarker.setMask(this.boardViewportMask);
+    this.createBoardPanControls();
+  }
+
+  private createBoardPanControls(): void {
+    const directions: BoardPanDirection[] = ["up", "down", "left", "right"];
+    for (const direction of directions) {
+      const container = this.add.container(0, 0).setDepth(34).setVisible(false);
+      const bg = this.add
+        .rectangle(0, 0, BOARD_PAN_CONTROL_SIZE, BOARD_PAN_CONTROL_SIZE, UITheme.colors.panelBgDeep, 0.34)
+        .setOrigin(0.5)
+        .setStrokeStyle(2, 0xdfffc8, 0.34);
+      const arrow = this.add.graphics();
+      const hit = this.add
+        .zone(0, 0, BOARD_PAN_CONTROL_SIZE + 12, BOARD_PAN_CONTROL_SIZE + 12)
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true });
+
+      this.drawBoardPanArrow(arrow, direction, 0xf2e8d5, 0.66);
+      hit.on(
+        "pointerdown",
+        (
+          _pointer: Phaser.Input.Pointer,
+          _localX: number,
+          _localY: number,
+          event: Phaser.Types.Input.EventData,
+        ) => {
+          event.stopPropagation();
+          this.startBoardPanControl(direction);
+        },
+      );
+      hit.on("pointerup", () => this.stopBoardPanControl());
+      hit.on("pointerout", () => this.stopBoardPanControl());
+      hit.on("pointerupoutside", () => this.stopBoardPanControl());
+
+      container.add([bg, arrow, hit]);
+      this.boardPanControls[direction] = { container, bg, arrow, hit, direction };
+    }
+  }
+
+  private drawBoardPanArrow(
+    graphics: Phaser.GameObjects.Graphics,
+    direction: BoardPanDirection,
+    color: number,
+    alpha: number,
+  ): void {
+    const basePoints: Array<[number, number]> = [
+      [0, -18],
+      [17, -2],
+      [8, -2],
+      [8, 16],
+      [-8, 16],
+      [-8, -2],
+      [-17, -2],
+    ];
+    const points = basePoints.map(([x, y]) => {
+      switch (direction) {
+        case "down":
+          return new Phaser.Math.Vector2(-x, -y);
+        case "left":
+          return new Phaser.Math.Vector2(y, x);
+        case "right":
+          return new Phaser.Math.Vector2(-y, -x);
+        case "up":
+        default:
+          return new Phaser.Math.Vector2(x, y);
+      }
+    });
+
+    graphics.clear();
+    graphics.fillStyle(color, alpha * 0.14);
+    graphics.fillPoints(points, true);
+    graphics.lineStyle(4, color, alpha);
+    graphics.strokePoints(points, true);
   }
 
   private createWorldMap(): void {
@@ -3881,6 +3972,43 @@ export class GameScene extends Phaser.Scene {
     this.clampBoardPan();
     this.hideHoverMarker();
     this.requestBoardLayout("pan");
+  }
+
+  private startBoardPanControl(direction: BoardPanDirection): void {
+    if (this.hasBlockingOverlayOpen()) {
+      return;
+    }
+
+    this.isBoardPanArmed = false;
+    this.isPanningBoard = false;
+    this.pendingBoardTileKey = undefined;
+    this.stopPersistentTouch();
+    this.hideHoverMarker();
+    this.panBoardInDirection(direction);
+    this.boardPanHoldEvent?.remove(false);
+    this.boardPanHoldEvent = this.time.addEvent({
+      delay: 190,
+      loop: true,
+      callback: () => this.panBoardInDirection(direction),
+    });
+    this.music.start(this.musicVolume);
+  }
+
+  private stopBoardPanControl(): void {
+    this.boardPanHoldEvent?.remove(false);
+    this.boardPanHoldEvent = undefined;
+  }
+
+  private panBoardInDirection(direction: BoardPanDirection): void {
+    if (!this.canPanBoardDirection(direction)) {
+      this.layoutBoardPanControls();
+      return;
+    }
+
+    const step = BOARD_PAN_CONTROL_STEP_TILES;
+    const dx = direction === "right" ? step : direction === "left" ? -step : 0;
+    const dy = direction === "down" ? step : direction === "up" ? -step : 0;
+    this.panBoardByFieldTiles(dx, dy);
   }
 
   private centerBoardOnFieldPoint(fieldX: number, fieldY: number): void {
@@ -7738,7 +7866,11 @@ export class GameScene extends Phaser.Scene {
     const fitContentWidth = Math.max(80, this.boardAvailableWidth - BOARD_CONTENT_INSET_PX * 2);
     const fitContentHeight = Math.max(80, this.boardAvailableHeight - BOARD_CONTENT_INSET_PX * 2);
     const fitScale = Math.min(1, fitContentWidth / boardWidth, fitContentHeight / boardHeight);
-    const mobileBoardZoom = mobilePortrait && !expandedBoardViewport ? 1.22 : 1;
+    const mobileBoardZoom = mobilePortrait
+      ? expandedBoardViewport
+        ? MOBILE_BOARD_EXPANDED_ZOOM
+        : MOBILE_BOARD_COMPACT_ZOOM
+      : 1;
     const preferredScale = fitScale * this.boardZoom * mobileBoardZoom;
     const maxFitScale = expandedBoardViewport ? Number.POSITIVE_INFINITY : this.getMaxBoardScaleForAvailableSpace(boardWidth, boardHeight);
     this.boardScale = Math.max(this.getMinimumBoardScale(), Math.min(preferredScale, maxFitScale));
@@ -7879,6 +8011,7 @@ export class GameScene extends Phaser.Scene {
       this.profileScope("layout:worldMap", () => this.layoutWorldMap());
     }
 
+    this.profileScope("layout:panControls", () => this.layoutBoardPanControls());
     this.profileScope("layout:hover", () => this.refreshHoverMarker());
   }
 
@@ -9173,10 +9306,92 @@ export class GameScene extends Phaser.Scene {
   }
 
   private clampBoardPan(): void {
-    const maxPanX = Math.max(0, (this.boardScaledWidth - this.boardContentWidth) / 2);
-    const maxPanY = Math.max(0, (this.boardScaledHeight - this.boardContentHeight) / 2);
+    const { x: maxPanX, y: maxPanY } = this.getBoardPanLimits();
     this.boardPanX = Phaser.Math.Clamp(this.boardPanX, -maxPanX, maxPanX);
     this.boardPanY = Phaser.Math.Clamp(this.boardPanY, -maxPanY, maxPanY);
+  }
+
+  private getBoardPanLimits(): { x: number; y: number } {
+    return {
+      x: Math.max(0, (this.boardScaledWidth - this.boardContentWidth) / 2),
+      y: Math.max(0, (this.boardScaledHeight - this.boardContentHeight) / 2),
+    };
+  }
+
+  private canPanBoardDirection(direction: BoardPanDirection): boolean {
+    const limits = this.getBoardPanLimits();
+    const edgeSlack = 2;
+    switch (direction) {
+      case "left":
+        return this.boardPanX < limits.x - edgeSlack;
+      case "right":
+        return this.boardPanX > -limits.x + edgeSlack;
+      case "up":
+        return this.boardPanY < limits.y - edgeSlack;
+      case "down":
+        return this.boardPanY > -limits.y + edgeSlack;
+      default:
+        return false;
+    }
+  }
+
+  private layoutBoardPanControls(): void {
+    const controls = Object.values(this.boardPanControls).filter(
+      (control): control is BoardPanControlView => control !== undefined,
+    );
+    if (controls.length === 0) {
+      return;
+    }
+
+    const limits = this.getBoardPanLimits();
+    const showControls =
+      this.isMobilePortrait() &&
+      !this.hasBlockingOverlayOpen() &&
+      this.boardViewportWidth > 0 &&
+      this.boardViewportHeight > 0 &&
+      (limits.x > 2 || limits.y > 2);
+    if (!showControls) {
+      for (const control of controls) {
+        control.container.setVisible(false);
+      }
+      this.stopBoardPanControl();
+      return;
+    }
+
+    const centerX = this.boardViewportX + this.boardViewportWidth / 2;
+    const centerY = this.boardViewportY + this.boardViewportHeight / 2;
+    const leftX = this.boardViewportX + BOARD_PAN_CONTROL_MARGIN;
+    const rightX = this.boardViewportX + this.boardViewportWidth - BOARD_PAN_CONTROL_MARGIN;
+    const topY = this.boardViewportY + BOARD_PAN_CONTROL_MARGIN;
+    const bottomY = this.boardViewportY + this.boardViewportHeight - BOARD_PAN_CONTROL_MARGIN;
+
+    for (const control of controls) {
+      const horizontal = control.direction === "left" || control.direction === "right";
+      const axisHasOverflow = horizontal ? limits.x > 2 : limits.y > 2;
+      const enabled = axisHasOverflow && this.canPanBoardDirection(control.direction);
+      control.container.setVisible(axisHasOverflow);
+      control.container.setAlpha(enabled ? 1 : 0.36);
+      control.bg.setFillStyle(UITheme.colors.panelBgDeep, enabled ? 0.34 : 0.18);
+      control.bg.setStrokeStyle(2, enabled ? 0xdfffc8 : UITheme.colors.bronzeDark, enabled ? 0.34 : 0.22);
+      if (control.hit.input) {
+        control.hit.input.enabled = enabled;
+      }
+
+      switch (control.direction) {
+        case "left":
+          control.container.setPosition(leftX, centerY);
+          break;
+        case "right":
+          control.container.setPosition(rightX, centerY);
+          break;
+        case "up":
+          control.container.setPosition(centerX, topY);
+          break;
+        case "down":
+          control.container.setPosition(centerX, bottomY);
+          break;
+      }
+    }
   }
 
   private handleBoardHover(pointer: Phaser.Input.Pointer): void {
