@@ -1,0 +1,45 @@
+{
+  "date": "2026-07-02",
+  "topic": "Android PWA launcher icon refresh",
+  "currentUserGoal": "Make the Android home-screen icon use the hand-touching-grass artwork and get it live for an Android play tester.",
+  "workCompleted": [
+    "Replaced the old pale/transparent launcher icon treatment with a new full-bleed dark meadow icon using the existing hand-on-grass class artwork as the central mark.",
+    "Added separate versioned normal and maskable PWA icon files so Android can choose a safe adaptive icon without cropping or washing out the artwork.",
+    "Regenerated legacy icon filenames, apple-touch-icon, favicon PNG, and favicon.ico so cached older references still point to improved artwork.",
+    "Updated the web manifest to reference separate `any` and `maskable` icon assets.",
+    "Added a manifest query string in `index.html` to nudge browsers away from a cached manifest."
+  ],
+  "filesTouched": [
+    "index.html",
+    "public/site.webmanifest",
+    "public/icon-192.png",
+    "public/icon-512.png",
+    "public/icon-192-v2.png",
+    "public/icon-512-v2.png",
+    "public/icon-maskable-192-v2.png",
+    "public/icon-maskable-512-v2.png",
+    "public/apple-touch-icon.png",
+    "public/favicon-32x32.png",
+    "public/favicon.ico",
+    "scripts/generate-pwa-icons.py",
+    "handoffs/HANDOFF_2026-07-02_ANDROID_PWA_ICON.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "`python scripts/generate-pwa-icons.py` completed successfully.",
+    "Visually inspected `public/icon-512-v2.png`, `public/icon-maskable-512-v2.png`, and `public/apple-touch-icon.png`.",
+    "`npm run build` passed."
+  ],
+  "knownIssues": [
+    "Android launchers may cache installed home-screen icons. Existing testers may need to remove and re-add the PWA/shortcut, or reinstall it, before the new icon appears."
+  ],
+  "nextRecommendedSteps": [
+    "Commit and push the icon/manifest/handoff changes.",
+    "Wait for the production deployment to become READY and verify `https://grasstouchingsimulator.com/site.webmanifest?v=android-icon-2` references the new versioned icons."
+  ],
+  "doNotRevert": [
+    "Keep the separate maskable icon entries; Android adaptive icons need full-bleed background art plus centered safe-zone content.",
+    "Leave unrelated untracked docs/artifacts untouched."
+  ],
+  "currentGitStatus": "Before staging: intended changes are icon assets, `index.html`, `public/site.webmanifest`, `scripts/generate-pwa-icons.py`, and this handoff; unrelated untracked docs/artifacts remain from earlier sessions."
+}
