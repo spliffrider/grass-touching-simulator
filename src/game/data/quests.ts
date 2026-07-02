@@ -25,7 +25,7 @@ const countFieldTiles = (state: GameState): number => Object.keys(state.field).l
 const countSeedShopPurchases = (state: GameState): number => Object.values(state.seedShopPurchases).filter(Boolean).length;
 const getUpgradeLevel = (state: GameState, upgradeId: string): number => state.upgrades[upgradeId]?.level ?? 0;
 const countUpgradeLevels = (state: GameState): number =>
-  Object.values(state.upgrades).reduce((total, upgrade) => total + upgrade.level, 0);
+  Object.values(state.upgrades).reduce((total, upgrade) => total + (upgrade?.level ?? 0), 0);
 const countAutomationUnits = (state: GameState): number =>
   Object.values(state.automationSystems ?? {}).reduce((total, system) => total + Math.max(0, Math.floor(system.owned)), 0);
 const countAutomationSystemTypes = (state: GameState): number =>
