@@ -1,0 +1,42 @@
+{
+  "date": "2026-07-02",
+  "topic": "slim border pan arrows",
+  "currentUserGoal": "Make the mobile board pan arrows much slimmer and place them on the board borders instead of as thick boxed controls inside the field.",
+  "changesMade": [
+    "Removed the visible filled square backgrounds from the mobile board pan controls.",
+    "Redrew pan arrows as thin 2px outline strokes with no filled arrow body.",
+    "Moved arrow glyph positions onto the board frame edge using a small border offset.",
+    "Kept the invisible touch hit zones large so the slimmer visual arrows remain easy to tap.",
+    "Bumped the mobile test URL version to soft-mobile-audio-2-border-arrows-1."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-07-02_SLIM_BORDER_PAN_ARROWS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run build passed.",
+    "Browser visual check at 390x844 on http://127.0.0.1:5173/?fieldShape=rect64&mobileTest=audio&v=slim-border-arrows-1 showed slim line arrows on the board border with no visible button boxes.",
+    "Browser click check tapped the right border arrow; the board panned and no tile touch fired.",
+    "Mobile perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200 completed with frameSpikes=0, layoutPasses=0, redraws=0, redrawQueued=0, tileMode=viewport, visibleTiles from 56 down to 30, displayObjects from 360 to 437, and activeTweens from 11 to 25 across phases."
+  ],
+  "currentGitStatus": [
+    "Modified: src/game/scenes/GameScene.ts",
+    "New handoff pending: handoffs/HANDOFF_2026-07-02_SLIM_BORDER_PAN_ARROWS.json",
+    "Updated handoff pointer pending: handoffs/LATEST.json",
+    "Pre-existing unrelated untracked files still present and untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "The slimmer arrows are intentionally subtle; if real-phone visibility is too low, raise arrow alpha slightly without bringing back the filled boxes.",
+    "The invisible hit zones are larger than the visible glyphs by design for mobile tapping."
+  ],
+  "nextRecommendedSteps": [
+    "Deploy and test https://grasstouchingsimulator.com/?mobileTest=audio&v=soft-mobile-audio-2-border-arrows-1 on iPhone Safari.",
+    "If arrows feel too faint outdoors or on dim displays, increase drawBoardPanArrow alpha from 0.58 to around 0.7 while keeping lineStyle at 2."
+  ],
+  "doNotRevert": [
+    "Do not restore the visible square arrow boxes; they were too bulky in the user's screenshot.",
+    "Do not shrink the invisible hit zones just because the visible arrows are slim.",
+    "Do not touch or remove the unrelated untracked docs/assets listed in git status."
+  ]
+}

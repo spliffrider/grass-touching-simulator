@@ -145,8 +145,8 @@ const DESKTOP_BOARD_FLOATING_UI_GAP = 14;
 const COMPACT_LARGE_FIELD_MAX_WIDTH = 560;
 const TABLET_LARGE_FIELD_MAX_WIDTH = 900;
 const BOARD_PAN_THRESHOLD_PX = 18;
-const BOARD_PAN_CONTROL_SIZE = 48;
-const BOARD_PAN_CONTROL_MARGIN = 28;
+const BOARD_PAN_CONTROL_HIT_SIZE = 58;
+const BOARD_PAN_CONTROL_BORDER_OFFSET = 12;
 const BOARD_PAN_CONTROL_STEP_TILES = 3;
 const BOARD_INTERACTION_PREVIEW_SETTLE_MS = 120;
 const TOUCH_SHAKE_COOLDOWN_MS = 140;
@@ -265,7 +265,7 @@ const TRIGGER_FEED_ROW_HEIGHT = 54;
 const MOBILE_COMMAND_DOCK_PADDING = 10;
 const MOBILE_TEST_MODE_PARAM = "mobileTest";
 const MOBILE_TEST_MODE_VALUE = "audio";
-const MOBILE_TEST_URL_VERSION = "soft-mobile-audio-2-board-pan-1";
+const MOBILE_TEST_URL_VERSION = "soft-mobile-audio-2-border-arrows-1";
 const UI_ACTION_ICONS = {
   skills: "SK",
   quests: "Q",
@@ -3030,16 +3030,16 @@ export class GameScene extends Phaser.Scene {
     for (const direction of directions) {
       const container = this.add.container(0, 0).setDepth(34).setVisible(false);
       const bg = this.add
-        .rectangle(0, 0, BOARD_PAN_CONTROL_SIZE, BOARD_PAN_CONTROL_SIZE, UITheme.colors.panelBgDeep, 0.34)
+        .rectangle(0, 0, BOARD_PAN_CONTROL_HIT_SIZE, BOARD_PAN_CONTROL_HIT_SIZE, UITheme.colors.panelBgDeep, 0)
         .setOrigin(0.5)
-        .setStrokeStyle(2, 0xdfffc8, 0.34);
+        .setStrokeStyle(0, 0xdfffc8, 0);
       const arrow = this.add.graphics();
       const hit = this.add
-        .zone(0, 0, BOARD_PAN_CONTROL_SIZE + 12, BOARD_PAN_CONTROL_SIZE + 12)
+        .zone(0, 0, BOARD_PAN_CONTROL_HIT_SIZE, BOARD_PAN_CONTROL_HIT_SIZE)
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true });
 
-      this.drawBoardPanArrow(arrow, direction, 0xf2e8d5, 0.66);
+      this.drawBoardPanArrow(arrow, direction, 0xf2e8d5, 0.58);
       hit.on(
         "pointerdown",
         (
@@ -3067,34 +3067,45 @@ export class GameScene extends Phaser.Scene {
     color: number,
     alpha: number,
   ): void {
-    const basePoints: Array<[number, number]> = [
-      [0, -18],
-      [17, -2],
-      [8, -2],
-      [8, 16],
-      [-8, 16],
-      [-8, -2],
-      [-17, -2],
-    ];
-    const points = basePoints.map(([x, y]) => {
-      switch (direction) {
-        case "down":
-          return new Phaser.Math.Vector2(-x, -y);
-        case "left":
-          return new Phaser.Math.Vector2(y, x);
-        case "right":
-          return new Phaser.Math.Vector2(-y, -x);
-        case "up":
-        default:
-          return new Phaser.Math.Vector2(x, y);
-      }
-    });
-
     graphics.clear();
-    graphics.fillStyle(color, alpha * 0.14);
-    graphics.fillPoints(points, true);
-    graphics.lineStyle(4, color, alpha);
-    graphics.strokePoints(points, true);
+    graphics.lineStyle(2, color, alpha);
+    graphics.beginPath();
+    switch (direction) {
+      case "down":
+        graphics.moveTo(0, 14);
+        graphics.lineTo(13, 1);
+        graphics.moveTo(0, 14);
+        graphics.lineTo(-13, 1);
+        graphics.moveTo(0, 14);
+        graphics.lineTo(0, -14);
+        break;
+      case "left":
+        graphics.moveTo(-14, 0);
+        graphics.lineTo(-1, -13);
+        graphics.moveTo(-14, 0);
+        graphics.lineTo(-1, 13);
+        graphics.moveTo(-14, 0);
+        graphics.lineTo(14, 0);
+        break;
+      case "right":
+        graphics.moveTo(14, 0);
+        graphics.lineTo(1, -13);
+        graphics.moveTo(14, 0);
+        graphics.lineTo(1, 13);
+        graphics.moveTo(14, 0);
+        graphics.lineTo(-14, 0);
+        break;
+      case "up":
+      default:
+        graphics.moveTo(0, -14);
+        graphics.lineTo(13, -1);
+        graphics.moveTo(0, -14);
+        graphics.lineTo(-13, -1);
+        graphics.moveTo(0, -14);
+        graphics.lineTo(0, 14);
+        break;
+    }
+    graphics.strokePath();
   }
 
   private createWorldMap(): void {
@@ -9360,19 +9371,19 @@ export class GameScene extends Phaser.Scene {
 
     const centerX = this.boardViewportX + this.boardViewportWidth / 2;
     const centerY = this.boardViewportY + this.boardViewportHeight / 2;
-    const leftX = this.boardViewportX + BOARD_PAN_CONTROL_MARGIN;
-    const rightX = this.boardViewportX + this.boardViewportWidth - BOARD_PAN_CONTROL_MARGIN;
-    const topY = this.boardViewportY + BOARD_PAN_CONTROL_MARGIN;
-    const bottomY = this.boardViewportY + this.boardViewportHeight - BOARD_PAN_CONTROL_MARGIN;
+    const leftX = this.boardViewportX + BOARD_PAN_CONTROL_BORDER_OFFSET;
+    const rightX = this.boardViewportX + this.boardViewportWidth - BOARD_PAN_CONTROL_BORDER_OFFSET;
+    const topY = this.boardViewportY + BOARD_PAN_CONTROL_BORDER_OFFSET;
+    const bottomY = this.boardViewportY + this.boardViewportHeight - BOARD_PAN_CONTROL_BORDER_OFFSET;
 
     for (const control of controls) {
       const horizontal = control.direction === "left" || control.direction === "right";
       const axisHasOverflow = horizontal ? limits.x > 2 : limits.y > 2;
       const enabled = axisHasOverflow && this.canPanBoardDirection(control.direction);
       control.container.setVisible(axisHasOverflow);
-      control.container.setAlpha(enabled ? 1 : 0.36);
-      control.bg.setFillStyle(UITheme.colors.panelBgDeep, enabled ? 0.34 : 0.18);
-      control.bg.setStrokeStyle(2, enabled ? 0xdfffc8 : UITheme.colors.bronzeDark, enabled ? 0.34 : 0.22);
+      control.container.setAlpha(enabled ? 1 : 0.32);
+      control.bg.setFillStyle(UITheme.colors.panelBgDeep, 0);
+      control.bg.setStrokeStyle(0, UITheme.colors.panelBgDeep, 0);
       if (control.hit.input) {
         control.hit.input.enabled = enabled;
       }

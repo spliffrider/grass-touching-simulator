@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-02",
-  "latestHandoff": "HANDOFF_2026-07-02_MOBILE_BOARD_ZOOM_PAN_ARROWS.json",
+  "latestHandoff": "HANDOFF_2026-07-02_SLIM_BORDER_PAN_ARROWS.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",
