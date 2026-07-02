@@ -149,6 +149,7 @@ const BOARD_PAN_CONTROL_HIT_SIZE = 58;
 const BOARD_PAN_CONTROL_BORDER_OFFSET = 12;
 const BOARD_PAN_CONTROL_STEP_TILES = 3;
 const BOARD_INTERACTION_PREVIEW_SETTLE_MS = 120;
+const BOARD_WHOLE_TILE_EPSILON = 0.001;
 const TOUCH_SHAKE_COOLDOWN_MS = 140;
 const COMBO_SHAKE_BASE_DURATION_MS = 118;
 const COMBO_SHAKE_DURATION_PER_COUNT_MS = 3.2;
@@ -266,7 +267,7 @@ const TRIGGER_FEED_ROW_HEIGHT = 54;
 const MOBILE_COMMAND_DOCK_PADDING = 10;
 const MOBILE_TEST_MODE_PARAM = "mobileTest";
 const MOBILE_TEST_MODE_VALUE = "audio";
-const MOBILE_TEST_URL_VERSION = "mobile-field-focus-1";
+const MOBILE_TEST_URL_VERSION = "whole-tiles-1";
 const UI_ACTION_ICONS = {
   skills: "SK",
   quests: "Q",
@@ -7915,11 +7916,8 @@ export class GameScene extends Phaser.Scene {
     let visibleTiles = 0;
     const radius = (TILE_SIZE * this.boardScale) / 2 + this.getTileCullMargin();
     this.updateBoardViewport(bounds, centerX, centerY);
-    const cullBounds = this.getBoardViewportBounds(radius);
-    const minVisibleX = Phaser.Math.Clamp(Math.floor((cullBounds.left - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
-    const maxVisibleX = Phaser.Math.Clamp(Math.ceil((cullBounds.right - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX);
-    const minVisibleY = Phaser.Math.Clamp(Math.floor((cullBounds.top - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
-    const maxVisibleY = Phaser.Math.Clamp(Math.ceil((cullBounds.bottom - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY);
+    const visibleRange = this.getVisibleTileRange(bounds, startX, startY, scaledStep, radius);
+    const { minVisibleX, maxVisibleX, minVisibleY, maxVisibleY } = visibleRange;
     const visibleCandidateCount = Math.max(0, maxVisibleX - minVisibleX + 1) * Math.max(0, maxVisibleY - minVisibleY + 1);
     const budgetCommonRedraw = this.shouldBudgetCommonRedraw(reason, visibleCandidateCount);
     const keepQueuedRedrawViews = budgetCommonRedraw && visibleCandidateCount <= COMMON_REDRAW_MOBILE_TILE_LIMIT;
@@ -8073,10 +8071,24 @@ export class GameScene extends Phaser.Scene {
     const maskInset = Math.max(0, contentInset - contentMaskBleed);
     const minWidth = expanded ? this.boardAvailableWidth * this.getExpandedBoardWidthRatio() : naturalWidth;
     const minHeight = expanded ? this.boardAvailableHeight * 0.92 : naturalHeight;
-    const width = Math.min(this.boardAvailableWidth, Math.max(naturalWidth, minWidth));
-    const height = Math.min(this.boardAvailableHeight, Math.max(naturalHeight, minHeight));
-    const centeredX = centerX - width / 2;
-    const centeredY = centerY - height / 2;
+    let width = Math.min(this.boardAvailableWidth, Math.max(naturalWidth, minWidth));
+    let height = Math.min(this.boardAvailableHeight, Math.max(naturalHeight, minHeight));
+    let contentWidth = Math.max(1, width - maskInset * 2);
+    let contentHeight = Math.max(1, height - maskInset * 2);
+
+    if (this.shouldUseWholeTileBoardViewport()) {
+      contentWidth = this.getWholeTileViewportContentSize(contentWidth, this.boardScaledWidth, bounds.width);
+      contentHeight = this.getWholeTileViewportContentSize(contentHeight, this.boardScaledHeight, bounds.height);
+      width = Math.min(this.boardAvailableWidth, contentWidth + maskInset * 2);
+      height = Math.min(this.boardAvailableHeight, contentHeight + maskInset * 2);
+    }
+
+    const viewportCenterX =
+      expanded && this.shouldUseWholeTileBoardViewport() ? this.boardAvailableLeft + this.boardAvailableWidth / 2 : centerX;
+    const viewportCenterY =
+      expanded && this.shouldUseWholeTileBoardViewport() ? this.boardTopY + this.boardAvailableHeight / 2 : centerY;
+    const centeredX = viewportCenterX - width / 2;
+    const centeredY = viewportCenterY - height / 2;
     const minX = this.boardAvailableLeft;
     const maxX = this.boardAvailableLeft + this.boardAvailableWidth - width;
     const minY = this.boardTopY;
@@ -8092,9 +8104,60 @@ export class GameScene extends Phaser.Scene {
     this.setBoardContentRect({
       x: viewportRect.x + maskInset,
       y: viewportRect.y + maskInset,
-      width: Math.max(1, viewportRect.width - maskInset * 2),
-      height: Math.max(1, viewportRect.height - maskInset * 2),
+      width: Math.max(1, Math.min(contentWidth, viewportRect.width - maskInset * 2)),
+      height: Math.max(1, Math.min(contentHeight, viewportRect.height - maskInset * 2)),
     });
+  }
+
+  private shouldUseWholeTileBoardViewport(): boolean {
+    return this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH;
+  }
+
+  private getWholeTileViewportContentSize(limit: number, boardSize: number, tileCount: number): number {
+    if (this.boardScale <= 0 || tileCount <= 0) {
+      return Math.max(1, Math.min(limit, boardSize));
+    }
+
+    const scaledStep = (TILE_SIZE + TILE_GAP) * this.boardScale;
+    const scaledGap = TILE_GAP * this.boardScale;
+    const fullTileCount = Phaser.Math.Clamp(
+      Math.floor((Math.min(limit, boardSize) + scaledGap + BOARD_WHOLE_TILE_EPSILON) / scaledStep),
+      1,
+      tileCount,
+    );
+    const wholeTileSize = fullTileCount * scaledStep - scaledGap;
+    return Math.max(1, Math.min(boardSize, wholeTileSize));
+  }
+
+  private getVisibleTileRange(
+    bounds: FieldBounds,
+    startX: number,
+    startY: number,
+    scaledStep: number,
+    radius: number,
+  ): { minVisibleX: number; maxVisibleX: number; minVisibleY: number; maxVisibleY: number } {
+    if (this.shouldUseWholeTileBoardViewport() && this.boardContentWidth > 0 && this.boardContentHeight > 0) {
+      const halfTile = (TILE_SIZE * this.boardScale) / 2;
+      const left = this.boardContentX + halfTile - BOARD_WHOLE_TILE_EPSILON;
+      const right = this.boardContentX + this.boardContentWidth - halfTile + BOARD_WHOLE_TILE_EPSILON;
+      const top = this.boardContentY + halfTile - BOARD_WHOLE_TILE_EPSILON;
+      const bottom = this.boardContentY + this.boardContentHeight - halfTile + BOARD_WHOLE_TILE_EPSILON;
+
+      return {
+        minVisibleX: Phaser.Math.Clamp(Math.ceil((left - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX),
+        maxVisibleX: Phaser.Math.Clamp(Math.floor((right - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX),
+        minVisibleY: Phaser.Math.Clamp(Math.ceil((top - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY),
+        maxVisibleY: Phaser.Math.Clamp(Math.floor((bottom - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY),
+      };
+    }
+
+    const cullBounds = this.getBoardViewportBounds(radius);
+    return {
+      minVisibleX: Phaser.Math.Clamp(Math.floor((cullBounds.left - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX),
+      maxVisibleX: Phaser.Math.Clamp(Math.ceil((cullBounds.right - startX) / scaledStep) + bounds.minX, bounds.minX, bounds.maxX),
+      minVisibleY: Phaser.Math.Clamp(Math.floor((cullBounds.top - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY),
+      maxVisibleY: Phaser.Math.Clamp(Math.ceil((cullBounds.bottom - startY) / scaledStep) + bounds.minY, bounds.minY, bounds.maxY),
+    };
   }
 
   private shouldUseExpandedBoardViewport(bounds: FieldBounds): boolean {
@@ -8244,10 +8307,14 @@ export class GameScene extends Phaser.Scene {
       const maskY = this.boardContentHeight > 0 ? this.boardContentY : 0;
       const maskWidth = this.boardContentWidth > 0 ? this.boardContentWidth : this.scale.width;
       const maskHeight = this.boardContentHeight > 0 ? this.boardContentHeight : this.scale.height;
-      const maskRadius = Math.min(maskWidth / 2, maskHeight / 2, Phaser.Math.Clamp(14 * this.boardScale, 6, 18));
       this.boardViewportMaskGraphics.clear();
       this.boardViewportMaskGraphics.fillStyle(0xffffff, 1);
-      this.boardViewportMaskGraphics.fillRoundedRect(maskX, maskY, maskWidth, maskHeight, maskRadius);
+      if (this.shouldUseWholeTileBoardViewport()) {
+        this.boardViewportMaskGraphics.fillRect(maskX, maskY, maskWidth, maskHeight);
+      } else {
+        const maskRadius = Math.min(maskWidth / 2, maskHeight / 2, Phaser.Math.Clamp(14 * this.boardScale, 6, 18));
+        this.boardViewportMaskGraphics.fillRoundedRect(maskX, maskY, maskWidth, maskHeight, maskRadius);
+      }
     }
   }
 
@@ -9333,6 +9400,49 @@ export class GameScene extends Phaser.Scene {
     const { x: maxPanX, y: maxPanY } = this.getBoardPanLimits();
     this.boardPanX = Phaser.Math.Clamp(this.boardPanX, -maxPanX, maxPanX);
     this.boardPanY = Phaser.Math.Clamp(this.boardPanY, -maxPanY, maxPanY);
+
+    if (!this.shouldUseWholeTileBoardViewport() || this.boardScale <= 0 || this.boardContentWidth <= 0 || this.boardContentHeight <= 0) {
+      return;
+    }
+
+    const scaledStep = (TILE_SIZE + TILE_GAP) * this.boardScale;
+    this.boardPanX = this.snapBoardPanAxisToWholeTiles(
+      this.boardPanX,
+      this.boardBaseCenterX - this.boardScaledWidth / 2,
+      this.boardContentX,
+      scaledStep,
+      maxPanX,
+    );
+    this.boardPanY = this.snapBoardPanAxisToWholeTiles(
+      this.boardPanY,
+      this.boardBaseCenterY - this.boardScaledHeight / 2,
+      this.boardContentY,
+      scaledStep,
+      maxPanY,
+    );
+  }
+
+  private snapBoardPanAxisToWholeTiles(
+    pan: number,
+    boardStartAtZeroPan: number,
+    contentStart: number,
+    scaledStep: number,
+    maxPan: number,
+  ): number {
+    if (maxPan <= BOARD_WHOLE_TILE_EPSILON || scaledStep <= 0) {
+      return 0;
+    }
+
+    const alignedPanAtIndexZero = contentStart - boardStartAtZeroPan;
+    const minIndex = Math.ceil((alignedPanAtIndexZero - maxPan) / scaledStep - BOARD_WHOLE_TILE_EPSILON);
+    const maxIndex = Math.floor((alignedPanAtIndexZero + maxPan) / scaledStep + BOARD_WHOLE_TILE_EPSILON);
+    if (minIndex > maxIndex) {
+      return Phaser.Math.Clamp(pan, -maxPan, maxPan);
+    }
+
+    const desiredIndex = Math.round((alignedPanAtIndexZero - pan) / scaledStep);
+    const snappedIndex = Phaser.Math.Clamp(desiredIndex, minIndex, maxIndex);
+    return Phaser.Math.Clamp(alignedPanAtIndexZero - snappedIndex * scaledStep, -maxPan, maxPan);
   }
 
   private getBoardPanLimits(): { x: number; y: number } {

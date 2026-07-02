@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-02",
-  "latestHandoff": "HANDOFF_2026-07-02_MOBILE_FIELD_FOCUS_UI.json",
+  "latestHandoff": "HANDOFF_2026-07-02_WHOLE_TILE_MOBILE_VIEWPORT.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

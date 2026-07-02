@@ -1,0 +1,49 @@
+{
+  "date": "2026-07-02",
+  "topic": "whole tile mobile viewport",
+  "currentUserGoal": "Prevent mobile/tablet board views from showing partial tiles or letting tiles overlap the board borders.",
+  "changesMade": [
+    "Added whole-tile viewport sizing for compact and tablet-width board layouts.",
+    "Quantized the board content area to exact tile visual sizes so the mask lands on tile-cell boundaries.",
+    "Changed compact/tablet culling to only render tiles whose base tile fits fully inside the board content area.",
+    "Snapped compact/tablet board panning to tile increments so touch dragging cannot land between tile columns or rows.",
+    "Changed the compact/tablet tile mask from rounded to rectangular inside the ornate frame so corner tiles are not shaved by the mask radius.",
+    "Bumped the mobile test URL version to whole-tiles-1."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-07-02_WHOLE_TILE_MOBILE_VIEWPORT.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run build passed locally and produced dist/assets/index-BQnvu_Hn.js.",
+    "Phone viewport 390x844 local checks covered fieldShape=rect64 initial, right-arrow panned state, drag pan state, and fieldShape=lshape.",
+    "Phone checks showed whole tile rows/columns with no edge slivers and arrows still visible/tappable on the board border.",
+    "Tablet viewport 768x1024 local smoke check showed compact/tablet layout still working with whole-tile board content.",
+    "Desktop viewport 1280x720 local smoke check showed desktop/right-rail layout intact.",
+    "Mobile perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200 completed with frameSpikes=0, layoutPasses=0, redraws=0, redrawQueued=0, tileMode=viewport, visibleTiles from 15 to 20 and down to 12 after zoom, maxFrameDeltaMs 7-11, displayObjects 176-231, activeTweens 11-27.",
+    "npx vercel --prod --yes completed successfully.",
+    "Production deployment dpl_779GQrAXvSo3mf7JWvbmLPZp9kb6 is READY and aliased to https://grasstouchingsimulator.com.",
+    "Live smoke check for https://grasstouchingsimulator.com/?fieldShape=rect64&v=whole-tiles-1 confirmed the page serves index-BQnvu_Hn.js.",
+    "Live phone viewport 390x844 screenshot confirmed the whole-tile mobile board behavior is active on grasstouchingsimulator.com."
+  ],
+  "currentGitStatus": [
+    "Modified: src/game/scenes/GameScene.ts",
+    "New handoff pending: handoffs/HANDOFF_2026-07-02_WHOLE_TILE_MOBILE_VIEWPORT.json",
+    "Updated handoff pointer pending: handoffs/LATEST.json",
+    "Pre-existing unrelated untracked files still present and untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "Whole-tile rendering intentionally reduces visible tile count on phone compared with clipped-edge rendering.",
+    "Rare grass art can be visually taller/wider than a base tile, but the base tile cells no longer clip or overlap board borders."
+  ],
+  "nextRecommendedSteps": [
+    "Test https://grasstouchingsimulator.com/?v=whole-tiles-1 on iPhone Safari with a real save after panning several times.",
+    "If later grass tiers visually overhang too much at board edges, add a small compact/tablet edge padding for oversized tier art instead of returning to partial tiles."
+  ],
+  "doNotRevert": [
+    "Do not restore free pixel panning for compact/tablet board views; it reintroduces partial visible tiles.",
+    "Do not restore rounded tile masks for compact/tablet whole-tile viewports; the rounded mask clips corner tiles.",
+    "Do not touch or remove the unrelated untracked docs/assets listed in git status."
+  ]
+}
