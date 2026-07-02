@@ -11,7 +11,11 @@ const wholeNumberFormatter = new Intl.NumberFormat("en-US", {
 const formattedGrassTouchCache = new Map<GrassTouchAmount, string>();
 
 export function normalizeGrassTouches(value: unknown, fallback: GrassTouchAmount = 0): GrassTouchAmount {
-  const numericValue = typeof value === "number" ? value : Number(value);
+  // Accept genuine numbers and non-empty numeric strings only. Everything else
+  // (null, "", whitespace, arrays, booleans, objects) must use the fallback
+  // rather than being silently coerced by Number() (Number(null) === 0, etc.).
+  const numericValue =
+    typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : NaN;
   const fallbackValue = typeof fallback === "number" && Number.isFinite(fallback) ? fallback : 0;
 
   if (numericValue === Infinity) {
