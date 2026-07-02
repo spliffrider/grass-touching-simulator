@@ -1,0 +1,49 @@
+{
+  "date": "2026-07-02",
+  "topic": "mobile field focus UI",
+  "currentUserGoal": "Make the mobile layout spend much less space on non-player-field UI while leaving the desktop/web layout alone.",
+  "changesMade": [
+    "Added a true mobile HUD chip height and tighter mobile HUD spacing so the title, build label, resource chips, goal nudge, and milestone text use less vertical space.",
+    "Hid the mobile Test button unless the mobile test URL flag is active, so normal mobile players get more bottom space.",
+    "Changed the mobile command dock to use up to four compact columns, smaller padding, smaller gaps, and lighter framing.",
+    "Reduced mobile-only board bottom reserve and moved compact mobile boards higher in the available play area.",
+    "Increased compact mobile board zoom and reduced mobile compact board inset so mid-size phone fields show larger grass tiles.",
+    "Bumped the mobile test URL version to mobile-field-focus-1."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-07-02_MOBILE_FIELD_FOCUS_UI.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run build passed locally and produced dist/assets/index-CeXieWMM.js.",
+    "Phone viewport 390x844 local checks covered fieldShape=lshape and fieldShape=rect64; compact fields moved higher/larger and large fields kept border arrows visible.",
+    "Phone right-arrow tap check panned the large field successfully.",
+    "Tablet viewport 768x1024 local smoke check showed the existing tablet/right-rail layout intact.",
+    "Desktop viewport 1280x720 local smoke check showed the existing desktop/right-rail layout intact.",
+    "Mobile perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200 completed with frameSpikes=0, layoutPasses=0, redraws=0, redrawQueued=0, tileMode=viewport, visibleTiles from 56 to 63 and down to 49 after zoom, maxFrameDeltaMs 7-13, displayObjects 430-477, activeTweens 11-27.",
+    "npx vercel --prod --yes completed successfully.",
+    "Production deployment dpl_GLZ8J2cu8Bjg3TGtwwpjVFQgGnzG is READY and aliased to https://grasstouchingsimulator.com.",
+    "Live smoke check for https://grasstouchingsimulator.com/?fieldShape=lshape&v=mobile-field-focus-1 confirmed the page serves index-CeXieWMM.js.",
+    "Live phone viewport 390x844 screenshot confirmed the compact mobile field-focused layout is active on grasstouchingsimulator.com."
+  ],
+  "currentGitStatus": [
+    "Modified: src/game/scenes/GameScene.ts",
+    "New handoff pending: handoffs/HANDOFF_2026-07-02_MOBILE_FIELD_FOCUS_UI.json",
+    "Updated handoff pointer pending: handoffs/LATEST.json",
+    "Pre-existing unrelated untracked files still present and untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+  ],
+  "knownIssues": [
+    "The debug stress state still has enough unlocked buttons to require two dock rows on phone; normal early/mobile play hides the Test button and can collapse to a shorter dock.",
+    "The compact mobile HUD is intentionally denser; if real-device readability feels too tight, increase HUD_CHIP_MOBILE_HEIGHT before expanding the whole layout again."
+  ],
+  "nextRecommendedSteps": [
+    "Test https://grasstouchingsimulator.com/?v=mobile-field-focus-1 on iPhone Safari with a real save, especially early-game four-button dock and mid-game larger fields.",
+    "If users still want more field area, consider a collapsible mobile HUD or icon-only bottom dock as a separate interaction change."
+  ],
+  "doNotRevert": [
+    "Do not restore the mobile Test button for normal public mobile sessions; it was taking space from the field.",
+    "Do not widen desktop/tablet assumptions from these mobile-only constants unless a separate desktop/tablet issue appears.",
+    "Do not touch or remove the unrelated untracked docs/assets listed in git status."
+  ]
+}

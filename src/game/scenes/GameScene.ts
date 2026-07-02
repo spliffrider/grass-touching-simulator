@@ -122,7 +122,7 @@ const REGROWING_GRASS_SCALE = 0.94;
 const BOARD_Y_OFFSET = 24;
 const MIN_BOARD_ZOOM = 0.45;
 const MAX_BOARD_ZOOM = 6;
-const MOBILE_BOARD_COMPACT_ZOOM = 1.22;
+const MOBILE_BOARD_COMPACT_ZOOM = 1.36;
 const MOBILE_BOARD_EXPANDED_ZOOM = 1.92;
 const LARGE_FIELD_INITIAL_ZOOM_TILE_THRESHOLD = 600;
 const LARGE_FIELD_INITIAL_VISIBLE_TILES_DESKTOP = 8;
@@ -139,7 +139,7 @@ const BOARD_CONTENT_INSET_PX = 22;
 const BOARD_COMPACT_MASK_BLEED_MIN_PX = 6;
 const BOARD_COMPACT_MASK_BLEED_MAX_PX = 30;
 const BOARD_CONTENT_INSET_SCALE = 26;
-const BOARD_MOBILE_COMPACT_CONTENT_INSET_SCALE = 38;
+const BOARD_MOBILE_COMPACT_CONTENT_INSET_SCALE = 28;
 const DESKTOP_BOARD_RIGHT_UI_RESERVE = 154;
 const DESKTOP_BOARD_FLOATING_UI_GAP = 14;
 const COMPACT_LARGE_FIELD_MAX_WIDTH = 560;
@@ -246,6 +246,7 @@ const PERF_HARNESS_PHASE_DELAY_MS = 800;
 const PERF_HARNESS_TAP_COUNT = 14;
 const HUD_CHIP_HEIGHT = 48;
 const HUD_CHIP_COMPACT_HEIGHT = 42;
+const HUD_CHIP_MOBILE_HEIGHT = 34;
 const HUD_CHIP_GAP = 8;
 const ACTION_BUTTON_WIDTH = 118;
 const ACTION_BUTTON_HEIGHT = 58;
@@ -265,7 +266,7 @@ const TRIGGER_FEED_ROW_HEIGHT = 54;
 const MOBILE_COMMAND_DOCK_PADDING = 10;
 const MOBILE_TEST_MODE_PARAM = "mobileTest";
 const MOBILE_TEST_MODE_VALUE = "audio";
-const MOBILE_TEST_URL_VERSION = "soft-mobile-audio-2-border-arrows-1";
+const MOBILE_TEST_URL_VERSION = "mobile-field-focus-1";
 const UI_ACTION_ICONS = {
   skills: "SK",
   quests: "Q",
@@ -3410,23 +3411,23 @@ export class GameScene extends Phaser.Scene {
   private layoutHeader(): void {
     const compact = this.scale.width < 760;
     const mobilePortrait = this.isMobilePortrait();
-    const headerWidth = mobilePortrait ? Math.max(174, this.scale.width - 122) : Math.max(220, Math.min(620, this.scale.width - 180));
+    const headerWidth = mobilePortrait ? Math.max(174, this.scale.width - 52) : Math.max(220, Math.min(620, this.scale.width - 180));
 
-    this.titleText.setFontSize(mobilePortrait ? 20 : compact ? 22 : 30);
+    this.titleText.setFontSize(mobilePortrait ? 18 : compact ? 22 : 30);
     this.titleText.setWordWrapWidth(headerWidth);
-    this.buildLabelText.setFontSize(mobilePortrait ? 10 : compact ? 12 : 13);
+    this.buildLabelText.setFontSize(mobilePortrait ? 9 : compact ? 12 : 13);
     this.buildLabelText.setWordWrapWidth(headerWidth);
     this.resourceText.setVisible(false);
     this.comboBadgeText.setFontSize(mobilePortrait ? 12 : compact ? 14 : 16);
-    this.goalNudgeText.setFontSize(mobilePortrait ? 11 : compact ? 12 : 13);
-    this.goalNudgeIcon.setFontSize(mobilePortrait ? 10 : 11);
-    this.milestoneText.setFontSize(mobilePortrait ? 12 : compact ? 13 : 16);
-    this.milestoneText.setWordWrapWidth(mobilePortrait ? Math.max(240, this.scale.width - 36) : headerWidth);
+    this.goalNudgeText.setFontSize(mobilePortrait ? 10 : compact ? 12 : 13);
+    this.goalNudgeIcon.setFontSize(mobilePortrait ? 9 : 11);
+    this.milestoneText.setFontSize(mobilePortrait ? 11 : compact ? 13 : 16);
+    this.milestoneText.setWordWrapWidth(mobilePortrait ? Math.max(230, this.scale.width - 20) : headerWidth);
 
-    this.titleText.setPosition(mobilePortrait ? 18 : 24, mobilePortrait ? 16 : 18);
-    this.buildLabelText.setPosition(mobilePortrait ? 20 : 26, this.titleText.y + this.titleText.height);
+    this.titleText.setPosition(mobilePortrait ? 10 : 24, mobilePortrait ? 10 : 18);
+    this.buildLabelText.setPosition(mobilePortrait ? 12 : 26, this.titleText.y + this.titleText.height - (mobilePortrait ? 1 : 0));
     this.layoutHudChips();
-    this.milestoneText.setPosition(mobilePortrait ? 20 : 26, this.layoutGoalNudge(this.layoutComboBadge()));
+    this.milestoneText.setPosition(mobilePortrait ? 12 : 26, this.layoutGoalNudge(this.layoutComboBadge()));
     this.layoutMenuButtons();
     this.layoutTriggerFeed();
     this.layoutSeasonVisuals();
@@ -3445,11 +3446,11 @@ export class GameScene extends Phaser.Scene {
   private layoutHudChips(): void {
     const mobilePortrait = this.isMobilePortrait();
     const compact = this.scale.width < 760;
-    const chipHeight = mobilePortrait || compact ? HUD_CHIP_COMPACT_HEIGHT : HUD_CHIP_HEIGHT;
-    const gap = mobilePortrait ? 6 : HUD_CHIP_GAP;
-    const startX = mobilePortrait ? 14 : 26;
-    const startY = this.buildLabelText.y + this.buildLabelText.height + (mobilePortrait ? 8 : 10);
-    const rightLimit = mobilePortrait ? this.scale.width - 14 : Math.max(startX + 260, this.scale.width - (compact ? 18 : 170));
+    const chipHeight = mobilePortrait ? HUD_CHIP_MOBILE_HEIGHT : compact ? HUD_CHIP_COMPACT_HEIGHT : HUD_CHIP_HEIGHT;
+    const gap = mobilePortrait ? 4 : HUD_CHIP_GAP;
+    const startX = mobilePortrait ? 8 : 26;
+    const startY = this.buildLabelText.y + this.buildLabelText.height + (mobilePortrait ? 5 : 10);
+    const rightLimit = mobilePortrait ? this.scale.width - 8 : Math.max(startX + 260, this.scale.width - (compact ? 18 : 170));
     const mobileWidth = Math.max(86, Math.floor((rightLimit - startX - gap * 2) / 3));
     const widths: Record<HudChipId, number> = mobilePortrait
       ? { touches: mobileWidth, seeds: mobileWidth, gold: mobileWidth, auto: mobileWidth, quest: mobileWidth }
@@ -3478,7 +3479,7 @@ export class GameScene extends Phaser.Scene {
 
     this.hudChipBottomY = rowBottom;
     this.hudChipRightX = rowRight;
-    const railPad = mobilePortrait ? 6 : 8;
+    const railPad = mobilePortrait ? 4 : 8;
     const railWidth = Math.max(156, Math.min(rightLimit - startX + railPad * 2, rowRight - startX + railPad * 2));
     const railHeight = Math.max(chipHeight + railPad * 2, rowBottom - startY + railPad * 2);
     this.hudRailFrame.setPosition(startX - railPad, startY - railPad);
@@ -3487,16 +3488,25 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resizeHudChip(chip: HudChipView, width: number, height: number, compact: boolean): void {
+    const mobileTight = height <= HUD_CHIP_MOBILE_HEIGHT;
     chip.width = width;
     chip.frame.setSize(width, height);
     chip.glow.setSize(width + 6, height + 6);
     chip.glow.setPosition(-3, -3);
     chip.bg.setSize(width, height);
-    chip.iconBg.setPosition(22, height / 2).setDisplaySize(compact ? 26 : 30, compact ? 26 : 30);
-    chip.iconImage?.setPosition(22, height / 2).setDisplaySize(compact ? 19 : 22, compact ? 19 : 22);
-    chip.iconText?.setPosition(22, height / 2).setFontSize(compact ? 11 : 13);
-    chip.title.setPosition(40, compact ? 5 : 7).setFontSize(compact ? 10 : 11).setWordWrapWidth(Math.max(40, width - 46));
-    chip.value.setPosition(40, compact ? 20 : 23).setFontSize(compact || width < 100 ? 12 : 16).setWordWrapWidth(Math.max(40, width - 46));
+    const iconX = mobileTight ? 18 : 22;
+    const textX = mobileTight ? 34 : 40;
+    chip.iconBg.setPosition(iconX, height / 2).setDisplaySize(mobileTight ? 22 : compact ? 26 : 30, mobileTight ? 22 : compact ? 26 : 30);
+    chip.iconImage?.setPosition(iconX, height / 2).setDisplaySize(mobileTight ? 16 : compact ? 19 : 22, mobileTight ? 16 : compact ? 19 : 22);
+    chip.iconText?.setPosition(iconX, height / 2).setFontSize(mobileTight ? 9 : compact ? 11 : 13);
+    chip.title
+      .setPosition(textX, mobileTight ? 3 : compact ? 5 : 7)
+      .setFontSize(mobileTight ? 9 : compact ? 10 : 11)
+      .setWordWrapWidth(Math.max(40, width - textX - 6));
+    chip.value
+      .setPosition(textX, mobileTight ? 17 : compact ? 20 : 23)
+      .setFontSize(mobileTight || compact || width < 100 ? 12 : 16)
+      .setWordWrapWidth(Math.max(40, width - textX - 6));
   }
 
   private layoutMenuButtons(): void {
@@ -3505,7 +3515,7 @@ export class GameScene extends Phaser.Scene {
     const buttonWidth = Number(this.skillButton.getData("baseWidth") ?? ACTION_BUTTON_WIDTH);
     const buttonHeight = Number(this.skillButton.getData("baseHeight") ?? ACTION_BUTTON_HEIGHT);
     const storeUnlocked = this.isStoreUnlocked();
-    const showMobileTestButton = mobilePortrait;
+    const showMobileTestButton = mobilePortrait && this.mobileTestModeEnabled;
     const visibleButtons = [
       this.skillButton,
       this.questButton,
@@ -3523,25 +3533,26 @@ export class GameScene extends Phaser.Scene {
     this.testButton.setVisible(showMobileTestButton);
 
     if (mobilePortrait) {
-      const columns = Math.min(visibleButtons.length <= 3 ? visibleButtons.length : visibleButtons.length <= 6 ? 3 : 4, visibleButtons.length);
+      const preferredColumns = visibleButtons.length <= 4 ? visibleButtons.length : 4;
+      const columns = Math.max(1, Math.min(preferredColumns, visibleButtons.length));
       const rows = Math.ceil(visibleButtons.length / columns);
-      const gap = columns >= 4 ? 6 : 8;
-      const dockX = 6;
-      const dockPadding = 8;
+      const gap = columns >= 4 ? 5 : 6;
+      const dockX = 5;
+      const dockPadding = 6;
       const availableWidth = this.scale.width - dockX * 2 - dockPadding * 2;
       buttonScale = Math.min(buttonScale, (availableWidth - Math.max(0, columns - 1) * gap) / Math.max(1, columns * buttonWidth));
-      buttonScale = Phaser.Math.Clamp(buttonScale, 0.72, 1);
+      buttonScale = Phaser.Math.Clamp(buttonScale, 0.68, 0.86);
       const scaledButtonWidth = buttonWidth * buttonScale;
       const scaledButtonHeight = buttonHeight * buttonScale;
       const dockHeight = rows * scaledButtonHeight + Math.max(0, rows - 1) * gap + dockPadding * 2;
-      const dockTop = Math.max(12, this.scale.height - dockHeight - 8);
+      const dockTop = Math.max(8, this.scale.height - dockHeight - 6);
       this.mobileCommandDockTop = dockTop;
       this.mobileCommandDockHeight = dockHeight;
       this.menuDockBg
         .setPosition(dockX, dockTop)
         .setSize(this.scale.width - dockX * 2, dockHeight)
-        .setFillStyle(UITheme.colors.panelBgDeep, 0.86)
-        .setStrokeStyle(2, UITheme.colors.bronze, 0.66);
+        .setFillStyle(UITheme.colors.panelBgDeep, 0.78)
+        .setStrokeStyle(2, UITheme.colors.bronze, 0.58);
       this.menuDockFrame.setPosition(dockX, dockTop);
       this.menuDockFrame.setSize(this.scale.width - dockX * 2, dockHeight);
       this.menuDockFrame.setVisible(!this.hasBlockingOverlayOpen());
@@ -3592,7 +3603,7 @@ export class GameScene extends Phaser.Scene {
     this.comboBadgeMeter.setPosition(12, mobilePortrait ? 7 : compact ? 10 : 12);
 
     if (mobilePortrait && !this.comboBadge.visible) {
-      return resourceBottom + 10;
+      return resourceBottom + 5;
     }
 
     if (fitsRight) {
@@ -3600,8 +3611,8 @@ export class GameScene extends Phaser.Scene {
       return resourceBottom + 12;
     }
 
-    this.comboBadge.setPosition(26, resourceBottom + 24);
-    return resourceBottom + badgeHeight + (mobilePortrait ? 14 : 20);
+    this.comboBadge.setPosition(mobilePortrait ? 12 : 26, resourceBottom + (mobilePortrait ? 8 : 24));
+    return resourceBottom + badgeHeight + (mobilePortrait ? 8 : 20);
   }
 
   private layoutGoalNudge(startY: number): number {
@@ -3611,22 +3622,22 @@ export class GameScene extends Phaser.Scene {
 
     const mobilePortrait = this.isMobilePortrait();
     const compact = this.scale.width < 760;
-    const x = mobilePortrait ? 18 : 26;
-    const rightLimit = mobilePortrait ? this.scale.width - 18 : Math.max(x + 260, this.scale.width - (compact ? 18 : 170));
-    const maxWidth = mobilePortrait ? Math.max(180, this.scale.width - 36) : 420;
-    const minWidth = Math.min(maxWidth, mobilePortrait ? 260 : 300);
+    const x = mobilePortrait ? 8 : 26;
+    const rightLimit = mobilePortrait ? this.scale.width - 8 : Math.max(x + 260, this.scale.width - (compact ? 18 : 170));
+    const maxWidth = mobilePortrait ? Math.max(180, this.scale.width - 16) : 420;
+    const minWidth = Math.min(maxWidth, mobilePortrait ? 240 : 300);
     const width = Phaser.Math.Clamp(rightLimit - x, minWidth, maxWidth);
-    const height = mobilePortrait ? 30 : 34;
+    const height = mobilePortrait ? 24 : 34;
     const visible = this.goalNudgeRoot.visible;
 
     this.goalNudgeFrame.setSize(width, height);
     this.goalNudgeBg.setSize(width, height);
-    this.goalNudgeIcon.setPosition(mobilePortrait ? 15 : 16, height / 2);
+    this.goalNudgeIcon.setPosition(mobilePortrait ? 13 : 16, height / 2);
     this.goalNudgeText
-      .setPosition(mobilePortrait ? 30 : 34, mobilePortrait ? 8 : 9)
-      .setWordWrapWidth(Math.max(120, width - (mobilePortrait ? 42 : 48)));
+      .setPosition(mobilePortrait ? 27 : 34, mobilePortrait ? 5 : 9)
+      .setWordWrapWidth(Math.max(120, width - (mobilePortrait ? 36 : 48)));
     this.goalNudgeRoot.setPosition(x, startY);
-    return visible ? startY + height + (mobilePortrait ? 8 : 10) : startY;
+    return visible ? startY + height + (mobilePortrait ? 5 : 10) : startY;
   }
 
   private layoutSeasonVisuals(): void {
@@ -7859,10 +7870,10 @@ export class GameScene extends Phaser.Scene {
     const mobilePortrait = this.isMobilePortrait();
     const commandDockReserve = Number.isFinite(this.mobileCommandDockTop) ? this.scale.height - this.mobileCommandDockTop + 12 : 112;
     const mobileDockSafeBottom = mobilePortrait
-      ? Math.max(this.getActiveWorldObjects().length > 0 ? 148 : 112, commandDockReserve + (this.getActiveWorldObjects().length > 0 ? 44 : 0))
+      ? Math.max(this.getActiveWorldObjects().length > 0 ? 126 : 72, commandDockReserve + (this.getActiveWorldObjects().length > 0 ? 30 : 0))
       : 28;
     this.boardTopY = mobilePortrait
-      ? Math.max(176, this.getMobileMenuBottom() + 8, this.milestoneText.y + this.milestoneText.height + 12)
+      ? Math.max(132, this.getMobileMenuBottom() + 4, this.milestoneText.y + this.milestoneText.height + 6)
       : Math.max(142, this.milestoneText.y + this.milestoneText.height + 24);
     const horizontalMargin = mobilePortrait ? 7 : 18;
     const rightUiReserve = this.getBoardRightUiReserve();
@@ -7888,8 +7899,10 @@ export class GameScene extends Phaser.Scene {
     this.boardScaledWidth = boardWidth * this.boardScale;
     this.boardScaledHeight = boardHeight * this.boardScale;
     this.boardBaseCenterX = this.boardAvailableLeft + this.boardAvailableWidth / 2;
+    const mobileCompactVerticalBias = mobilePortrait && !expandedBoardViewport ? 0.43 : 0.5;
+    const compactBoardYOffset = mobilePortrait && !expandedBoardViewport ? 0 : BOARD_Y_OFFSET * this.boardScale;
     this.boardBaseCenterY =
-      this.boardTopY + this.boardAvailableHeight / 2 + (expandedBoardViewport ? 0 : BOARD_Y_OFFSET * this.boardScale);
+      this.boardTopY + this.boardAvailableHeight * mobileCompactVerticalBias + (expandedBoardViewport ? 0 : compactBoardYOffset);
     this.updateBoardViewport(bounds, this.boardBaseCenterX, this.boardBaseCenterY);
     this.clampBoardPan();
     const centerX = this.boardBaseCenterX + this.boardPanX;

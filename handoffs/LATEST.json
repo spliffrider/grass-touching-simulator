@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-02",
-  "latestHandoff": "HANDOFF_2026-07-02_DESKTOP_TOUCH_AUDIO_SOFTEN.json",
+  "latestHandoff": "HANDOFF_2026-07-02_MOBILE_FIELD_FOCUS_UI.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",
