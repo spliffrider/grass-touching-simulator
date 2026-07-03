@@ -1,0 +1,69 @@
+{
+  "date": "2026-07-03",
+  "topic": "code-efficiency-audit",
+  "currentUserGoal": "Run a code efficiency audit, remove stale code, and make the structure cleaner without blind hot-path refactors.",
+  "changesMade": [
+    "Ran TypeScript unused checks and removed stale GameScene constants, fields, helpers, and locals.",
+    "Enabled noUnusedLocals and noUnusedParameters in tsconfig.json so normal builds catch future dead code.",
+    "Removed an unused AnimalCompanionSystem runForagerTouch label parameter and its call-site arguments.",
+    "Flattened the perf harness callback ladder into explicit PerfHarnessStep sequencing with a completion helper.",
+    "Kept the previous Quest Log perf harness phases and row-only scroll optimization intact.",
+    "Extracted shouldKeepTileViewLive so tile view creation and release share the same keep-alive predicate.",
+    "Reworked skill-map touch gesture checks to avoid allocating filtered arrays during pointer-move/pinch handling."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/systems/AnimalCompanionSystem.ts",
+    "docs/PERFORMANCE_HARNESS.md",
+    "tsconfig.json",
+    "handoffs/HANDOFF_2026-07-03_QUEST_LOG_SCROLL_PERF.json",
+    "handoffs/HANDOFF_2026-07-03_CODE_EFFICIENCY_AUDIT.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npx tsc --noEmit --noUnusedLocals --noUnusedParameters passed after dead-code cleanup.",
+    "npm run build passed after enabling noUnusedLocals and noUnusedParameters in tsconfig.json.",
+    "Mobile perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200&v=efficiency-audit completed all phases.",
+    "Harness notable fields: idle visibleTiles 18, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 12, frameSpikes 0, displayObjects 176, activeTweens 19.",
+    "Harness questScroll: visibleTiles 24, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 9, frameSpikes 0, displayObjects 211, activeTweens 19.",
+    "Harness complete: visibleTiles 15, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 9, frameSpikes 0, displayObjects 248, activeTweens 22.",
+    "Browser console warning/error log was empty."
+  ],
+  "currentGitStatus": {
+    "intendedChanges": [
+      "M src/game/scenes/GameScene.ts",
+      "M src/game/systems/AnimalCompanionSystem.ts",
+      "M docs/PERFORMANCE_HARNESS.md",
+      "M tsconfig.json",
+      "M handoffs/LATEST.json",
+      "A handoffs/HANDOFF_2026-07-03_QUEST_LOG_SCROLL_PERF.json",
+      "A handoffs/HANDOFF_2026-07-03_CODE_EFFICIENCY_AUDIT.json"
+    ],
+    "untrackedLeftAlone": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssues": [
+    "GameScene.ts remains very large; this pass cleaned local structure but did not perform a broad module extraction.",
+    "Cold startup green-screen delay remains the next performance target.",
+    "Stress/perf overlay text is intentionally bulky in debug URLs and not representative of the normal mobile UI."
+  ],
+  "nextRecommendedSteps": [
+    "Commit and push the Quest Log scroll plus code efficiency audit changes when ready.",
+    "Profile cold startup next, especially boot asset loading and initial scene readiness.",
+    "Consider future extraction of self-contained panels or harness code from GameScene.ts, but only with focused tests/perf checks around each extraction."
+  ],
+  "doNotRevert": [
+    "Keep noUnusedLocals and noUnusedParameters enabled unless the project deliberately relaxes dead-code checks.",
+    "Do not return Quest Log scrolling to the full layoutQuestLog path.",
+    "Keep the explicit perf harness phases including questOpen and questScroll.",
+    "Keep tile view keep-alive logic centralized in shouldKeepTileViewLive or an equivalent single predicate."
+  ]
+}

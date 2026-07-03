@@ -1,0 +1,76 @@
+{
+  "date": "2026-07-03",
+  "topic": "ui-legibility-audit",
+  "currentUserGoal": "Run over the front-end UI, checking for mistakes, glitches, legibility, and clarity across desktop and mobile.",
+  "changesMade": [
+    "Audited the title screen, main HUD, Skill Map, Quest Log, Seed Lab, store, automation, journal, and options on desktop at 1280x720.",
+    "Audited the same core UI surfaces on mobile portrait at 390x844 using fieldShape=rect1200 to inspect a full unlocked stress state without the debug perf overlay covering the UI.",
+    "Added a narrow-phone check at 320x700 for the main HUD and Quest Log.",
+    "Fixed a compact Quest Log layout bug where seven filter buttons were laid out in more rows than the panel reserved, causing the final filter to collide with the first quest row.",
+    "Made compact Quest Log filter rows derive from the actual responsive column count so 390px uses two rows and very narrow phones can use three rows cleanly.",
+    "Shortened the mobile Quest Log summary text so the resource count no longer wraps into the status line on 320px-wide screens."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/systems/AnimalCompanionSystem.ts",
+    "docs/PERFORMANCE_HARNESS.md",
+    "tsconfig.json",
+    "handoffs/HANDOFF_2026-07-03_QUEST_LOG_SCROLL_PERF.json",
+    "handoffs/HANDOFF_2026-07-03_CODE_EFFICIENCY_AUDIT.json",
+    "handoffs/HANDOFF_2026-07-03_UI_LEGIBILITY_AUDIT.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "Desktop visual audit at 1280x720 covered title, main, Skill Map, Quest Log, Seed Lab, store, automation, journal, and options; no console warnings or errors.",
+    "Mobile visual audit at 390x844 covered title, main, Skill Map, Quest Log, Seed Lab, store, automation, journal, and options; no console warnings or errors.",
+    "Narrow mobile audit at 320x700 covered the main HUD and Quest Log before and after the fix.",
+    "Rechecked Quest Log at 390x844 after the fix: filter controls fit cleanly and the first quest card no longer overlaps.",
+    "Rechecked Quest Log at 320x700 after the fix: the summary stays legible, filters fit in three rows, and quest rows start below the filters.",
+    "npm run build passed.",
+    "Mobile perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200&v=ui-audit-final completed all phases with an empty warning/error console log.",
+    "Harness idle: visibleTiles 18, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 12, frameSpikes 0, displayObjects 176, activeTweens 19.",
+    "Harness questOpen: visibleTiles 18, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 8, frameSpikes 0, displayObjects 170, activeTweens 20.",
+    "Harness questScroll: visibleTiles 18, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 8, frameSpikes 0, displayObjects 170, activeTweens 19.",
+    "Harness complete: visibleTiles 15, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 8, frameSpikes 0, displayObjects 212, activeTweens 22.",
+    "git diff --check passed; only normal Windows LF-to-CRLF warnings were printed."
+  ],
+  "currentGitStatus": {
+    "intendedChanges": [
+      "M src/game/scenes/GameScene.ts",
+      "M src/game/systems/AnimalCompanionSystem.ts",
+      "M docs/PERFORMANCE_HARNESS.md",
+      "M tsconfig.json",
+      "M handoffs/LATEST.json",
+      "A handoffs/HANDOFF_2026-07-03_QUEST_LOG_SCROLL_PERF.json",
+      "A handoffs/HANDOFF_2026-07-03_CODE_EFFICIENCY_AUDIT.json",
+      "A handoffs/HANDOFF_2026-07-03_UI_LEGIBILITY_AUDIT.json"
+    ],
+    "untrackedLeftAlone": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssues": [
+    "GameScene.ts remains large after the cleanup; this session avoided a broad extraction without dedicated regression coverage.",
+    "Cold startup green-screen delay remains the next performance target.",
+    "Debug perf overlay text is intentionally bulky in perf/stress URLs and should not be judged as the normal mobile UI.",
+    "Long Seed Lab and Journal content requires scrolling on small screens, which behaved as expected in the visual audit."
+  ],
+  "nextRecommendedSteps": [
+    "Commit and push the Quest Log performance, code efficiency, and UI legibility audit changes when ready.",
+    "Profile cold startup next, especially boot asset loading and initial scene readiness.",
+    "For the next UI pass, consider a small screenshot regression harness for the main mobile overlays so compact layout collisions are easier to catch automatically."
+  ],
+  "doNotRevert": [
+    "Keep the compact Quest Log filter row count derived from the actual responsive column count.",
+    "Keep the shortened mobile Quest Log summary text or an equivalent compact copy treatment.",
+    "Do not return Quest Log drag/wheel scrolling to the full layoutQuestLog path.",
+    "Keep noUnusedLocals and noUnusedParameters enabled unless the project deliberately relaxes dead-code checks."
+  ]
+}

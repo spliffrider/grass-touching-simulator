@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-03",
-  "latestHandoff": "HANDOFF_2026-07-03_COMPACT_MOBILE_HUD.json",
+  "latestHandoff": "HANDOFF_2026-07-03_UI_LEGIBILITY_AUDIT.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

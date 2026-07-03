@@ -1,0 +1,59 @@
+{
+  "date": "2026-07-03",
+  "topic": "quest-log-scroll-perf",
+  "currentUserGoal": "Continue from the latest handoff and address the next mobile performance target: Quest Log scrolling.",
+  "changesMade": [
+    "Added Quest Log phases to the repeatable perf harness: questOpen and questScroll.",
+    "Split Quest Log layout so full overlay layout handles headers, masks, filters, and cached filtered quest rows, while scroll only repositions visible row views.",
+    "Skipped quest row text/status refresh during scroll for rows that were already visible, refreshing only newly visible rows or full-layout refreshes.",
+    "Coalesced multiple Quest Log scroll updates in the same frame so drag/wheel bursts produce one visible row reposition.",
+    "Documented the new questOpen and questScroll harness phases in docs/PERFORMANCE_HARNESS.md."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "docs/PERFORMANCE_HARNESS.md",
+    "handoffs/HANDOFF_2026-07-03_QUEST_LOG_SCROLL_PERF.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run build passed after the code changes.",
+    "Baseline focused mobile harness at http://127.0.0.1:5173/?perfHarness&tiles=1200&v=quest-instrumented-baseline reproduced the Quest Log scroll issue: questScroll maxFrameDeltaMs 35, frameSpikes 7, visibleTiles 18, layoutPasses 0, redraws 0, redrawQueued 0, displayObjects 181, activeTweens 19.",
+    "After row-only scroll layout but before coalescing, questScroll improved to maxFrameDeltaMs 31 and frameSpikes 0.",
+    "Final mobile harness at http://127.0.0.1:5173/?perfHarness&tiles=1200&v=quest-scroll-coalesced completed all phases with questScroll maxFrameDeltaMs 9, frameSpikes 0, visibleTiles 18, layoutPasses 0, redraws 0, redrawQueued 0, displayObjects 195, activeTweens 19.",
+    "Final complete phase remained clean: visibleTiles 15, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 9, frameSpikes 0, displayObjects 212, activeTweens 22.",
+    "Manual mobile visual check at http://127.0.0.1:5173/?stress&perf&tiles=1200&v=quest-visual-check-2 opened the Quest Log from the mobile dock and dragged the list; perf overlay showed ui:questScroll 3.5/2.4x4, maxFrameDeltaMs 11, frameSpikes 0.",
+    "Browser console warning/error log was empty for harness and visual checks."
+  ],
+  "currentGitStatus": {
+    "trackedChanges": [
+      "M src/game/scenes/GameScene.ts",
+      "M docs/PERFORMANCE_HARNESS.md",
+      "M handoffs/LATEST.json",
+      "A handoffs/HANDOFF_2026-07-03_QUEST_LOG_SCROLL_PERF.json"
+    ],
+    "untrackedLeftAlone": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssues": [
+    "Cold startup green-screen delay remains the next optimization target from the prior handoff.",
+    "Stress/perf overlay text is intentionally bulky in debug URLs and not representative of the normal mobile UI."
+  ],
+  "nextRecommendedSteps": [
+    "Commit and push the Quest Log scroll performance changes when ready.",
+    "Profile cold startup next, especially boot asset loading and the green-screen delay.",
+    "If future quest content grows substantially, keep the row-only scroll path and cache invalidation intact before adding richer row visuals."
+  ],
+  "doNotRevert": [
+    "Do not return Quest Log drag/wheel scrolling to the full layoutQuestLog path.",
+    "Keep the questOpen and questScroll perf harness phases so mobile overlay performance remains covered.",
+    "Keep coalesced Quest Log scroll layout updates unless an equivalent frame-coalescing replacement is added."
+  ]
+}

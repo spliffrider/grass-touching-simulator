@@ -238,7 +238,6 @@ const PRESSURE_COMMON_REDRAW_LARGE_FRAME_BUDGET_MS = 1.2;
 const PRESSURE_COMMON_REDRAW_LARGE_TILE_BUDGET = 12;
 const PANEL_UI_REFRESH_INTERVAL_MS = 1000;
 const WORLD_OBJECT_UI_REFRESH_INTERVAL_MS = 900;
-const HUD_GRASS_TOUCH_GROUPS_PER_LINE = 9;
 const MAX_ACTIVE_POP_TEXTS = 18;
 const PERF_HARNESS_IDLE_DELAY_MS = 900;
 const PERF_HARNESS_PHASE_DELAY_MS = 800;
@@ -266,7 +265,6 @@ const TRIGGER_FEED_EVENT_TTL_MS = 90000;
 const TRIGGER_FEED_REPEAT_WINDOW_MS = 12000;
 const TRIGGER_FEED_WIDTH = 246;
 const TRIGGER_FEED_ROW_HEIGHT = 54;
-const MOBILE_COMMAND_DOCK_PADDING = 10;
 const MOBILE_TEST_MODE_PARAM = "mobileTest";
 const MOBILE_TEST_MODE_VALUE = "audio";
 const MOBILE_TEST_URL_VERSION = "whole-tiles-1";
@@ -302,21 +300,6 @@ function getAutomationPreviewState(state: GameState, systemId: string, owned: nu
 function formatAutomationOutputDelta(currentOutput: number, previewOutput: number): string {
   const delta = previewOutput - currentOutput;
   return delta > 0 ? `+${formatGrassTouchesPerMinute(delta)}` : "+0/min";
-}
-
-function formatHudGrassTouches(value: number): string {
-  const formatted = formatGrassTouches(value);
-  const groups = formatted.split(",");
-  if (groups.length <= HUD_GRASS_TOUCH_GROUPS_PER_LINE) {
-    return formatted;
-  }
-
-  const lines: string[] = [];
-  for (let index = 0; index < groups.length; index += HUD_GRASS_TOUCH_GROUPS_PER_LINE) {
-    lines.push(groups.slice(index, index + HUD_GRASS_TOUCH_GROUPS_PER_LINE).join(","));
-  }
-
-  return lines.join("\n");
 }
 
 function formatHudChipNumber(value: number): string {
@@ -655,6 +638,19 @@ interface QuestFilterView {
   label: Phaser.GameObjects.Text;
 }
 
+interface QuestLogLayoutState {
+  compact: boolean;
+  panelWidth: number;
+  itemHeight: number;
+  itemGap: number;
+  startY: number;
+  availableHeight: number;
+  x: number;
+  claimX: number;
+  textWidth: number;
+  rowLayoutKey: string;
+}
+
 interface AutomationDirectiveView {
   directiveId: AutomationDirectiveId;
   container: Phaser.GameObjects.Container;
@@ -721,6 +717,11 @@ interface SkillMapPointerGesture {
   moved: boolean;
 }
 
+interface SkillMapPinchGesturePair {
+  first: SkillMapPointerGesture;
+  second: SkillMapPointerGesture;
+}
+
 interface StressStats {
   visibleTiles: number;
   totalTiles: number;
@@ -772,12 +773,29 @@ interface PerfStatsSnapshot {
   hotspots: string;
 }
 
-type PerfHarnessPhase = "idle" | "tapBurst" | "skillOpen" | "skillSelect" | "storeOpen" | "pan" | "zoom" | "saveStringify" | "complete";
+type PerfHarnessPhase =
+  | "idle"
+  | "tapBurst"
+  | "skillOpen"
+  | "skillSelect"
+  | "storeOpen"
+  | "questOpen"
+  | "questScroll"
+  | "pan"
+  | "zoom"
+  | "saveStringify"
+  | "complete";
 
 interface PerfHarnessSample {
   phase: PerfHarnessPhase;
   elapsedMs: number;
   stats?: PerfStatsSnapshot;
+}
+
+interface PerfHarnessStep {
+  delayMs: number;
+  phase: Exclude<PerfHarnessPhase, "complete">;
+  afterSample?: () => void;
 }
 
 interface PerfHarnessResult {
@@ -899,7 +917,6 @@ export class GameScene extends Phaser.Scene {
   private menuDockFrame!: OrnateFrame;
   private menuDockBg!: Phaser.GameObjects.Rectangle;
   private mobileCommandDockTop = Number.POSITIVE_INFINITY;
-  private mobileCommandDockHeight = 0;
   private seasonTint!: Phaser.GameObjects.Rectangle;
   private weatherTint!: Phaser.GameObjects.Rectangle;
   private weatherBadge!: Phaser.GameObjects.Container;
@@ -940,10 +957,6 @@ export class GameScene extends Phaser.Scene {
   private skillMapPinching = false;
   private skillMapActivePointers = new Map<number, SkillMapPointerGesture>();
   private skillMapPrimaryPointerKey?: number;
-  private skillMapDragStartX = 0;
-  private skillMapDragStartY = 0;
-  private skillMapCameraStartX = 0;
-  private skillMapCameraStartY = 0;
   private skillMapPinchStartDistance = 1;
   private skillMapPinchStartScale = 1;
   private skillMapPinchFocusWorldX = 0;
@@ -966,7 +979,6 @@ export class GameScene extends Phaser.Scene {
   private skillBranchLabels: SkillBranchLabelView[] = [];
   private tileInfoPanel!: Phaser.GameObjects.Container;
   private tileInfoFrame!: OrnateFrame;
-  private tileInfoBg!: Phaser.GameObjects.Rectangle;
   private tileInfoTitle!: Phaser.GameObjects.Text;
   private tileInfoBody!: Phaser.GameObjects.Text;
   private hoveredTileKey?: TileKey;
@@ -1006,6 +1018,8 @@ export class GameScene extends Phaser.Scene {
   private questItemViews = new Map<string, QuestItemView>();
   private questFilterViews = new Map<QuestFilterId, QuestFilterView>();
   private questVisibleItemIds = new Set<string>();
+  private questLayoutQuests: QuestDefinition[] = [];
+  private questLayoutState?: QuestLogLayoutState;
   private journalRoot!: Phaser.GameObjects.Container;
   private journalBackdrop!: Phaser.GameObjects.Rectangle;
   private journalTitleText!: Phaser.GameObjects.Text;
@@ -1051,6 +1065,7 @@ export class GameScene extends Phaser.Scene {
   private questScrollStartY = 0;
   private questScrollStartValue = 0;
   private questScrollMoved = false;
+  private questScrollLayoutQueued = false;
   private journalScroll = 0;
   private seedShopScroll = 0;
   private storeScroll = 0;
@@ -2385,51 +2400,60 @@ export class GameScene extends Phaser.Scene {
     this.perfHarnessSamples = [];
     this.publishPerfHarnessResult("running");
 
-    this.time.delayedCall(PERF_HARNESS_IDLE_DELAY_MS, () => {
-      this.capturePerfHarnessSample("idle");
-      this.runPerfHarnessTapBurst();
+    this.runPerfHarnessSteps([
+      { delayMs: PERF_HARNESS_IDLE_DELAY_MS, phase: "idle", afterSample: () => this.runPerfHarnessTapBurst() },
+      { delayMs: PERF_HARNESS_PHASE_DELAY_MS, phase: "tapBurst", afterSample: () => this.openSkillTree() },
+      { delayMs: PERF_HARNESS_PHASE_DELAY_MS, phase: "skillOpen", afterSample: () => this.runPerfHarnessSkillSelect() },
+      {
+        delayMs: PERF_HARNESS_PHASE_DELAY_MS,
+        phase: "skillSelect",
+        afterSample: () => {
+          this.closeSkillTree();
+          this.openGoldStore();
+        },
+      },
+      {
+        delayMs: PERF_HARNESS_PHASE_DELAY_MS,
+        phase: "storeOpen",
+        afterSample: () => {
+          this.closeGoldStore();
+          this.openQuestLog();
+        },
+      },
+      { delayMs: PERF_HARNESS_PHASE_DELAY_MS, phase: "questOpen", afterSample: () => this.runPerfHarnessQuestScroll() },
+      {
+        delayMs: PERF_HARNESS_PHASE_DELAY_MS,
+        phase: "questScroll",
+        afterSample: () => {
+          this.closeQuestLog();
+          this.runPerfHarnessPan();
+        },
+      },
+      { delayMs: PERF_HARNESS_PHASE_DELAY_MS, phase: "pan", afterSample: () => this.runPerfHarnessZoom() },
+      { delayMs: PERF_HARNESS_PHASE_DELAY_MS, phase: "zoom", afterSample: () => this.runPerfHarnessSaveStringify() },
+      { delayMs: 120, phase: "saveStringify", afterSample: () => this.completePerfHarness() },
+    ]);
+  }
 
-      this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
-        this.capturePerfHarnessSample("tapBurst");
-        this.openSkillTree();
+  private runPerfHarnessSteps(steps: PerfHarnessStep[], index = 0): void {
+    const step = steps[index];
+    if (!step || !this.perfHarnessRunning) {
+      return;
+    }
 
-        this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
-          this.capturePerfHarnessSample("skillOpen");
-          this.runPerfHarnessSkillSelect();
-
-          this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
-            this.capturePerfHarnessSample("skillSelect");
-            this.closeSkillTree();
-            this.openGoldStore();
-
-            this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
-              this.capturePerfHarnessSample("storeOpen");
-              this.closeGoldStore();
-              this.runPerfHarnessPan();
-
-              this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
-                this.capturePerfHarnessSample("pan");
-                this.runPerfHarnessZoom();
-
-                this.time.delayedCall(PERF_HARNESS_PHASE_DELAY_MS, () => {
-                  this.capturePerfHarnessSample("zoom");
-                  this.runPerfHarnessSaveStringify();
-
-                  this.time.delayedCall(120, () => {
-                    this.capturePerfHarnessSample("saveStringify");
-                    this.resetBoardView();
-                    this.requestBoardLayout("pan");
-                    this.capturePerfHarnessSample("complete");
-                    this.perfHarnessRunning = false;
-                    this.publishPerfHarnessResult("complete");
-                  });
-                });
-              });
-            });
-          });
-        });
-      });
+    this.time.delayedCall(step.delayMs, () => {
+      this.capturePerfHarnessSample(step.phase);
+      step.afterSample?.();
+      this.runPerfHarnessSteps(steps, index + 1);
     });
+  }
+
+  private completePerfHarness(): void {
+    this.resetBoardView();
+    this.requestBoardLayout("pan");
+    this.capturePerfHarnessSample("complete");
+    this.perfHarnessRunning = false;
+    this.publishPerfHarnessResult("complete");
   }
 
   private runPerfHarnessTapBurst(): void {
@@ -2442,6 +2466,17 @@ export class GameScene extends Phaser.Scene {
     const nextSkill = UPGRADES.find((upgrade) => upgrade.id !== this.selectedSkillId && this.isSkillVisible(upgrade.id));
     if (nextSkill) {
       this.previewSkill(nextSkill.id);
+    }
+  }
+
+  private runPerfHarnessQuestScroll(): void {
+    if (!this.questLogOpen || this.questScrollMax <= 0) {
+      return;
+    }
+
+    const step = Math.max(36, this.questScrollMax / 12);
+    for (let index = 0; index < 10; index += 1) {
+      this.setQuestLogScroll(this.questScroll + step);
     }
   }
 
@@ -3679,7 +3714,6 @@ export class GameScene extends Phaser.Scene {
       const dockHeight = rows * scaledButtonHeight + Math.max(0, rows - 1) * gap + dockPadding * 2;
       const dockTop = Math.max(8, this.scale.height - dockHeight - 6);
       this.mobileCommandDockTop = dockTop;
-      this.mobileCommandDockHeight = dockHeight;
       this.menuDockBg
         .setPosition(dockX, dockTop)
         .setSize(this.scale.width - dockX * 2, dockHeight)
@@ -3703,7 +3737,6 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.mobileCommandDockTop = Number.POSITIVE_INFINITY;
-    this.mobileCommandDockHeight = 0;
     const railWidth = buttonWidth + 24;
     const railHeight = visibleButtons.length * buttonHeight + Math.max(0, visibleButtons.length - 1) * ACTION_BUTTON_GAP + 20;
     const railX = this.scale.width - railWidth - 12;
@@ -4333,7 +4366,6 @@ export class GameScene extends Phaser.Scene {
       trim: 3,
       cornerSize: 18,
     });
-    this.tileInfoBg = this.tileInfoFrame.bg;
     this.tileInfoTitle = this.add.text(12, 10, "", {
       fontFamily: UITheme.text.fontFamily,
       fontSize: "18px",
@@ -4774,8 +4806,40 @@ export class GameScene extends Phaser.Scene {
     return this.scale.width < 760 || this.scale.height < 520 ? 1.48 : 1.62;
   }
 
-  private getActiveSkillMapTouchGestures(): SkillMapPointerGesture[] {
-    return [...this.skillMapActivePointers.values()].filter((gesture) => !this.isMousePointer(gesture.pointer) && gesture.pointer.isDown);
+  private isActiveSkillMapTouchGesture(gesture: SkillMapPointerGesture): boolean {
+    return !this.isMousePointer(gesture.pointer) && gesture.pointer.isDown;
+  }
+
+  private hasMultipleActiveSkillMapTouchGestures(): boolean {
+    let activeTouches = 0;
+    for (const gesture of this.skillMapActivePointers.values()) {
+      if (this.isActiveSkillMapTouchGesture(gesture)) {
+        activeTouches += 1;
+        if (activeTouches >= 2) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  private getSkillMapPinchGesturePair(): SkillMapPinchGesturePair | undefined {
+    let first: SkillMapPointerGesture | undefined;
+    for (const gesture of this.skillMapActivePointers.values()) {
+      if (!this.isActiveSkillMapTouchGesture(gesture)) {
+        continue;
+      }
+
+      if (!first) {
+        first = gesture;
+        continue;
+      }
+
+      return { first, second: gesture };
+    }
+
+    return undefined;
   }
 
   private getSkillMapPointerDistance(a: Phaser.Input.Pointer, b: Phaser.Input.Pointer): number {
@@ -4790,12 +4854,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private beginSkillMapPinch(): void {
-    const touches = this.getActiveSkillMapTouchGestures();
-    if (touches.length < 2) {
+    const touches = this.getSkillMapPinchGesturePair();
+    if (!touches) {
       return;
     }
 
-    const [first, second] = touches;
+    const { first, second } = touches;
     const distance = this.getSkillMapPointerDistance(first.pointer, second.pointer);
     if (distance < SKILL_MAP_PINCH_MIN_DISTANCE_PX) {
       return;
@@ -4818,8 +4882,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateSkillMapPinch(): void {
-    const touches = this.getActiveSkillMapTouchGestures();
-    if (touches.length < 2) {
+    const touches = this.getSkillMapPinchGesturePair();
+    if (!touches) {
       return;
     }
 
@@ -4830,7 +4894,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    const [first, second] = touches;
+    const { first, second } = touches;
     const distance = Math.max(SKILL_MAP_PINCH_MIN_DISTANCE_PX, this.getSkillMapPointerDistance(first.pointer, second.pointer));
     const midpoint = this.getSkillMapPointerMidpoint(first.pointer, second.pointer);
     const focusX = Phaser.Math.Clamp(midpoint.x, this.skillMapViewportX, this.skillMapViewportX + this.skillMapViewportWidth);
@@ -4880,10 +4944,6 @@ export class GameScene extends Phaser.Scene {
     this.pendingBoardTileKey = undefined;
     this.stopPersistentTouch();
     this.hideHoverMarker();
-    this.skillMapDragStartX = pointer.x;
-    this.skillMapDragStartY = pointer.y;
-    this.skillMapCameraStartX = this.skillMapCameraX;
-    this.skillMapCameraStartY = this.skillMapCameraY;
     this.skillMinimapDragRefreshAt = 0;
     this.skillMapActivePointers.set(key, {
       pointer,
@@ -4899,7 +4959,7 @@ export class GameScene extends Phaser.Scene {
       this.skillMapPrimaryPointerKey = key;
     }
 
-    if (this.getActiveSkillMapTouchGestures().length >= 2) {
+    if (this.hasMultipleActiveSkillMapTouchGestures()) {
       this.beginSkillMapPinch();
     }
   }
@@ -4909,7 +4969,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.getActiveSkillMapTouchGestures().length >= 2) {
+    if (this.hasMultipleActiveSkillMapTouchGestures()) {
       this.updateSkillMapPinch();
       return;
     }
@@ -5249,7 +5309,7 @@ export class GameScene extends Phaser.Scene {
     this.layoutQuestLog();
   }
 
-  private layoutQuestLog(): void {
+  private layoutQuestLog(visibleQuests = this.getFilteredQuests()): void {
     if (!this.questRoot) {
       return;
     }
@@ -5258,18 +5318,33 @@ export class GameScene extends Phaser.Scene {
     const panelWidth = Math.min(520, this.scale.width - 32);
     const itemHeight = compact ? 138 : 106;
     const itemGap = itemHeight + 10;
-    const filterRows = compact ? 2 : 1;
+    const filterColumns = this.getQuestFilterColumnCount(panelWidth, compact);
+    const filterRows = compact ? Math.ceil(QUEST_FILTERS.length / filterColumns) : 1;
     const filterY = compact ? 182 : 136;
     const startY = filterY + filterRows * 36 + (compact ? 14 : 16);
     const availableHeight = Math.max(120, this.scale.height - startY - 22);
-    const visibleQuests = this.getFilteredQuests();
     const totalHeight = visibleQuests.length * itemGap;
     const maxScroll = Math.max(0, totalHeight - availableHeight);
     const x = (this.scale.width - panelWidth) / 2;
+    const claimX = panelWidth - 136;
+    const textWidth = Math.max(170, panelWidth - (compact ? 34 : 178));
     this.questScrollMax = maxScroll;
     this.questScrollViewportTop = startY;
     this.questScrollViewportBottom = startY + availableHeight;
     this.questScroll = Phaser.Math.Clamp(this.questScroll, 0, maxScroll);
+    this.questLayoutQuests = visibleQuests;
+    this.questLayoutState = {
+      compact,
+      panelWidth,
+      itemHeight,
+      itemGap,
+      startY,
+      availableHeight,
+      x,
+      claimX,
+      textWidth,
+      rowLayoutKey: `${panelWidth}:${itemHeight}:${compact ? 1 : 0}:${textWidth}`,
+    };
 
     this.resizeInteractiveBackdrop(this.questBackdrop);
     this.questBackdropPattern.setPosition(this.scale.width / 2, this.scale.height / 2);
@@ -5300,6 +5375,18 @@ export class GameScene extends Phaser.Scene {
     this.questListMaskGraphics.fillStyle(0xffffff, 1);
     this.questListMaskGraphics.fillRect(x, startY, panelWidth, availableHeight);
 
+    this.layoutQuestLogRows(true);
+  }
+
+  private layoutQuestLogRows(refreshVisibleRows: boolean): void {
+    const layout = this.questLayoutState;
+    if (!layout) {
+      this.layoutQuestLog();
+      return;
+    }
+
+    const { compact, panelWidth, itemHeight, itemGap, startY, availableHeight, x, claimX, textWidth, rowLayoutKey } = layout;
+    const visibleQuests = this.questLayoutQuests;
     const firstIndex = Math.max(0, Math.floor(this.questScroll / itemGap) - QUEST_LOG_ROW_OVERSCAN);
     const lastIndex = Math.min(
       visibleQuests.length - 1,
@@ -5316,12 +5403,10 @@ export class GameScene extends Phaser.Scene {
 
       nextVisibleQuestIds.add(quest.id);
       const y = startY + index * itemGap - this.questScroll;
-      const claimX = panelWidth - 136;
-      const textWidth = Math.max(170, panelWidth - (compact ? 34 : 178));
-      const layoutKey = `${panelWidth}:${itemHeight}:${compact ? 1 : 0}:${textWidth}`;
+      const wasVisible = this.questVisibleItemIds.has(quest.id);
 
-      if (view.layoutKey !== layoutKey) {
-        view.layoutKey = layoutKey;
+      if (view.layoutKey !== rowLayoutKey) {
+        view.layoutKey = rowLayoutKey;
         view.bg.setSize(panelWidth, itemHeight);
         view.attentionGlow.setPosition(panelWidth / 2, itemHeight / 2);
         view.attentionGlow.setSize(panelWidth + 10, itemHeight + 10);
@@ -5341,7 +5426,9 @@ export class GameScene extends Phaser.Scene {
         view.readyBadge.setFontSize(compact ? 12 : 13);
       }
 
-      this.refreshQuestItemView(quest, view);
+      if (refreshVisibleRows || !wasVisible) {
+        this.refreshQuestItemView(quest, view);
+      }
       view.container.setPosition(x, y);
       view.container.setVisible(y + itemHeight >= startY - itemGap && y <= startY + availableHeight + itemGap);
     }
@@ -5414,12 +5501,37 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.questScroll = clamped;
-    this.layoutQuestLog();
+    this.requestQuestScrollLayout();
+  }
+
+  private requestQuestScrollLayout(): void {
+    if (this.questScrollLayoutQueued) {
+      return;
+    }
+
+    this.questScrollLayoutQueued = true;
+    this.time.delayedCall(0, () => {
+      this.questScrollLayoutQueued = false;
+      if (!this.questLogOpen || !this.questRoot?.visible) {
+        return;
+      }
+
+      this.profileScope("ui:questScroll", () => this.layoutQuestLogRows(false));
+    });
+  }
+
+  private getQuestFilterColumnCount(panelWidth: number, compact: boolean): number {
+    if (!compact) {
+      return 6;
+    }
+
+    return panelWidth >= 340 ? 4 : 3;
   }
 
   private layoutQuestFilterButtons(x: number, panelWidth: number, y: number, compact: boolean): void {
     const gap = compact ? 6 : 8;
-    const buttonWidth = compact ? Math.floor((panelWidth - gap * 2) / 3) : Math.floor((panelWidth - gap * 5) / 6);
+    const columns = this.getQuestFilterColumnCount(panelWidth, compact);
+    const buttonWidth = Math.floor((panelWidth - gap * Math.max(0, columns - 1)) / columns);
     const buttonHeight = 30;
 
     QUEST_FILTERS.forEach((filter, index) => {
@@ -5428,8 +5540,8 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      const column = compact ? index % 3 : index;
-      const row = compact ? Math.floor(index / 3) : 0;
+      const column = compact ? index % columns : index;
+      const row = compact ? Math.floor(index / columns) : 0;
       const selected = filter.id === this.selectedQuestFilter;
       view.container.setPosition(x + column * (buttonWidth + gap), y + row * (buttonHeight + 6));
       view.bg.setSize(buttonWidth, buttonHeight);
@@ -7014,6 +7126,7 @@ export class GameScene extends Phaser.Scene {
 
   private closeQuestLog(): void {
     this.questLogOpen = false;
+    this.questScrollLayoutQueued = false;
     this.finishQuestLogScroll();
     for (const questId of this.questVisibleItemIds) {
       const view = this.questItemViews.get(questId);
@@ -8486,7 +8599,7 @@ export class GameScene extends Phaser.Scene {
             this.dirtyTileViewKeys.delete(key);
           }
 
-          if (!this.needsTileView(tile, key)) {
+          if (!this.needsTileView(key)) {
             if (!commitDirtyTile) {
               this.drawCommonTile(tile, x, y);
             }
@@ -8993,7 +9106,11 @@ export class GameScene extends Phaser.Scene {
     graphics.fillCircle(x, y, centerRadius);
   }
 
-  private needsTileView(tile: FieldTile, key: TileKey): boolean {
+  private needsTileView(key: TileKey): boolean {
+    return this.shouldKeepTileViewLive(key);
+  }
+
+  private shouldKeepTileViewLive(key: TileKey): boolean {
     return (
       this.usesLiveTileViews() ||
       this.dirtyTileViewKeys.has(key) ||
@@ -9004,13 +9121,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private releaseBatchTileViewIfIdle(key: TileKey): void {
-    if (
-      this.usesLiveTileViews() ||
-      this.dirtyTileViewKeys.has(key) ||
-      this.redrawTileViewKeys.has(key) ||
-      this.perfectTouchCues.has(key) ||
-      key === this.hoveredTileKey
-    ) {
+    if (this.shouldKeepTileViewLive(key)) {
       return;
     }
 
@@ -10453,21 +10564,6 @@ export class GameScene extends Phaser.Scene {
 
   private getWorldObjectLabel(id: string): string {
     return WORLD_OBJECTS.find((object) => object.id === id)?.label ?? id;
-  }
-
-  private positionTileInfo(tile: FieldTile): void {
-    const view = this.tileViews.get(this.getTileKey(tile));
-    const position = view ? { x: view.base.x, y: view.base.y } : this.getTileScreenPosition(tile);
-    if (!position) {
-      return;
-    }
-
-    const panelWidth = 260;
-    const panelHeight = 128;
-    const x = Phaser.Math.Clamp(position.x + 28 * this.boardScale, 12, this.scale.width - panelWidth - 12);
-    const y = Phaser.Math.Clamp(position.y - panelHeight - 20 * this.boardScale, 12, this.scale.height - panelHeight - 12);
-
-    this.tileInfoPanel.setPosition(x, y);
   }
 
   private positionWorldObjectInfo(id: string): void {
@@ -12589,7 +12685,7 @@ export class GameScene extends Phaser.Scene {
     }
     view.base.setTexture(this.getTileBaseTextureKey(tile, isGrown ? hazard?.id : undefined));
 
-    if (keepLiveUntilCommonRedraw || !this.needsTileView(tile, key)) {
+    if (keepLiveUntilCommonRedraw || !this.needsTileView(key)) {
       this.markBatchTileDirty(tile, keepLiveUntilCommonRedraw);
     }
   }
@@ -14665,9 +14761,12 @@ export class GameScene extends Phaser.Scene {
     setTextButtonText(this.questButton, this.formatActionMenuLabel(UI_ACTION_ICONS.quests, "Quests", readyCount));
     setTextButtonText(this.questClaimReadyButton, readyCount > 0 ? `Claim Ready (${readyCount})` : "Claim Ready");
     setTextButtonEnabled(this.questClaimReadyButton, readyCount > 0);
+    const resourceText = this.isMobilePortrait()
+      ? `${filteredQuests.length}/${relevantQuestCount} quests | Done ${claimedCount} | Ready ${readyCount}`
+      : `Showing: ${filteredQuests.length}/${relevantQuestCount} | Claimed: ${claimedCount}/${relevantQuestCount} | Ready: ${readyCount}`;
     this.setTextIfChanged(
       this.questResourceText,
-      `Showing: ${filteredQuests.length}/${relevantQuestCount} | Claimed: ${claimedCount}/${relevantQuestCount} | Ready: ${readyCount}`,
+      resourceText,
     );
     this.setTextIfChanged(this.questStatusText, this.getQuestFilterStatusText(filteredQuests.length));
 
@@ -14681,7 +14780,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.questLogOpen) {
-      this.layoutQuestLog();
+      this.layoutQuestLog(filteredQuests);
     }
   }
 
@@ -15383,7 +15482,6 @@ export class GameScene extends Phaser.Scene {
     const level = this.state.upgrades[upgrade.id]?.level ?? 0;
     const cost = getUpgradeCost(upgrade, level);
     const maxed = level >= upgrade.maxLevel;
-    const unlocked = canUnlockUpgrade(this.state, upgrade);
     const missingPrerequisites = (upgrade.prerequisiteIds ?? [])
       .filter((id) => (this.state.upgrades[id]?.level ?? 0) === 0)
       .map((id) => UPGRADE_BY_ID.get(id)?.name ?? id);

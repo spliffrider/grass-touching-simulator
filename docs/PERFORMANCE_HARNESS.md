@@ -23,6 +23,8 @@ http://127.0.0.1:5173/?perfHarness&tiles=1200
 - `skillOpen`
 - `skillSelect`
 - `storeOpen`
+- `questOpen`
+- `questScroll`
 - `pan`
 - `zoom`
 - `saveStringify`
