@@ -416,6 +416,8 @@ const SKILL_MINIMAP_HEIGHT = 116;
 const SKILL_NODE_VISUAL_SIZE = 64;
 const SKILL_DETAIL_WIDTH = 360;
 const SKILL_DETAIL_HEIGHT = 400;
+const QUEST_LOG_SCROLL_THRESHOLD_PX = 8;
+const QUEST_LOG_ROW_OVERSCAN = 1;
 const SHOP_ICON_SIZE = 48;
 const PANEL_SLICE = 18;
 const SKILL_NODE_FRAME_KEYS = {
@@ -619,6 +621,7 @@ interface QuestItemView {
   reward: Phaser.GameObjects.Text;
   claimButton: Phaser.GameObjects.Container;
   readyBadge: Phaser.GameObjects.Text;
+  layoutKey?: string;
 }
 
 type QuestFilterId = "all" | "ready" | "active" | "automation" | "class" | "journal" | "claimed";
@@ -974,8 +977,12 @@ export class GameScene extends Phaser.Scene {
   private questStatusText!: Phaser.GameObjects.Text;
   private questBackButton!: Phaser.GameObjects.Container;
   private questClaimReadyButton!: Phaser.GameObjects.Container;
+  private questScrollHitZone!: Phaser.GameObjects.Zone;
+  private questListMaskGraphics!: Phaser.GameObjects.Graphics;
+  private questListMask?: Phaser.Display.Masks.GeometryMask;
   private questItemViews = new Map<string, QuestItemView>();
   private questFilterViews = new Map<QuestFilterId, QuestFilterView>();
+  private questVisibleItemIds = new Set<string>();
   private journalRoot!: Phaser.GameObjects.Container;
   private journalBackdrop!: Phaser.GameObjects.Rectangle;
   private journalTitleText!: Phaser.GameObjects.Text;
@@ -1013,6 +1020,14 @@ export class GameScene extends Phaser.Scene {
   private optionsTrackRightBtn!: Phaser.GameObjects.Container;
   private optionsBackButton!: Phaser.GameObjects.Container;
   private questScroll = 0;
+  private questScrollMax = 0;
+  private questScrollViewportTop = 0;
+  private questScrollViewportBottom = 0;
+  private questScrollDragging = false;
+  private questScrollPointerKey?: number;
+  private questScrollStartY = 0;
+  private questScrollStartValue = 0;
+  private questScrollMoved = false;
   private journalScroll = 0;
   private seedShopScroll = 0;
   private storeScroll = 0;
@@ -1370,8 +1385,7 @@ export class GameScene extends Phaser.Scene {
 
       if (this.optionsOpen || this.questLogOpen || this.journalOpen) {
         if (this.questLogOpen) {
-          this.questScroll = Math.max(0, this.questScroll + deltaY * 0.75);
-          this.layoutQuestLog();
+          this.setQuestLogScroll(this.questScroll + deltaY * 0.75);
         }
         if (this.journalOpen) {
           this.journalScroll = Math.max(0, this.journalScroll + deltaY * 0.75);
@@ -1496,6 +1510,7 @@ export class GameScene extends Phaser.Scene {
       this.isPanningBoard = false;
       this.worldMapDragging = false;
       this.finishSkillMapPointer(pointer, true);
+      this.finishQuestLogScroll(pointer);
       this.stopPersistentTouch();
       this.draggingMusicVolume = false;
       this.draggingSfxVolume = false;
@@ -1507,6 +1522,7 @@ export class GameScene extends Phaser.Scene {
       this.isPanningBoard = false;
       this.worldMapDragging = false;
       this.finishSkillMapPointer(pointer, false);
+      this.finishQuestLogScroll(pointer);
       this.stopPersistentTouch();
       this.draggingMusicVolume = false;
       this.draggingSfxVolume = false;
@@ -1518,6 +1534,7 @@ export class GameScene extends Phaser.Scene {
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleBoardHover(pointer));
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleWorldMapDrag(pointer));
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleSkillMapDrag(pointer));
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => this.handleQuestLogDrag(pointer));
     this.input.keyboard?.on("keydown", this.handleWorldMapKeyDown, this);
     window.addEventListener("pagehide", this.handlePageHide);
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
@@ -4599,12 +4616,16 @@ export class GameScene extends Phaser.Scene {
       .setScale(this.skillMapScale);
   }
 
-  private getSkillMapPointerKey(pointer: Phaser.Input.Pointer): number {
+  private getPointerKey(pointer: Phaser.Input.Pointer): number {
     if (pointer.pointerId > 0) {
       return pointer.pointerId;
     }
 
     return pointer.identifier >= 0 ? pointer.identifier + 1000 : pointer.id;
+  }
+
+  private getSkillMapPointerKey(pointer: Phaser.Input.Pointer): number {
+    return this.getPointerKey(pointer);
   }
 
   private isPointerInsideSkillMapViewport(pointer: Phaser.Input.Pointer): boolean {
@@ -4942,6 +4963,7 @@ export class GameScene extends Phaser.Scene {
     this.questRoot?.destroy();
     this.questItemViews.clear();
     this.questFilterViews.clear();
+    this.questVisibleItemIds.clear();
 
     this.questRoot = this.add.container(0, 0).setDepth(104).setVisible(false);
     this.questBackdrop = this.add
@@ -4988,6 +5010,13 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5, 0);
     this.questBackButton = createTextButton(this, "Back", () => this.closeQuestLog(), 118, 44, 105);
     this.questClaimReadyButton = createTextButton(this, "Claim Ready", () => this.claimReadyQuestRewards(), 150, 38, 105);
+    this.questScrollHitZone = this.add
+      .zone(0, 0, 1, 1)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: false });
+    this.questScrollHitZone.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startQuestLogScroll(pointer));
+    this.questListMaskGraphics = this.add.graphics().setVisible(false);
+    this.questListMask = this.questListMaskGraphics.createGeometryMask();
     this.questRoot.add([
       this.questBackdrop,
       this.questBackdropPattern,
@@ -4997,6 +5026,8 @@ export class GameScene extends Phaser.Scene {
       this.questStatusText,
       this.questBackButton,
       this.questClaimReadyButton,
+      this.questScrollHitZone,
+      this.questListMaskGraphics,
     ]);
 
     for (const filter of QUEST_FILTERS) {
@@ -5023,12 +5054,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const quest of QUESTS) {
-      const container = this.add.container(0, 0);
+      const container = this.add.container(0, 0).setVisible(false);
       const attentionGlow = this.createReadyRowGlow(470, 116, 0.16, 0.85);
       const bg = this.add
         .rectangle(0, 0, 460, 106, UITheme.colors.panelBg, 0.96)
         .setOrigin(0, 0)
-        .setStrokeStyle(3, UITheme.colors.bronze, 0.78);
+        .setStrokeStyle(3, UITheme.colors.bronze, 0.78)
+        .setInteractive({ useHandCursor: false });
+      bg.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startQuestLogScroll(pointer));
       const name = this.add.text(14, 10, `${quest.category}: ${quest.name}`, {
         fontFamily: UITheme.text.fontFamily,
         fontSize: "20px",
@@ -5062,9 +5095,14 @@ export class GameScene extends Phaser.Scene {
       });
       const claimButton = createTextButton(this, "Claim", () => this.claimQuestReward(quest.id), 120, 36, 105);
       claimButton.setPosition(312, 60);
+      const claimButtonBg = claimButton.getData("bg") as Phaser.GameObjects.Rectangle | Phaser.GameObjects.NineSlice | undefined;
+      claimButtonBg?.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startQuestLogScroll(pointer));
       const readyBadge = this.createReadyBadge();
 
       container.add([attentionGlow, bg, name, description, progress, reward, claimButton, readyBadge]);
+      if (this.questListMask) {
+        container.setMask(this.questListMask);
+      }
       this.questItemViews.set(quest.id, {
         questId: quest.id,
         container,
@@ -5100,8 +5138,10 @@ export class GameScene extends Phaser.Scene {
     const totalHeight = visibleQuests.length * itemGap;
     const maxScroll = Math.max(0, totalHeight - availableHeight);
     const x = (this.scale.width - panelWidth) / 2;
-    this.questScroll = Math.min(this.questScroll, maxScroll);
-    let y = startY - this.questScroll;
+    this.questScrollMax = maxScroll;
+    this.questScrollViewportTop = startY;
+    this.questScrollViewportBottom = startY + availableHeight;
+    this.questScroll = Phaser.Math.Clamp(this.questScroll, 0, maxScroll);
 
     this.resizeInteractiveBackdrop(this.questBackdrop);
     this.questBackdropPattern.setPosition(this.scale.width / 2, this.scale.height / 2);
@@ -5127,38 +5167,126 @@ export class GameScene extends Phaser.Scene {
     this.questClaimReadyButton.setScale(compact ? 0.86 : 1);
     this.questClaimReadyButton.setPosition(compact ? 24 : this.scale.width - 314, compact ? 132 : 72);
     this.layoutQuestFilterButtons(x, panelWidth, filterY, compact);
+    this.questScrollHitZone.setPosition(x, startY).setSize(panelWidth, availableHeight, true);
+    this.questListMaskGraphics.clear();
+    this.questListMaskGraphics.fillStyle(0xffffff, 1);
+    this.questListMaskGraphics.fillRect(x, startY, panelWidth, availableHeight);
 
-    for (const view of this.questItemViews.values()) {
-      const quest = QUESTS.find((candidate) => candidate.id === view.questId);
-      if (!quest || !visibleQuests.includes(quest)) {
-        view.container.setVisible(false);
+    const firstIndex = Math.max(0, Math.floor(this.questScroll / itemGap) - QUEST_LOG_ROW_OVERSCAN);
+    const lastIndex = Math.min(
+      visibleQuests.length - 1,
+      Math.ceil((this.questScroll + availableHeight) / itemGap) + QUEST_LOG_ROW_OVERSCAN,
+    );
+    const nextVisibleQuestIds = new Set<string>();
+
+    for (let index = firstIndex; index <= lastIndex; index += 1) {
+      const quest = visibleQuests[index];
+      const view = this.questItemViews.get(quest.id);
+      if (!view) {
         continue;
       }
 
+      nextVisibleQuestIds.add(quest.id);
+      const y = startY + index * itemGap - this.questScroll;
       const claimX = panelWidth - 136;
       const textWidth = Math.max(170, panelWidth - (compact ? 34 : 178));
+      const layoutKey = `${panelWidth}:${itemHeight}:${compact ? 1 : 0}:${textWidth}`;
 
-      view.bg.setSize(panelWidth, itemHeight);
-      view.attentionGlow.setPosition(panelWidth / 2, itemHeight / 2);
-      view.attentionGlow.setSize(panelWidth + 10, itemHeight + 10);
-      view.name.setPosition(14, 10);
-      view.name.setFontSize(compact ? 18 : 20);
-      view.name.setWordWrapWidth(textWidth);
-      view.description.setPosition(14, compact ? 36 : 38);
-      view.description.setWordWrapWidth(textWidth);
-      view.progress.setPosition(14, compact ? 70 : 74);
-      view.progress.setWordWrapWidth(compact ? Math.max(150, panelWidth - 34) : textWidth);
-      view.reward.setPosition(compact ? 14 : claimX - 6, compact ? 96 : 18);
-      view.reward.setWordWrapWidth(compact ? Math.max(130, panelWidth - 170) : 140);
-      view.reward.setAlign(compact ? "left" : "center");
-      view.claimButton.setScale(compact ? 0.88 : 1);
-      view.claimButton.setPosition(compact ? panelWidth - 122 : claimX, compact ? 88 : 60);
-      view.readyBadge.setPosition(panelWidth - 12, 10);
-      view.readyBadge.setFontSize(compact ? 12 : 13);
+      if (view.layoutKey !== layoutKey) {
+        view.layoutKey = layoutKey;
+        view.bg.setSize(panelWidth, itemHeight);
+        view.attentionGlow.setPosition(panelWidth / 2, itemHeight / 2);
+        view.attentionGlow.setSize(panelWidth + 10, itemHeight + 10);
+        view.name.setPosition(14, 10);
+        view.name.setFontSize(compact ? 18 : 20);
+        view.name.setWordWrapWidth(textWidth);
+        view.description.setPosition(14, compact ? 36 : 38);
+        view.description.setWordWrapWidth(textWidth);
+        view.progress.setPosition(14, compact ? 70 : 74);
+        view.progress.setWordWrapWidth(compact ? Math.max(150, panelWidth - 34) : textWidth);
+        view.reward.setPosition(compact ? 14 : claimX - 6, compact ? 96 : 18);
+        view.reward.setWordWrapWidth(compact ? Math.max(130, panelWidth - 170) : 140);
+        view.reward.setAlign(compact ? "left" : "center");
+        view.claimButton.setScale(compact ? 0.88 : 1);
+        view.claimButton.setPosition(compact ? panelWidth - 122 : claimX, compact ? 88 : 60);
+        view.readyBadge.setPosition(panelWidth - 12, 10);
+        view.readyBadge.setFontSize(compact ? 12 : 13);
+      }
+
+      this.refreshQuestItemView(quest, view);
       view.container.setPosition(x, y);
-      view.container.setVisible(y > 118 - itemGap && y < this.scale.height + itemGap);
-      y += itemGap;
+      view.container.setVisible(y + itemHeight >= startY - itemGap && y <= startY + availableHeight + itemGap);
     }
+
+    for (const questId of this.questVisibleItemIds) {
+      if (nextVisibleQuestIds.has(questId)) {
+        continue;
+      }
+
+      const view = this.questItemViews.get(questId);
+      if (!view) {
+        continue;
+      }
+
+      view.container.setVisible(false);
+      this.setReadyItemAttention(view, false);
+    }
+    this.questVisibleItemIds = nextVisibleQuestIds;
+  }
+
+  private startQuestLogScroll(pointer: Phaser.Input.Pointer): void {
+    if (!this.questLogOpen || !this.questRoot?.visible || this.questScrollMax <= 0) {
+      return;
+    }
+
+    if (pointer.y < this.questScrollViewportTop || pointer.y > this.questScrollViewportBottom) {
+      return;
+    }
+
+    this.questScrollDragging = true;
+    this.questScrollPointerKey = this.getPointerKey(pointer);
+    this.questScrollStartY = pointer.y;
+    this.questScrollStartValue = this.questScroll;
+    this.questScrollMoved = false;
+    this.isBoardPanArmed = false;
+    this.isPanningBoard = false;
+    this.pendingBoardTileKey = undefined;
+    this.stopPersistentTouch();
+    this.hideHoverMarker();
+  }
+
+  private handleQuestLogDrag(pointer: Phaser.Input.Pointer): void {
+    if (!this.questScrollDragging || this.questScrollPointerKey !== this.getPointerKey(pointer)) {
+      return;
+    }
+
+    const dy = pointer.y - this.questScrollStartY;
+    if (!this.questScrollMoved && dy * dy < QUEST_LOG_SCROLL_THRESHOLD_PX * QUEST_LOG_SCROLL_THRESHOLD_PX) {
+      return;
+    }
+
+    this.questScrollMoved = true;
+    this.setQuestLogScroll(this.questScrollStartValue - dy);
+  }
+
+  private finishQuestLogScroll(pointer?: Phaser.Input.Pointer): void {
+    if (pointer && this.questScrollPointerKey !== this.getPointerKey(pointer)) {
+      return;
+    }
+
+    this.questScrollDragging = false;
+    this.questScrollPointerKey = undefined;
+    this.questScrollMoved = false;
+  }
+
+  private setQuestLogScroll(nextScroll: number): void {
+    const clamped = Phaser.Math.Clamp(nextScroll, 0, this.questScrollMax);
+    if (Math.abs(clamped - this.questScroll) < 0.5) {
+      return;
+    }
+
+    this.questScroll = clamped;
+    this.layoutQuestLog();
   }
 
   private layoutQuestFilterButtons(x: number, panelWidth: number, y: number, compact: boolean): void {
@@ -5192,8 +5320,11 @@ export class GameScene extends Phaser.Scene {
 
     this.selectedQuestFilter = filterId;
     this.questScroll = 0;
+    this.finishQuestLogScroll();
     this.refreshQuestLog();
-    this.layoutQuestLog();
+    if (!this.questLogOpen) {
+      this.layoutQuestLog();
+    }
     this.audio.play("upgrade");
   }
 
@@ -6746,6 +6877,8 @@ export class GameScene extends Phaser.Scene {
     this.closeOptions();
     this.questLogOpen = true;
     this.questScroll = 0;
+    this.questScrollMax = 0;
+    this.finishQuestLogScroll();
     this.questRoot.setVisible(true);
     this.audio.play("upgrade");
     this.refreshUi();
@@ -6753,6 +6886,17 @@ export class GameScene extends Phaser.Scene {
 
   private closeQuestLog(): void {
     this.questLogOpen = false;
+    this.finishQuestLogScroll();
+    for (const questId of this.questVisibleItemIds) {
+      const view = this.questItemViews.get(questId);
+      if (!view) {
+        continue;
+      }
+
+      view.container.setVisible(false);
+      this.setReadyItemAttention(view, false);
+    }
+    this.questVisibleItemIds.clear();
     this.questRoot?.setVisible(false);
     this.refreshUi();
   }
@@ -14342,6 +14486,30 @@ export class GameScene extends Phaser.Scene {
     this.comboBadgeMeter.setFillStyle(automated ? 0xa8e8ff : multiplier > 1 ? 0xf4df6a : 0xb7eba5, 0.92);
   }
 
+  private refreshQuestItemView(quest: QuestDefinition, view: QuestItemView): void {
+    const available = isQuestAvailable(this.state, quest);
+    const complete = available && quest.isComplete(this.state);
+    const claimed = this.state.claimedQuestIds.includes(quest.id);
+    const ready = complete && !claimed;
+
+    view.bg.setFillStyle(
+      claimed ? UITheme.colors.panelBgDeep : ready ? UITheme.colors.panelInset : UITheme.colors.panelBg,
+      claimed ? 0.74 : available ? 0.96 : 0.7,
+    );
+    view.bg.setStrokeStyle(
+      3,
+      claimed ? UITheme.colors.bronzeDark : ready ? UITheme.colors.glow : available ? UITheme.colors.bronze : 0x496455,
+      ready ? 0.98 : available ? 0.78 : 0.54,
+    );
+    view.container.setAlpha(claimed ? 0.72 : available ? 1 : 0.78);
+    this.setTextIfChanged(view.progress, claimed ? "Claimed" : formatQuestProgress(quest, this.state));
+    view.progress.setColor(ready ? UITheme.colors.creamBright : available ? "#b7eba5" : "#8ea594");
+    this.setTextIfChanged(view.reward, `Reward:\n${formatQuestReward(quest.reward)}`);
+    setTextButtonText(view.claimButton, claimed ? "Claimed" : ready ? "Claim" : "Locked");
+    setTextButtonEnabled(view.claimButton, ready);
+    this.setReadyItemAttention(view, ready);
+  }
+
   private refreshQuestLog(): void {
     const readyCount = QUESTS.filter((quest) => isQuestClaimable(this.state, quest)).length;
     const claimedCount = this.state.claimedQuestIds.length;
@@ -14352,10 +14520,11 @@ export class GameScene extends Phaser.Scene {
     setTextButtonText(this.questButton, this.formatActionMenuLabel(UI_ACTION_ICONS.quests, "Quests", readyCount));
     setTextButtonText(this.questClaimReadyButton, readyCount > 0 ? `Claim Ready (${readyCount})` : "Claim Ready");
     setTextButtonEnabled(this.questClaimReadyButton, readyCount > 0);
-    this.questResourceText?.setText(
+    this.setTextIfChanged(
+      this.questResourceText,
       `Showing: ${filteredQuests.length}/${relevantQuestCount} | Claimed: ${claimedCount}/${relevantQuestCount} | Ready: ${readyCount}`,
     );
-    this.questStatusText?.setText(this.getQuestFilterStatusText(filteredQuests.length));
+    this.setTextIfChanged(this.questStatusText, this.getQuestFilterStatusText(filteredQuests.length));
 
     for (const filter of QUEST_FILTERS) {
       const view = this.questFilterViews.get(filter.id);
@@ -14363,36 +14532,7 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
 
-      view.label.setText(`${filter.label} ${filterCounts[filter.id]}`);
-    }
-
-    for (const quest of QUESTS) {
-      const view = this.questItemViews.get(quest.id);
-      if (!view) {
-        continue;
-      }
-
-      const available = isQuestAvailable(this.state, quest);
-      const complete = available && quest.isComplete(this.state);
-      const claimed = this.state.claimedQuestIds.includes(quest.id);
-      const ready = complete && !claimed;
-
-      view.bg.setFillStyle(
-        claimed ? UITheme.colors.panelBgDeep : ready ? UITheme.colors.panelInset : UITheme.colors.panelBg,
-        claimed ? 0.74 : available ? 0.96 : 0.7,
-      );
-      view.bg.setStrokeStyle(
-        3,
-        claimed ? UITheme.colors.bronzeDark : ready ? UITheme.colors.glow : available ? UITheme.colors.bronze : 0x496455,
-        ready ? 0.98 : available ? 0.78 : 0.54,
-      );
-      view.container.setAlpha(claimed ? 0.72 : available ? 1 : 0.78);
-      view.progress.setText(claimed ? "Claimed" : formatQuestProgress(quest, this.state));
-      view.progress.setColor(ready ? UITheme.colors.creamBright : available ? "#b7eba5" : "#8ea594");
-      view.reward.setText(`Reward:\n${formatQuestReward(quest.reward)}`);
-      setTextButtonText(view.claimButton, claimed ? "Claimed" : ready ? "Claim" : "Locked");
-      setTextButtonEnabled(view.claimButton, ready);
-      this.setReadyItemAttention(view, ready);
+      this.setTextIfChanged(view.label, `${filter.label} ${filterCounts[filter.id]}`);
     }
 
     if (this.questLogOpen) {

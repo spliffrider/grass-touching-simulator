@@ -1,6 +1,15 @@
 import { createOrnateFrame, type OrnateFrame, UITheme } from "./theme";
 
 type TextButtonBg = Phaser.GameObjects.Rectangle | Phaser.GameObjects.NineSlice;
+const BUTTON_TAP_MOVE_THRESHOLD_PX = 10;
+
+function getPointerKey(pointer: Phaser.Input.Pointer): number {
+  if (pointer.pointerId > 0) {
+    return pointer.pointerId;
+  }
+
+  return pointer.identifier >= 0 ? pointer.identifier + 1000 : pointer.id;
+}
 
 export function createTextButton(
   scene: Phaser.Scene,
@@ -45,6 +54,16 @@ export function createTextButton(
     .setShadow(0, 2, "#020805", 2, false, true);
 
   attentionGlow.setData("attentionActive", false);
+  let pressedPointerKey: number | undefined;
+  let pressedStartX = 0;
+  let pressedStartY = 0;
+  let pressedMoved = false;
+
+  const resetPressedState = () => {
+    pressedPointerKey = undefined;
+    pressedMoved = false;
+  };
+
   bg.setInteractive({ useHandCursor: true });
   bg.on("pointerover", () => {
     if (button.getData("enabled") === false) {
@@ -56,6 +75,9 @@ export function createTextButton(
     label.setScale(1.03);
   });
   bg.on("pointerout", () => {
+    if (pressedPointerKey !== undefined) {
+      pressedMoved = true;
+    }
     const enabled = button.getData("enabled") !== false;
     const attentive = attentionGlow.getData("attentionActive") === true;
     frame.setFill(UITheme.colors.panelBg, enabled ? 0.96 : 0.62);
@@ -64,24 +86,47 @@ export function createTextButton(
     label.setScale(1);
     label.setY(height / 2);
   });
-  bg.on("pointerdown", () => {
+  bg.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
     if (button.getData("enabled") === false) {
       return;
     }
+
+    pressedPointerKey = getPointerKey(pointer);
+    pressedStartX = pointer.x;
+    pressedStartY = pointer.y;
+    pressedMoved = false;
     frame.setFill(0x0a2113, 1);
     frame.setAccent(UITheme.colors.glow, 1);
     playPressFlash(button, pressGlow);
     label.setY(height / 2 + 1);
     label.setScale(0.98);
-    onClick();
   });
-  bg.on("pointerup", () => {
+  bg.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+    if (pressedPointerKey !== getPointerKey(pointer)) {
+      return;
+    }
+
+    const dx = pointer.x - pressedStartX;
+    const dy = pointer.y - pressedStartY;
+    if (dx * dx + dy * dy >= BUTTON_TAP_MOVE_THRESHOLD_PX * BUTTON_TAP_MOVE_THRESHOLD_PX) {
+      pressedMoved = true;
+    }
+  });
+  bg.on("pointerup", (pointer: Phaser.Input.Pointer) => {
     const enabled = button.getData("enabled") !== false;
+    const shouldClick = enabled && pressedPointerKey === getPointerKey(pointer) && !pressedMoved;
+    resetPressedState();
     frame.setFill(enabled ? 0x173a22 : UITheme.colors.panelBg, enabled ? 0.98 : 0.62);
     frame.setAccent(enabled ? UITheme.colors.bronzeLight : UITheme.colors.bronzeDark, enabled ? 0.98 : 0.46);
     label.setColor(enabled ? UITheme.colors.creamBright : "#9b9b8a");
     label.setY(height / 2);
     label.setScale(enabled ? 1.03 : 1);
+    if (shouldClick) {
+      onClick();
+    }
+  });
+  bg.on("pointerupoutside", () => {
+    resetPressedState();
   });
   button.add([attentionGlow, ...frame.objects, pressGlow, label]);
   button.setData("frame", frame);

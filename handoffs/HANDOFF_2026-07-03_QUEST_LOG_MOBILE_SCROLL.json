@@ -1,0 +1,49 @@
+{
+  "date": "2026-07-03",
+  "topic": "Mobile quest log scroll and perf cleanup",
+  "currentUserGoal": "Fix the mobile quest log feeling slow and broken, especially the inability to scroll up and down on phones, then push the fix live for testing.",
+  "workCompleted": [
+    "Added a touch-drag scroll path for the Quest Log list using the same pointer identity helper pattern as the mobile skill tree gestures.",
+    "Added a Quest Log list hit zone and geometry mask so quest rows scroll within the list viewport instead of visually bleeding under the filter/header UI.",
+    "Virtualized Quest Log layout work: only visible quest rows plus a small overscan slice are positioned, resized, and refreshed during scroll.",
+    "Cached quest row layout geometry with a layout key so drag scrolling no longer reapplies word wraps, font sizes, and button positions to every row.",
+    "Moved quest row visual refresh into a visible-row helper so hidden rows are not formatting progress/reward text every panel refresh.",
+    "Stopped ready-row pulse tweens when rows leave the visible quest list or when the Quest Log closes.",
+    "Changed shared text buttons to trigger actions on a clean pointer release instead of pointer-down, with a small movement threshold to prevent accidental clicks while dragging.",
+    "Connected quest row claim buttons to the Quest Log scroll gesture so dragging from the button area scrolls the list without claiming rewards."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "src/game/ui/buttons.ts",
+    "handoffs/HANDOFF_2026-07-03_QUEST_LOG_MOBILE_SCROLL.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "`npm run build` passed after the Quest Log touch scrolling and virtualization changes.",
+    "`npm run build` passed after the shared text-button tap-threshold hardening.",
+    "`npm run build` passed after wiring quest claim buttons into the list scroll gesture.",
+    "Local mobile viewport 390x844 at `http://127.0.0.1:5173/?stress&perf&tiles=1200&v=quest-log-scroll-3`: opened Quest Log from the bottom action menu.",
+    "Dragged upward inside the Quest Log list and confirmed the list scrolled, with sample stats fps 144, maxFrameDeltaMs 7, frameSpikes 0, visibleTiles 15, layoutPasses 0, redraws 0, redrawQueued 0.",
+    "Dragged downward inside the Quest Log list and confirmed reverse scroll, with sample stats fps 144, maxFrameDeltaMs 7, frameSpikes 0, visibleTiles 15, layoutPasses 0, redraws 0, redrawQueued 0.",
+    "Dragged starting on the visible row Claim button and confirmed the list scrolled while the header stayed at Claimed: 0/78; sample stats fps 138, maxFrameDeltaMs 7, frameSpikes 0, visibleTiles 15, layoutPasses 0, redraws 0, redrawQueued 0.",
+    "Browser console check returned no errors or warnings.",
+    "`http://127.0.0.1:5173/?perfHarness&tiles=1200&v=quest-log-scroll-3` completed with final phase visibleTiles 12, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 223, activeTweens 22, hotspots `hot none`."
+  ],
+  "knownIssues": [
+    "The in-app browser can approximate mobile drag gestures but cannot fully reproduce every iOS Safari touch nuance; real device testing is still recommended.",
+    "Changing shared text buttons from pointer-down action to clean pointer-up action affects all UI buttons. This is intentional mobile hardening, but broad UI smoke testing on desktop and phone is useful.",
+    "The repeatable harness does not specifically open the Quest Log; manual Quest Log mobile stress checks were used for the panel-specific behavior."
+  ],
+  "nextRecommendedSteps": [
+    "Deploy by pushing the commit to GitHub and wait for the production site to serve the new bundle.",
+    "On a real phone, open Quest Log, drag from row text, row background, and row reward button areas, then tap a Claim button to make sure clean taps still claim.",
+    "If more mobile hitches remain, capture `document.documentElement.dataset.grassPerf` right after the hitch and compare hotspots against this handoff."
+  ],
+  "doNotRevert": [
+    "Do not restore Quest Log wheel-only scrolling; mobile needs pointer drag support.",
+    "Do not return Quest Log layout to scanning and resizing every quest row during drag.",
+    "Do not restore shared text buttons to immediate pointer-down actions unless replacing it with an equivalent tap-vs-drag guard.",
+    "Leave unrelated untracked docs, artifacts, audio files, and the older untracked handoff untouched."
+  ],
+  "currentGitStatus": "Intended tracked changes before commit: `src/game/scenes/GameScene.ts`, `src/game/ui/buttons.ts`, `handoffs/HANDOFF_2026-07-03_QUEST_LOG_MOBILE_SCROLL.json`, and `handoffs/LATEST.json`. Existing unrelated untracked docs/assets remain unchanged."
+}
