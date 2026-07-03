@@ -253,10 +253,14 @@ const ACTION_BUTTON_GAP = 10;
 const WORLD_MAP_TILE_THRESHOLD = 180;
 const WORLD_MAP_DESKTOP_SIZE = 176;
 const WORLD_MAP_COMPACT_SIZE = 146;
+const WORLD_MAP_MOBILE_MIN_SIZE = 66;
+const WORLD_MAP_MOBILE_MAX_SIZE = 76;
 const WORLD_MAP_HEADER_HEIGHT = 28;
 const WORLD_MAP_PADDING = 12;
+const WORLD_MAP_MOBILE_PADDING = 6;
 const WORLD_MAP_ARROW_STEP_TILES = 4;
 const WORLD_MAP_SIDE_RAIL_GAP = 12;
+const WORLD_MAP_MOBILE_BOARD_INSET = 10;
 const TRIGGER_FEED_MAX_EVENTS = 6;
 const TRIGGER_FEED_EVENT_TTL_MS = 90000;
 const TRIGGER_FEED_REPEAT_WINDOW_MS = 12000;
@@ -3199,7 +3203,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
     this.worldMapHitZone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      if (!this.worldMapRoot?.visible || this.hasBlockingOverlayOpen()) {
+      if (!this.worldMapRoot?.visible || this.hasBlockingOverlayOpen() || this.isMobilePortrait()) {
         return;
       }
 
@@ -3868,29 +3872,65 @@ export class GameScene extends Phaser.Scene {
   }
 
   private shouldShowWorldMap(): boolean {
-    return (
-      this.fieldTileCount >= WORLD_MAP_TILE_THRESHOLD &&
-      this.cachedFieldBounds !== undefined &&
-      !this.hasBlockingOverlayOpen() &&
-      !this.isMobilePortrait() &&
-      this.scale.width >= 760 &&
-      this.scale.height >= 520
-    );
+    if (this.cachedFieldBounds === undefined || this.hasBlockingOverlayOpen()) {
+      return false;
+    }
+
+    if (this.isMobilePortrait()) {
+      return this.shouldShowMobileWorldMap();
+    }
+
+    return this.fieldTileCount >= WORLD_MAP_TILE_THRESHOLD && this.scale.width >= 760 && this.scale.height >= 520;
   }
 
   private shouldReserveWorldMapRail(): boolean {
-    return this.shouldShowWorldMap();
+    return this.shouldShowWorldMap() && !this.isMobilePortrait();
   }
 
   private getWorldMapSize(): number {
+    if (this.isMobilePortrait()) {
+      return Math.round(Phaser.Math.Clamp(this.scale.width * 0.19, WORLD_MAP_MOBILE_MIN_SIZE, WORLD_MAP_MOBILE_MAX_SIZE));
+    }
+
     return this.scale.width >= TABLET_LARGE_FIELD_MAX_WIDTH ? WORLD_MAP_COMPACT_SIZE : Math.max(118, Math.min(WORLD_MAP_COMPACT_SIZE, this.scale.width * 0.2));
   }
 
   private getWorldMapRailPosition(size: number): { x: number; y: number } {
+    if (this.isMobilePortrait() && this.boardViewportWidth > 0 && this.boardViewportHeight > 0) {
+      const x = Phaser.Math.Clamp(
+        this.boardViewportX + this.boardViewportWidth - size - WORLD_MAP_MOBILE_BOARD_INSET,
+        WORLD_MAP_MOBILE_BOARD_INSET,
+        Math.max(WORLD_MAP_MOBILE_BOARD_INSET, this.scale.width - size - WORLD_MAP_MOBILE_BOARD_INSET),
+      );
+      const y = Phaser.Math.Clamp(
+        this.boardViewportY + WORLD_MAP_MOBILE_BOARD_INSET,
+        WORLD_MAP_MOBILE_BOARD_INSET,
+        Math.max(WORLD_MAP_MOBILE_BOARD_INSET, this.scale.height - size - WORLD_MAP_MOBILE_BOARD_INSET),
+      );
+      return { x, y };
+    }
+
     const menuRailLeft = this.scale.width - (ACTION_BUTTON_WIDTH + 24) - 12;
     const x = Phaser.Math.Clamp(menuRailLeft - size - WORLD_MAP_SIDE_RAIL_GAP, 12, Math.max(12, this.scale.width - size - 12));
     const y = 18;
     return { x, y };
+  }
+
+  private shouldShowMobileWorldMap(): boolean {
+    if (this.boardViewportWidth <= 0 || this.boardViewportHeight <= 0) {
+      return false;
+    }
+
+    const limits = this.getBoardPanLimits();
+    return limits.x > 2 || limits.y > 2 || this.fieldTileCount >= WORLD_MAP_TILE_THRESHOLD;
+  }
+
+  private getWorldMapPadding(): number {
+    return this.isMobilePortrait() ? WORLD_MAP_MOBILE_PADDING : WORLD_MAP_PADDING;
+  }
+
+  private getWorldMapHeaderHeight(): number {
+    return this.isMobilePortrait() ? WORLD_MAP_MOBILE_PADDING : WORLD_MAP_HEADER_HEIGHT;
   }
 
   private layoutWorldMap(): void {
@@ -3905,23 +3945,29 @@ export class GameScene extends Phaser.Scene {
     }
 
     const compact = this.scale.width < TABLET_LARGE_FIELD_MAX_WIDTH;
+    const mobilePortrait = this.isMobilePortrait();
     const size = this.getWorldMapSize();
     const { x, y } = this.getWorldMapRailPosition(size);
+    const padding = this.getWorldMapPadding();
+    const headerHeight = this.getWorldMapHeaderHeight();
 
     this.worldMapRoot.setPosition(x, y);
+    this.worldMapRoot.setAlpha(mobilePortrait ? 0.72 : 1);
     this.worldMapFrame.setSize(size, size);
     this.worldMapBg.setSize(size, size);
+    this.worldMapTitle.setVisible(!mobilePortrait);
     this.worldMapTitle.setPosition(14, compact ? 8 : 9).setFontSize(compact ? 12 : 13);
     this.worldMapHitZone.setPosition(0, 0).setSize(size, size);
     if (this.worldMapHitZone.input) {
+      this.worldMapHitZone.input.enabled = !mobilePortrait;
       this.worldMapHitZone.input.hitArea = new Phaser.Geom.Rectangle(0, 0, size, size);
       this.worldMapHitZone.input.hitAreaCallback = Phaser.Geom.Rectangle.Contains;
     }
 
-    this.worldMapContentX = WORLD_MAP_PADDING;
-    this.worldMapContentY = WORLD_MAP_HEADER_HEIGHT;
-    this.worldMapContentWidth = Math.max(1, size - WORLD_MAP_PADDING * 2);
-    this.worldMapContentHeight = Math.max(1, size - WORLD_MAP_HEADER_HEIGHT - WORLD_MAP_PADDING);
+    this.worldMapContentX = padding;
+    this.worldMapContentY = headerHeight;
+    this.worldMapContentWidth = Math.max(1, size - padding * 2);
+    this.worldMapContentHeight = Math.max(1, size - headerHeight - padding);
     this.renderWorldMap();
   }
 
@@ -4012,7 +4058,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleWorldMapDrag(pointer: Phaser.Input.Pointer): void {
-    if (!this.worldMapDragging) {
+    if (!this.worldMapDragging || this.isMobilePortrait()) {
       return;
     }
 
@@ -4035,7 +4081,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleWorldMapKeyDown(event: KeyboardEvent): void {
-    if (!this.shouldShowWorldMap() || this.hasBlockingOverlayOpen() || event.altKey || event.ctrlKey || event.metaKey) {
+    if (this.isMobilePortrait() || !this.shouldShowWorldMap() || this.hasBlockingOverlayOpen() || event.altKey || event.ctrlKey || event.metaKey) {
       return;
     }
 

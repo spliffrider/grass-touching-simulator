@@ -1,0 +1,53 @@
+{
+  "date": "2026-07-03",
+  "topic": "mobile-minimap",
+  "currentUserGoal": "Enable a compact mobile minimap that helps the player see where they are without obscuring the play field.",
+  "changesMade": [
+    "Allowed the world map/minimap to render in mobile portrait when the board is pannable or the field is large enough to need location context.",
+    "Made the mobile minimap read-only by disabling its hit zone and guarding drag/key handlers in mobile portrait, so board gestures remain reserved for the play field.",
+    "Sized the mobile minimap to a compact 66-76 px range, removed its title/header treatment on mobile, lowered opacity, and anchored it inside the board's top-right corner.",
+    "Kept desktop/tablet world map rail behavior unchanged by only reserving the side rail outside mobile portrait."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-07-03_MOBILE_MINIMAP.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run build passed.",
+    "Mobile stress visual check at http://127.0.0.1:5173/?stress&perf&tiles=1200&v=mobile-minimap-2 using 390x844 viewport: minimap was visible, small, read-only, and did not cover the main playable area heavily.",
+    "Mobile perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200&v=mobile-minimap-harness completed all phases.",
+    "Perf harness notable fields: idle visibleTiles 15, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 12, frameSpikes 0, displayObjects 174, activeTweens 17; complete visibleTiles 12, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 222, activeTweens 22.",
+    "Browser console warning/error log was empty."
+  ],
+  "currentGitStatus": {
+    "trackedChanges": [
+      "M src/game/scenes/GameScene.ts",
+      "M handoffs/LATEST.json",
+      "A handoffs/HANDOFF_2026-07-03_MOBILE_MINIMAP.json"
+    ],
+    "untrackedLeftAlone": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssues": [
+    "The mobile startup/loading green-screen feel and quest-log mobile performance are separate optimization targets from this minimap pass.",
+    "A stress-view startup sample can still show a brief low-fps first layout spike; the repeatable harness was stable after the board initialized."
+  ],
+  "nextRecommendedSteps": [
+    "Push this commit live for mobile testing.",
+    "Profile the quest log on a phone viewport next, especially scroll handling, text/object counts, and overlay touch capture.",
+    "Profile startup with a cold load and identify what runs before the first meaningful board paint."
+  ],
+  "doNotRevert": [
+    "Do not restore the old mobile condition that hid the world map entirely in portrait.",
+    "Do not make the mobile minimap interactive unless it is proven not to intercept board pan/zoom gestures."
+  ]
+}
