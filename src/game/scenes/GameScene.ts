@@ -407,6 +407,8 @@ const SKILL_MAP_WORLD_SCALE_PORTRAIT = 1.48;
 const SKILL_MAP_ZOOM_DESKTOP = 1.08;
 const SKILL_MAP_ZOOM_COMPACT = 0.88;
 const SKILL_MAP_ZOOM_PORTRAIT = 0.94;
+const SKILL_MAP_DRAG_THRESHOLD_PX = 8;
+const SKILL_MAP_PINCH_MIN_DISTANCE_PX = 24;
 const SKILL_NODE_WORLD_SCALE = 1.12;
 const SKILL_NODE_COMPACT_SCALE = 1;
 const SKILL_MINIMAP_WIDTH = 156;
@@ -684,6 +686,16 @@ interface SkillBranchLabelView {
   revealedBy: string[];
 }
 
+interface SkillMapPointerGesture {
+  pointer: Phaser.Input.Pointer;
+  startX: number;
+  startY: number;
+  cameraStartX: number;
+  cameraStartY: number;
+  pendingUpgradeId?: string;
+  moved: boolean;
+}
+
 interface StressStats {
   visibleTiles: number;
   totalTiles: number;
@@ -899,10 +911,17 @@ export class GameScene extends Phaser.Scene {
   private skillMapWorldWidth = 1;
   private skillMapWorldHeight = 1;
   private skillMapDragging = false;
+  private skillMapPinching = false;
+  private skillMapActivePointers = new Map<number, SkillMapPointerGesture>();
+  private skillMapPrimaryPointerKey?: number;
   private skillMapDragStartX = 0;
   private skillMapDragStartY = 0;
   private skillMapCameraStartX = 0;
   private skillMapCameraStartY = 0;
+  private skillMapPinchStartDistance = 1;
+  private skillMapPinchStartScale = 1;
+  private skillMapPinchFocusWorldX = 0;
+  private skillMapPinchFocusWorldY = 0;
   private skillMinimapDragRefreshAt = 0;
   private skillMapNeedsFocus = true;
   private skillTitleText!: Phaser.GameObjects.Text;
@@ -1173,6 +1192,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload(): void {
+    this.cameras.main.setBackgroundColor("#06190f");
+    const loadingText = this.add
+      .text(this.scale.width / 2, this.scale.height / 2, "Growing the field...", {
+        fontFamily: UITheme.text.fontFamily,
+        fontSize: "18px",
+        color: UITheme.colors.cream,
+        stroke: UITheme.text.stroke,
+        strokeThickness: 4,
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setDepth(1000);
+    const updateLoadingText = (value: number): void => {
+      loadingText.setText(`Growing the field... ${Math.round(value * 100)}%`);
+    };
+    this.load.on("progress", updateLoadingText);
+    this.load.once("complete", () => {
+      this.load.off("progress", updateLoadingText);
+      loadingText.destroy();
+    });
+
     this.load.image("tile-dirt", "/assets/tiles/tile-dirt.png");
     this.load.image("tile-stubble", "/assets/tiles/tile-stubble.png");
     this.load.image("grass-fleck", "/assets/tiles/grass-fleck.png");
@@ -1297,6 +1337,7 @@ export class GameScene extends Phaser.Scene {
           : "Touch the grass. Let it regrow. Become reasonable.",
       this.mobileTestModeEnabled ? 5200 : 3600,
     );
+    (window as unknown as { __grassAppReady?: () => void }).__grassAppReady?.();
 
     this.scale.on("resize", () => {
       this.layoutHeader();
@@ -1312,6 +1353,14 @@ export class GameScene extends Phaser.Scene {
       this.layoutAutomationPanel();
       this.layoutOptionsPanel();
     });
+
+    const inputWithTouchPointers = this.input as Phaser.Input.InputPlugin & {
+      pointer1?: Phaser.Input.Pointer;
+      pointer2?: Phaser.Input.Pointer;
+    };
+    if (!inputWithTouchPointers.pointer1 || !inputWithTouchPointers.pointer2) {
+      this.input.addPointer(2);
+    }
 
     this.input.on("wheel", (pointer: Phaser.Input.Pointer, _objects: unknown[], _deltaX: number, deltaY: number) => {
       if (this.skillTreeOpen) {
@@ -1433,7 +1482,7 @@ export class GameScene extends Phaser.Scene {
       this.requestBoardLayout("pan");
     });
 
-    this.input.on("pointerup", () => {
+    this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
       this.stopBoardPanControl();
       if (this.isBoardPanArmed && !this.isPanningBoard && this.pendingBoardTileKey && !this.hasBlockingOverlayOpen()) {
         const tile = this.state.field[this.pendingBoardTileKey];
@@ -1446,24 +1495,18 @@ export class GameScene extends Phaser.Scene {
       this.isBoardPanArmed = false;
       this.isPanningBoard = false;
       this.worldMapDragging = false;
-      if (this.skillMapDragging) {
-        this.layoutSkillMinimap();
-      }
-      this.skillMapDragging = false;
+      this.finishSkillMapPointer(pointer, true);
       this.stopPersistentTouch();
       this.draggingMusicVolume = false;
       this.draggingSfxVolume = false;
     });
 
-    this.input.on("pointerupoutside", () => {
+    this.input.on("pointerupoutside", (pointer: Phaser.Input.Pointer) => {
       this.pendingBoardTileKey = undefined;
       this.isBoardPanArmed = false;
       this.isPanningBoard = false;
       this.worldMapDragging = false;
-      if (this.skillMapDragging) {
-        this.layoutSkillMinimap();
-      }
-      this.skillMapDragging = false;
+      this.finishSkillMapPointer(pointer, false);
       this.stopPersistentTouch();
       this.draggingMusicVolume = false;
       this.draggingSfxVolume = false;
@@ -3596,6 +3639,7 @@ export class GameScene extends Phaser.Scene {
     const badgeWidth = mobilePortrait ? 136 : compact ? 166 : 194;
     const badgeHeight = mobilePortrait ? 28 : compact ? 36 : 40;
     const resourceBottom = this.hudChipBottomY || this.buildLabelText.y + this.buildLabelText.height + 12;
+    const badgeFrameTopOffset = 20;
     const rightUiLeft = this.scale.width - 156;
     const fitsRight = !compact && this.hudChipRightX + badgeWidth + 22 < rightUiLeft;
 
@@ -3604,6 +3648,7 @@ export class GameScene extends Phaser.Scene {
     this.comboBadgeMeter.setPosition(12, mobilePortrait ? 7 : compact ? 10 : 12);
 
     if (mobilePortrait && !this.comboBadge.visible) {
+      this.comboBadge.setPosition(12, resourceBottom + 8 + badgeFrameTopOffset);
       return resourceBottom + 5;
     }
 
@@ -3612,8 +3657,14 @@ export class GameScene extends Phaser.Scene {
       return resourceBottom + 12;
     }
 
-    this.comboBadge.setPosition(mobilePortrait ? 12 : 26, resourceBottom + (mobilePortrait ? 8 : 24));
-    return resourceBottom + badgeHeight + (mobilePortrait ? 8 : 20);
+    if (mobilePortrait) {
+      const badgeTop = resourceBottom + 8;
+      this.comboBadge.setPosition(12, badgeTop + badgeFrameTopOffset);
+      return badgeTop + badgeHeight + 6;
+    }
+
+    this.comboBadge.setPosition(26, resourceBottom + 24);
+    return resourceBottom + badgeHeight + 20;
   }
 
   private layoutGoalNudge(startY: number): number {
@@ -4289,10 +4340,9 @@ export class GameScene extends Phaser.Scene {
       container.add([bg, readyGlow, hoverRing, glow, plate, frame, icon, lockedIcon, level]);
       bg.on("pointerover", () => this.handleSkillNodePointerOver(upgrade.id));
       bg.on("pointerout", () => this.handleSkillNodePointerOut(upgrade.id));
-      bg.on("pointerdown", (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
+      bg.on("pointerdown", (pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
         event.stopPropagation();
-        this.skillMapDragging = false;
-        this.upgradeSkill(upgrade.id);
+        this.startSkillMapDrag(pointer, upgrade.id);
       });
       this.skillNodeViews.set(upgrade.id, { upgradeId: upgrade.id, container, bg, readyGlow, hoverRing, glow, plate, frame, icon, lockedIcon, level });
       this.skillMapLayer.add(container);
@@ -4549,11 +4599,132 @@ export class GameScene extends Phaser.Scene {
       .setScale(this.skillMapScale);
   }
 
-  private startSkillMapDrag(pointer: Phaser.Input.Pointer): void {
+  private getSkillMapPointerKey(pointer: Phaser.Input.Pointer): number {
+    if (pointer.pointerId > 0) {
+      return pointer.pointerId;
+    }
+
+    return pointer.identifier >= 0 ? pointer.identifier + 1000 : pointer.id;
+  }
+
+  private isPointerInsideSkillMapViewport(pointer: Phaser.Input.Pointer): boolean {
+    return (
+      pointer.x >= this.skillMapViewportX &&
+      pointer.x <= this.skillMapViewportX + this.skillMapViewportWidth &&
+      pointer.y >= this.skillMapViewportY &&
+      pointer.y <= this.skillMapViewportY + this.skillMapViewportHeight
+    );
+  }
+
+  private getSkillMapMinZoom(): number {
+    const fitScale = Math.min(this.skillMapViewportWidth / this.skillMapWorldWidth, this.skillMapViewportHeight / this.skillMapWorldHeight);
+    return Math.max(0.38, fitScale * 0.96);
+  }
+
+  private getSkillMapMaxZoom(): number {
+    return this.scale.width < 760 || this.scale.height < 520 ? 1.48 : 1.62;
+  }
+
+  private getActiveSkillMapTouchGestures(): SkillMapPointerGesture[] {
+    return [...this.skillMapActivePointers.values()].filter((gesture) => !this.isMousePointer(gesture.pointer) && gesture.pointer.isDown);
+  }
+
+  private getSkillMapPointerDistance(a: Phaser.Input.Pointer, b: Phaser.Input.Pointer): number {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  private getSkillMapPointerMidpoint(a: Phaser.Input.Pointer, b: Phaser.Input.Pointer): { x: number; y: number } {
+    return {
+      x: (a.x + b.x) / 2,
+      y: (a.y + b.y) / 2,
+    };
+  }
+
+  private beginSkillMapPinch(): void {
+    const touches = this.getActiveSkillMapTouchGestures();
+    if (touches.length < 2) {
+      return;
+    }
+
+    const [first, second] = touches;
+    const distance = this.getSkillMapPointerDistance(first.pointer, second.pointer);
+    if (distance < SKILL_MAP_PINCH_MIN_DISTANCE_PX) {
+      return;
+    }
+
+    const midpoint = this.getSkillMapPointerMidpoint(first.pointer, second.pointer);
+    const focusX = Phaser.Math.Clamp(midpoint.x, this.skillMapViewportX, this.skillMapViewportX + this.skillMapViewportWidth);
+    const focusY = Phaser.Math.Clamp(midpoint.y, this.skillMapViewportY, this.skillMapViewportY + this.skillMapViewportHeight);
+
+    this.skillMapPinching = true;
+    this.skillMapPinchStartDistance = distance;
+    this.skillMapPinchStartScale = this.skillMapScale;
+    this.skillMapPinchFocusWorldX = this.skillMapCameraX + (focusX - this.skillMapViewportX) / this.skillMapScale;
+    this.skillMapPinchFocusWorldY = this.skillMapCameraY + (focusY - this.skillMapViewportY) / this.skillMapScale;
+
+    for (const gesture of this.skillMapActivePointers.values()) {
+      gesture.pendingUpgradeId = undefined;
+      gesture.moved = true;
+    }
+  }
+
+  private updateSkillMapPinch(): void {
+    const touches = this.getActiveSkillMapTouchGestures();
+    if (touches.length < 2) {
+      return;
+    }
+
+    if (!this.skillMapPinching) {
+      this.beginSkillMapPinch();
+      if (!this.skillMapPinching) {
+        return;
+      }
+    }
+
+    const [first, second] = touches;
+    const distance = Math.max(SKILL_MAP_PINCH_MIN_DISTANCE_PX, this.getSkillMapPointerDistance(first.pointer, second.pointer));
+    const midpoint = this.getSkillMapPointerMidpoint(first.pointer, second.pointer);
+    const focusX = Phaser.Math.Clamp(midpoint.x, this.skillMapViewportX, this.skillMapViewportX + this.skillMapViewportWidth);
+    const focusY = Phaser.Math.Clamp(midpoint.y, this.skillMapViewportY, this.skillMapViewportY + this.skillMapViewportHeight);
+    const nextScale = Phaser.Math.Clamp(
+      this.skillMapPinchStartScale * (distance / this.skillMapPinchStartDistance),
+      this.getSkillMapMinZoom(),
+      this.getSkillMapMaxZoom(),
+    );
+
+    this.skillMapScale = nextScale;
+    this.skillMapCameraX = this.skillMapPinchFocusWorldX - (focusX - this.skillMapViewportX) / nextScale;
+    this.skillMapCameraY = this.skillMapPinchFocusWorldY - (focusY - this.skillMapViewportY) / nextScale;
+    this.clampSkillMapCamera();
+    this.applySkillMapCamera();
+    this.refreshSkillMapDragMinimap();
+  }
+
+  private refreshSkillMapDragMinimap(): void {
+    const now = performance.now();
+    if (now >= this.skillMinimapDragRefreshAt) {
+      this.skillMinimapDragRefreshAt = now + 80;
+      this.layoutSkillMinimap();
+    }
+  }
+
+  private resetSkillMapGesture(): void {
+    this.skillMapDragging = false;
+    this.skillMapPinching = false;
+    this.skillMapActivePointers.clear();
+    this.skillMapPrimaryPointerKey = undefined;
+  }
+
+  private startSkillMapDrag(pointer: Phaser.Input.Pointer, pendingUpgradeId?: string): void {
     if (!this.skillTreeOpen || !this.skillRoot?.visible) {
       return;
     }
 
+    if (!this.isPointerInsideSkillMapViewport(pointer)) {
+      return;
+    }
+
+    const key = this.getSkillMapPointerKey(pointer);
     this.skillMapDragging = true;
     this.isBoardPanArmed = false;
     this.isPanningBoard = false;
@@ -4565,6 +4736,23 @@ export class GameScene extends Phaser.Scene {
     this.skillMapCameraStartX = this.skillMapCameraX;
     this.skillMapCameraStartY = this.skillMapCameraY;
     this.skillMinimapDragRefreshAt = 0;
+    this.skillMapActivePointers.set(key, {
+      pointer,
+      startX: pointer.x,
+      startY: pointer.y,
+      cameraStartX: this.skillMapCameraX,
+      cameraStartY: this.skillMapCameraY,
+      pendingUpgradeId,
+      moved: false,
+    });
+
+    if (this.skillMapPrimaryPointerKey === undefined) {
+      this.skillMapPrimaryPointerKey = key;
+    }
+
+    if (this.getActiveSkillMapTouchGestures().length >= 2) {
+      this.beginSkillMapPinch();
+    }
   }
 
   private handleSkillMapDrag(pointer: Phaser.Input.Pointer): void {
@@ -4572,15 +4760,71 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.skillMapCameraX = this.skillMapCameraStartX - (pointer.x - this.skillMapDragStartX) / this.skillMapScale;
-    this.skillMapCameraY = this.skillMapCameraStartY - (pointer.y - this.skillMapDragStartY) / this.skillMapScale;
+    if (this.getActiveSkillMapTouchGestures().length >= 2) {
+      this.updateSkillMapPinch();
+      return;
+    }
+
+    const key = this.getSkillMapPointerKey(pointer);
+    const gesture = this.skillMapActivePointers.get(key);
+    if (!gesture || key !== this.skillMapPrimaryPointerKey) {
+      return;
+    }
+
+    const dx = pointer.x - gesture.startX;
+    const dy = pointer.y - gesture.startY;
+    if (!gesture.moved && dx * dx + dy * dy < SKILL_MAP_DRAG_THRESHOLD_PX * SKILL_MAP_DRAG_THRESHOLD_PX) {
+      return;
+    }
+
+    gesture.moved = true;
+    gesture.pendingUpgradeId = undefined;
+    this.skillMapCameraX = gesture.cameraStartX - dx / this.skillMapScale;
+    this.skillMapCameraY = gesture.cameraStartY - dy / this.skillMapScale;
     this.clampSkillMapCamera();
     this.applySkillMapCamera();
-    const now = performance.now();
-    if (now >= this.skillMinimapDragRefreshAt) {
-      this.skillMinimapDragRefreshAt = now + 80;
-      this.layoutSkillMinimap();
+    this.refreshSkillMapDragMinimap();
+  }
+
+  private finishSkillMapPointer(pointer: Phaser.Input.Pointer | undefined, allowTap: boolean): boolean {
+    if (!pointer) {
+      return this.skillMapActivePointers.size > 0;
     }
+
+    const key = this.getSkillMapPointerKey(pointer);
+    const gesture = this.skillMapActivePointers.get(key);
+    if (!gesture) {
+      return this.skillMapActivePointers.size > 0;
+    }
+
+    const wasPinching = this.skillMapPinching;
+    this.skillMapActivePointers.delete(key);
+
+    if (wasPinching) {
+      this.skillMapPinching = false;
+      for (const remaining of this.skillMapActivePointers.values()) {
+        remaining.pendingUpgradeId = undefined;
+        remaining.moved = true;
+        remaining.startX = remaining.pointer.x;
+        remaining.startY = remaining.pointer.y;
+        remaining.cameraStartX = this.skillMapCameraX;
+        remaining.cameraStartY = this.skillMapCameraY;
+      }
+    } else if (allowTap && !gesture.moved && gesture.pendingUpgradeId && this.isPointerInsideSkillMapViewport(pointer)) {
+      this.upgradeSkill(gesture.pendingUpgradeId);
+    }
+
+    if (this.skillMapActivePointers.size === 0) {
+      this.resetSkillMapGesture();
+      this.layoutSkillMinimap();
+      return false;
+    }
+
+    const [remainingKey] = this.skillMapActivePointers.keys();
+    this.skillMapPrimaryPointerKey = remainingKey;
+    this.skillMapDragging = true;
+    this.layoutSkillMinimap();
+    return true;
   }
 
   private zoomSkillMap(deltaY: number, pointerX: number, pointerY: number): void {
@@ -4589,9 +4833,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     const previousScale = this.skillMapScale;
-    const fitScale = Math.min(this.skillMapViewportWidth / this.skillMapWorldWidth, this.skillMapViewportHeight / this.skillMapWorldHeight);
-    const minZoom = Math.max(0.42, fitScale * 1.02);
-    const maxZoom = this.scale.width < 760 || this.scale.height < 520 ? 1.18 : 1.42;
+    const minZoom = this.getSkillMapMinZoom();
+    const maxZoom = this.getSkillMapMaxZoom();
     const nextScale = Phaser.Math.Clamp(previousScale * Math.exp(-deltaY * 0.0013), minZoom, maxZoom);
     if (Math.abs(nextScale - previousScale) < 0.001) {
       return;
@@ -6470,7 +6713,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.skillTreeOpen = true;
     this.skillMapNeedsFocus = true;
-    this.skillMapDragging = false;
+    this.resetSkillMapGesture();
     this.skillRoot.setVisible(true);
     this.layoutSkillTree();
     this.profileScope("ui:skillTree", () => this.refreshSkillTree(false));
@@ -6483,7 +6726,7 @@ export class GameScene extends Phaser.Scene {
 
   private closeSkillTree(): void {
     this.skillTreeOpen = false;
-    this.skillMapDragging = false;
+    this.resetSkillMapGesture();
     for (const upgradeId of this.skillNodeViews.keys()) {
       this.stopSkillHoverVisual(upgradeId);
       this.stopSkillHoverTremble(upgradeId);
@@ -13763,6 +14006,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshUi(forcePanels = true): void {
+    const refreshPanels = forcePanels || this.panelUiRefreshElapsed >= PANEL_UI_REFRESH_INTERVAL_MS;
+    const refreshWorldObjects = forcePanels || this.worldObjectUiRefreshElapsed >= WORLD_OBJECT_UI_REFRESH_INTERVAL_MS;
+    if (refreshPanels) {
+      this.panelUiRefreshElapsed = 0;
+    }
+    if (refreshWorldObjects) {
+      this.worldObjectUiRefreshElapsed = 0;
+    }
+
+    const overlayOpen = this.hasBlockingOverlayOpen();
+    if (this.storeOpen && !this.isStoreUnlocked()) {
+      this.storeOpen = false;
+      this.storeRoot?.setVisible(false);
+    }
+
+    if (overlayOpen) {
+      this.refreshOpenOverlayUi(refreshPanels);
+      return;
+    }
+
     const nextMilestone = this.profileScope("ui:nextMilestone", () =>
       MILESTONES.find((milestone) => !this.state.reachedMilestones.includes(milestone.id)),
     );
@@ -13779,21 +14042,7 @@ export class GameScene extends Phaser.Scene {
     const stats = this.profileScope("ui:stats", () => this.getCachedRuntimeStats());
     const automationTouchesPerMinute = this.profileScope("calc:autoTotal", () => getTotalAutomationTouchesPerMinute(this.state, stats));
     const automationUnitCount = this.profileScope("calc:autoUnits", () => getAutomationUnitCount(this.state));
-    const refreshPanels = forcePanels || this.panelUiRefreshElapsed >= PANEL_UI_REFRESH_INTERVAL_MS;
-    const refreshWorldObjects = forcePanels || this.worldObjectUiRefreshElapsed >= WORLD_OBJECT_UI_REFRESH_INTERVAL_MS;
     const refreshFloatingLayout = forcePanels || refreshPanels;
-    if (refreshPanels) {
-      this.panelUiRefreshElapsed = 0;
-    }
-    if (refreshWorldObjects) {
-      this.worldObjectUiRefreshElapsed = 0;
-    }
-
-    const overlayOpen = this.hasBlockingOverlayOpen();
-    if (this.storeOpen && !this.isStoreUnlocked()) {
-      this.storeOpen = false;
-      this.storeRoot?.setVisible(false);
-    }
 
     this.setTextIfChanged(this.titleText, "Grass Touching Simulator");
     this.setVisibleIfChanged(this.ambientSpores, !overlayOpen);
@@ -13893,6 +14142,48 @@ export class GameScene extends Phaser.Scene {
 
     if (this.skillTreeOpen && refreshPanels) {
       this.profileScope("ui:skillTree", () => this.refreshSkillTree());
+    }
+  }
+
+  private refreshOpenOverlayUi(refreshPanels: boolean): void {
+    this.setVisibleIfChanged(this.ambientSpores, false);
+
+    if (this.skillTreeOpen) {
+      this.setTextIfChanged(this.skillResourceText, this.getSkillResourceText());
+      this.refreshPrestigeButton();
+      if (refreshPanels) {
+        this.profileScope("ui:skillTree", () => this.refreshSkillTree());
+      }
+      return;
+    }
+
+    if (this.questLogOpen && refreshPanels) {
+      this.profileScope("ui:questLog", () => this.refreshQuestLog());
+      return;
+    }
+
+    if (this.journalOpen && refreshPanels) {
+      this.profileScope("ui:journal", () => this.refreshJournal());
+      return;
+    }
+
+    if (this.seedShopOpen && refreshPanels) {
+      this.profileScope("ui:seedShop", () => this.refreshSeedShop());
+      return;
+    }
+
+    if (this.storeOpen && refreshPanels) {
+      this.profileScope("ui:store", () => this.refreshGoldStore());
+      return;
+    }
+
+    if (this.automationOpen && refreshPanels) {
+      this.profileScope("ui:autoPanel", () => this.refreshAutomationPanel());
+      return;
+    }
+
+    if (this.optionsOpen && refreshPanels) {
+      this.profileScope("ui:options", () => this.refreshOptionsPanel());
     }
   }
 
@@ -14024,7 +14315,12 @@ export class GameScene extends Phaser.Scene {
   private refreshComboBadge(): void {
     const count = this.combo.getCount();
     const show = count >= 2 && !this.hasBlockingOverlayOpen();
+    const visibilityChanged = this.comboBadge.visible !== show;
     this.setVisibleIfChanged(this.comboBadge, show);
+    if (visibilityChanged) {
+      this.layoutHeader();
+      this.requestBoardLayout("ui");
+    }
 
     if (!show) {
       this.activeComboSource = "manual";

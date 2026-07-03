@@ -1,0 +1,51 @@
+{
+  "date": "2026-07-03",
+  "topic": "Mobile skill tree pan and overlay perf trim",
+  "currentUserGoal": "Add a way to pan around the mobile skill tree, support pinch-style zooming, then keep fixing mobile slowdown sources.",
+  "workCompleted": [
+    "Added mobile-friendly skill tree map gestures in `GameScene`: one-finger drag pans the tree after a small movement threshold.",
+    "Changed skill node interaction from immediate pointer-down purchase to tap-on-release, so dragging from a node pans instead of accidentally buying/selecting.",
+    "Added two-pointer skill map pinch state that zooms around the touch midpoint using the existing skill map camera.",
+    "Expanded skill map zoom range for compact/mobile skill tree use and reused the same min/max zoom helpers for wheel and pinch paths.",
+    "Added gesture cleanup when the skill tree opens/closes and when touch pointers lift or leave the canvas.",
+    "Added an overlay fast path in periodic `refreshUi`: while Skill/Quest/Journal/Seed/Store/Automation/Options panels are open, refresh only the open panel instead of hidden gameplay HUD, weather text, goal nudge, world map, and world objects.",
+    "Preserved the previous uncommitted mobile combo badge and startup loading work from `HANDOFF_2026-07-03_MOBILE_COMBO_STARTUP.json`."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "index.html",
+    "src/main.ts",
+    "src/game/scenes/TitleScene.ts",
+    "handoffs/HANDOFF_2026-07-03_MOBILE_COMBO_STARTUP.json",
+    "handoffs/HANDOFF_2026-07-03_SKILL_TREE_MOBILE_PAN_PERF.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "`npm run build` passed after skill tree gesture changes.",
+    "`npm run build` passed after overlay refresh fast path.",
+    "Local mobile viewport 390x844 at `http://127.0.0.1:5173/?stress&mobileTest=audio&tiles=1200&v=skill-pan-1`: opened Skill Tree, dragged from a visible skill node, and confirmed the map panned without buying/selecting.",
+    "Local mobile viewport: tapped a different visible skill node after dragging and confirmed a clean tap still selected the skill details.",
+    "Wheel/scroll zoom proxy on the skill map zoomed around the map camera without layout breakage; true two-finger pinch could not be synthesized by the browser tool but uses the same camera zoom/clamp path with touch midpoint tracking.",
+    "Manual skill tree stress sample before overlay fast path: fps 88, maxFrameDeltaMs 9, frameSpikes 0, hotspots included hidden HUD/weather work (`ui`, `ui:weatherText`, `ui:hudChips`).",
+    "Manual skill tree stress sample after overlay fast path: fps 101, maxFrameDeltaMs 7, frameSpikes 0, layoutPasses 0, redraws 0, redrawQueued 0, hotspots reduced to `frame:update`, `ui:skillTree`, `ui`, `combo`, `regrow`, `systems`.",
+    "Final `?perfHarness&tiles=1200` completed with visibleTiles 12-15, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7-12, frameSpikes 0, displayObjects 170-192, activeTweens 11-22, and final hotspot `hot none`."
+  ],
+  "knownIssues": [
+    "True pinch gestures need a real phone/tablet playtest because the local browser automation can drag and wheel-scroll but cannot synthesize a multi-touch pinch.",
+    "The repeatable harness and manual overlay stress did not reproduce the user's intermittent mobile lag; current fixes targeted confirmed waste in overlay UI refresh and the likely skill tree interaction blocker.",
+    "GameScene still eagerly creates/preloads several closed panels and assets before gameplay; if startup or first-open lag remains on device, profile panel creation and consider lazy-creating closed gameplay panels after first board render.",
+    "Local dev server was still listening at `http://127.0.0.1:5173/` during verification."
+  ],
+  "nextRecommendedSteps": [
+    "Playtest on a real mobile device: open Skill Tree, drag from empty space and from nodes, tap nodes, pinch in/out, close/open panels, then check whether the browser toolbar still causes hitches.",
+    "If real-phone lag persists, capture `document.documentElement.dataset.grassPerf` immediately after the hitch and compare hotspots/activeTweens/displayObjects/layoutPasses against this handoff.",
+    "Once accepted, commit and push the tracked changes plus both July 3 handoff files."
+  ],
+  "doNotRevert": [
+    "Do not restore immediate skill-node `pointerdown` purchases; mobile needs the tap-vs-drag threshold to pan from nodes.",
+    "Keep overlay periodic refreshes panel-scoped unless replacing with an equivalent hidden-HUD skip.",
+    "Keep the previous combo badge visibility relayout and startup loading shell changes from the earlier July 3 handoff.",
+    "Leave unrelated untracked docs, artifacts, audio files, and the older untracked handoff untouched."
+  ],
+  "currentGitStatus": "Tracked modified files: `index.html`, `src/main.ts`, `src/game/scenes/TitleScene.ts`, `src/game/scenes/GameScene.ts`, and `handoffs/LATEST.json`. New intended handoffs: `handoffs/HANDOFF_2026-07-03_MOBILE_COMBO_STARTUP.json` and `handoffs/HANDOFF_2026-07-03_SKILL_TREE_MOBILE_PAN_PERF.json`. Existing unrelated untracked docs/assets remain unchanged."
+}

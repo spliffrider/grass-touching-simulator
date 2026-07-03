@@ -1,0 +1,47 @@
+{
+  "date": "2026-07-03",
+  "topic": "Mobile combo HUD overlap and startup loading polish",
+  "currentUserGoal": "Fix the combo badge overlapping behind the mobile HUD first, then begin mobile optimization for laggy moments and the green startup screen.",
+  "workCompleted": [
+    "Moved the mobile combo badge so its ornate frame starts below the resource HUD instead of overlapping the Auto chip row.",
+    "Kept the combo badge position fresh while hidden and relayouted the header plus queued a UI board layout only when combo badge visibility changes.",
+    "Added an immediate HTML loading shell in `index.html` so mobile users see a branded loading state before JavaScript and Phaser finish booting.",
+    "Added `window.__grassAppReady` and boot timing dataset fields in `src/main.ts`; TitleScene and GameScene mark the app ready after their first usable UI is built.",
+    "Added a small GameScene preload progress label so continuing into gameplay does not show an empty green canvas while gameplay assets load.",
+    "Trimmed TitleScene first-paint asset loading by loading only the current-orientation title background up front, then lazy-loading the alternate background after the title renders.",
+    "Deferred class picker icon loading and hidden class picker construction until after the title appears, with a safe loading notice if Start is tapped before the picker is ready.",
+    "Reduced mobile browser-chrome resize churn by ignoring 2px viewport height jitter, throttling resize application to 120ms, and removing the visualViewport scroll resize listener."
+  ],
+  "filesTouched": [
+    "index.html",
+    "src/main.ts",
+    "src/game/scenes/TitleScene.ts",
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-07-03_MOBILE_COMBO_STARTUP.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "`npm run build` passed after the combo fix.",
+    "`npm run build` passed again after startup/loading and resize changes.",
+    "Local mobile viewport 390x844 visual check at `http://127.0.0.1:5173/?stress&mobileTest=audio&tiles=1200`: combo badge rendered below the HUD and above the quest nudge after rapid taps.",
+    "Local mobile title check at `http://127.0.0.1:5173/?v=startup-check-1`: title rendered normally, loading shell removed, `document.documentElement.dataset.grassBootReadyMs` reported 357ms locally.",
+    "Local mobile class picker check: tapping Start opened the picker with class icons loaded and readable.",
+    "Post-change browser perf harness at `http://127.0.0.1:5173/?perfHarness&tiles=1200&v=post-startup-opt` completed with visibleTiles 12-15, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7-10, frameSpikes 0, displayObjects 170-192, activeTweens 13-22, and hotspots ending at `hot none`."
+  ],
+  "knownIssues": [
+    "The harness did not reproduce the tester's intermittent real-phone lag; the resize-churn change is a targeted mitigation for mobile browser chrome changes, not a proven full fix for every lag report.",
+    "GameScene still eagerly preloads skill, item, tile, world, and effect assets before gameplay starts. Further startup reductions should profile asset timing before moving more panels to lazy creation.",
+    "The local dev server was started on `http://127.0.0.1:5173/` for browser checks."
+  ],
+  "nextRecommendedSteps": [
+    "Run a real iPhone/Android playtest focused on browser toolbar show/hide, returning from background, opening Skills/Store, and rapid tapping after the resize-throttle change.",
+    "If startup is still slow on a phone, capture mobile network/resource timing and consider lazy-creating closed gameplay panels such as Skill Tree, Quest Log, Store, Journal, and Automation after the board first renders.",
+    "Commit and push the intended tracked changes once the user is happy with this slice."
+  ],
+  "doNotRevert": [
+    "Keep combo badge visibility changes tied to a UI board layout request; ordinary combo meter refreshes should not trigger repeated board layouts.",
+    "Keep the loading shell ready marker in both TitleScene and GameScene because stress/mobile-test/title-bypass routes need GameScene to hide the shell.",
+    "Leave unrelated untracked docs, artifacts, audio files, and the older untracked handoff untouched."
+  ],
+  "currentGitStatus": "Tracked modified files: `index.html`, `src/main.ts`, `src/game/scenes/TitleScene.ts`, `src/game/scenes/GameScene.ts`, plus this handoff and `handoffs/LATEST.json` after handoff update. Existing unrelated untracked docs/assets remain: `docs/GAME_SYSTEMS_REFERENCE CLAUDE.md`, Dutch automation docs, `docs/artifacts/title-art-2026-06-19/`, `docs/grasstouching.mid`, `docs/lucid.aif`, and `handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json`."
+}

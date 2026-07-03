@@ -8,6 +8,10 @@ import type { CharacterClassId } from "../types/game-state";
 
 const TITLE_BACKGROUND_LANDSCAPE_KEY = "title-background-landscape";
 const TITLE_BACKGROUND_PORTRAIT_KEY = "title-background-portrait";
+const TITLE_BACKGROUND_ASSETS = {
+  [TITLE_BACKGROUND_LANDSCAPE_KEY]: "/assets/backgrounds/title-wholesome-landscape.webp",
+  [TITLE_BACKGROUND_PORTRAIT_KEY]: "/assets/backgrounds/title-wholesome-portrait.webp",
+} as const;
 const CREDITS_PANEL_BASE_WIDTH = 420;
 const CREDITS_PANEL_BASE_HEIGHT = 290;
 const OPTIONS_PANEL_BASE_WIDTH = 460;
@@ -114,6 +118,9 @@ export class TitleScene extends Phaser.Scene {
   private optionsOpen = false;
   private creditsOpen = false;
   private classSelectOpen = false;
+  private classSelectAssetsLoading = false;
+  private classSelectReadyCallbacks: Array<() => void> = [];
+  private titleBackgroundLoadQueued = new Set<string>();
   private compactClassSelect = false;
   private activeClassId: CharacterClassId = CHARACTER_CLASSES[0].id;
   private draggingVolume = false;
@@ -127,17 +134,11 @@ export class TitleScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image(TITLE_BACKGROUND_LANDSCAPE_KEY, "/assets/backgrounds/title-wholesome-landscape.webp");
-    this.load.image(TITLE_BACKGROUND_PORTRAIT_KEY, "/assets/backgrounds/title-wholesome-portrait.webp");
+    const initialTitleBackgroundKey = this.getTitleBackgroundKey();
+    this.load.image(initialTitleBackgroundKey, TITLE_BACKGROUND_ASSETS[initialTitleBackgroundKey]);
     this.load.image("panel-emerald", "/assets/ui/panel-emerald.png");
     this.load.image("title-selector-leaf", "/assets/title-selector-leaf.png");
     this.load.image("title-selector-flower", "/assets/title-selector-flower.png");
-
-    for (const characterClass of CHARACTER_CLASSES) {
-      if (characterClass.iconKey && characterClass.iconPath) {
-        this.load.image(characterClass.iconKey, characterClass.iconPath);
-      }
-    }
   }
 
   create(): void {
@@ -195,7 +196,6 @@ export class TitleScene extends Phaser.Scene {
 
     this.createCreditsPanel();
     this.createOptionsPanel();
-    this.createClassSelectPanel();
 
     this.input.keyboard?.on("keydown-ENTER", () => this.startOrContinue());
     this.input.keyboard?.on("keydown-SPACE", () => this.startOrContinue());
@@ -221,6 +221,9 @@ export class TitleScene extends Phaser.Scene {
     this.scale.off("resize", this.layoutTitleHandler);
     this.scale.on("resize", this.layoutTitleHandler);
     this.layoutTitle();
+    this.markAppReady();
+    this.queueAlternateTitleBackgroundLoad();
+    this.time.delayedCall(120, () => this.ensureClassSelectPanelReady());
   }
 
   private createTitleMark(): void {
@@ -262,6 +265,95 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(8)
       .setShadow(0, 2, "#06190f", 2, false, true);
+  }
+
+  private markAppReady(): void {
+    (window as unknown as { __grassAppReady?: () => void }).__grassAppReady?.();
+  }
+
+  private queueAlternateTitleBackgroundLoad(): void {
+    const currentKey = this.getTitleBackgroundKey();
+    const alternateKey = currentKey === TITLE_BACKGROUND_PORTRAIT_KEY ? TITLE_BACKGROUND_LANDSCAPE_KEY : TITLE_BACKGROUND_PORTRAIT_KEY;
+    this.queueTitleBackgroundLoad(alternateKey);
+  }
+
+  private queueTitleBackgroundLoad(key: keyof typeof TITLE_BACKGROUND_ASSETS): void {
+    if (this.textures.exists(key) || this.titleBackgroundLoadQueued.has(key)) {
+      return;
+    }
+
+    if (this.load.isLoading()) {
+      this.load.once(Phaser.Loader.Events.COMPLETE, () => this.queueTitleBackgroundLoad(key));
+      return;
+    }
+
+    this.titleBackgroundLoadQueued.add(key);
+    this.load.image(key, TITLE_BACKGROUND_ASSETS[key]);
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      this.titleBackgroundLoadQueued.delete(key);
+      this.layoutTitle();
+    });
+    this.load.start();
+  }
+
+  private ensureClassSelectPanelReady(callback?: () => void): boolean {
+    if (!this.titleReady) {
+      return false;
+    }
+
+    if (this.classSelectRoot?.active && this.classCards.length > 0) {
+      callback?.();
+      return true;
+    }
+
+    if (callback) {
+      this.classSelectReadyCallbacks.push(callback);
+    }
+
+    if (this.classSelectAssetsLoading) {
+      return false;
+    }
+
+    if (this.load.isLoading()) {
+      this.load.once(Phaser.Loader.Events.COMPLETE, () => this.ensureClassSelectPanelReady());
+      return false;
+    }
+
+    const missingClassIcons = CHARACTER_CLASSES.filter(
+      (characterClass) => characterClass.iconKey && characterClass.iconPath && !this.textures.exists(characterClass.iconKey),
+    );
+
+    if (missingClassIcons.length > 0) {
+      this.classSelectAssetsLoading = true;
+      for (const characterClass of missingClassIcons) {
+        if (characterClass.iconKey && characterClass.iconPath) {
+          this.load.image(characterClass.iconKey, characterClass.iconPath);
+        }
+      }
+
+      this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+        this.classSelectAssetsLoading = false;
+        if (!this.titleReady) {
+          this.classSelectReadyCallbacks = [];
+          return;
+        }
+        this.createClassSelectPanel();
+        this.flushClassSelectReadyCallbacks();
+      });
+      this.load.start();
+      return false;
+    }
+
+    this.createClassSelectPanel();
+    this.flushClassSelectReadyCallbacks();
+    return true;
+  }
+
+  private flushClassSelectReadyCallbacks(): void {
+    const callbacks = this.classSelectReadyCallbacks.splice(0);
+    for (const callback of callbacks) {
+      callback();
+    }
   }
 
   private startMenuThemeWhenAllowed(): void {
@@ -723,7 +815,9 @@ export class TitleScene extends Phaser.Scene {
     }
 
     const backgroundKey = this.getTitleBackgroundKey();
-    if (this.background.texture.key !== backgroundKey) {
+    if (!this.textures.exists(backgroundKey)) {
+      this.queueTitleBackgroundLoad(backgroundKey);
+    } else if (this.background.texture.key !== backgroundKey) {
       this.background.setTexture(backgroundKey);
     }
 
@@ -762,7 +856,9 @@ export class TitleScene extends Phaser.Scene {
 
     this.drawTitleArt(centerX, titleY, titleMaxWidth, menuTop, menuWidth, menuHeight, compact, short);
     this.layoutOptionsPanel();
-    this.layoutClassSelectPanel();
+    if (this.classSelectRoot?.active) {
+      this.layoutClassSelectPanel();
+    }
 
     this.buttons.forEach((button, index) => {
       const active = button.id === this.activeButtonId;
@@ -782,7 +878,7 @@ export class TitleScene extends Phaser.Scene {
     this.layoutCreditsPanel();
   }
 
-  private getTitleBackgroundKey(): string {
+  private getTitleBackgroundKey(): keyof typeof TITLE_BACKGROUND_ASSETS {
     return this.scale.height > this.scale.width * 1.15 ? TITLE_BACKGROUND_PORTRAIT_KEY : TITLE_BACKGROUND_LANDSCAPE_KEY;
   }
 
@@ -1032,6 +1128,10 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private layoutClassSelectPanel(): void {
+    if (!this.classSelectRoot?.active || this.classCards.length === 0) {
+      return;
+    }
+
     const narrowWidth = this.scale.width < 720;
     const phonePortrait = narrowWidth && this.scale.height >= this.scale.width * 1.18;
     const preferredColumns = phonePortrait ? 1 : Math.min(this.classCards.length, this.scale.width < 980 || this.classCards.length === 4 ? 2 : 3);
@@ -1243,6 +1343,12 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private openClassSelect(): void {
+    if (!this.classSelectRoot?.active || this.classCards.length === 0) {
+      this.showNotice("Loading class picker...");
+      this.ensureClassSelectPanelReady(() => this.openClassSelect());
+      return;
+    }
+
     this.closeCredits();
     this.closeOptions();
     this.classSelectOpen = true;
