@@ -21,6 +21,7 @@ export interface AutomationOutputContext {
 }
 
 const AUTOMATION_DERIVATIVE_SUPPORT_RATE = 0.35;
+export const STORE_UNLOCK_LIFETIME_TOUCHES = 120;
 
 export interface AutomationPairSynergyDefinition {
   id: string;
@@ -69,7 +70,7 @@ export const AUTOMATION_SYSTEMS: AutomationSystemDefinition[] = [
     baseTouchesPerMinute: 22,
     baseCost: 42,
     costGrowth: 1.15,
-    isUnlocked: (state) => hasTinySprinklerStoreUnlock(state),
+    isUnlocked: (state) => hasStoreAccess(state),
   },
   {
     id: "field_mouse",
@@ -129,6 +130,10 @@ export const AUTOMATION_SYSTEMS: AutomationSystemDefinition[] = [
 
 export function hasTinySprinklerStoreUnlock(state: GameState): boolean {
   return (state.upgrades.sprinkler_calibration?.level ?? 0) > 0;
+}
+
+export function hasStoreAccess(state: GameState): boolean {
+  return state.lifetimeGrassTouches >= STORE_UNLOCK_LIFETIME_TOUCHES || state.lifetimeGold >= 1 || hasTinySprinklerStoreUnlock(state);
 }
 
 export function getAutomationSystemDefinition(id: string): AutomationSystemDefinition | undefined {

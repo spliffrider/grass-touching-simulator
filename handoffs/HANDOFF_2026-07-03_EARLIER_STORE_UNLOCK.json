@@ -1,0 +1,53 @@
+{
+  "date": "2026-07-03",
+  "topic": "earlier-store-unlock",
+  "currentUserGoal": "Make the shop/store easier to unlock.",
+  "changesMade": [
+    "Added a Store access helper that unlocks the Store at 120 lifetime Grass Touches, after collecting 1 lifetime gold, or through the previous Sprinkler Calibration route for existing saves.",
+    "Changed the Store button gate to use the new Store access helper instead of requiring Sprinkler Calibration level 1.",
+    "Changed Sprinkler Route automation to unlock with Store access so the newly available Store has a useful first automation purchase immediately.",
+    "Updated the locked Store message to describe the new unlock path.",
+    "Updated the game systems reference where it still said Sprinkler Calibration level 1 opened the Store."
+  ],
+  "filesTouched": [
+    "src/game/data/automation-systems.ts",
+    "src/game/scenes/GameScene.ts",
+    "docs/GAME_SYSTEMS_REFERENCE.md",
+    "handoffs/HANDOFF_2026-07-03_EARLIER_STORE_UNLOCK.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run build passed.",
+    "git diff --check passed with only normal Windows LF-to-CRLF warnings."
+  ],
+  "currentGitStatus": {
+    "intendedChanges": [
+      "M src/game/data/automation-systems.ts",
+      "M src/game/scenes/GameScene.ts",
+      "M docs/GAME_SYSTEMS_REFERENCE.md",
+      "M handoffs/LATEST.json",
+      "A handoffs/HANDOFF_2026-07-03_EARLIER_STORE_UNLOCK.json"
+    ],
+    "untrackedLeftAlone": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssues": [
+    "This is a balance tweak, not a full early-game playthrough. Watch whether 120 lifetime touches makes passive automation arrive too quickly.",
+    "The legacy helper name hasTinySprinklerStoreUnlock still refers to Sprinkler Calibration ownership, because it is still used by the upgrade data."
+  ],
+  "nextRecommendedSteps": [
+    "Deploy and sync the change if the earlier Store unlock feels right.",
+    "If early automation feels too fast, keep Store access early but raise Sprinkler Route cost or require 1 lifetime gold for automation purchases."
+  ],
+  "doNotRevert": [
+    "Keep Store access separate from the old Sprinkler Calibration-only gate unless intentionally restoring slower early-game pacing."
+  ]
+}

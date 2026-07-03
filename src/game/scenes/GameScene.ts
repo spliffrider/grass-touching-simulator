@@ -17,7 +17,7 @@ import {
   getAutomationSystemPairSynergyLabel,
   getAutomationSystemTouchesPerMinute,
   getTotalAutomationTouchesPerMinute,
-  hasTinySprinklerStoreUnlock,
+  hasStoreAccess,
   type AutomationSystemDefinition,
 } from "../data/automation-systems";
 import { DEFAULT_CHARACTER_CLASS_ID, getCharacterClass } from "../data/character-classes";
@@ -7211,7 +7211,7 @@ export class GameScene extends Phaser.Scene {
 
   private openGoldStore(): void {
     if (!this.isStoreUnlocked()) {
-      this.showMessage("Upgrade Sprinkler Calibration once to unlock the Store.", 2200);
+      this.showMessage("Reach 120 lifetime touches or find 1 gold to unlock the Store.", 2200);
       this.audio.play("blocked");
       return;
     }
@@ -15769,7 +15769,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private isStoreUnlocked(): boolean {
-    return hasTinySprinklerStoreUnlock(this.state);
+    return hasStoreAccess(this.state);
   }
 
   private isUpgradeReady(upgrade: (typeof UPGRADES)[number]): boolean {

@@ -505,7 +505,7 @@ Every upgrade also has:
 | Grass Identification | 8 | 170 lifetime touches | Palm Press | +0.1 rare tier multiplier per level. |
 | Mindful Contact | 6 | 190 lifetime touches | Two-Handed Technique, Faster Regrowth | +2 percentage points instant regrow chance per level. |
 | Morning Mist | 6 | 210 lifetime touches | Dew Appreciation | +5 percentage points dewy chance per level. |
-| Sprinkler Calibration | 5 | 220 lifetime touches | Faster Regrowth | Tiny Sprinklers produce +12% automation per level and level 1 opens the Store. |
+| Sprinkler Calibration | 5 | 220 lifetime touches | Faster Regrowth | Tiny Sprinklers produce +12% automation per level. Store access now opens earlier at 120 lifetime touches or first lifetime gold. |
 | Satisfying Crunch | 6 | 240 lifetime touches | Dramatic Touch | +0.6 percentage points crit chance and +1.2 percentage points seed drop per level. |
 | Root Network | 6 | 280 lifetime touches | Warm Sunlight, Fertile Soil | Regrowth 2% faster and +1.2 percentage points instant regrow per level. |
 | Dew Respecter | 5 | 330 lifetime touches | Morning Mist | +3 percentage points dewy chance and +1 percentage point seed drop per level. |
@@ -700,7 +700,7 @@ flowchart TD
 | Item | Cost | Unlock | Effect |
 | --- | ---: | --- | --- |
 | Seed Pouch | 6 | Always | Improves manual seed drop chance. |
-| Tiny Sprinkler Blueprint | 20 | Seed Pouch | Installs Tiny Sprinkler field behavior. Store access still requires Sprinkler Calibration level 1. |
+| Tiny Sprinkler Blueprint | 20 | Seed Pouch | Installs Tiny Sprinkler field behavior. Store access is handled by early lifetime touches or first lifetime gold. |
 | Watering Can | 18 | Seed Pouch | Manual touches water nearby resting patches so they regrow sooner. |
 | Field Journal | 28 | Seed Pouch | Enables journal collection bonuses and rare-tier support. |
 | Wild Spread | 35 | Tiny Sprinkler Blueprint | Seed drops can sprout nearby new grass tiles. |
@@ -720,7 +720,7 @@ flowchart TD
 
 ## Gold Store and Inventory
 
-The Gold Store spends gold and adds entries to `inventory`.
+The Gold Store spends gold and adds entries to `inventory`. The Store opens at 120 lifetime touches or after collecting 1 lifetime gold.
 
 | Item | Cost | Kind | Max | Unlock | Effect |
 | --- | ---: | --- | ---: | --- | --- |
@@ -816,7 +816,7 @@ cost = ceil(baseCost * costGrowth^owned)
 
 | System | Base TPM | Base cost | Cost growth | Unlock |
 | --- | ---: | ---: | ---: | --- |
-| Tiny Sprinkler | 22 | 42 | 1.15 | Sprinkler Calibration level 1. |
+| Tiny Sprinkler | 22 | 42 | 1.15 | Store access: 120 lifetime touches or 1 lifetime gold. |
 | Field Mouse Route | 46 | 135 | 1.17 | 120 lifetime touches. |
 | Bee Hive Shift | 82 | 275 | 1.18 | Field Journal or 240 lifetime touches. |
 | Earthworm Crew | 140 | 500 | 1.19 | 420 lifetime touches. |
@@ -1333,10 +1333,10 @@ Sprinkler currently appears as:
 That can work, but it needs clear naming. One possible frame is:
 
 - blueprint: installs the active field sprinkler behavior
-- automation store: number of sprinkler units producing passive income, unlocked by Sprinkler Calibration level 1
+- automation store: number of sprinkler units producing passive income, available when the Store opens
 - placed sprinkler: the field anchor for active water behavior
 
-The active `SprinklerSystem` checks the Seed Shop blueprint, not the Automation Store owned count. Store access and passive Tiny Sprinkler purchases are gated by Sprinkler Calibration level 1.
+The active `SprinklerSystem` checks the Seed Shop blueprint, not the Automation Store owned count. Store access and passive Tiny Sprinkler purchases open earlier at 120 lifetime touches or first lifetime gold, while Sprinkler Calibration boosts sprinkler automation after it is purchased.
 
 ### 4. Passive Automation Action Counting May Need Audit
 
