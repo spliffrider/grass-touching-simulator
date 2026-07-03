@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-03",
-  "latestHandoff": "HANDOFF_2026-07-03_MOBILE_MINIMAP.json",
+  "latestHandoff": "HANDOFF_2026-07-03_COMPACT_MOBILE_HUD.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

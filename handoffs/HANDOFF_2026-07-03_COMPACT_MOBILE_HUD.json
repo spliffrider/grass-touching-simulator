@@ -1,0 +1,55 @@
+{
+  "date": "2026-07-03",
+  "topic": "compact-mobile-hud",
+  "currentUserGoal": "Make the top mobile HUD smaller, remove ornate borders, and improve readability with icons, numbers, and short text.",
+  "changesMade": [
+    "Converted the mobile HUD chips from wrapped ornate cards into a single slim metrics strip with simple dark backing.",
+    "Hid ornate frame details on mobile for HUD chips, combo badge, and goal nudge while preserving desktop/tablet ornate styling.",
+    "Reduced mobile title/build label sizes and tightened header spacing.",
+    "Added compact mobile number/rate formatting such as 2.5k and 176k/m so chip text can stay larger.",
+    "Removed the duplicate mobile Quest ready milestone row when quest chip and goal nudge already communicate it.",
+    "Lowered the mobile board top reserve so the play field starts higher after the HUD shrinks."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-07-03_COMPACT_MOBILE_HUD.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run build passed.",
+    "Mobile visual check at http://127.0.0.1:5173/?stress&perf&tiles=1200&v=compact-mobile-hud-2 using 390x844 viewport: HUD is a slim one-row metric strip with a small nudge line, no ornate chip borders, compact values, and the board starts higher.",
+    "Mobile perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200&v=compact-mobile-hud-harness completed all phases.",
+    "Perf harness notable fields: idle visibleTiles 18, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 12, frameSpikes 0, displayObjects 176, activeTweens 19; complete visibleTiles 15, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 247, activeTweens 22.",
+    "Browser console warning/error log was empty."
+  ],
+  "currentGitStatus": {
+    "trackedChanges": [
+      "M src/game/scenes/GameScene.ts",
+      "M handoffs/LATEST.json",
+      "A handoffs/HANDOFF_2026-07-03_COMPACT_MOBILE_HUD.json"
+    ],
+    "untrackedLeftAlone": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssues": [
+    "The quest log mobile scroll/performance issue and startup green-screen delay remain separate next optimization targets.",
+    "Stress/perf overlay text is intentionally bulky in debug URLs and not representative of the normal mobile UI."
+  ],
+  "nextRecommendedSteps": [
+    "Push this commit live so the user can test the new mobile top HUD.",
+    "Profile and fix the quest log mobile scrolling/performance next.",
+    "Profile cold startup to reduce the initial green-screen wait."
+  ],
+  "doNotRevert": [
+    "Do not restore the mobile HUD chip wrapping or ornate chip borders.",
+    "Keep compact mobile value formatting for chips unless a replacement mobile HUD design provides equivalent readability."
+  ]
+}

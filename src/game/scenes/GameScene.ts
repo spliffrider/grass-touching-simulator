@@ -245,7 +245,7 @@ const PERF_HARNESS_PHASE_DELAY_MS = 800;
 const PERF_HARNESS_TAP_COUNT = 14;
 const HUD_CHIP_HEIGHT = 48;
 const HUD_CHIP_COMPACT_HEIGHT = 42;
-const HUD_CHIP_MOBILE_HEIGHT = 34;
+const HUD_CHIP_MOBILE_HEIGHT = 26;
 const HUD_CHIP_GAP = 8;
 const ACTION_BUTTON_WIDTH = 118;
 const ACTION_BUTTON_HEIGHT = 58;
@@ -343,8 +343,28 @@ function formatHudChipNumber(value: number): string {
   return formatGrassTouches(whole);
 }
 
+function formatHudChipCompactNumber(value: number): string {
+  const whole = Math.floor(value);
+  const abs = Math.abs(whole);
+  if (abs >= 1_000_000) {
+    return formatHudChipNumber(value);
+  }
+
+  if (abs >= 1_000) {
+    const scaled = whole / 1_000;
+    const decimals = Math.abs(scaled) >= 100 ? 0 : 1;
+    return `${scaled.toFixed(decimals).replace(/\.0$/, "")}k`;
+  }
+
+  return formatGrassTouches(whole);
+}
+
 function formatHudChipRate(value: number): string {
   return `${formatHudChipNumber(value)}/min`;
+}
+
+function formatHudChipCompactRate(value: number): string {
+  return `${formatHudChipCompactNumber(value)}/m`;
 }
 
 function getDirectiveAdjustedAutomationOutput(state: GameState, output: number): number {
@@ -853,6 +873,7 @@ export class GameScene extends Phaser.Scene {
   private hudChips: HudChipView[] = [];
   private hudChipBottomY = 0;
   private hudChipRightX = 0;
+  private mobileHeaderBottomY = 0;
   private comboBadge!: Phaser.GameObjects.Container;
   private comboBadgeFrame!: OrnateFrame;
   private comboBadgeBg!: Phaser.GameObjects.Rectangle;
@@ -3476,21 +3497,24 @@ export class GameScene extends Phaser.Scene {
     const mobilePortrait = this.isMobilePortrait();
     const headerWidth = mobilePortrait ? Math.max(174, this.scale.width - 52) : Math.max(220, Math.min(620, this.scale.width - 180));
 
-    this.titleText.setFontSize(mobilePortrait ? 18 : compact ? 22 : 30);
+    this.titleText.setFontSize(mobilePortrait ? 15 : compact ? 22 : 30);
+    this.titleText.setStroke("#17491f", mobilePortrait ? 4 : 6);
     this.titleText.setWordWrapWidth(headerWidth);
-    this.buildLabelText.setFontSize(mobilePortrait ? 9 : compact ? 12 : 13);
+    this.buildLabelText.setFontSize(mobilePortrait ? 8 : compact ? 12 : 13);
+    this.buildLabelText.setStroke("#17491f", mobilePortrait ? 3 : 4);
     this.buildLabelText.setWordWrapWidth(headerWidth);
     this.resourceText.setVisible(false);
-    this.comboBadgeText.setFontSize(mobilePortrait ? 12 : compact ? 14 : 16);
-    this.goalNudgeText.setFontSize(mobilePortrait ? 10 : compact ? 12 : 13);
-    this.goalNudgeIcon.setFontSize(mobilePortrait ? 9 : 11);
-    this.milestoneText.setFontSize(mobilePortrait ? 11 : compact ? 13 : 16);
+    this.comboBadgeText.setFontSize(mobilePortrait ? 10 : compact ? 14 : 16);
+    this.goalNudgeText.setFontSize(mobilePortrait ? 9 : compact ? 12 : 13);
+    this.goalNudgeIcon.setFontSize(mobilePortrait ? 8 : 11);
+    this.milestoneText.setFontSize(mobilePortrait ? 10 : compact ? 13 : 16);
+    this.milestoneText.setStroke(mobilePortrait ? "#06190f" : "#215228", mobilePortrait ? 3 : 4);
     this.milestoneText.setWordWrapWidth(mobilePortrait ? Math.max(230, this.scale.width - 20) : headerWidth);
 
-    this.titleText.setPosition(mobilePortrait ? 10 : 24, mobilePortrait ? 10 : 18);
-    this.buildLabelText.setPosition(mobilePortrait ? 12 : 26, this.titleText.y + this.titleText.height - (mobilePortrait ? 1 : 0));
+    this.titleText.setPosition(mobilePortrait ? 8 : 24, mobilePortrait ? 7 : 18);
+    this.buildLabelText.setPosition(mobilePortrait ? 10 : 26, this.titleText.y + this.titleText.height - (mobilePortrait ? 2 : 0));
     this.layoutHudChips();
-    this.milestoneText.setPosition(mobilePortrait ? 12 : 26, this.layoutGoalNudge(this.layoutComboBadge()));
+    this.layoutMilestoneText();
     this.layoutMenuButtons();
     this.layoutTriggerFeed();
     this.layoutSeasonVisuals();
@@ -3506,17 +3530,47 @@ export class GameScene extends Phaser.Scene {
     return 0;
   }
 
+  private setOrnateFrameDetailsVisible(frame: OrnateFrame, visible: boolean): void {
+    this.setVisibleIfChanged(frame.shadow, visible);
+    this.setVisibleIfChanged(frame.glow, visible);
+    this.setVisibleIfChanged(frame.inset, visible);
+    this.setVisibleIfChanged(frame.topTrim, visible);
+    this.setVisibleIfChanged(frame.bottomTrim, visible);
+    this.setVisibleIfChanged(frame.leftTrim, visible);
+    this.setVisibleIfChanged(frame.rightTrim, visible);
+    this.setVisibleIfChanged(frame.corners, visible);
+  }
+
+  private getMobileHudChipWidths(startX: number, rightLimit: number, gap: number): Record<HudChipId, number> {
+    const availableWidth = Math.max(260, rightLimit - startX - gap * 4);
+    const weights: Record<HudChipId, number> = { touches: 1.16, seeds: 0.82, gold: 0.78, auto: 0.94, quest: 1.08 };
+    const ids: HudChipId[] = ["touches", "seeds", "gold", "auto", "quest"];
+    const totalWeight = ids.reduce((total, id) => total + weights[id], 0);
+    const widths = {} as Record<HudChipId, number>;
+    let remainingWidth = availableWidth;
+    let remainingWeight = totalWeight;
+
+    for (const id of ids) {
+      const last = id === "quest";
+      const width = last ? remainingWidth : Math.max(46, Math.floor((remainingWidth * weights[id]) / remainingWeight));
+      widths[id] = Math.max(46, width);
+      remainingWidth -= widths[id];
+      remainingWeight -= weights[id];
+    }
+
+    return widths;
+  }
+
   private layoutHudChips(): void {
     const mobilePortrait = this.isMobilePortrait();
     const compact = this.scale.width < 760;
     const chipHeight = mobilePortrait ? HUD_CHIP_MOBILE_HEIGHT : compact ? HUD_CHIP_COMPACT_HEIGHT : HUD_CHIP_HEIGHT;
     const gap = mobilePortrait ? 4 : HUD_CHIP_GAP;
     const startX = mobilePortrait ? 8 : 26;
-    const startY = this.buildLabelText.y + this.buildLabelText.height + (mobilePortrait ? 5 : 10);
+    const startY = this.buildLabelText.y + this.buildLabelText.height + (mobilePortrait ? 3 : 10);
     const rightLimit = mobilePortrait ? this.scale.width - 8 : Math.max(startX + 260, this.scale.width - (compact ? 18 : 170));
-    const mobileWidth = Math.max(86, Math.floor((rightLimit - startX - gap * 2) / 3));
     const widths: Record<HudChipId, number> = mobilePortrait
-      ? { touches: mobileWidth, seeds: mobileWidth, gold: mobileWidth, auto: mobileWidth, quest: mobileWidth }
+      ? this.getMobileHudChipWidths(startX, rightLimit, gap)
       : compact
         ? { touches: 150, seeds: 88, gold: 88, auto: 122, quest: 96 }
         : { touches: 178, seeds: 98, gold: 98, auto: 136, quest: 112 };
@@ -3542,12 +3596,18 @@ export class GameScene extends Phaser.Scene {
 
     this.hudChipBottomY = rowBottom;
     this.hudChipRightX = rowRight;
-    const railPad = mobilePortrait ? 4 : 8;
-    const railWidth = Math.max(156, Math.min(rightLimit - startX + railPad * 2, rowRight - startX + railPad * 2));
-    const railHeight = Math.max(chipHeight + railPad * 2, rowBottom - startY + railPad * 2);
-    this.hudRailFrame.setPosition(startX - railPad, startY - railPad);
+    const railPad = mobilePortrait ? 2 : 8;
+    const railWidth = mobilePortrait
+      ? Math.max(156, this.scale.width - 12)
+      : Math.max(156, Math.min(rightLimit - startX + railPad * 2, rowRight - startX + railPad * 2));
+    const railHeight = mobilePortrait ? chipHeight + railPad * 2 : Math.max(chipHeight + railPad * 2, rowBottom - startY + railPad * 2);
+    this.hudRailFrame.setPosition(mobilePortrait ? 6 : startX - railPad, startY - railPad);
     this.hudRailFrame.setSize(railWidth, railHeight);
     this.hudRailFrame.setVisible(!this.hasBlockingOverlayOpen());
+    this.setOrnateFrameDetailsVisible(this.hudRailFrame, !mobilePortrait);
+    if (mobilePortrait) {
+      this.hudRailFrame.bg.setFillStyle(UITheme.colors.panelBgDeep, 0.56).setStrokeStyle(1, 0x12341c, 0.45);
+    }
   }
 
   private resizeHudChip(chip: HudChipView, width: number, height: number, compact: boolean): void {
@@ -3557,19 +3617,28 @@ export class GameScene extends Phaser.Scene {
     chip.glow.setSize(width + 6, height + 6);
     chip.glow.setPosition(-3, -3);
     chip.bg.setSize(width, height);
-    const iconX = mobileTight ? 18 : 22;
-    const textX = mobileTight ? 34 : 40;
-    chip.iconBg.setPosition(iconX, height / 2).setDisplaySize(mobileTight ? 22 : compact ? 26 : 30, mobileTight ? 22 : compact ? 26 : 30);
-    chip.iconImage?.setPosition(iconX, height / 2).setDisplaySize(mobileTight ? 16 : compact ? 19 : 22, mobileTight ? 16 : compact ? 19 : 22);
-    chip.iconText?.setPosition(iconX, height / 2).setFontSize(mobileTight ? 9 : compact ? 11 : 13);
+    this.setOrnateFrameDetailsVisible(chip.frame, !mobileTight);
+
+    const iconX = mobileTight ? 12 : 22;
+    const textX = mobileTight ? 24 : 40;
+    chip.iconBg.setVisible(!mobileTight);
+    chip.iconBg.setPosition(iconX, height / 2).setDisplaySize(mobileTight ? 18 : compact ? 26 : 30, mobileTight ? 18 : compact ? 26 : 30);
+    chip.iconImage?.setPosition(iconX, height / 2).setDisplaySize(mobileTight ? 14 : compact ? 19 : 22, mobileTight ? 14 : compact ? 19 : 22);
+    chip.iconText?.setPosition(iconX, height / 2).setFontSize(mobileTight ? 8 : compact ? 11 : 13);
     chip.title
       .setPosition(textX, mobileTight ? 3 : compact ? 5 : 7)
       .setFontSize(mobileTight ? 9 : compact ? 10 : 11)
       .setWordWrapWidth(Math.max(40, width - textX - 6));
+    chip.title.setVisible(!mobileTight);
     chip.value
-      .setPosition(textX, mobileTight ? 17 : compact ? 20 : 23)
+      .setOrigin(0, mobileTight ? 0.5 : 0)
+      .setPosition(textX, mobileTight ? height / 2 + 1 : compact ? 20 : 23)
       .setFontSize(mobileTight || compact || width < 100 ? 12 : 16)
       .setWordWrapWidth(Math.max(40, width - textX - 6));
+    chip.bg.setVisible(true);
+    if (mobileTight) {
+      chip.bg.setFillStyle(UITheme.colors.panelBgDeep, 0.2).setStrokeStyle(0, UITheme.colors.panelBgDeep, 0);
+    }
   }
 
   private layoutMenuButtons(): void {
@@ -3655,8 +3724,8 @@ export class GameScene extends Phaser.Scene {
   private layoutComboBadge(): number {
     const compact = this.scale.width < 760;
     const mobilePortrait = this.isMobilePortrait();
-    const badgeWidth = mobilePortrait ? 136 : compact ? 166 : 194;
-    const badgeHeight = mobilePortrait ? 28 : compact ? 36 : 40;
+    const badgeWidth = mobilePortrait ? 108 : compact ? 166 : 194;
+    const badgeHeight = mobilePortrait ? 20 : compact ? 36 : 40;
     const resourceBottom = this.hudChipBottomY || this.buildLabelText.y + this.buildLabelText.height + 12;
     const badgeFrameTopOffset = 20;
     const rightUiLeft = this.scale.width - 156;
@@ -3664,11 +3733,14 @@ export class GameScene extends Phaser.Scene {
 
     this.comboBadgeFrame.setSize(badgeWidth, badgeHeight);
     this.comboBadgeBg.setSize(badgeWidth, badgeHeight);
-    this.comboBadgeMeter.setPosition(12, mobilePortrait ? 7 : compact ? 10 : 12);
+    this.setOrnateFrameDetailsVisible(this.comboBadgeFrame, !mobilePortrait);
+    this.comboBadgeBg.setFillStyle(UITheme.colors.panelBgDeep, mobilePortrait ? 0.58 : 0.94);
+    this.comboBadgeText.setPosition(mobilePortrait ? 8 : 12, -10);
+    this.comboBadgeMeter.setPosition(mobilePortrait ? 8 : 12, mobilePortrait ? -2 : compact ? 10 : 12);
 
     if (mobilePortrait && !this.comboBadge.visible) {
-      this.comboBadge.setPosition(12, resourceBottom + 8 + badgeFrameTopOffset);
-      return resourceBottom + 5;
+      this.comboBadge.setPosition(8, resourceBottom + 3 + badgeFrameTopOffset);
+      return resourceBottom + 3;
     }
 
     if (fitsRight) {
@@ -3677,9 +3749,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (mobilePortrait) {
-      const badgeTop = resourceBottom + 8;
-      this.comboBadge.setPosition(12, badgeTop + badgeFrameTopOffset);
-      return badgeTop + badgeHeight + 6;
+      const badgeTop = resourceBottom + 3;
+      this.comboBadge.setPosition(8, badgeTop + badgeFrameTopOffset);
+      return badgeTop + badgeHeight + 3;
     }
 
     this.comboBadge.setPosition(26, resourceBottom + 24);
@@ -3698,17 +3770,29 @@ export class GameScene extends Phaser.Scene {
     const maxWidth = mobilePortrait ? Math.max(180, this.scale.width - 16) : 420;
     const minWidth = Math.min(maxWidth, mobilePortrait ? 240 : 300);
     const width = Phaser.Math.Clamp(rightLimit - x, minWidth, maxWidth);
-    const height = mobilePortrait ? 24 : 34;
+    const height = mobilePortrait ? 20 : 34;
     const visible = this.goalNudgeRoot.visible;
 
     this.goalNudgeFrame.setSize(width, height);
     this.goalNudgeBg.setSize(width, height);
-    this.goalNudgeIcon.setPosition(mobilePortrait ? 13 : 16, height / 2);
+    this.setOrnateFrameDetailsVisible(this.goalNudgeFrame, !mobilePortrait);
+    if (mobilePortrait) {
+      this.goalNudgeBg.setFillStyle(UITheme.colors.panelBgDeep, 0.58).setStrokeStyle(1, UITheme.colors.bronzeLight, 0.42);
+    }
+    this.goalNudgeIcon.setPosition(mobilePortrait ? 12 : 16, height / 2);
     this.goalNudgeText
-      .setPosition(mobilePortrait ? 27 : 34, mobilePortrait ? 5 : 9)
+      .setPosition(mobilePortrait ? 24 : 34, mobilePortrait ? 4 : 9)
       .setWordWrapWidth(Math.max(120, width - (mobilePortrait ? 36 : 48)));
     this.goalNudgeRoot.setPosition(x, startY);
-    return visible ? startY + height + (mobilePortrait ? 5 : 10) : startY;
+    return visible ? startY + height + (mobilePortrait ? 3 : 10) : startY;
+  }
+
+  private layoutMilestoneText(): void {
+    const mobilePortrait = this.isMobilePortrait();
+    const y = this.layoutGoalNudge(this.layoutComboBadge());
+    this.milestoneText.setPosition(mobilePortrait ? 10 : 26, y);
+    this.mobileHeaderBottomY =
+      mobilePortrait && (!this.milestoneText.visible || this.milestoneText.text.length === 0) ? y : y + this.milestoneText.height;
   }
 
   private layoutSeasonVisuals(): void {
@@ -8304,8 +8388,9 @@ export class GameScene extends Phaser.Scene {
     const mobileDockSafeBottom = mobilePortrait
       ? Math.max(this.getActiveWorldObjects().length > 0 ? 126 : 72, commandDockReserve + (this.getActiveWorldObjects().length > 0 ? 30 : 0))
       : 28;
+    const mobileHeaderBottom = Math.max(this.mobileHeaderBottomY, this.hudChipBottomY, this.buildLabelText.y + this.buildLabelText.height);
     this.boardTopY = mobilePortrait
-      ? Math.max(132, this.getMobileMenuBottom() + 4, this.milestoneText.y + this.milestoneText.height + 6)
+      ? Math.max(106, this.getMobileMenuBottom() + 4, mobileHeaderBottom + 6)
       : Math.max(142, this.milestoneText.y + this.milestoneText.height + 24);
     const horizontalMargin = mobilePortrait ? 7 : 18;
     const rightUiReserve = this.getBoardRightUiReserve();
@@ -14006,16 +14091,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshHudChips(automationTouchesPerMinute: number, automationUnitCount: number, readyQuestCount: number): void {
-    this.setHudChipValue("touches", "Touches", formatHudChipNumber(this.state.grassTouches), false);
-    this.setHudChipValue("seeds", "Seeds", formatHudChipNumber(this.state.seeds), false);
-    this.setHudChipValue("gold", "Gold", formatHudChipNumber(this.state.gold), false);
+    const mobilePortrait = this.isMobilePortrait();
+    const formatChipNumber = mobilePortrait ? formatHudChipCompactNumber : formatHudChipNumber;
+    const formatChipRate = mobilePortrait ? formatHudChipCompactRate : formatHudChipRate;
+    this.setHudChipValue("touches", "Touches", formatChipNumber(this.state.grassTouches), false);
+    this.setHudChipValue("seeds", "Seeds", formatChipNumber(this.state.seeds), false);
+    this.setHudChipValue("gold", "Gold", formatChipNumber(this.state.gold), false);
     this.setHudChipValue(
       "auto",
       "Auto",
       automationTouchesPerMinute > 0
-        ? formatHudChipRate(automationTouchesPerMinute)
+        ? formatChipRate(automationTouchesPerMinute)
         : automationUnitCount > 0
-          ? `${automationUnitCount} systems`
+          ? mobilePortrait
+            ? `${automationUnitCount} sys`
+            : `${automationUnitCount} systems`
           : "idle",
       automationTouchesPerMinute > 0,
     );
@@ -14028,20 +14118,38 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const mobilePortrait = this.isMobilePortrait();
     this.setTextIfChanged(chip.title, title);
     this.setTextIfChanged(chip.value, value);
     const primary = id === "touches";
     const valueSize = value.length > 11 || chip.width < 100 ? 12 : chip.width < 130 ? 14 : primary ? 17 : 16;
+    chip.title.setVisible(!mobilePortrait);
     chip.title.setColor(attention ? UITheme.colors.creamBright : primary ? "#dfffc8" : UITheme.colors.mutedGreen);
-    chip.value.setColor(primary ? "#ffffff" : attention ? "#fff7c7" : UITheme.colors.cream);
-    chip.value.setFontSize(valueSize);
-    chip.glow.setVisible(attention);
+    chip.value.setColor(primary ? "#ffffff" : attention ? "#fff7c7" : mobilePortrait ? "#f7ffe8" : UITheme.colors.cream);
+    chip.value.setFontSize(
+      mobilePortrait
+        ? value.length > 10
+          ? 9
+          : value.length > 7 || chip.width < 62
+            ? 10
+            : 12
+        : valueSize,
+    );
+    chip.glow.setVisible(!mobilePortrait && attention);
     chip.frame.setFill(primary ? 0x11351e : UITheme.colors.panelBg, primary ? 0.97 : 0.94);
     chip.frame.setAccent(attention ? UITheme.colors.glow : primary ? UITheme.colors.bronzeLight : UITheme.colors.bronze, attention ? 1 : primary ? 0.92 : 0.78);
     chip.bg.setFillStyle(primary ? 0x11351e : UITheme.colors.panelBg, primary ? 0.97 : 0.94);
     chip.bg.setStrokeStyle(primary || attention ? 3 : 2, attention ? UITheme.colors.glow : primary ? UITheme.colors.bronzeLight : UITheme.colors.bronze, attention ? 0.98 : primary ? 0.86 : 0.64);
+    chip.iconBg.setVisible(!mobilePortrait);
     chip.iconBg.setFillStyle(attention ? 0xffefbd : 0xead5aa, 0.96);
     chip.iconBg.setStrokeStyle(2, attention ? UITheme.colors.glow : UITheme.colors.bronzeDark, attention ? 0.98 : 0.9);
+
+    if (mobilePortrait) {
+      const mobileFill = attention ? 0x163a1f : primary ? 0x0a2a17 : UITheme.colors.panelBgDeep;
+      chip.frame.setFill(mobileFill, attention ? 0.56 : primary ? 0.42 : 0.24);
+      chip.bg.setFillStyle(mobileFill, attention ? 0.56 : primary ? 0.42 : 0.24).setStrokeStyle(0, mobileFill, 0);
+      this.setOrnateFrameDetailsVisible(chip.frame, false);
+    }
   }
 
   private getReadyUnlockCounts(keys: Set<string>): { skill: number; seed: number; store: number } {
@@ -14278,16 +14386,18 @@ export class GameScene extends Phaser.Scene {
       if (mobilePortrait) {
         const mobileObjective =
           readyQuestCount > 0
-            ? `Quest ready: ${readyQuestCount}`
+            ? ""
             : nextMilestone
               ? `Next spread: ${nextMilestone.name} at ${formatGrassTouches(nextMilestone.requiredLifetimeTouches)}`
               : nextTier
                 ? `Next tier: ${nextTier.name} at ${formatGrassTouches(nextTier.unlockAtLifetimeTouches)}`
                 : nextAutomationBreakthroughLine;
         this.setTextIfChanged(this.milestoneText, mobileObjective);
+        this.setVisibleIfChanged(this.milestoneText, mobileObjective.length > 0);
         return;
       }
 
+      this.setVisibleIfChanged(this.milestoneText, true);
       this.setTextIfChanged(
         this.milestoneText,
         [
@@ -14306,7 +14416,7 @@ export class GameScene extends Phaser.Scene {
           .join("\n"),
       );
     });
-    this.milestoneText.setPosition(mobilePortrait ? 20 : 26, this.layoutGoalNudge(this.layoutComboBadge()));
+    this.layoutMilestoneText();
     if (refreshFloatingLayout) {
       this.layoutTriggerFeed();
       this.layoutWorldMap();
@@ -14489,6 +14599,7 @@ export class GameScene extends Phaser.Scene {
   private refreshComboBadge(): void {
     const count = this.combo.getCount();
     const show = count >= 2 && !this.hasBlockingOverlayOpen();
+    const mobilePortrait = this.isMobilePortrait();
     const visibilityChanged = this.comboBadge.visible !== show;
     this.setVisibleIfChanged(this.comboBadge, show);
     if (visibilityChanged) {
@@ -14504,16 +14615,20 @@ export class GameScene extends Phaser.Scene {
     const multiplier = this.combo.getMultiplier();
     const remaining = Phaser.Math.Clamp((this.combo.getExpiresAt() - Date.now()) / this.combo.getWindowMs(), 0, 1);
     const badgeWidth = this.comboBadgeBg.width;
-    const meterWidth = Math.max(8, (badgeWidth - 24) * remaining);
+    const meterInset = mobilePortrait ? 16 : 24;
+    const meterWidth = Math.max(8, (badgeWidth - meterInset) * remaining);
     const multiplierText = multiplier > 1 ? ` x${multiplier.toFixed(multiplier >= 2 ? 0 : 2)}` : "";
     const automated = this.activeComboSource !== "manual";
 
     this.comboBadgeText.setColor(automated ? "#bff4ff" : "#f7ffe8");
     this.comboBadgeFrame.setAccent(automated ? 0xa8e8ff : UITheme.colors.glow, automated ? 0.9 : 0.82);
-    this.comboBadgeBg.setStrokeStyle(3, automated ? 0xa8e8ff : UITheme.colors.glow, automated ? 0.9 : 0.82);
-    this.setTextIfChanged(this.comboBadgeText, `${automated ? "Auto Streak" : "Combo"} ${count}${multiplierText}`);
-    this.comboBadgeMeter.setSize(meterWidth, 4);
+    this.comboBadgeBg.setStrokeStyle(mobilePortrait ? 1 : 3, automated ? 0xa8e8ff : UITheme.colors.glow, mobilePortrait ? 0.5 : automated ? 0.9 : 0.82);
+    this.setTextIfChanged(this.comboBadgeText, `${automated ? (mobilePortrait ? "Auto" : "Auto Streak") : "Combo"} ${count}${multiplierText}`);
+    this.comboBadgeMeter.setSize(meterWidth, mobilePortrait ? 3 : 4);
     this.comboBadgeMeter.setFillStyle(automated ? 0xa8e8ff : multiplier > 1 ? 0xf4df6a : 0xb7eba5, 0.92);
+    if (mobilePortrait) {
+      this.setOrnateFrameDetailsVisible(this.comboBadgeFrame, false);
+    }
   }
 
   private refreshQuestItemView(quest: QuestDefinition, view: QuestItemView): void {
@@ -15927,6 +16042,7 @@ export class GameScene extends Phaser.Scene {
 
   private showMessage(message: string, duration: number): void {
     const previousMilestoneHeight = this.milestoneText.height;
+    this.setVisibleIfChanged(this.milestoneText, true);
     this.setTextIfChanged(this.milestoneText, message);
     const heightDelta = this.milestoneText.height - previousMilestoneHeight;
     if (Math.abs(heightDelta) > 1) {
