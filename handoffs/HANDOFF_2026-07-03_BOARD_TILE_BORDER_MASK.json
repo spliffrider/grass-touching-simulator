@@ -1,0 +1,35 @@
+{
+  "date": "2026-07-03",
+  "topic": "Board tile border clipping cleanup",
+  "currentUserGoal": "Make grass tiles stop rendering into or outside the decorative playing-field border so the board edge looks tidy and satisfying.",
+  "workCompleted": [
+    "Removed the compact board content mask bleed path in `GameScene`.",
+    "The board visual content mask now uses the full board content inset, so edge grass tiles are clipped inside the playfield instead of bleeding into the rounded frame margin.",
+    "Left gameplay hit area, panning controls, viewport culling, and tile rendering strategy unchanged."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-07-03_BOARD_TILE_BORDER_MASK.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "`npm run build` passed.",
+    "Local mobile viewport 390x844 at `http://127.0.0.1:5173/?stress&perf&tiles=1200&v=field-border-mask-1`: visually confirmed the board now keeps tile art inset from the rounded frame.",
+    "Settled stress sample: fps 134, maxFrameDeltaMs 7, frameSpikes 0, totalTiles 1200, visibleTiles 15, tileViews 15, layoutPasses 0, redraws 0, redrawQueued 0.",
+    "`http://127.0.0.1:5173/?perfHarness&tiles=1200&v=field-border-mask-1` completed with final phase visibleTiles 12, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 7, frameSpikes 0, displayObjects 193, activeTweens 22, hotspots `hot none`.",
+    "Browser console check returned no errors or warnings."
+  ],
+  "knownIssues": [
+    "The change intentionally leaves a cleaner inset around compact boards; if the board now feels too padded on very tiny fields, tune the content inset rather than restoring mask bleed.",
+    "Real-phone visual confirmation is still recommended because the report came from mobile screenshots."
+  ],
+  "nextRecommendedSteps": [
+    "Push the commit and confirm production serves the new bundle.",
+    "On a phone, inspect the top and left board edges after opening the game and after panning/zooming."
+  ],
+  "doNotRevert": [
+    "Do not restore compact board mask bleed unless replacing it with a clipping approach that still prevents grass tiles from rendering into the decorative frame.",
+    "Leave unrelated untracked docs, artifacts, audio files, and the older untracked handoff untouched."
+  ],
+  "currentGitStatus": "Intended tracked changes before commit: `src/game/scenes/GameScene.ts`, `handoffs/HANDOFF_2026-07-03_BOARD_TILE_BORDER_MASK.json`, and `handoffs/LATEST.json`. Existing unrelated untracked docs/assets remain unchanged."
+}

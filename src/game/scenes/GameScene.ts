@@ -136,8 +136,6 @@ const EXPANDED_BOARD_DESKTOP_SIDE_THRESHOLD = 6;
 const EXPANDED_BOARD_NARROW_SIDE_THRESHOLD = 7;
 const EXPANDED_BOARD_MOBILE_SIDE_THRESHOLD = 8;
 const BOARD_CONTENT_INSET_PX = 22;
-const BOARD_COMPACT_MASK_BLEED_MIN_PX = 6;
-const BOARD_COMPACT_MASK_BLEED_MAX_PX = 30;
 const BOARD_CONTENT_INSET_SCALE = 26;
 const BOARD_MOBILE_COMPACT_CONTENT_INSET_SCALE = 28;
 const DESKTOP_BOARD_RIGHT_UI_RESERVE = 154;
@@ -8454,8 +8452,7 @@ export class GameScene extends Phaser.Scene {
     const naturalWidth = this.boardScaledWidth + contentInset * 2;
     const naturalHeight = this.boardScaledHeight + contentInset * 2;
     const expanded = this.shouldUseExpandedBoardViewport(bounds);
-    const contentMaskBleed = this.getBoardContentMaskBleed(bounds, expanded, contentInset);
-    const maskInset = Math.max(0, contentInset - contentMaskBleed);
+    const maskInset = contentInset;
     const minWidth = expanded ? this.boardAvailableWidth * this.getExpandedBoardWidthRatio() : naturalWidth;
     const minHeight = expanded ? this.boardAvailableHeight * 0.92 : naturalHeight;
     let width = Math.min(this.boardAvailableWidth, Math.max(naturalWidth, minWidth));
@@ -8566,19 +8563,6 @@ export class GameScene extends Phaser.Scene {
         : EXPANDED_BOARD_DESKTOP_SIDE_THRESHOLD;
 
     return Math.max(deviceThreshold, viewportBasedThreshold);
-  }
-
-  private getBoardContentMaskBleed(bounds: FieldBounds, expanded: boolean, contentInset: number): number {
-    if (expanded || bounds.width >= 12 || bounds.height >= 12 || this.fieldTileCount >= EXPANDED_BOARD_VIEWPORT_TILE_THRESHOLD) {
-      return 0;
-    }
-
-    const desiredBleed = Phaser.Math.Clamp(
-      TILE_GAP * this.boardScale + 16,
-      BOARD_COMPACT_MASK_BLEED_MIN_PX,
-      BOARD_COMPACT_MASK_BLEED_MAX_PX,
-    );
-    return Math.min(Math.max(0, contentInset - 4), desiredBleed);
   }
 
   private getExpandedBoardWidthRatio(): number {

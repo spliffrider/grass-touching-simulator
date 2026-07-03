@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-03",
-  "latestHandoff": "HANDOFF_2026-07-03_QUEST_LOG_MOBILE_SCROLL.json",
+  "latestHandoff": "HANDOFF_2026-07-03_BOARD_TILE_BORDER_MASK.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",
