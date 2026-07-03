@@ -4198,19 +4198,41 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleWorldMapKeyDown(event: KeyboardEvent): void {
-    if (this.isMobilePortrait() || !this.shouldShowWorldMap() || this.hasBlockingOverlayOpen() || event.altKey || event.ctrlKey || event.metaKey) {
+    if (this.isMobilePortrait() || this.hasBlockingOverlayOpen() || event.altKey || event.ctrlKey || event.metaKey) {
       return;
     }
 
-    const key = event.key;
-    if (key !== "ArrowUp" && key !== "ArrowDown" && key !== "ArrowLeft" && key !== "ArrowRight") {
+    const direction = this.getBoardPanDirectionForKey(event.key);
+    if (!direction) {
+      return;
+    }
+
+    const limits = this.getBoardPanLimits();
+    if (limits.x <= 2 && limits.y <= 2) {
       return;
     }
 
     event.preventDefault();
-    const dx = key === "ArrowRight" ? WORLD_MAP_ARROW_STEP_TILES : key === "ArrowLeft" ? -WORLD_MAP_ARROW_STEP_TILES : 0;
-    const dy = key === "ArrowDown" ? WORLD_MAP_ARROW_STEP_TILES : key === "ArrowUp" ? -WORLD_MAP_ARROW_STEP_TILES : 0;
-    this.panBoardByFieldTiles(dx, dy);
+    this.panBoardInDirection(direction, WORLD_MAP_ARROW_STEP_TILES);
+  }
+
+  private getBoardPanDirectionForKey(key: string): BoardPanDirection | undefined {
+    switch (key.toLowerCase()) {
+      case "arrowup":
+      case "w":
+        return "up";
+      case "arrowdown":
+      case "s":
+        return "down";
+      case "arrowleft":
+      case "a":
+        return "left";
+      case "arrowright":
+      case "d":
+        return "right";
+      default:
+        return undefined;
+    }
   }
 
   private panBoardByFieldTiles(dx: number, dy: number): void {
@@ -4251,13 +4273,12 @@ export class GameScene extends Phaser.Scene {
     this.boardPanHoldEvent = undefined;
   }
 
-  private panBoardInDirection(direction: BoardPanDirection): void {
+  private panBoardInDirection(direction: BoardPanDirection, step = BOARD_PAN_CONTROL_STEP_TILES): void {
     if (!this.canPanBoardDirection(direction)) {
       this.layoutBoardPanControls();
       return;
     }
 
-    const step = BOARD_PAN_CONTROL_STEP_TILES;
     const dx = direction === "right" ? step : direction === "left" ? -step : 0;
     const dy = direction === "down" ? step : direction === "up" ? -step : 0;
     this.panBoardByFieldTiles(dx, dy);

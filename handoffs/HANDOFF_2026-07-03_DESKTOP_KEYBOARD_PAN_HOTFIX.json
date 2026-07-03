@@ -1,0 +1,56 @@
+{
+  "date": "2026-07-03",
+  "topic": "desktop-keyboard-pan-hotfix",
+  "currentUserGoal": "Fix desktop board panning after the user reported that the panning/move keyboard controls no longer worked.",
+  "changesMade": [
+    "Confirmed desktop keyboard panning still worked on a full 1280x720 large-field layout after focus, but the key handler was unnecessarily tied to World Map visibility.",
+    "Changed the desktop key handler to pan whenever the board has pan overflow instead of requiring shouldShowWorldMap().",
+    "Added WASD aliases alongside the existing arrow keys for the move controls.",
+    "Kept mobile touch pan controls on the existing panBoardInDirection path and preserved the existing mobile guard for keyboard panning."
+  ],
+  "filesTouched": [
+    "src/game/scenes/GameScene.ts",
+    "handoffs/HANDOFF_2026-07-03_DESKTOP_KEYBOARD_PAN_HOTFIX.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npx tsc --noEmit passed.",
+    "Desktop narrow visual check at 740x520 with fieldShape=rect1200: ArrowRight panned the board and A panned it back; console warning/error log was empty.",
+    "Desktop visual check at 1280x720 with fieldShape=rect1200: ArrowLeft and D both panned the board; console warning/error log was empty.",
+    "Mobile visual check at 390x844 with fieldShape=rect1200: the existing right-arrow pan control still moved the board; console warning/error log was empty.",
+    "npm run build passed.",
+    "Mobile perf harness at http://127.0.0.1:5173/?perfHarness&tiles=1200&v=keyboard-pan-hotfix completed all phases with an empty warning/error console log.",
+    "Harness pan phase: visibleTiles 24, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 8, frameSpikes 0, displayObjects 251, activeTweens 24.",
+    "Harness complete phase: visibleTiles 15, layoutPasses 0, redraws 0, redrawQueued 0, maxFrameDeltaMs 8, frameSpikes 0, displayObjects 248, activeTweens 22.",
+    "git diff --check passed with only normal Windows LF-to-CRLF warnings."
+  ],
+  "currentGitStatus": {
+    "intendedChanges": [
+      "M src/game/scenes/GameScene.ts",
+      "M handoffs/LATEST.json",
+      "A handoffs/HANDOFF_2026-07-03_DESKTOP_KEYBOARD_PAN_HOTFIX.json"
+    ],
+    "untrackedLeftAlone": [
+      "docs/GAME_SYSTEMS_REFERENCE CLAUDE.md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen (1).md",
+      "docs/Geavanceerde Automatisering in Incrementele Spelontwerpen.md",
+      "docs/Strategieen voor Geavanceerde Automatisering in Incrementele Games.md",
+      "docs/artifacts/title-art-2026-06-19/",
+      "docs/grasstouching.mid",
+      "docs/lucid.aif",
+      "handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json"
+    ]
+  },
+  "knownIssues": [
+    "Desktop mouse-drag panning remains intentionally separate from this hotfix; the user clarified the issue was the move keyboard controls.",
+    "The handler name is still handleWorldMapKeyDown even though it now handles board panning more generally."
+  ],
+  "nextRecommendedSteps": [
+    "Deploy and sync this hotfix to keep production and the Mac mini aligned.",
+    "Consider renaming handleWorldMapKeyDown to handleBoardPanKeyDown in a future cleanup if touching this area again."
+  ],
+  "doNotRevert": [
+    "Keep desktop keyboard panning based on board pan overflow, not World Map visibility.",
+    "Keep the WASD aliases unless they conflict with a future text-entry surface."
+  ]
+}
