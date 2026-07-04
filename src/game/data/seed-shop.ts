@@ -19,7 +19,7 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
   {
     id: "sprinkler",
     name: "Tiny Sprinkler Blueprint",
-    description: "Installs the placed Tiny Sprinkler field tool. Store routes are separate passive operations.",
+    description: "Installs a Tiny Sprinkler that pops up around the field. Store routes are separate passive operations.",
     cost: 20,
     isUnlocked: (state) => state.seedShopPurchases.seed_pouch === true,
   },
@@ -96,7 +96,7 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
   {
     id: "forager_trails",
     name: "Forager Trails",
-    description: "Field Mouse and Meadow Rabbit act more often around their placed tiles.",
+    description: "Field Mouse and Meadow Rabbit act more often across the field.",
     cost: 105,
     isUnlocked: (state) =>
       (state.inventory.field_mouse?.quantity ?? 0) > 0 || (state.inventory.meadow_rabbit?.quantity ?? 0) > 0,
@@ -118,7 +118,7 @@ export const SEED_SHOP_ITEMS: SeedShopItem[] = [
   {
     id: "sprinkler_network",
     name: "Sprinkler Network",
-    description: "Tiny Sprinkler waters a second patch and reaches farther when placed.",
+    description: "Tiny Sprinkler waters a second patch when it pops up.",
     cost: 170,
     isUnlocked: (state) => state.seedShopPurchases.self_seeding_nozzle === true,
   },

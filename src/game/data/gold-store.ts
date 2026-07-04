@@ -30,19 +30,17 @@ export const GOLD_STORE_ITEMS: GoldStoreItem[] = [
   {
     id: "field_mouse",
     name: "Field Mouse",
-    description: "Animal. Place it to scurry through nearby grass and sometimes find gold.",
+    description: "Animal. Scurries through the field and sometimes finds gold.",
     cost: 16,
     kind: "animal",
-    maxQuantity: 1,
     isUnlocked: (state) => state.lifetimeGold >= 1,
   },
   {
     id: "bee_hive",
     name: "Bee Hive",
-    description: "Animal. Place it to pollinate nearby clusters into better grass.",
+    description: "Animal. Pollinates field clusters into better grass.",
     cost: 24,
     kind: "animal",
-    maxQuantity: 3,
     isUnlocked: (state) => state.lifetimeGold >= 2,
   },
   {
@@ -51,7 +49,6 @@ export const GOLD_STORE_ITEMS: GoldStoreItem[] = [
     description: "Animal. Sometimes improves a patch, sometimes scratches up gold.",
     cost: 36,
     kind: "animal",
-    maxQuantity: 2,
     isUnlocked: (state) => state.inventory.bee_hive?.quantity > 0 || state.inventory.field_mouse?.quantity > 0,
   },
   {
@@ -60,16 +57,14 @@ export const GOLD_STORE_ITEMS: GoldStoreItem[] = [
     description: "Animal. Periodically touches grass and turns grazing into gold.",
     cost: 58,
     kind: "animal",
-    maxQuantity: 2,
     isUnlocked: (state) => state.inventory.chicken?.quantity > 0,
   },
   {
     id: "meadow_rabbit",
     name: "Meadow Rabbit",
-    description: "Animal. Place it to hop through nearby grass and sometimes find seeds.",
+    description: "Animal. Hops through grown grass and sometimes finds seeds.",
     cost: 28,
     kind: "animal",
-    maxQuantity: 1,
     isUnlocked: (state) => state.inventory.field_mouse?.quantity > 0,
   },
   {
@@ -78,7 +73,6 @@ export const GOLD_STORE_ITEMS: GoldStoreItem[] = [
     description: "Animal. Burrows through resting patches, helping grass regrow sooner.",
     cost: 32,
     kind: "animal",
-    maxQuantity: 2,
     isUnlocked: (state) => state.inventory.field_mouse?.quantity > 0 || state.inventory.bee_hive?.quantity > 0,
   },
 ];

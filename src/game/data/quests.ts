@@ -281,17 +281,13 @@ export const QUESTS: QuestDefinition[] = [
   {
     id: "sprinkler_placed",
     category: "Automation",
-    name: "Aim The Rain",
-    description: "Place your Tiny Sprinkler on the field.",
+    name: "Pop-Up Rain",
+    description: "Buy the Tiny Sprinkler Blueprint so it can appear around the field.",
     reward: { seeds: 3, gold: 1 },
     prerequisiteQuestIds: ["seed_pouch_owner"],
-    isComplete: (state) => state.placedWorldObjects.sprinkler !== undefined,
+    isComplete: (state) => state.seedShopPurchases.sprinkler === true,
     getProgress: (state) =>
-      state.placedWorldObjects.sprinkler
-        ? "Tiny Sprinkler placed"
-        : (state.automationSystems?.sprinkler?.owned ?? 0) > 0
-          ? "Not placed yet"
-          : "Start a Sprinkler Route first",
+      state.seedShopPurchases.sprinkler ? "Tiny Sprinkler blueprint bought" : "Buy the Tiny Sprinkler Blueprint",
   },
   {
     id: "automation_actions_25",

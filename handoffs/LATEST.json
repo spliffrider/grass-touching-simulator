@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-03",
-  "latestHandoff": "HANDOFF_2026-07-03_EARLIER_STORE_UNLOCK.json",
+  "updatedAt": "2026-07-04",
+  "latestHandoff": "HANDOFF_2026-07-04_FIELD_ITEMS_PANEL_HOVER.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

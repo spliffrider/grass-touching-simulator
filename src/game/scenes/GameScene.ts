@@ -45,15 +45,12 @@ import {
 } from "../systems/FieldSystem";
 import { addInventoryItem, consumeInventoryItem, getInventoryQuantity } from "../systems/InventorySystem";
 import {
-  PLACEMENT_RADIUS,
   getNearbyPlacementEntries,
   getPlacementAt,
   getPlacementEntriesForObject,
   getPlacementKey,
-  getPlacementObjectId,
   getPlacementSlotIndex,
   placeWorldObject,
-  removeWorldObjectPlacement,
 } from "../systems/PlacementSystem";
 import { AnimalCompanionSystem } from "../systems/AnimalCompanionSystem";
 import {
@@ -265,6 +262,12 @@ const TRIGGER_FEED_EVENT_TTL_MS = 90000;
 const TRIGGER_FEED_REPEAT_WINDOW_MS = 12000;
 const TRIGGER_FEED_WIDTH = 246;
 const TRIGGER_FEED_ROW_HEIGHT = 54;
+const FIELD_ITEM_PANEL_WIDTH = 264;
+const FIELD_ITEM_PANEL_HEADER_HEIGHT = 38;
+const FIELD_ITEM_PANEL_ROW_HEIGHT = 42;
+const FIELD_ITEM_PANEL_ROW_GAP = 6;
+const FIELD_ITEM_PANEL_PADDING = 10;
+const FIELD_ITEM_PANEL_MAX_ROWS = 5;
 const MOBILE_TEST_MODE_PARAM = "mobileTest";
 const MOBILE_TEST_MODE_VALUE = "audio";
 const MOBILE_TEST_URL_VERSION = "whole-tiles-1";
@@ -700,6 +703,30 @@ interface PlacedWorldObjectView {
   label: Phaser.GameObjects.Text;
 }
 
+type FieldItemPanelCategory = "automation" | "tool" | "animal" | "consumable";
+
+interface FieldItemPanelEntry {
+  key: string;
+  sourceId: string;
+  label: string;
+  textureKey: string;
+  quantity: number;
+  category: FieldItemPanelCategory;
+}
+
+interface FieldItemPanelView {
+  key: string;
+  sourceId: string;
+  category: FieldItemPanelCategory;
+  container: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Rectangle;
+  iconBg: Phaser.GameObjects.Rectangle;
+  icon: Phaser.GameObjects.Image;
+  name: Phaser.GameObjects.Text;
+  count: Phaser.GameObjects.Text;
+  status: Phaser.GameObjects.Text;
+}
+
 interface SkillBranchLabelView {
   text: Phaser.GameObjects.Text;
   treeX: number;
@@ -914,6 +941,14 @@ export class GameScene extends Phaser.Scene {
   private nextTriggerFeedId = 1;
   private triggerFeedRenderKey = "";
   private triggerFeedDirty = false;
+  private fieldItemPanelRoot!: Phaser.GameObjects.Container;
+  private fieldItemPanelFrame!: OrnateFrame;
+  private fieldItemPanelBg!: Phaser.GameObjects.Rectangle;
+  private fieldItemPanelTitle!: Phaser.GameObjects.Text;
+  private fieldItemPanelSummary!: Phaser.GameObjects.Text;
+  private fieldItemPanelOverflow!: Phaser.GameObjects.Text;
+  private fieldItemPanelViews = new Map<string, FieldItemPanelView>();
+  private hoveredFieldItemKey?: string;
   private menuDockFrame!: OrnateFrame;
   private menuDockBg!: Phaser.GameObjects.Rectangle;
   private mobileCommandDockTop = Number.POSITIVE_INFINITY;
@@ -2932,6 +2967,7 @@ export class GameScene extends Phaser.Scene {
       .setShadow(0, 2, "#06190f", 2, false, true);
 
     this.createTriggerFeed();
+    this.createFieldItemPanel();
     this.menuDockFrame = createOrnateFrame(this, this.scale.width - 20, 88, {
       x: 10,
       y: this.scale.height - 96,
@@ -3117,6 +3153,55 @@ export class GameScene extends Phaser.Scene {
 
     container.add([...frame.objects, accent, icon, label, detail, count, age]);
     return { container, frame, bg, accent, icon, label, detail, count, age };
+  }
+
+  private createFieldItemPanel(): void {
+    this.fieldItemPanelRoot = this.add.container(0, 0).setDepth(29).setVisible(false);
+    this.fieldItemPanelFrame = createOrnateFrame(this, FIELD_ITEM_PANEL_WIDTH, FIELD_ITEM_PANEL_HEADER_HEIGHT, {
+      fillColor: UITheme.colors.panelBg,
+      fillAlpha: 0.94,
+      insetAlpha: 0.18,
+      accentColor: UITheme.colors.bronze,
+      accentAlpha: 0.84,
+      glowAlpha: 0.06,
+      shadowAlpha: 0.44,
+      trim: 2,
+      cornerSize: 18,
+    });
+    this.fieldItemPanelBg = this.fieldItemPanelFrame.bg;
+    this.fieldItemPanelTitle = this.add.text(14, 10, "Field Items", {
+      fontFamily: UITheme.text.fontFamily,
+      fontSize: "15px",
+      color: UITheme.colors.creamBright,
+      stroke: UITheme.text.stroke,
+      strokeThickness: 3,
+    });
+    this.fieldItemPanelSummary = this.add
+      .text(FIELD_ITEM_PANEL_WIDTH - 14, 11, "", {
+        fontFamily: UITheme.text.fontFamily,
+        fontSize: "12px",
+        color: UITheme.colors.mutedGreen,
+        stroke: UITheme.text.stroke,
+        strokeThickness: 2,
+      })
+      .setOrigin(1, 0);
+    this.fieldItemPanelOverflow = this.add
+      .text(FIELD_ITEM_PANEL_WIDTH / 2, FIELD_ITEM_PANEL_HEADER_HEIGHT + 5, "", {
+        fontFamily: UITheme.text.fontFamily,
+        fontSize: "11px",
+        color: UITheme.colors.mutedGreen,
+        stroke: UITheme.text.stroke,
+        strokeThickness: 2,
+      })
+      .setOrigin(0.5, 0)
+      .setVisible(false);
+
+    this.fieldItemPanelRoot.add([
+      ...this.fieldItemPanelFrame.objects,
+      this.fieldItemPanelTitle,
+      this.fieldItemPanelSummary,
+      this.fieldItemPanelOverflow,
+    ]);
   }
 
   private createBoardLayers(): void {
@@ -7282,7 +7367,7 @@ export class GameScene extends Phaser.Scene {
   private getDefaultStoreStatus(): string {
     return this.storeMode === "automation"
       ? "Automation is the lawn engine: stack helpers until passive touches take over."
-      : "Spend gold on supplies and placeable companions.";
+      : "Spend gold on supplies and field companions.";
   }
 
   private getAutomationPurchasePlan(
@@ -7661,12 +7746,6 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const quantity = getInventoryQuantity(this.state, item.id);
-    if (item.kind === "consumable" && quantity > 0) {
-      this.useGoldStoreItem(item.id);
-      return;
-    }
-
     this.buyGoldStoreItem(item.id);
   }
 
@@ -7716,13 +7795,11 @@ export class GameScene extends Phaser.Scene {
       plan.milestone && plan.targetOwned < plan.milestone.owned ? `${plan.milestone.owned - plan.targetOwned} to next boost` : "";
     const bonusParts = [milestoneLabel, supportText, boostProgressText].filter(Boolean);
     const statusMessage =
-      system.id === "sprinkler" && owned === 0
-        ? `${system.name} running x${plan.targetOwned}. Back on the field, click the sprinkler icon to place its coverage.`
-        : `${system.name} ${plan.quantity > 1 ? `+${plan.quantity} to x${plan.targetOwned}` : `running x${plan.targetOwned}`}. Output: ${formatGrassTouchesPerMinute(nextOutput)} (${formatAutomationOutputDelta(
-            previousOutput,
-            nextOutput,
-          )})${bonusParts.length > 0 ? ` (${bonusParts.join(", ")})` : ""}.`;
-    this.setStoreStatus(statusMessage, system.id === "sprinkler" && owned === 0 ? 4600 : undefined);
+      `${system.name} ${plan.quantity > 1 ? `+${plan.quantity} to x${plan.targetOwned}` : `running x${plan.targetOwned}`}. Output: ${formatGrassTouchesPerMinute(nextOutput)} (${formatAutomationOutputDelta(
+        previousOutput,
+        nextOutput,
+      )})${bonusParts.length > 0 ? ` (${bonusParts.join(", ")})` : ""}.`;
+    this.setStoreStatus(statusMessage);
     this.audio.play(plan.quantity > 1 || milestoneLabel ? "milestone" : owned === 0 ? "milestone" : "upgrade");
     this.saveState();
     this.refreshUi();
@@ -7782,16 +7859,10 @@ export class GameScene extends Phaser.Scene {
     const maxQuantityText = item.maxQuantity === undefined ? "" : `/${item.maxQuantity}`;
     const unlocked = item.isUnlocked(this.state);
     const purchaseLine =
-      item.kind === "consumable" && quantity > 0
-        ? "click to use"
-        : item.id === "seed_satchel" && unlocked
-          ? `cost ${item.cost} gold, opens +5 seeds`
-        : unlocked
-          ? `cost ${item.cost} gold`
-          : "locked";
-    const placementLine = item.kind === "animal" ? "place from the field dock after buying" : "consumable";
+      item.id === "seed_satchel" && unlocked ? `cost ${item.cost} gold, panel use opens +5 seeds` : unlocked ? `cost ${item.cost} gold` : "locked";
+    const panelLine = item.kind === "animal" ? "shows in Field Items and acts on the field" : "shows in Field Items";
 
-    this.setStoreStatus(`${item.name}: ${item.kind} | owned ${quantity}${maxQuantityText} | ${purchaseLine} | ${placementLine}`);
+    this.setStoreStatus(`${item.name}: ${item.kind} | owned ${quantity}${maxQuantityText} | ${purchaseLine} | ${panelLine}`);
   }
 
   private buyGoldStoreItem(itemId: string): void {
@@ -7819,25 +7890,10 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (item.id === "seed_satchel") {
-      this.state.gold -= item.cost;
-      this.state.seeds += 5;
-      this.state.lifetimeSeeds += 5;
-      this.invalidateRuntimeStats();
-      this.setStoreStatus("Seed Satchel opened into 5 seeds.");
-      this.audio.play("seed");
-      this.saveState();
-      this.refreshUi();
-      this.playGoldStoreItemSuccess(item.id);
-      this.playHudChipCelebration("seeds", "effect-seed-kernel", 0xb7eba5, 12);
-      this.addTriggerFeedEvent("Store item used", "+5 seeds", "ST", 0xfff1a8);
-      return;
-    }
-
     this.state.gold -= item.cost;
     addInventoryItem(this.state, item.id, item.kind);
     this.invalidateRuntimeStats();
-    this.setStoreStatus(`${item.name} added to inventory.`);
+    this.setStoreStatus(`${item.name} added to Field Items.`);
     this.audio.play(item.kind === "animal" ? "milestone" : "upgrade");
     this.saveState();
     this.refreshUi();
@@ -8680,6 +8736,7 @@ export class GameScene extends Phaser.Scene {
       this.profileScope("layout:worldMapMarker", () => this.updateWorldMapViewportMarker());
     } else {
       this.layoutTriggerFeed();
+      this.layoutFieldItemPanel();
       this.profileScope("layout:worldMap", () => this.layoutWorldMap());
     }
 
@@ -8847,7 +8904,8 @@ export class GameScene extends Phaser.Scene {
       return 0;
     }
 
-    return 18 + this.getTriggerFeedWidth() + DESKTOP_BOARD_FLOATING_UI_GAP;
+    const leftPanelWidth = Math.max(this.getTriggerFeedWidth(), this.getFieldItemPanelEntries().length > 0 ? FIELD_ITEM_PANEL_WIDTH : 0);
+    return leftPanelWidth > 0 ? 18 + leftPanelWidth + DESKTOP_BOARD_FLOATING_UI_GAP : 0;
   }
 
   private getBoardTopUiReserveBottom(): number {
@@ -9464,6 +9522,543 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
+  private syncFieldItemPanel(): void {
+    const entries = this.getFieldItemPanelEntries();
+    const activeKeys = new Set(entries.map((entry) => entry.key));
+
+    for (const [key, view] of this.fieldItemPanelViews) {
+      if (!activeKeys.has(key)) {
+        if (this.hoveredFieldItemKey === key) {
+          this.clearTileInfo();
+        }
+        view.container.destroy();
+        this.fieldItemPanelViews.delete(key);
+      }
+    }
+
+    for (const entry of entries) {
+      const existing = this.fieldItemPanelViews.get(entry.key);
+      if (existing) {
+        existing.sourceId = entry.sourceId;
+        existing.category = entry.category;
+        this.setTextIfChanged(existing.name, entry.label);
+        this.setTextIfChanged(existing.count, this.getFieldItemPanelCountText(entry));
+        this.setTextIfChanged(existing.status, this.getFieldItemPanelStatus(entry));
+        if (existing.icon.texture.key !== entry.textureKey) {
+          existing.icon.setTexture(entry.textureKey);
+        }
+        if (this.hoveredFieldItemKey === entry.key) {
+          this.refreshFieldItemPanelInfo(entry.key);
+        }
+        continue;
+      }
+
+      this.fieldItemPanelViews.set(entry.key, this.createFieldItemPanelView(entry));
+    }
+  }
+
+  private createFieldItemPanelView(entry: FieldItemPanelEntry): FieldItemPanelView {
+    const container = this.add.container(0, 0).setVisible(false);
+    const bg = this.add
+      .rectangle(0, 0, FIELD_ITEM_PANEL_WIDTH - FIELD_ITEM_PANEL_PADDING * 2, FIELD_ITEM_PANEL_ROW_HEIGHT, 0x12341c, 0.9)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, UITheme.colors.bronzeDark, 0.72)
+      .setInteractive({ useHandCursor: true });
+    const iconBg = this.add
+      .rectangle(8, 7, 28, 28, 0x0d2f1c, 0.88)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, UITheme.colors.bronzeLight, 0.6);
+    const icon = this.add.image(22, 21, entry.textureKey).setDisplaySize(24, 24);
+    const name = this.add.text(44, 6, entry.label, {
+      fontFamily: UITheme.text.fontFamily,
+      fontSize: "12px",
+      color: UITheme.colors.cream,
+      stroke: UITheme.text.stroke,
+      strokeThickness: 2,
+    });
+    const count = this.add
+      .text(FIELD_ITEM_PANEL_WIDTH - FIELD_ITEM_PANEL_PADDING * 2 - 10, 6, this.getFieldItemPanelCountText(entry), {
+        fontFamily: UITheme.text.fontFamily,
+        fontSize: "12px",
+        color: UITheme.colors.creamBright,
+        stroke: UITheme.text.stroke,
+        strokeThickness: 2,
+      })
+      .setOrigin(1, 0);
+    const status = this.add.text(44, 23, this.getFieldItemPanelStatus(entry), {
+      fontFamily: UITheme.text.fontFamily,
+      fontSize: "10px",
+      color: UITheme.colors.mutedGreen,
+      stroke: UITheme.text.stroke,
+      strokeThickness: 2,
+    });
+
+    bg.on("pointerover", () => this.showFieldItemPanelInfo(entry.key));
+    bg.on("pointerout", () => this.hideFieldItemPanelInfo(entry.key));
+    bg.on("pointerdown", () => this.handleFieldItemPanelPressed(entry.key));
+    container.add([bg, iconBg, icon, name, count, status]);
+    this.fieldItemPanelRoot.add(container);
+    return { key: entry.key, sourceId: entry.sourceId, category: entry.category, container, bg, iconBg, icon, name, count, status };
+  }
+
+  private getFieldItemPanelEntries(): FieldItemPanelEntry[] {
+    const entries: FieldItemPanelEntry[] = [];
+
+    if (this.state.seedShopPurchases.sprinkler) {
+      entries.push({
+        key: "tool:sprinkler",
+        sourceId: "sprinkler",
+        label: "Tiny Sprinkler",
+        textureKey: "world-tiny-sprinkler",
+        quantity: 1,
+        category: "tool",
+      });
+    }
+
+    for (const system of AUTOMATION_SYSTEMS) {
+      const quantity = getAutomationSystemOwned(this.state, system.id);
+      if (quantity <= 0) {
+        continue;
+      }
+
+      entries.push({
+        key: `auto:${system.id}`,
+        sourceId: system.id,
+        label: system.name,
+        textureKey: GOLD_STORE_ICON_KEYS[system.id] ?? "world-tiny-sprinkler",
+        quantity,
+        category: "automation",
+      });
+    }
+
+    for (const item of GOLD_STORE_ITEMS) {
+      const quantity = getInventoryQuantity(this.state, item.id);
+      if (quantity <= 0) {
+        continue;
+      }
+
+      entries.push({
+        key: `item:${item.id}`,
+        sourceId: item.id,
+        label: item.name,
+        textureKey: GOLD_STORE_ICON_KEYS[item.id] ?? "item-seed-satchel",
+        quantity,
+        category: item.kind,
+      });
+    }
+
+    return entries;
+  }
+
+  private getFieldItemPanelEntry(key: string): FieldItemPanelEntry | undefined {
+    return this.getFieldItemPanelEntries().find((entry) => entry.key === key);
+  }
+
+  private getFieldItemPanelCountText(entry: FieldItemPanelEntry): string {
+    if (entry.category === "tool") {
+      return "on";
+    }
+
+    return `x${entry.quantity}`;
+  }
+
+  private getFieldItemPanelStatus(entry: FieldItemPanelEntry): string {
+    if (entry.category === "automation") {
+      const system = AUTOMATION_SYSTEMS.find((candidate) => candidate.id === entry.sourceId);
+      if (!system) {
+        return "route";
+      }
+      const stats = this.getCachedRuntimeStats();
+      const output = getDirectiveAdjustedAutomationOutput(this.state, getAutomationSystemTouchesPerMinute(this.state, system, stats));
+      return formatGrassTouchesPerMinute(output);
+    }
+
+    if (entry.category === "tool") {
+      return this.state.seedShopPurchases.sprinkler_network ? "2 pop-ups" : "field pop-up";
+    }
+
+    if (entry.category === "consumable") {
+      return entry.sourceId === "pocket_sunshine" ? "regrowth" : "supplies";
+    }
+
+    return "field helper";
+  }
+
+  private layoutFieldItemPanel(): void {
+    if (!this.fieldItemPanelRoot) {
+      return;
+    }
+
+    const entries = this.getFieldItemPanelEntries();
+    const mobilePortrait = this.isMobilePortrait();
+    const visible = entries.length > 0 && !this.hasBlockingOverlayOpen() && this.scale.height >= 430;
+    this.setVisibleIfChanged(this.fieldItemPanelRoot, visible);
+    if (!visible) {
+      for (const view of this.fieldItemPanelViews.values()) {
+        view.container.setVisible(false);
+      }
+      if (this.hoveredFieldItemKey) {
+        this.clearTileInfo();
+      }
+      return;
+    }
+
+    const width = mobilePortrait ? Math.min(this.scale.width - 16, FIELD_ITEM_PANEL_WIDTH) : FIELD_ITEM_PANEL_WIDTH;
+    const rowWidth = width - FIELD_ITEM_PANEL_PADDING * 2;
+    const rowHeight = mobilePortrait ? 36 : FIELD_ITEM_PANEL_ROW_HEIGHT;
+    const rowGap = mobilePortrait ? 4 : FIELD_ITEM_PANEL_ROW_GAP;
+    const rowLimit = mobilePortrait ? Math.min(2, FIELD_ITEM_PANEL_MAX_ROWS) : FIELD_ITEM_PANEL_MAX_ROWS;
+    const visibleCount = Math.min(entries.length, rowLimit);
+    const overflowCount = Math.max(0, entries.length - visibleCount);
+    const overflowHeight = overflowCount > 0 ? 18 : 0;
+    const height =
+      FIELD_ITEM_PANEL_HEADER_HEIGHT +
+      FIELD_ITEM_PANEL_PADDING +
+      visibleCount * rowHeight +
+      Math.max(0, visibleCount - 1) * rowGap +
+      overflowHeight +
+      FIELD_ITEM_PANEL_PADDING;
+    const triggerBottom = this.triggerFeedRoot?.visible ? this.triggerFeedRoot.y + this.triggerFeedBg.height + 8 : 0;
+    const desktopY = triggerBottom > 0 ? triggerBottom : Math.max(166, this.boardTopY + 14, this.milestoneText.y + this.milestoneText.height + 12);
+    const mobileMaxY = Number.isFinite(this.mobileCommandDockTop) ? this.mobileCommandDockTop - height - 10 : this.scale.height - height - 84;
+    const y = mobilePortrait
+      ? Phaser.Math.Clamp(mobileMaxY, Math.max(this.mobileHeaderBottomY + 8, 96), Math.max(96, this.scale.height - height - 10))
+      : Phaser.Math.Clamp(desktopY, 118, Math.max(118, this.scale.height - height - 14));
+    const x = mobilePortrait ? 8 : 18;
+
+    this.fieldItemPanelRoot.setPosition(x, y);
+    this.fieldItemPanelFrame.setSize(width, height);
+    this.fieldItemPanelBg.setSize(width, height);
+    this.fieldItemPanelTitle.setPosition(14, mobilePortrait ? 9 : 10).setFontSize(mobilePortrait ? 13 : 15);
+    this.fieldItemPanelSummary
+      .setPosition(width - 14, mobilePortrait ? 10 : 11)
+      .setFontSize(mobilePortrait ? 11 : 12)
+      .setText(`${entries.reduce((total, entry) => total + entry.quantity, 0)} owned`);
+    this.fieldItemPanelOverflow
+      .setPosition(width / 2, height - FIELD_ITEM_PANEL_PADDING - 12)
+      .setText(overflowCount > 0 ? `+${overflowCount} more` : "")
+      .setVisible(overflowCount > 0);
+
+    entries.forEach((entry, index) => {
+      const view = this.fieldItemPanelViews.get(entry.key);
+      if (!view) {
+        return;
+      }
+
+      const rowVisible = index < visibleCount;
+      view.container.setVisible(rowVisible);
+      if (!rowVisible) {
+        return;
+      }
+
+      const rowY = FIELD_ITEM_PANEL_HEADER_HEIGHT + FIELD_ITEM_PANEL_PADDING + index * (rowHeight + rowGap);
+      view.container.setPosition(FIELD_ITEM_PANEL_PADDING, rowY);
+      view.bg.setSize(rowWidth, rowHeight);
+      view.iconBg.setPosition(8, mobilePortrait ? 6 : 7).setSize(mobilePortrait ? 26 : 28, mobilePortrait ? 26 : 28);
+      view.icon.setPosition(mobilePortrait ? 21 : 22, rowHeight / 2).setDisplaySize(mobilePortrait ? 22 : 24, mobilePortrait ? 22 : 24);
+      view.name
+        .setPosition(mobilePortrait ? 40 : 44, mobilePortrait ? 5 : 6)
+        .setFontSize(mobilePortrait ? 11 : 12)
+        .setWordWrapWidth(Math.max(98, rowWidth - (mobilePortrait ? 92 : 106)));
+      view.count.setPosition(rowWidth - 10, mobilePortrait ? 5 : 6).setFontSize(mobilePortrait ? 11 : 12);
+      view.status
+        .setPosition(mobilePortrait ? 40 : 44, rowHeight - (mobilePortrait ? 15 : 18))
+        .setFontSize(mobilePortrait ? 9 : 10)
+        .setWordWrapWidth(Math.max(98, rowWidth - 58));
+    });
+
+    for (const [key, view] of this.fieldItemPanelViews) {
+      if (!entries.some((entry) => entry.key === key)) {
+        view.container.setVisible(false);
+      }
+    }
+
+    if (this.hoveredFieldItemKey) {
+      const view = this.fieldItemPanelViews.get(this.hoveredFieldItemKey);
+      if (view?.container.visible) {
+        this.positionFieldItemPanelInfo(this.hoveredFieldItemKey);
+      } else {
+        this.clearTileInfo();
+      }
+    }
+  }
+
+  private showFieldItemPanelInfo(key: string): void {
+    const previousHoveredTileKey = this.hoveredTileKey;
+    this.hoveredTileKey = undefined;
+    this.hoveredWorldObjectId = undefined;
+    this.hoveredFieldItemKey = key;
+    this.hideHoverMarker();
+    if (previousHoveredTileKey) {
+      this.releaseBatchTileViewIfIdle(previousHoveredTileKey);
+    }
+    this.refreshFieldItemPanelInfo(key);
+    this.positionFieldItemPanelInfo(key);
+    this.tileInfoPanel.setVisible(true);
+  }
+
+  private hideFieldItemPanelInfo(key: string): void {
+    if (this.hoveredFieldItemKey === key) {
+      this.hoveredFieldItemKey = undefined;
+      this.tileInfoPanel.setVisible(false);
+    }
+  }
+
+  private updateFieldItemPanelHover(pointer: Phaser.Input.Pointer): boolean {
+    if (!this.fieldItemPanelRoot?.visible || this.hasBlockingOverlayOpen()) {
+      if (this.hoveredFieldItemKey) {
+        this.hideFieldItemPanelInfo(this.hoveredFieldItemKey);
+      }
+      return false;
+    }
+
+    for (const [key, view] of this.fieldItemPanelViews) {
+      if (!view.container.visible) {
+        continue;
+      }
+
+      if (!this.isPointerOverVisibleGameObject(pointer, view.bg)) {
+        continue;
+      }
+
+      if (this.hoveredFieldItemKey !== key) {
+        this.showFieldItemPanelInfo(key);
+      } else {
+        this.refreshFieldItemPanelInfo(key);
+        this.positionFieldItemPanelInfo(key);
+        this.tileInfoPanel.setVisible(true);
+      }
+      return true;
+    }
+
+    if (this.hoveredFieldItemKey) {
+      this.hideFieldItemPanelInfo(this.hoveredFieldItemKey);
+    }
+
+    return this.isPointerOverVisibleGameObject(pointer, this.fieldItemPanelBg);
+  }
+
+  private refreshFieldItemPanelInfo(key: string): void {
+    const entry = this.getFieldItemPanelEntry(key);
+    if (!entry) {
+      return;
+    }
+
+    this.setTextIfChanged(this.tileInfoTitle, entry.label);
+    this.setTextIfChanged(this.tileInfoBody, this.getFieldItemPanelInfoText(entry));
+  }
+
+  private getFieldItemPanelInfoText(entry: FieldItemPanelEntry): string {
+    const stats = this.getCachedRuntimeStats();
+    const totalAutomationOutput = getTotalAutomationTouchesPerMinute(this.state, stats);
+    const automationTotals = [
+      `All automation: ${formatGrassTouchesPerMinute(totalAutomationOutput)}`,
+      `Lifetime auto touches: ${formatGrassTouches(this.state.automationStats.automatedGrassTouches)}`,
+      `Actions: ${this.state.automationStats.automatedActions} | Supplies: ${this.state.automationStats.automationSupplyDrops}`,
+    ];
+
+    if (entry.category === "automation") {
+      const system = AUTOMATION_SYSTEMS.find((candidate) => candidate.id === entry.sourceId);
+      if (!system) {
+        return automationTotals.join("\n");
+      }
+
+      const output = getDirectiveAdjustedAutomationOutput(this.state, getAutomationSystemTouchesPerMinute(this.state, system, stats));
+      const support = getAutomationSystemDerivativeSupport(this.state, system.id);
+      const supportLine = support > 0 ? `Support units: +${formatAutomationSupportUnits(support)}` : "";
+      const pairLine = getAutomationSystemPairSynergyLabel(this.state, system.id, stats);
+      return [
+        `Owned: ${entry.quantity}`,
+        `Route output: ${formatGrassTouchesPerMinute(output)}`,
+        ...automationTotals,
+        supportLine,
+        pairLine,
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    if (entry.category === "tool") {
+      return [
+        "Pops up around random field patches.",
+        this.state.seedShopPurchases.sprinkler_network ? "Burst: 2 patches per cycle" : "Burst: 1 patch per cycle",
+        this.state.seedShopPurchases.sprinkler_timer ? "Timer upgraded" : "Base timer",
+        ...automationTotals,
+      ].join("\n");
+    }
+
+    if (entry.category === "consumable") {
+      const detail =
+        entry.sourceId === "pocket_sunshine"
+          ? `${getRegrowingTiles(this.state).length} resting patches can be regrown now.`
+          : "Opens into +5 seeds.";
+      return [`Owned: ${entry.quantity}`, detail, ...automationTotals].join("\n");
+    }
+
+    const companionCount = GOLD_STORE_ITEMS.reduce(
+      (total, item) => total + (item.kind === "animal" ? getInventoryQuantity(this.state, item.id) : 0),
+      0,
+    );
+    return [
+      `Owned: ${entry.quantity}`,
+      this.getWorldObjectSummary(entry.sourceId),
+      `Companions owned: ${companionCount}`,
+      ...automationTotals,
+    ].join("\n");
+  }
+
+  private positionFieldItemPanelInfo(key: string): void {
+    const view = this.fieldItemPanelViews.get(key);
+    if (!view?.container.visible) {
+      return;
+    }
+
+    const bounds = view.container.getBounds();
+    const panelWidth = 260;
+    const panelHeight = 128;
+    const rightX = bounds.right + 10;
+    const leftX = bounds.left - panelWidth - 10;
+    const x = rightX + panelWidth <= this.scale.width - 12 ? rightX : Phaser.Math.Clamp(leftX, 12, this.scale.width - panelWidth - 12);
+    const y = Phaser.Math.Clamp(bounds.top - 8, 12, this.scale.height - panelHeight - 12);
+    this.tileInfoPanel.setPosition(x, y);
+  }
+
+  private handleFieldItemPanelPressed(key: string): void {
+    const entry = this.getFieldItemPanelEntry(key);
+    if (!entry) {
+      return;
+    }
+
+    if (entry.category === "consumable") {
+      this.useGoldStoreItem(entry.sourceId);
+      this.pulseFieldItemPanelEntry(key, 0xffef78);
+      return;
+    }
+
+    this.playFieldItemPanelPreview(entry.sourceId);
+    this.pulseFieldItemPanelEntry(key, entry.sourceId === "sprinkler" ? 0xa8e8ff : 0xffef78);
+  }
+
+  private playFieldItemPanelPreview(sourceId: string): void {
+    const tile = this.pickFieldItemPreviewTile(sourceId);
+    if (!tile) {
+      this.showMessage("No field patch is ready for that helper yet.", 1600);
+      this.audio.play("blocked");
+      return;
+    }
+
+    if (sourceId === "sprinkler") {
+      this.playSprinklerBurst(tile);
+      this.audio.play("regrow");
+      return;
+    }
+
+    const action = this.getCompanionPreviewAction(sourceId);
+    if (!action) {
+      this.showMessage("That helper is already contributing passively.", 1600);
+      this.audio.play("upgrade");
+      return;
+    }
+
+    this.playCompanionAction(tile, action);
+    this.audio.play(sourceId === "field_mouse" || sourceId === "chicken" ? "gold" : "seed");
+  }
+
+  private getCompanionPreviewAction(sourceId: string): "pollinate" | "scratch" | "forage" | "graze" | "burrow" | "scurry" | "hop" | undefined {
+    switch (sourceId) {
+      case "bee_hive":
+        return "pollinate";
+      case "chicken":
+        return "scratch";
+      case "sheep":
+        return "graze";
+      case "field_mouse":
+        return "scurry";
+      case "meadow_rabbit":
+        return "hop";
+      case "earthworm":
+        return "burrow";
+      default:
+        return undefined;
+    }
+  }
+
+  private pickFieldItemPreviewTile(sourceId: string): FieldTile | undefined {
+    const visibleTiles = [...this.lastVisibleTileKeys]
+      .map((key) => this.state.field[key])
+      .filter((tile): tile is FieldTile => tile !== undefined && !this.hasActiveCactusHazard(tile));
+    const candidates =
+      sourceId === "earthworm"
+        ? visibleTiles.filter((tile) => tile.grassState === "regrowing")
+        : visibleTiles.filter((tile) => tile.grassState === "grown");
+    const visibleTile = Phaser.Utils.Array.GetRandom(candidates) ?? Phaser.Utils.Array.GetRandom(visibleTiles);
+    if (visibleTile) {
+      return visibleTile;
+    }
+
+    const fieldTiles = getFieldTiles(this.state).filter((tile) => !this.hasActiveCactusHazard(tile));
+    const fallback =
+      sourceId === "earthworm"
+        ? fieldTiles.find((tile) => tile.grassState === "regrowing")
+        : fieldTiles.find((tile) => tile.grassState === "grown");
+    return fallback ?? Phaser.Utils.Array.GetRandom(fieldTiles);
+  }
+
+  private pulseFieldItemPanelEntry(key: string, color: number): void {
+    const view = this.fieldItemPanelViews.get(key);
+    if (!view?.container.visible) {
+      return;
+    }
+
+    this.tweens.killTweensOf([view.bg, view.iconBg, view.icon]);
+    view.bg.setStrokeStyle(2, color, 0.92);
+    view.iconBg.setStrokeStyle(2, color, 0.86);
+    view.icon.setScale(1);
+    this.tweens.add({
+      targets: view.icon,
+      scaleX: 1.18,
+      scaleY: 1.18,
+      duration: 110,
+      yoyo: true,
+      ease: "Back.easeOut",
+      onComplete: () => view.icon.setScale(1),
+    });
+    this.time.delayedCall(240, () => {
+      if (view.container.active) {
+        view.bg.setStrokeStyle(1, UITheme.colors.bronzeDark, 0.72);
+        view.iconBg.setStrokeStyle(1, UITheme.colors.bronzeLight, 0.6);
+      }
+    });
+  }
+
+  private pulseFieldItemPanelSource(sourceId: string, color: number): void {
+    const view = this.getVisibleFieldItemPanelViewForSource(sourceId);
+    if (view) {
+      this.pulseFieldItemPanelEntry(view.key, color);
+    }
+  }
+
+  private getVisibleFieldItemPanelViewForSource(sourceId: string): FieldItemPanelView | undefined {
+    for (const key of [`item:${sourceId}`, `tool:${sourceId}`, `auto:${sourceId}`]) {
+      const view = this.fieldItemPanelViews.get(key);
+      if (view?.container.visible) {
+        return view;
+      }
+    }
+
+    return [...this.fieldItemPanelViews.values()].find((view) => view.sourceId === sourceId && view.container.visible);
+  }
+
+  private getFieldItemPanelOrigin(sourceId: string): { x: number; y: number } | undefined {
+    const view = this.getVisibleFieldItemPanelViewForSource(sourceId);
+    if (!view) {
+      return undefined;
+    }
+
+    const bounds = view.icon.getBounds();
+    return { x: bounds.centerX, y: bounds.centerY };
+  }
+
   private syncWorldObjects(): void {
     const activeObjects = this.getActiveWorldObjects();
     const activeIds = new Set(activeObjects.map((object) => object.id));
@@ -9528,15 +10123,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getActiveWorldObjects(): Array<{ id: string; textureKey: string; label: string; quantity: number }> {
-    return WORLD_OBJECTS.flatMap((object) => {
-      const quantity = this.getWorldObjectQuantity(object.id);
-
-      if (quantity <= 0) {
-        return [];
-      }
-
-      return [{ id: object.id, textureKey: object.textureKey, label: object.label, quantity }];
-    });
+    return [];
   }
 
   private getWorldObjectDockLabel(id: string, _quantity: number): string {
@@ -9745,58 +10332,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private syncPlacedWorldObjects(): void {
-    const activePlacementKeys = new Set<string>();
-
-    for (const [placementKey, placement] of Object.entries(this.state.placedWorldObjects)) {
-      const objectId = getPlacementObjectId(placementKey);
-      const object = WORLD_OBJECTS.find((candidate) => candidate.id === objectId);
-      const tile = this.state.field[placement.tileKey];
-      if (!object || !tile || !this.isWorldObjectOwned(objectId) || !this.isPlacementSlotOwned(objectId, placementKey)) {
-        removeWorldObjectPlacement(this.state, placementKey);
-        if (this.selectedPlacementKey === placementKey) {
-          this.selectedPlacementObjectId = undefined;
-          this.selectedPlacementKey = undefined;
-        }
-        continue;
-      }
-
-      activePlacementKeys.add(placementKey);
-      if (this.placedWorldObjectViews.has(placementKey)) {
-        continue;
-      }
-
-      const coverage = this.add.graphics().setDepth(35).setVisible(false);
-      const container = this.add.container(0, 0).setDepth(36);
-      const hit = this.add
-        .rectangle(0, -16, 52, 58, 0xffffff, 0.001)
-        .setInteractive({ useHandCursor: true });
-      const aura = this.add.ellipse(0, 8, 46, 24, 0xffef78, 0.16).setStrokeStyle(2, 0xffef78, 0.48);
-      const sprite = this.add.image(0, 0, object.textureKey).setOrigin(0.5, 1);
-      const label = this.add
-        .text(0, 9, object.label, {
-          fontFamily: "Trebuchet MS, Arial",
-          fontSize: "11px",
-          color: "#f7ffe8",
-          stroke: "#06190f",
-          strokeThickness: 3,
-        })
-        .setOrigin(0.5, 0);
-
-      hit.on("pointerover", () => this.showWorldObjectInfo(objectId));
-      hit.on("pointerout", () => this.hideWorldObjectInfo(objectId));
-      hit.on("pointerdown", () => this.beginWorldObjectPlacement(objectId, placementKey));
-
-      container.add([hit, aura, sprite, label]);
-      this.placedWorldObjectViews.set(placementKey, { objectId, placementKey, coverage, container, hit, aura, sprite, label });
+    for (const view of this.placedWorldObjectViews.values()) {
+      view.coverage.destroy();
+      view.container.destroy();
     }
-
-    for (const [placementKey, view] of this.placedWorldObjectViews) {
-      if (!activePlacementKeys.has(placementKey)) {
-        view.coverage.destroy();
-        view.container.destroy();
-        this.placedWorldObjectViews.delete(placementKey);
-      }
-    }
+    this.placedWorldObjectViews.clear();
+    this.selectedPlacementObjectId = undefined;
+    this.selectedPlacementKey = undefined;
   }
 
   private layoutPlacedWorldObjects(): void {
@@ -9913,7 +10455,7 @@ export class GameScene extends Phaser.Scene {
   private getWorldObjectOrigin(id: string): { x: number; y: number } | undefined {
     const view = this.worldObjectViews.get(id);
     if (!view || !view.container.visible) {
-      return undefined;
+      return this.getFieldItemPanelOrigin(id);
     }
 
     return {
@@ -9929,6 +10471,7 @@ export class GameScene extends Phaser.Scene {
 
     const view = this.worldObjectViews.get(id);
     if (!view || !view.container.visible) {
+      this.pulseFieldItemPanelSource(id, color);
       return;
     }
 
@@ -10163,6 +10706,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleBoardHover(pointer: Phaser.Input.Pointer): void {
+    if (this.updateFieldItemPanelHover(pointer)) {
+      this.clearTileHover();
+      return;
+    }
+
     if (this.hasTouchScreen() || this.hasBlockingOverlayOpen() || this.isPanningBoard) {
       this.hideHoverMarker();
       return;
@@ -10247,6 +10795,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const view of this.placedWorldObjectViews.values()) {
+      if (this.isPointerOverVisibleGameObject(pointer, view.container)) {
+        return true;
+      }
+    }
+
+    for (const view of this.fieldItemPanelViews.values()) {
       if (this.isPointerOverVisibleGameObject(pointer, view.container)) {
         return true;
       }
@@ -10446,6 +11000,7 @@ export class GameScene extends Phaser.Scene {
 
     this.hoveredTileKey = this.getTileKey(tile);
     this.hoveredWorldObjectId = undefined;
+    this.hoveredFieldItemKey = undefined;
     this.tileInfoPanel.setVisible(false);
   }
 
@@ -10459,7 +11014,7 @@ export class GameScene extends Phaser.Scene {
   private clearTileHover(): void {
     const previousHoveredTileKey = this.hoveredTileKey;
     this.hoveredTileKey = undefined;
-    if (!this.hoveredWorldObjectId) {
+    if (!this.hoveredWorldObjectId && !this.hoveredFieldItemKey) {
       this.tileInfoPanel.setVisible(false);
     }
     this.hideHoverMarker();
@@ -10472,6 +11027,7 @@ export class GameScene extends Phaser.Scene {
     this.clearTileHover();
     this.hoveredTileKey = undefined;
     this.hoveredWorldObjectId = undefined;
+    this.hoveredFieldItemKey = undefined;
     this.tileInfoPanel.setVisible(false);
     this.hideHoverMarker();
   }
@@ -10480,6 +11036,7 @@ export class GameScene extends Phaser.Scene {
     const previousHoveredTileKey = this.hoveredTileKey;
     this.hoveredTileKey = undefined;
     this.hoveredWorldObjectId = id;
+    this.hoveredFieldItemKey = undefined;
     this.hideHoverMarker();
     if (previousHoveredTileKey) {
       this.releaseBatchTileViewIfIdle(previousHoveredTileKey);
@@ -10527,55 +11084,31 @@ export class GameScene extends Phaser.Scene {
     const title = this.getWorldObjectLabel(id) ?? storeItem?.name ?? seedItem?.name ?? id;
     const summary = this.getWorldObjectSummary(id);
     const countLine = quantity > 1 ? `Owned: ${quantity}` : quantity === 1 ? "Owned: 1" : "";
-    const placementLimit = this.getWorldObjectPlacementLimit(id);
-    const placedCount = this.getWorldObjectPlacedCount(id);
-    const placementLine =
-      placementLimit > 1
-        ? placedCount >= placementLimit
-          ? `Placed: ${placedCount}/${placementLimit}. Click a helper to move it.`
-          : `Placed: ${placedCount}/${placementLimit}. Click the dock to place the rest.`
-        : this.state.placedWorldObjects[id]
-          ? `Placed at ${this.state.placedWorldObjects[id].tileKey}. Click to move.`
-          : "Click to place on the field.";
+    const panelLine = quantity > 0 ? "Shown in Field Items. Helpers act automatically." : "";
 
     this.setTextIfChanged(this.tileInfoTitle, title);
-    this.setTextIfChanged(this.tileInfoBody, [summary, countLine, placementLine].filter(Boolean).join("\n"));
+    this.setTextIfChanged(this.tileInfoBody, [summary, countLine, panelLine].filter(Boolean).join("\n"));
   }
 
   private getTilePlacementInfo(tile: FieldTile): string {
-    const key = this.getTileKey(tile);
-    const placedEntry = getPlacementAt(this.state, key);
-    const nearbyLabels = Array.from(
-      new Set(
-        this.getNearbyActivePlacementEntries(tile)
-          .filter((entry) => entry.placementKey !== placedEntry?.placementKey)
-          .map((entry) => this.getWorldObjectLabel(entry.objectId)),
-      ),
-    );
-
-    if (!placedEntry && nearbyLabels.length === 0) {
-      return "";
-    }
-
-    const here = placedEntry ? `Placed: ${this.getWorldObjectLabel(placedEntry.objectId)}` : "";
-    const nearby = nearbyLabels.length > 0 ? `Nearby: ${nearbyLabels.join(", ")}` : "";
-    return [here, nearby].filter(Boolean).join("\n");
+    void tile;
+    return "";
   }
 
   private getWorldObjectSummary(id: string): string {
     switch (id) {
       case "sprinkler":
-        return "Waters grown grass near its placed tile so the field keeps moving.";
+        return "Pops up around the field to water grown or resting patches.";
       case "bee_hive":
-        return "Pollinates nearby clusters into better grass from its placed tile.";
+        return "Pollinates field clusters into better grass.";
       case "chicken":
         return "Scratches up gold or improves a random patch.";
       case "sheep":
         return "Grazes grown grass and turns touches into gold.";
       case "field_mouse":
-        return "Scurries through nearby grown grass and sometimes finds gold.";
+        return "Scurries through grown grass and sometimes finds gold.";
       case "meadow_rabbit":
-        return "Hops through nearby grown grass and sometimes finds seeds.";
+        return "Hops through grown grass and sometimes finds seeds.";
       case "earthworm":
         return "Burrows through resting patches to speed regrowth.";
       default:
@@ -10837,11 +11370,11 @@ export class GameScene extends Phaser.Scene {
     this.syncWorldObjects();
     this.layoutWorldObjects();
     this.refreshTileInfo(tile);
-    this.popAtTile(tile, `${this.getWorldObjectLabel(objectId)} ${wasPlaced ? "moved" : "placed"}`, "#ffef78");
+    this.popAtTile(tile, `${this.getWorldObjectLabel(objectId)} ${wasPlaced ? "moved" : "set"}`, "#ffef78");
     if (shouldKeepPlacing) {
-      this.showMessage(`Placed ${this.getWorldObjectLabel(objectId)} ${placedCount}/${placementLimit}. Select another tile.`, 2400);
+      this.showMessage(`${this.getWorldObjectLabel(objectId)} set ${placedCount}/${placementLimit}. Select another tile.`, 2400);
     } else if (objectId === "sprinkler") {
-      this.showMessage("Tiny Sprinkler placed. Its water reaches nearby patches.", 3400);
+      this.showMessage("Tiny Sprinkler active. Its water reaches field patches.", 3400);
     }
     this.playPlacementFeedback(tile, objectId);
     this.audio.play("upgrade");
@@ -10851,9 +11384,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getNearbyActivePlacementEntries(tile: FieldTile): ReturnType<typeof getNearbyPlacementEntries> {
-    return getNearbyPlacementEntries(this.state, tile, PLACEMENT_RADIUS).filter(
-      (entry) => this.isWorldObjectOwned(entry.objectId) && this.isPlacementSlotOwned(entry.objectId, entry.placementKey),
-    );
+    void tile;
+    return [];
   }
 
   private getPlacementSynergy(tile: FieldTile): {
@@ -13136,6 +13668,14 @@ export class GameScene extends Phaser.Scene {
               .setStrokeStyle(2, 0xffffff, 0.85)
               .setDepth(39),
           );
+      const sprinkler = this.trackBoardTransient(
+        this.add
+          .image(x - 18 * this.boardScale, y + 20 * this.boardScale, "world-tiny-sprinkler")
+          .setOrigin(0.5, 1)
+          .setDepth(39)
+          .setScale(Math.max(0.46, this.boardScale * 0.72))
+          .setAlpha(0.96),
+      );
 
       this.tweens.add({
         targets: ring,
@@ -13160,6 +13700,15 @@ export class GameScene extends Phaser.Scene {
           onComplete: () => sparkle.destroy(),
         });
       }
+
+      this.tweens.add({
+        targets: sprinkler,
+        y: sprinkler.y - 10 * this.boardScale,
+        alpha: 0,
+        duration: compactAmbientFeedback ? 520 : 720,
+        ease: "Sine.easeOut",
+        onComplete: () => sprinkler.destroy(),
+      });
     }
   }
 
@@ -14421,6 +14970,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (overlayOpen) {
+      this.setVisibleIfChanged(this.fieldItemPanelRoot, false);
       this.refreshOpenOverlayUi(refreshPanels);
       return;
     }
@@ -14496,7 +15046,9 @@ export class GameScene extends Phaser.Scene {
     if (refreshWorldObjects) {
       this.profileScope("ui:worldObjects", () => {
         this.syncWorldObjects();
+        this.syncFieldItemPanel();
         this.layoutWorldObjects();
+        this.layoutFieldItemPanel();
       });
     }
     this.profileScope("ui:milestoneText", () => {
@@ -14536,6 +15088,7 @@ export class GameScene extends Phaser.Scene {
     this.layoutMilestoneText();
     if (refreshFloatingLayout) {
       this.layoutTriggerFeed();
+      this.layoutFieldItemPanel();
       this.layoutWorldMap();
     } else {
       this.updateWorldMapViewportMarker();
@@ -15338,7 +15891,7 @@ export class GameScene extends Phaser.Scene {
     const readyGoodsCount = GOLD_STORE_ITEMS.filter((item) => {
       const quantity = getInventoryQuantity(this.state, item.id);
       const maxed = item.maxQuantity !== undefined && quantity >= item.maxQuantity;
-      return !maxed && item.isUnlocked(this.state) && this.state.gold >= item.cost && (item.kind !== "consumable" || quantity === 0);
+      return !maxed && item.isUnlocked(this.state) && this.state.gold >= item.cost;
     }).length;
 
     this.storeAutomationButton.setAlpha(this.storeMode === "automation" ? 1 : 0.72);
@@ -15452,7 +16005,7 @@ export class GameScene extends Phaser.Scene {
       const maxed = item.maxQuantity !== undefined && quantity >= item.maxQuantity;
       const affordable = this.state.gold >= item.cost;
       const maxText = item.maxQuantity === undefined ? "" : `/${item.maxQuantity}`;
-      const ready = !maxed && unlocked && affordable && (item.kind !== "consumable" || quantity === 0);
+      const ready = !maxed && unlocked && affordable;
 
       view.container.setAlpha(unlocked || quantity > 0 ? 1 : 0.68);
       view.bg.setFillStyle(quantity > 0 ? UITheme.colors.panelInset : UITheme.colors.panelBg, unlocked || quantity > 0 ? 0.96 : 0.62);
@@ -15466,14 +16019,11 @@ export class GameScene extends Phaser.Scene {
       if (!unlocked && quantity <= 0) {
         view.status.setText("Locked");
         view.status.setColor("#8ea594");
-      } else if (item.kind === "consumable" && quantity > 0) {
-        view.status.setText(`Owned ${quantity} | Click to use`);
-        view.status.setColor("#f4df6a");
       } else if (item.id === "seed_satchel" && affordable) {
-        view.status.setText(`Owned ${quantity} | Ready now | Opens +5 seeds`);
+        view.status.setText(`Owned ${quantity} | Cost ${item.cost} gold | Field Items use: +5 seeds`);
         view.status.setColor("#f4df6a");
       } else if (maxed) {
-        view.status.setText(`Owned ${quantity}${maxText} | Ready to place`);
+        view.status.setText(`Owned ${quantity}${maxText} | In Field Items`);
         view.status.setColor("#b7eba5");
       } else if (!affordable) {
         view.status.setText(
@@ -15759,7 +16309,7 @@ export class GameScene extends Phaser.Scene {
       for (const item of GOLD_STORE_ITEMS) {
         const quantity = getInventoryQuantity(this.state, item.id);
         const maxed = item.maxQuantity !== undefined && quantity >= item.maxQuantity;
-        if (!maxed && item.isUnlocked(this.state) && this.state.gold >= item.cost && (item.kind !== "consumable" || quantity === 0)) {
+        if (!maxed && item.isUnlocked(this.state) && this.state.gold >= item.cost) {
           keys.add(`gold:${item.id}:${quantity + 1}`);
         }
       }

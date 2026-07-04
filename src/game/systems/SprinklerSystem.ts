@@ -56,13 +56,12 @@ export class SprinklerSystem {
     this.elapsed = 0;
     const bloomCyclePower = getAutomationPairSynergyPower(state, "bloom_cycle", stats);
     const touchesPerCycle = (state.seedShopPurchases.sprinkler_network ? 2 : 1) + (bloomCyclePower >= 0.25 ? 1 : 0);
-    const sprinklerRadius = state.seedShopPurchases.sprinkler_network ? 2 : 1;
     const directiveId = getResolvedAutomationDirectiveId(state);
     const directiveStats = getAutomationDirectiveTouchStats(state, stats);
     let changed = false;
 
     for (let i = 0; i < touchesPerCycle; i += 1) {
-      const tile = getSprinklerTargetTile(state, sprinklerRadius, directiveId);
+      const tile = getSprinklerTargetTile(state, directiveId);
       if (!tile) {
         break;
       }
@@ -134,58 +133,20 @@ export class SprinklerSystem {
   }
 }
 
-function getSprinklerTargetTile(state: GameState, radius: number, directiveId: ResolvedAutomationDirectiveId): FieldTile | undefined {
+function getSprinklerTargetTile(state: GameState, directiveId: ResolvedAutomationDirectiveId): FieldTile | undefined {
   if (directiveId === "growth" && Math.random() < 0.72) {
-    return getSprinklerRegrowingTargetTile(state, radius) ?? getSprinklerGrownTargetTile(state, radius, directiveId);
+    return getSprinklerRegrowingTargetTile(state) ?? getSprinklerGrownTargetTile(state, directiveId);
   }
 
-  return getSprinklerGrownTargetTile(state, radius, directiveId);
+  return getSprinklerGrownTargetTile(state, directiveId);
 }
 
-function getSprinklerGrownTargetTile(state: GameState, radius: number, directiveId: ResolvedAutomationDirectiveId): FieldTile | undefined {
-  const placement = state.placedWorldObjects.sprinkler;
-  const placedTile = placement ? state.field[placement.tileKey] : undefined;
-  if (!placedTile) {
-    return directiveId === "harvest" ? pickBestTile(sampleSafeGrownTiles(state, 10), scoreHarvestTile) : getRandomSafeGrownTile(state);
-  }
-
-  const localTiles: FieldTile[] = [];
-
-  for (let y = placedTile.y - radius; y <= placedTile.y + radius; y += 1) {
-    for (let x = placedTile.x - radius; x <= placedTile.x + radius; x += 1) {
-      const tile = state.field[tileKey(x, y)];
-      if (tile?.grassState === "grown" && !hasActiveCactusHazard(state, tile)) {
-        localTiles.push(tile);
-      }
-    }
-  }
-
-  if (directiveId === "harvest") {
-    return pickBestTile(localTiles, scoreHarvestTile) ?? pickBestTile(sampleSafeGrownTiles(state, 10), scoreHarvestTile);
-  }
-
-  return Phaser.Utils.Array.GetRandom(localTiles) ?? getRandomSafeGrownTile(state);
+function getSprinklerGrownTargetTile(state: GameState, directiveId: ResolvedAutomationDirectiveId): FieldTile | undefined {
+  return directiveId === "harvest" ? pickBestTile(sampleSafeGrownTiles(state, 10), scoreHarvestTile) : getRandomSafeGrownTile(state);
 }
 
-function getSprinklerRegrowingTargetTile(state: GameState, radius: number): FieldTile | undefined {
-  const placement = state.placedWorldObjects.sprinkler;
-  const placedTile = placement ? state.field[placement.tileKey] : undefined;
-
-  if (!placedTile) {
-    return getRandomRegrowingTile(state, (tile) => !hasActiveCactusHazard(state, tile));
-  }
-
-  const localTiles: FieldTile[] = [];
-  for (let y = placedTile.y - radius; y <= placedTile.y + radius; y += 1) {
-    for (let x = placedTile.x - radius; x <= placedTile.x + radius; x += 1) {
-      const tile = state.field[tileKey(x, y)];
-      if (tile?.grassState === "regrowing" && !hasActiveCactusHazard(state, tile)) {
-        localTiles.push(tile);
-      }
-    }
-  }
-
-  return Phaser.Utils.Array.GetRandom(localTiles) ?? getRandomRegrowingTile(state, (tile) => !hasActiveCactusHazard(state, tile));
+function getSprinklerRegrowingTargetTile(state: GameState): FieldTile | undefined {
+  return getRandomRegrowingTile(state, (tile) => !hasActiveCactusHazard(state, tile));
 }
 
 function hasActiveCactusHazard(state: GameState, tile: FieldTile): boolean {

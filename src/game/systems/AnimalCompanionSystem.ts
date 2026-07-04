@@ -207,7 +207,9 @@ export class AnimalCompanionSystem {
     seedChance: number,
     directiveId: ResolvedAutomationDirectiveId,
   ): boolean {
-    const tile = getPlacedLocalGrownTile(state, objectId, radius, directiveId);
+    const tile =
+      getPlacedLocalGrownTile(state, objectId, radius, directiveId) ??
+      (directiveId === "harvest" ? pickBestGrownTile(state, 12) : getRandomSafeGrownTile(state));
     if (!tile) {
       return false;
     }

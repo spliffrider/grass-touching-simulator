@@ -1,0 +1,49 @@
+{
+  "date": "2026-07-04",
+  "topic": "Field Items panel and stable hover info",
+  "currentUserGoal": "Store and automation items should be repeat-buyable, displayed in a Field Items panel with counts, and expose mouseover output stats. Items should act visually/passively without a placement workflow; the sprinkler should pop up around the field instead of being placed.",
+  "changesMade": [
+    "Added a Field Items panel that lists the Tiny Sprinkler, owned automation routes, and owned gold-store items with counts/status lines.",
+    "Changed gold-store consumables and companions to buy into the Field Items panel rather than being auto-used or placed.",
+    "Removed the active placement workflow from normal play; legacy placed views are cleared and helper actions fall back to whole-field behavior.",
+    "Changed the sprinkler to target field patches globally and show a brief pop-up sprinkler sprite during bursts.",
+    "Added field-item hover info with owned counts, route output, all automation per minute, lifetime auto touches, actions, supplies, and companion totals.",
+    "Fixed the Field Items hover flash by letting field-item hover detection own the shared info panel before board hover cleanup runs."
+  ],
+  "filesTouched": [
+    "src/game/data/gold-store.ts",
+    "src/game/data/quests.ts",
+    "src/game/data/seed-shop.ts",
+    "src/game/scenes/GameScene.ts",
+    "src/game/systems/AnimalCompanionSystem.ts",
+    "src/game/systems/SprinklerSystem.ts"
+  ],
+  "verification": [
+    "npm run build",
+    "Browser smoke at http://127.0.0.1:5173/?stress&tiles=160: hovered Tiny Sprinkler and Sprinkler Route rows; the info panel stayed visible and updated with output stats."
+  ],
+  "currentGitStatus": [
+    "Modified: src/game/data/gold-store.ts",
+    "Modified: src/game/data/quests.ts",
+    "Modified: src/game/data/seed-shop.ts",
+    "Modified: src/game/scenes/GameScene.ts",
+    "Modified: src/game/systems/AnimalCompanionSystem.ts",
+    "Modified: src/game/systems/SprinklerSystem.ts",
+    "Untracked docs include docs/FIRST_SESSION_AUDIT_2026-07-04.md and docs/POLISH_AND_SYSTEMS_ROADMAP.md, plus older local docs/assets already present."
+  ],
+  "knownIssues": [
+    "The user is still playtesting the panel in their normal save; watch for tooltip placement/content tweaks.",
+    "The panel currently shows a limited number of rows with a '+N more' line; no scrolling or paging has been added yet.",
+    "The full perf harness at ?perfHarness&tiles=1200 was not run for this UI pass; only build plus a stress-route hover smoke check were run."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user verify mouseover in their live save, especially moving directly between Field Items rows.",
+    "Consider overflow paging or scrolling if the item list gets too crowded.",
+    "Run the perf harness before committing if additional field-item animations or denser panel updates are added."
+  ],
+  "doNotRevert": [
+    "Do not restore item placement as the default interaction; the user explicitly wants items to be panel-owned and non-placeable.",
+    "Do not revert the sprinkler to a placed object; it should randomly pop up around the field.",
+    "Do not remove the untracked roadmap/audit docs without user approval; they were part of the current planning work."
+  ]
+}
