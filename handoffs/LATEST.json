@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-04",
-  "latestHandoff": "HANDOFF_2026-07-04_FIELD_ITEMS_PANEL_HOVER.json",
+  "latestHandoff": "HANDOFF_2026-07-04_FIELD_ITEMS_LIVE_SYNC.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

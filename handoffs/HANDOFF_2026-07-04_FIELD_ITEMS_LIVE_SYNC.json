@@ -1,0 +1,55 @@
+{
+  "date": "2026-07-04",
+  "topic": "Field Items panel live and Mac handoff",
+  "currentUserGoal": "Continue Grass Touching Simulator after shipping the non-placeable Field Items panel and stable mouseover stats. Linting was discussed as useful, but intentionally deferred for a later session.",
+  "latestCommit": {
+    "hash": "1d793f362b2591071a442c0122861cb28ced3b1f",
+    "shortHash": "1d793f3",
+    "message": "Add field items panel",
+    "branch": "master"
+  },
+  "deployment": {
+    "status": "Ready",
+    "target": "Production",
+    "url": "https://grass-touching-simulator-dtzrfq388-sensitech.vercel.app",
+    "aliases": [
+      "https://grasstouchingsimulator.com",
+      "https://www.grasstouchingsimulator.com",
+      "https://grass-touching-simulator.vercel.app",
+      "https://grass-touching-simulator-sensitech.vercel.app",
+      "https://grass-touching-simulator-git-master-sensitech.vercel.app"
+    ]
+  },
+  "changesMade": [
+    "Committed and pushed the Field Items panel work to origin/master.",
+    "Verified Vercel production deployment is Ready.",
+    "Confirmed the production bundle contains the new Field Items and Tiny Sprinkler strings.",
+    "Captured the final live-session state for the next desktop or Mac Codex session."
+  ],
+  "verification": [
+    "npm run build passed before commit.",
+    "Browser smoke at http://127.0.0.1:5173/?stress&tiles=160 showed Field Items mouseover panels staying visible.",
+    "vercel ls grass-touching-simulator --scope sensitech showed the latest production deployment as Ready.",
+    "Fetched https://grass-touching-simulator.vercel.app and confirmed its JS bundle includes Field Items, Tiny Sprinkler, and 2 pop-ups strings."
+  ],
+  "currentGitStatus": [
+    "master is even with origin/master before this handoff file is committed.",
+    "Unrelated untracked local files remain: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch reference docs, docs/artifacts/title-art-2026-06-19/, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The full ?perfHarness&tiles=1200 check was not run after the panel changes; run it before adding more dense panel animation or per-frame UI work.",
+    "Field Items overflow currently displays '+N more' without paging or scrolling.",
+    "Linting would be useful, but should be added later with a gentle TypeScript ESLint setup focused on bug-catching rules first."
+  ],
+  "nextRecommendedSteps": [
+    "Start the next session by reading AGENTS.md, handoffs/LATEST.json, and this file.",
+    "Have the user play the live save and report any Field Items panel layout or tooltip quirks.",
+    "Consider item-panel overflow controls if the list gets too long.",
+    "Later, add ESLint with a low-noise ruleset and make npm run lint pass."
+  ],
+  "doNotRevert": [
+    "Do not restore default placement for sprinkler, companions, or store items; the user explicitly wants panel-owned non-placeable items.",
+    "Do not remove the Field Items hover stats; the user asked for output information such as touches/min and totals.",
+    "Do not include unrelated untracked local docs/media in future commits unless the user asks."
+  ]
+}
