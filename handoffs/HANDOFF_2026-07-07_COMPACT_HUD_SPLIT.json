@@ -1,0 +1,59 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign compact HUD identity split",
+  "currentUserGoal": "Keep iterating the clean-break redesign while preserving the old game's vibe and making sure Sensi is never presented as the player, including compact/mobile layouts.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Extended the player/advisor HUD split to compact layouts in RedesignPrototypeScene.",
+    "Medium compact widths now show player and Sensi advisor as separate side-by-side panels above the field.",
+    "Tall narrow phone-like widths now stack the player panel above the Sensi advisor panel.",
+    "Suppressed the separate intro callout only in compact-panel layouts because the Sensi advisor panel carries the same inherited-field premise there.",
+    "Tightened compact panel font sizes, line spacing, and panel heights so status/advisor text stays inside panel borders.",
+    "Shortened the narrow HUD title to Ancient Grass below 600px width so the title no longer clips on phone-width screens.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md with compact HUD behavior and smoke expectations."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-07_COMPACT_HUD_SPLIT.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the final compact HUD changes: ESLint passed, Vitest passed with 2 files and 19 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke at 640x720 on http://127.0.0.1:5173/?redesign&resetMemory confirmed playerPanelVisible true, playerPanelTitle Grass Toucher, advisorPanelVisible true, advisorPanelTitle Sensi // Advisor, introCardVisible false, one active root, and no warn/error logs.",
+    "Browser smoke at 640x720 clicked the reported root hitbox and confirmed activeObjectiveId advanced to earnRunTouches, activeGridSize became 2, activeRootCount became 4, runTouches 4, totalRunTouchesEarned 4, and Sensi dialogue remained in Sensi // Advisor.",
+    "Browser visual check at 640x720 confirmed player/advisor panels render side-by-side without the old intro card overlapping them.",
+    "Browser smoke at 390x844 confirmed the narrow title fits as Ancient Grass, player/advisor panels stack vertically, both panel debug titles remain correct, introCardVisible is false, the first root remains reachable, and no warn/error logs were emitted.",
+    "Browser smoke at default 1280x720 confirmed the wide layout still shows introCardVisible true, player/advisor panels remain separate, the first root click still opens the 2x2 field, and no warn/error logs were emitted.",
+    "Temporary browser viewport override was reset after compact/phone checks."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The compact HUD is readable and functional, but the player portrait is still a placeholder Grass Toucher class icon rather than a proper new-canon player avatar.",
+    "Compact panel layout is presentation-only; the underlying first-run objective and reward rules remain unchanged.",
+    "The expansion wake beat is still lightweight and should be tuned in a dedicated juice pass after the core loop is more playable.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress.",
+    "If a player dies before healing the tutorial wound, they can still buy memory, but the objective chain remains at stabilizeWound. Decide later whether this is acceptable failure/retry behavior or needs a catch-up objective rule."
+  ],
+  "nextRecommendedSteps": [
+    "Replace the player PFP placeholder with a proper new-canon player avatar while keeping Sensi exclusively as advisor/NPC.",
+    "Continue the animation pass with root idle motion, clearer wound pulses, and touch feedback timing.",
+    "Play through the normal-speed ?redesign route manually and judge first-run pacing without fastDormancy.",
+    "Decide whether dying before tutorial wound triage should keep the objective chain blocked or transition to a recovery lesson.",
+    "After the first-run feel is readable, choose the first recast in-run tool or automation instead of porting old systems wholesale."
+  ],
+  "doNotRevert": [
+    "Do not put Sensi back into the player profile/PFP panel in any viewport.",
+    "Do not re-enable the separate intro callout on compact-panel layouts unless it is redesigned to avoid overlapping the compact player/advisor panels.",
+    "Do not make Sensi mood color changes recolor the player portrait frame.",
+    "Do not remove the player/advisor browser debug fields without replacing the smoke coverage for this identity split.",
+    "Do not turn the field-expansion wake beat into a gameplay rule; it is presentational only for now.",
+    "Do not return redesign manual healing to broad canvas/proximity clicks.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

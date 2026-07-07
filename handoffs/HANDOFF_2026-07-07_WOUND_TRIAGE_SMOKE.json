@@ -1,0 +1,55 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign first wound triage smoke",
+  "currentUserGoal": "Continue iterating the clean-break redesign after strict root targeting, with the next focus on proving the first wound objective and 5x5 field expansion still work through real active-root clicks.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added browser debug root hitbox data to RedesignPrototypeScene so smoke automation can click actual active roots rather than approximate canvas coordinates.",
+    "Added woundedRootIds and per-root wounded flags to data-grass-redesign-prototype.",
+    "Made openRandomWound publish browser debug state immediately after a wound opens.",
+    "Browser-smoked the full first wound triage path: one-tile intro, 2x2 expansion, Run Touch objective, 3x3 expansion, first wound, wound healing, and 5x5 expansion.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md to record the prototype debug payload and first-wound smoke coverage."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-07_WOUND_TRIAGE_SMOKE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the scene instrumentation: ESLint passed, Vitest passed with 2 files and 19 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory started from introActive true, activeRootCount 1, activeGridSize 1, activeObjectiveId wakeAncientGrass, ancientHp 76, and one reported root hitbox at 640,437.",
+    "Browser smoke clicked only reported root hitboxes. The first click woke the run and expanded to 2x2 with activeObjectiveId earnRunTouches.",
+    "Browser smoke continued clicking reported active roots until totalRunTouchesEarned reached 10, activeObjectiveId advanced to stabilizeWound, and the field expanded to activeRootCount 9 / activeGridSize 3.",
+    "Browser smoke waited for a reported wounded root, clicked wounded root 6 from the debug payload, and confirmed activeObjectiveId advanced to completeDormancy with activeRootCount 25 / activeGridSize 5.",
+    "Browser warn/error logs were empty during the first-wound smoke."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update still has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/sensi-pixel-portrait.png, src/game/redesign/RunSpineSystem.ts, src/game/redesign/FirstRunObjectiveSystem.ts, src/game/scenes/RedesignPrototypeScene.ts, tests/RunSpineSystem.test.ts, tests/FirstRunObjectiveSystem.test.ts, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked files remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "After the 5x5 expansion, new wounds can continue opening while the active objective is Reach Dormancy. This is mechanically valid but the messaging can feel noisy and should be tuned.",
+    "Tile states remain visually basic: valid touches, missed touches, wounds, recovery, and expansion all need stronger animation and tactile feedback.",
+    "The prototype still needs a more authored Sensi intro sequence; current intro copy lives in the HUD/side panel rather than a deliberate dialogue beat.",
+    "The player portrait is still a placeholder Grass Toucher icon, not a custom player avatar.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress."
+  ],
+  "nextRecommendedSteps": [
+    "Add stronger touch/recovery animation so valid root clicks feel satisfying and invalid clicks feel gently rejected.",
+    "Tune post-triage wound messaging so the Reach Dormancy objective and ongoing wound pressure do not compete confusingly.",
+    "Add a small authored Sensi dialogue layer before or around the first tile touch.",
+    "Replace the player PFP placeholder with a new-canon player avatar while keeping Sensi as advisor/NPC.",
+    "Begin recasting early in-run tools or automation only after the manual healing loop has better feel."
+  ],
+  "doNotRevert": [
+    "Do not remove the browser debug root hitboxes or wound ids without replacing the first-run smoke path.",
+    "Do not return redesign manual healing to broad canvas/proximity clicks.",
+    "Do not remove the intro pause and return to immediate Scourge drain on fresh runs.",
+    "Do not replace the new objective-driven first-run flow with the old quest system.",
+    "Do not return the redesign prototype to a full 5x5 field at run start.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

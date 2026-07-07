@@ -1,0 +1,52 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign Dew Pulse playtest cues",
+  "currentUserGoal": "Keep working on the clean-break redesign until the current prototype route is testable enough for manual play.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added first-pass Dew Pulse discoverability to RedesignPrototypeScene.",
+    "When Dew Pulse first becomes usable, the run feed logs readiness, the button pulses, the bottom prompt calls out the spend, and Sensi briefly claims the advisor panel with a buy-time line.",
+    "Added Dew Pulse readiness reset state so the ready cue can fire once per usable window and resets across new runs.",
+    "Added browser debug fields for objectiveText, promptText, and lastDewPulseReadyAt so playtest smoke can verify that cues are visible even though Phaser renders text inside the canvas.",
+    "Updated CORE_MECHANICS_REDESIGN.md and CORE_MECHANICS_IMPLEMENTATION_PLAN.md to record Dew Pulse cue behavior and expanded browser smoke expectations."
+  ],
+  "filesTouched": [
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-07_DEW_PULSE_PLAYTEST_CUES.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the cue changes: ESLint passed, Vitest passed with 2 files and 22 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke first caught a real issue: Dew Pulse was usable, but the advisor panel could still be occupied by an older Sensi bark instead of the Dew Pulse cue.",
+    "After adding a Dew Pulse-ready advisor bark, browser smoke passed on http://127.0.0.1:5173/?redesign&resetMemory&fastDormancy&dewCueSmoke2=...",
+    "The passing browser smoke earned 8 RT through real root-hitbox clicks, confirmed the dewPulse button was visible and usable, confirmed promptText and advisorPanelBody both mentioned Dew Pulse, and confirmed lastDewPulseReadyAt was set.",
+    "The same smoke clicked the Dew Pulse button through debug coordinates and confirmed Run Touches dropped from 8 to 0, HP increased from about 32.2 to about 45.1, totalRunTouchesEarned stayed 8, lastRunToolKind was dewPulse, and lastHealingFeedbackKind was dewPulse.",
+    "Browser warn/error logs were empty during the passing smoke."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The redesign route is now more testable, but it is still a prototype slice rather than a presentable game.",
+    "Dew Pulse tuning is first-pass: cost 8 RT, healing 14 HP. It needs normal-speed manual playtesting before balance is trusted.",
+    "Dew Pulse is still a manual run-tool precursor, not automation. Tiny Sprinkler remains the next real recast automation candidate.",
+    "The old game still exists on the default route and obsolete stress routes; use ?redesign for the new mechanics work."
+  ],
+  "nextRecommendedSteps": [
+    "Ask the user to manually test the normal-speed route at http://127.0.0.1:5173/?redesign&resetMemory and judge whether the wake, RT earning, wound triage, Dew Pulse cue, dormancy, and first memory purchase are understandable.",
+    "If the normal route feels too slow or confusing, tune starting HP, Scourge drain, wound timing, Dew Pulse cost/healing, or objective copy before adding more systems.",
+    "If the core loop feels understandable, implement Tiny Sprinkler as the first true run-resetting automation using the same Run Touch spend and effective-healing accounting rules."
+  ],
+  "doNotRevert": [
+    "Do not remove the Dew Pulse ready cue without replacing it with another visible first-spend cue.",
+    "Do not let Dew Pulse mint replacement Run Touches from its own healing unless explicitly redesigned.",
+    "Do not make Dew Pulse clear wounds; Root Salve owns wound-specific healing for now.",
+    "Do not put Sensi back into the player profile/PFP panel in any viewport.",
+    "Do not return manual healing to broad canvas/proximity clicks.",
+    "Do not use the obsolete ?stress route as evidence of redesign progress."
+  ]
+}

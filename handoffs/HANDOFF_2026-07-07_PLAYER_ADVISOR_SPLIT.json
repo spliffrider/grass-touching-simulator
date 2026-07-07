@@ -1,0 +1,58 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign player and advisor panel split",
+  "currentUserGoal": "Keep iterating the clean-break redesign while preserving the old game's graphical vibe, and fix the side HUD identity problem where Sensi appeared to be the player portrait/profile.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Split the wide-layout side HUD into a player identity/status panel and a separate Sensi advisor panel.",
+    "Changed the top-left portrait panel to read as the player/Grass Toucher, showing phase/status, permanent Grass Touches, and owned memory.",
+    "Moved Sensi dialogue and mood color changes into the advisor panel below the player panel.",
+    "Stopped Sensi mood pulses from recoloring the player portrait frame; the player portrait now keeps a stable bronze pulse.",
+    "Moved the run feed lower in the side column so player identity, advisor dialogue, and feed each have their own surface.",
+    "Added player/advisor panel text and visibility fields to the prototype browser debug dataset for regression smoke checks.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md with the new player/advisor split and browser smoke expectation."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-07_PLAYER_ADVISOR_SPLIT.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the split: ESLint passed, Vitest passed with 2 files and 19 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory confirmed a clean load with one canvas, grass-app-ready true, activeObjectiveId wakeAncientGrass, activeRootCount 1, and introCardVisible true.",
+    "Fresh browser debug state confirmed playerPanelTitle Grass Toucher, playerPanelBody Player / Field heir with Permanent GT 0 and Memory: none, advisorPanelTitle Sensi // Advisor, and advisorPanelBody carrying the Sensi intro line.",
+    "Browser smoke clicked the reported first-root hitbox at 640,437 and confirmed introActive false, introCardVisible false, activeObjectiveId earnRunTouches, activeGridSize 2, activeRootCount 4, totalRunTouchesEarned 4, and runTouches 4.",
+    "After the first root click, browser debug state confirmed playerPanelTitle stayed Grass Toucher, playerPanelBody changed to Player / Manual caretaker, and Sensi dialogue stayed in Sensi // Advisor.",
+    "Browser visual check confirmed the top-left panel reads as the player, the separate advisor panel reads Sensi // Advisor, the run feed sits below both, and the field remains visible/readable.",
+    "Browser warn/error logs were empty during the player/advisor split smoke."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The player portrait is still a placeholder Grass Toucher class icon, not a custom player avatar.",
+    "The Sensi advisor panel currently only appears as its own surface in the wide layout; compact/mobile layout still needs a deliberate presentation pass.",
+    "The advisor copy is still a lightweight rotating bark system, not a full authored dialogue system with portraits, steps, or choices.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress.",
+    "If a player dies before healing the tutorial wound, they can still buy memory, but the objective chain remains at stabilizeWound. Decide later whether this is acceptable failure/retry behavior or needs a catch-up objective rule."
+  ],
+  "nextRecommendedSteps": [
+    "Replace the player PFP placeholder with a proper new-canon player avatar while keeping Sensi exclusively as advisor/NPC.",
+    "Do a compact/mobile HUD pass so the player and Sensi identities remain separated on narrow screens.",
+    "Play through the normal-speed ?redesign route manually and judge first-run pacing without fastDormancy.",
+    "Start improving animation and juice on the 1x1 to 2x2 opening beat now that the identity surface is readable.",
+    "After the first-run feel is readable, choose the first recast in-run tool or automation instead of porting old systems wholesale."
+  ],
+  "doNotRevert": [
+    "Do not put Sensi back into the player profile/PFP panel.",
+    "Do not make Sensi mood color changes recolor the player portrait frame.",
+    "Do not remove the player/advisor browser debug fields without replacing the smoke coverage for this identity split.",
+    "Do not make the intro callout itself start the run; only real root tile clicks should wake the run.",
+    "Do not return redesign manual healing to broad canvas/proximity clicks.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

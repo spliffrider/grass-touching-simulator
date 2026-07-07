@@ -1,0 +1,56 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign healing feedback feel",
+  "currentUserGoal": "Keep iterating the clean-break redesign and make manual healing feel more connected to the shared Ancient Grass HP bar without changing mechanics.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added a presentational HP bar glint to RedesignPrototypeScene.",
+    "Effective direct root touches now spawn a small healing mote from the touched root to the Ancient HP bar and briefly flash the HP bar.",
+    "Wounded-root healing and Root Salve healing use the same root-to-HP feedback with distinct feedback kinds.",
+    "Added lastHealingFeedbackKind and lastHealingFeedbackAt to the prototype browser debug dataset.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md with healing feedback behavior and smoke expectations."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-07_HEALING_FEEDBACK_FEEL.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "Started the Vite dev server on 127.0.0.1:5173 after the browser reported connection refused.",
+    "npm run check passed after the final healing feedback changes: ESLint passed, Vitest passed with 2 files and 19 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory&fastDormancy confirmed the first real root touch advanced to earnRunTouches, opened the 2x2 field, awarded 4 Run Touches, and reported lastHealingFeedbackKind root.",
+    "Browser screenshot captured the first-touch field state while the healing feedback animation was active.",
+    "Browser smoke advanced to the 3x3 wound lesson, confirmed a wounded root with woundMarkerVisible true, clicked that wounded root, and confirmed lastHealingFeedbackKind wound.",
+    "A short-read wound-heal smoke confirmed the clicked wounded root reported wounded false and woundMarkerVisible false after the click, while fastDormancy could open a separate new wound shortly afterward.",
+    "Browser warn/error logs were empty during the healing feedback smokes."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "Healing feedback is presentational only; it does not alter healing amounts, Run Touch rewards, wound rules, HP math, or hitboxes.",
+    "FastDormancy can open additional wounds quickly after the tutorial wound is healed and the field expands to 5x5; use short-read checks when verifying the exact healed root marker.",
+    "The player portrait is still a placeholder Grass Toucher class icon rather than a proper new-canon player avatar.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress.",
+    "The Vite dev server was started for browser verification and may still be running in the background."
+  ],
+  "nextRecommendedSteps": [
+    "Replace the player PFP placeholder with a proper new-canon player avatar while keeping Sensi exclusively as advisor/NPC.",
+    "Continue the animation pass with stronger root idle polish, recovery timing feedback, or dormancy transition feel.",
+    "Play through the normal-speed ?redesign route manually and judge first-run pacing without fastDormancy.",
+    "Decide whether dying before tutorial wound triage should keep the objective chain blocked or transition to a recovery lesson.",
+    "After the first-run feel is readable, choose the first recast in-run tool or automation instead of porting old systems wholesale."
+  ],
+  "doNotRevert": [
+    "Do not remove the root-to-HP healing feedback without replacing it with an equally clear indication that touch healing affects shared Ancient HP.",
+    "Do not turn healing feedback into a gameplay rule; it is presentational only for now.",
+    "Do not remove the persistent wound marker without replacing it with an equally clear wound-readability cue.",
+    "Do not put Sensi back into the player profile/PFP panel in any viewport.",
+    "Do not return redesign manual healing to broad canvas/proximity clicks.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

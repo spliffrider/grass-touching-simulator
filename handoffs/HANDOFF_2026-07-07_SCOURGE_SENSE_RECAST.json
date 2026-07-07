@@ -1,0 +1,60 @@
+{
+  "date": "2026-07-07",
+  "topic": "Scourge Sense recast",
+  "currentUserGoal": "Use the weekly-reset runway to keep pushing the redesign toward a more readable and testable core loop.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Converted Scourge Sense from a locked placeholder into a real permanent Memory node.",
+    "Added scourgeSense to PermanentUpgradeId, PERMANENT_UPGRADE_DEFINITIONS, permanent memory normalization, and PermanentUpgradeEffects.",
+    "Scourge Sense costs 20 permanent GT and forecasts the next wound pressure target; it does not change drain, wound timing, rewards, or dormancy math.",
+    "Updated the meta tree to show four functional nodes: Soft Touch, Deeper Roots, Tiny Sprinkler, and Scourge Sense.",
+    "Added a gold forecast halo to root views and tied it to the Scourge Sense target.",
+    "When Scourge Sense is owned, wound pressure warning starts at 42% instead of the baseline 72%, picks a valid active unwounded root, marks it, and passes that same root as the preferred wound target when pressure opens a wound.",
+    "Added HUD, prompt, advisor, feed, float-text, and browser-debug feedback for Scourge Sense forecasts.",
+    "Exposed Scourge Sense through the DOM agent layer as redesign-memory-scourgeSense, plus readable state lines for ownership, wound pressure, target root, and warning visibility.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md to describe the implemented Scourge Sense slice."
+  ],
+  "filesTouched": [
+    "src/game/redesign/RunSpineSystem.ts",
+    "tests/RunSpineSystem.test.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-07_SCOURGE_SENSE_RECAST.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run test passed with 2 files and 26 tests.",
+    "npm run build passed after the Scourge Sense changes.",
+    "npm run check passed after docs and code updates: ESLint passed, Vitest passed with 2 files and 26 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory&skipIntro&fastDormancy&scourgeSenseSmoke=... earned 39 permanent GT in a first fast run, bought redesign-memory-scourgeSense for 20 GT, and confirmed permanentUpgrades included scourgeSense.",
+    "Browser smoke started the next run, advanced to wound pressure, confirmed scourgeSenseOwned true, scourgeSenseTargetRootId set to root 2, lastScourgeSenseWarningAt set, woundPressureRatio was 0.46, and that root reported scourgeSenseMarkerVisible true before wound-open.",
+    "Browser smoke confirmed redesign-readable-state included Scourge Sense ownership, wound pressure, target root, and warning visibility.",
+    "Browser smoke confirmed the forecast root became wounded after wound-open and warn/error logs were empty."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update remains intentionally dirty and uncommitted.",
+    "Modified tracked files include handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, src/main.ts, and src/style.css.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/music/lucid-field-theme.wav, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "Scourge Sense is a readability upgrade only; it does not yet give mitigation, slow pressure, or interact with future Scourge-control branches.",
+    "The forecast halo is first-pass UI using simple Phaser circles rather than bespoke art.",
+    "The meta screen now has no locked placeholder node; Last Stand or another future branch can become the next visible locked branch if desired.",
+    "The old default route and obsolete stress route still exist; use ?redesign for this rework."
+  ],
+  "nextRecommendedSteps": [
+    "Playtest whether the Scourge Sense target forecast is understandable at normal speed and whether 20 GT feels right.",
+    "Consider Last Stand next as the first revive/second-chance mechanic now that failure and threat readability have both been improved.",
+    "Alternatively polish the meta screen visually now that it has four functional memory nodes.",
+    "Tune Scourge Sense warning threshold, color, and text after manual play."
+  ],
+  "doNotRevert": [
+    "Do not restore Scourge Sense as a locked placeholder; it is now new-canon functional Memory.",
+    "Do not make Scourge Sense change rewards, drain, or dormancy math without deliberate balancing.",
+    "Do not remove redesign-memory-scourgeSense or the DOM readable Scourge Sense fields; they are part of the agent-accessibility contract.",
+    "Do not treat the old ?stress route as evidence for the redesign."
+  ]
+}

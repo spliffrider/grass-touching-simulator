@@ -1,0 +1,56 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign authored inherited-field intro",
+  "currentUserGoal": "Keep moving the clean-break redesign from prototype mechanics toward an authored first-run experience while the user watches Belgium vs USA.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added a fresh-run intro prelude to RedesignPrototypeScene for players without loaded redesign memory unless ?skipIntro is present.",
+    "Paused Scourge drain, wound timers, and HP loss while the intro prelude is active.",
+    "Added inherited-field Sensi framing: the uncle left one suspicious Ancient Grass tile, and the player must touch it to begin.",
+    "Made the first touch both dismiss the intro and continue through the existing healing/objective flow, so it wakes the run and counts as real healing.",
+    "Hid Root Salve during the intro prelude.",
+    "Changed HUD copy during the intro: objective line, Scourge line, prompt text, and Sensi default message all indicate that the run is waiting for the first touch.",
+    "Added introActive, ancientHp, and ancientMaxHp to data-grass-redesign-prototype so browser smoke can verify the prelude pauses HP drain.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md to describe the authored intro behavior."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-07_AUTHORED_INTRO.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the intro slice: ESLint passed, Vitest passed with 2 files and 19 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory confirmed introActive true, activeRootCount 1, activeGridSize 1, activeObjectiveId wakeAncientGrass, ancientHp 76, and no loaded or persisted memory.",
+    "Browser smoke waited 1.5 seconds during intro and confirmed ancientHp stayed exactly 76, proving Scourge drain is paused.",
+    "Browser smoke clicked the unique canvas and confirmed introActive false, ancientHp increased, activeObjectiveId advanced to earnRunTouches, and the field expanded to 2x2/4 active roots.",
+    "Browser warn/error logs were empty during the intro smoke."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update still has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/sensi-pixel-portrait.png, src/game/redesign/RunSpineSystem.ts, src/game/redesign/FirstRunObjectiveSystem.ts, src/game/scenes/RedesignPrototypeScene.ts, tests/RunSpineSystem.test.ts, tests/FirstRunObjectiveSystem.test.ts, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked files remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The intro is still a lightweight HUD/Sensi beat, not a full title-to-field sequence or modal/dialogue scene.",
+    "The first touch can still occur anywhere on the canvas because the prototype touch handler uses proximity rather than a strict field hit test.",
+    "The player PFP currently uses the old Grass Toucher class icon as a placeholder.",
+    "The 5x5 expansion after stabilizing the first wound is unit-covered through objective mapping but still needs a browser smoke through wound healing.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress."
+  ],
+  "nextRecommendedSteps": [
+    "Tighten pointer handling so only actual field/root clicks count as touches; clicks on empty canvas should not heal Ancient Grass.",
+    "Add a more deliberate Sensi intro sequence or lightweight dialogue panel before the first touch.",
+    "Browser-smoke the first wound objective through the 5x5 expansion once touch targeting is stricter.",
+    "Consider persisting first-run objective/intro completion separately from permanent memory, or deliberately keep it session-only.",
+    "Continue polishing the first-run ceremony without importing old quest/store/minimap systems as-is."
+  ],
+  "doNotRevert": [
+    "Do not remove the intro pause and return to immediate Scourge drain on fresh runs.",
+    "Do not replace the new objective-driven first-run flow with the old quest system.",
+    "Do not return the redesign prototype to a full 5x5 field at run start.",
+    "Do not remove the PFP correction that keeps Sensi out of the player portrait slot.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "date": "2026-07-07",
+  "topic": "meta-clarity-pass",
+  "currentUserGoal": "Keep pushing the redesign until the current loop is more testable and understandable.",
+  "summary": [
+    "Added a named `EFFECTIVE_HEALING_PER_PERMANENT_TOUCH` constant so the prototype, UI copy, docs, and tests share the current 1 permanent GT per 5 effective HP tuning.",
+    "Updated the Game Over/dormancy report to explicitly show useful healing, conversion math, survival time, earned Run Touches, unspent Run Touches lost, banked GT, wounds healed, and owned memory.",
+    "Updated the DOM agent dormancy report/debug state indirectly through the shared report format, so agents can read the same payout and lost-RT information.",
+    "Added post-purchase memory feedback: buying a Memory node now updates the action hint and Sensi advisor line with the concrete next-run effect.",
+    "Shortened Memory Skill Tree node detail text and nudged the rows down to avoid label overlap in the first-pass meta screen.",
+    "Updated the redesign docs and implementation plan to reflect the clearer Game Over report, five functional memory nodes, and post-purchase feedback."
+  ],
+  "filesTouched": [
+    "src/game/redesign/RunSpineSystem.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/RunSpineSystem.test.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-07_META_CLARITY_PASS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run test passed: 28 tests.",
+    "npm run check passed after the final UI text cleanup: lint, 28 tests, and build.",
+    "Browser fast-dormancy smoke verified the DOM/canvas report includes `Useful healing ... -> +... GT (1 GT per 5 HP)` and `Run Touches ... unspent lost`.",
+    "Browser normal-route smoke earned enough GT, reached real dormancy, bought Soft Touch, and verified the action hint changed to `Soft Touch remembered: next runs heal roots 25% harder. Begin Next Run when ready.`",
+    "Visual browser check confirmed the shortened Memory Skill Tree node labels fit without obvious overlap.",
+    "Browser was reset to http://127.0.0.1:5173/?redesign&resetMemory&skipIntro afterward."
+  ],
+  "knownIssues": [
+    "The meta screen is clearer but still a first-pass layout; it is functional, not final-feel polished.",
+    "Fast dormancy can collapse before interaction if the browser smoke does not click quickly, so normal-route smoke is still better for purchase-feedback checks.",
+    "The first-run field expansion still reaches full 5x5 quickly during active automated play.",
+    "The current Game Over reward can still be generous in an active normal run; more hand testing is needed before locking early meta costs."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user play the normal route and judge whether the new Game Over report makes the loop easier to understand.",
+    "Consider slowing first-run field expansion so the player has more time with 1x1, 2x2, and 3x3 before 5x5.",
+    "Add a stronger objective/goal beat for the first normal run so it feels less like just surviving until collapse.",
+    "Start shaping a proper options/settings UX after the current functional overlay, especially if the user tests audio and accessibility again."
+  ],
+  "doNotRevert": [
+    "Do not remove the explicit 1 GT per 5 HP report line; it is now the main explanation of the meta payout.",
+    "Do not restore verbose memory-node descriptions in the small node cards unless the card layout is redesigned to support longer copy.",
+    "Do not revert the DOM agent report copy back to reward-only; it is useful for both browser smoke and AI-agent access."
+  ],
+  "gitStatusAtHandoff": [
+    "Tracked modified files still include handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, src/main.ts, and src/style.css from the broader redesign branch.",
+    "Many redesign files remain untracked, including docs/CORE_MECHANICS_REDESIGN.md, docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, public/assets/music/lucid-field-theme.wav, public/assets/ui/characters/, vitest.config.ts, and prior handoff files.",
+    "No staging or commit was performed in this session."
+  ]
+}

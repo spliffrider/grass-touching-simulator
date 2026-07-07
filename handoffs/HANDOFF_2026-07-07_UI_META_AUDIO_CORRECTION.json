@@ -1,0 +1,63 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign UI, meta screen, and audio correction",
+  "currentUserGoal": "Respond to manual playtest feedback that the redesign still felt poor: wrong/old music, no real game-over/meta screen, tool buttons overlapping HUD text, and the run feed feeling like an obsolete leftover.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Converted docs/lucid.aif into a browser-safe WAV at public/assets/music/lucid-field-theme.wav using a local PCM conversion, downmixed to mono 22050 Hz to keep the asset around 8.3 MB.",
+    "Changed RedesignPrototypeScene to load and play redesign-lucid-theme instead of the old epic_menu_theme_mellow.wav.",
+    "Increased the prototype HUD height and moved Dew Pulse and Root Salve onto a dedicated tool row below the Run Touch readout, fixing the overlap seen in the user's screenshot.",
+    "Shortened the Run Touch HUD copy to RT/Earned/GT so it has less chance to collide with action buttons.",
+    "Hid the old Run Feed panel from the main play layout. Feed entries still exist internally, but the panel is no longer a player-facing surface.",
+    "Recast HP collapse as a full-screen Game Over: Dormancy meta screen with a dark backdrop, run summary, permanent GT gained, and visible skill tree memory buttons.",
+    "Changed dormant interaction so clicks inside the meta panel do not immediately restart the run; clicking outside the panel starts the next run.",
+    "Added feedPanelVisible and metaScreenVisible to the browser debug payload.",
+    "Updated CORE_MECHANICS_REDESIGN.md and CORE_MECHANICS_IMPLEMENTATION_PLAN.md with the UI/audio/meta corrections and smoke expectations."
+  ],
+  "filesTouched": [
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "public/assets/music/lucid-field-theme.wav",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-07_UI_META_AUDIO_CORRECTION.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the scene and audio changes: ESLint passed, Vitest passed with 2 files and 22 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory&fastDormancy&uiCorrectionSmoke=... confirmed the route booted and the first real root click woke the run.",
+    "Browser smoke confirmed no warn/error logs after the Lucid WAV started from a user click.",
+    "Browser smoke confirmed feedPanelVisible was false.",
+    "Browser smoke confirmed Dew Pulse and Root Salve shared a separated tool row at y=200 and no longer occupied the old Run Touch text row.",
+    "Browser smoke confirmed HP collapse reached phase dormant with metaScreenVisible and summaryVisible true.",
+    "Browser smoke confirmed memory upgrade buttons were visible on the meta screen.",
+    "Browser smoke confirmed clicking inside the meta panel kept the run dormant, while clicking outside the panel started the next run.",
+    "Browser warn/error logs were empty during the UI/meta/audio smoke."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/music/lucid-field-theme.wav, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "There is still no options/settings menu. The user called that out but accepted it as likely later work.",
+    "The meta screen is still an early prototype: only Soft Touch and Deeper Roots exist as memory buttons, not a proper full skill tree layout.",
+    "The Lucid track conversion is a pragmatic local WAV conversion, not a final mastered web audio pipeline.",
+    "The old game still exists on the default route and obsolete stress routes; use ?redesign for the new mechanics work.",
+    "The redesign route is more coherent after this slice, but it still is not a presentable game yet."
+  ],
+  "nextRecommendedSteps": [
+    "Manually play http://127.0.0.1:5173/?redesign&resetMemory and judge whether the new HUD row, hidden feed, Lucid music, and Game Over: Dormancy screen address the immediate playtest complaints.",
+    "Design the actual meta skill tree screen instead of the current two-button placeholder.",
+    "Add an options/settings surface after the main loop and meta loop feel stable, especially audio volume/mute now that the Lucid track is wired.",
+    "Decide whether a dedicated Begin Next Run button should replace the current click-outside-panel restart interaction.",
+    "If the corrected loop feels understandable, implement Tiny Sprinkler as the first true run-resetting automation."
+  ],
+  "doNotRevert": [
+    "Do not restore the old epic_menu_theme_mellow.wav on the redesign route unless the user explicitly asks.",
+    "Do not show the old Run Feed panel as a main play surface without a deliberate redesign.",
+    "Do not move run-tool buttons back onto the same row as Run Touch text.",
+    "Do not turn HP collapse back into a small overlay on top of active gameplay; the user wants a real game-over/meta screen.",
+    "Do not put Sensi back into the player profile/PFP panel in any viewport.",
+    "Do not use the obsolete ?stress route as evidence of redesign progress."
+  ]
+}

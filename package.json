@@ -6,6 +6,10 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "check": "npm run lint && npm run test && npm run build",
     "preview": "vite preview --host 127.0.0.1",
     "sync:mac:status": "node scripts/sync-mac-mini.mjs status",
     "sync:mac:handoff": "node scripts/sync-mac-mini.mjs handoff",
@@ -19,7 +23,12 @@
     "phaser": "^3.90.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.6.0",
+    "globals": "^17.7.0",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "typescript-eslint": "^8.63.0",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.10"
   }
 }

@@ -1,0 +1,56 @@
+{
+  "date": "2026-07-07",
+  "topic": "last-stand-recast",
+  "currentUserGoal": "Add the Last Stand mechanic to the redesign branch as a real meta-unlocked one-use revive per run.",
+  "summary": [
+    "Added Last Stand as a permanent upgrade id in the run spine, costing 32 permanent GT.",
+    "Last Stand now triggers automatically when active HP would hit zero, restores 35% of max HP, marks the revive as spent, and keeps the run active.",
+    "A second HP-zero event after Last Stand is spent enters real dormancy and awards permanent GT normally.",
+    "The per-run Last Stand spent flag resets through createNextRunFromDormancy while the permanent unlock persists.",
+    "Added scene VFX/copy/debug state for the revive: field pulse, HP bar flash, Sensi bark, feed entry, wound-pressure breathing reset, and prompt text after the revive is spent.",
+    "Expanded the meta screen from four visible nodes to five, with Last Stand as a centered bottom node.",
+    "Extended the DOM agent/readable layer with the Last Stand memory button label and state lines for owned/armed/spent/triggered-at."
+  ],
+  "filesTouched": [
+    "src/game/redesign/RunSpineSystem.ts",
+    "tests/RunSpineSystem.test.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "handoffs/HANDOFF_2026-07-07_LAST_STAND_RECAST.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run test: passed, 27 tests.",
+    "npm run build: passed.",
+    "npm run check: passed lint, tests, and build.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory&skipIntro&fastDormancy: earned 48 RT, reached dormancy with 58 GT, bought redesign-memory-lastStand, started the next run, confirmed lastStandOwned and lastStandAvailable.",
+    "Continuous browser smoke confirmed the armed run stayed active after first HP-zero with HP 35, lastStandUsed true, lastStandTriggeredAt > 0, metaScreenVisible false, and lastScourgeEvent last-stand.",
+    "Same smoke confirmed second HP-zero entered dormancy with runEnded true, summaryVisible true, metaScreenVisible true, and no warn/error console logs.",
+    "Browser was reset afterward to http://127.0.0.1:5173/?redesign&resetMemory&skipIntro."
+  ],
+  "currentGitStatusNotes": [
+    "The redesign worktree is intentionally dirty and many redesign files are still untracked, so git diff does not show changes inside untracked files.",
+    "Tracked modified files currently include handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, src/main.ts, and src/style.css.",
+    "Untracked redesign files include docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, public/assets/music/lucid-field-theme.wav, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, vitest.config.ts, and prior handoffs.",
+    "Do not revert unrelated dirty/untracked files; they are part of the ongoing redesign branch state."
+  ],
+  "knownIssues": [
+    "Last Stand is mechanically functional and tested, but the current prototype still needs broader tuning and visual polish before it feels presentable as a game.",
+    "The meta tree is still a compact early scaffold, not a full dependency graph.",
+    "Active-run saves still only persist permanent memory, not full in-run state."
+  ],
+  "nextRecommendedSteps": [
+    "Add an in-game Memory/Options affordance for inspecting unlocked Last Stand and other memory outside the game-over screen.",
+    "Tune early-run pacing now that Last Stand can extend a run once.",
+    "Consider a stronger Last Stand visual/audio signature if it becomes a centerpiece moment.",
+    "Commit the redesign files when the user is ready so the currently untracked prototype files become normal diffable code."
+  ],
+  "doNotRevert": [
+    "Do not remove the DOM agent layer; it is intentional for browser-agent accessibility and testing.",
+    "Do not restore the old canvas-only interaction model.",
+    "Do not remove the player/advisor split or the player-field-heir portrait.",
+    "Do not treat the old Grass Touching Simulator gameplay loop as the target behavior for this branch."
+  ]
+}

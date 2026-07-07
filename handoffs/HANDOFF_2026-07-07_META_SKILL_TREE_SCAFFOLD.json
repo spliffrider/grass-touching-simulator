@@ -1,0 +1,58 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign meta skill tree scaffold",
+  "currentUserGoal": "Continue updating the redesign after playtest feedback by making the post-run meta screen feel like a real progression screen.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Expanded the Game Over: Dormancy screen from a stretched summary card into a first-pass meta progression screen.",
+    "Added a run summary column and a separate Memory Skill Tree column.",
+    "Kept Soft Touch and Deeper Roots as the two functional memory nodes.",
+    "Added locked branch placeholders for Tiny Sprinkler and Scourge Sense so the screen reads as a skill tree direction rather than just two buttons.",
+    "Added an explicit Begin Next Run button.",
+    "Removed the old dormant click-anywhere/outside-panel restart path. Random meta-screen clicks now show guidance instead of restarting; only the explicit button starts the next run.",
+    "Added browser debug payload data for lockedMetaNodes and nextRunButton.",
+    "Updated CORE_MECHANICS_REDESIGN.md and CORE_MECHANICS_IMPLEMENTATION_PLAN.md with the current meta-screen behavior and smoke expectations."
+  ],
+  "filesTouched": [
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-07_META_SKILL_TREE_SCAFFOLD.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the meta screen changes: ESLint passed, Vitest passed with 2 files and 22 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory&fastDormancy&metaTreeSmoke=... confirmed the route booted and a real root click woke the run.",
+    "Browser smoke confirmed dormancy showed metaScreenVisible and summaryVisible.",
+    "Browser smoke confirmed two functional memory buttons and two locked branch nodes were visible.",
+    "Browser smoke confirmed the nextRunButton was visible and exposed usable bounds.",
+    "Browser smoke confirmed a random screen click did not restart the run.",
+    "Browser smoke clicked the explicit Begin Next Run button and confirmed the run returned to active with the meta screen hidden.",
+    "Browser warn/error logs were empty during the meta-tree smoke."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/music/lucid-field-theme.wav, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The skill tree is still a scaffold. Locked branch nodes are visual placeholders and do not have unlock logic yet.",
+    "Only Soft Touch and Deeper Roots are functional memory nodes.",
+    "There is still no options/settings menu.",
+    "The meta screen needs a proper designed tree model before adding many upgrades.",
+    "The old game still exists on the default route and obsolete stress routes; use ?redesign for the new mechanics work."
+  ],
+  "nextRecommendedSteps": [
+    "Manual-test the corrected normal-speed route and judge whether the explicit meta screen/next-run flow feels understandable.",
+    "Add a small options/settings surface, likely starting with music mute/volume, now that the Lucid track is wired.",
+    "Turn Tiny Sprinkler from locked placeholder into the first real automation branch unlock and run purchase.",
+    "Consider adding one cheap first memory node or lowering Soft Touch cost if early runs feel too empty before the player can buy anything."
+  ],
+  "doNotRevert": [
+    "Do not bring back click-anywhere meta restart unless the user explicitly asks.",
+    "Do not collapse the meta screen back into a small overlay on active gameplay.",
+    "Do not show the old Run Feed panel as a main play surface without a deliberate redesign.",
+    "Do not move run-tool buttons back onto the same row as Run Touch text.",
+    "Do not use the obsolete ?stress route as evidence of redesign progress."
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign fast dormancy full-loop smoke",
+  "currentUserGoal": "Keep iterating during halftime by proving the redesigned first-run loop can close cleanly: wound triage, dormancy payout, first memory purchase, and next-run reset.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added dormant-state browser debug data to RedesignPrototypeScene: summaryVisible, dormancySummary, and memoryUpgradeButtons with bounds, affordability, and ownership.",
+    "Tuned only the fastDormancy route after root recovery made the previous fast collapse too harsh: fast starting HP now has enough runway for tutorial wound triage, and fast wound timing opens the first wound sooner.",
+    "Verified the intended fast first loop: wake the field, expand to 2x2, earn Run Touches, expand to 3x3, heal the tutorial wound, expand to 5x5, enter dormancy, buy Soft Touch, and start the next run.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md with fast-loop smoke coverage and the expanded prototype debug payload."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-07_FAST_DORMANCY_LOOP.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the fastDormancy/debug changes: ESLint passed, Vitest passed with 2 files and 19 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&fastDormancy&resetMemory first exposed that the old fastDormancy tuning could collapse at 10 GT before Soft Touch, then exposed that skipping wound triage can leave the objective chain at stabilizeWound. This was treated as useful pacing/flow feedback, not ignored.",
+    "After tuning, browser smoke completed the intended first loop using reported root and button hitboxes: touch 1 woke the field, touch 7 reached stabilizeWound/3x3, touch 8 healed the tutorial wound and opened 5x5, dormancy paid out 22 permanent GT, Soft Touch purchase persisted with 10 GT remaining, and the next run started active with runTouches 0, totalRunTouchesEarned 0, and Soft Touch preserved.",
+    "Browser warn/error logs were empty during the fast-loop smoke."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update still has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/sensi-pixel-portrait.png, src/game/redesign/RunSpineSystem.ts, src/game/redesign/FirstRunObjectiveSystem.ts, src/game/scenes/RedesignPrototypeScene.ts, tests/RunSpineSystem.test.ts, tests/FirstRunObjectiveSystem.test.ts, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked files remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "fastDormancy is now a useful verification route, not real balance. It can still collapse an unattended next run very quickly after restart.",
+    "If a player dies before healing the tutorial wound, they can still buy memory, but the objective chain remains at stabilizeWound. Decide later whether this is acceptable failure/retry behavior or needs a catch-up objective rule.",
+    "Root recovery currently lives in RedesignPrototypeScene only. If recovery becomes core balance, move the rule into a pure new-canon system with unit tests.",
+    "The prototype still needs a more authored Sensi intro sequence; current intro copy lives in the HUD/side panel rather than a deliberate dialogue beat.",
+    "The player portrait is still a placeholder Grass Toucher icon, not a custom player avatar.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress."
+  ],
+  "nextRecommendedSteps": [
+    "Play through the normal-speed ?redesign route manually to judge first-run pacing without the fastDormancy harness.",
+    "Add a small authored Sensi dialogue layer before or around the first tile touch.",
+    "Replace the player PFP placeholder with a new-canon player avatar while keeping Sensi as advisor/NPC.",
+    "Decide whether dying before tutorial wound triage should keep the objective chain blocked or transition to a recovery lesson.",
+    "Start recasting the first in-run tool or automation only after the normal-speed loop feels readable end to end."
+  ],
+  "doNotRevert": [
+    "Do not remove the browser debug summary/button/root fields without replacing the full-loop smoke path.",
+    "Do not return fastDormancy to a collapse so fast that the tutorial wound cannot be healed in guided smoke.",
+    "Do not return redesign manual healing to broad canvas/proximity clicks.",
+    "Do not remove the intro pause and return to immediate Scourge drain on fresh runs.",
+    "Do not replace the new objective-driven first-run flow with the old quest system.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

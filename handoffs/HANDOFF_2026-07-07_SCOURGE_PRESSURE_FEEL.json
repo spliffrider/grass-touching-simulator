@@ -1,0 +1,54 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign Scourge pressure feel",
+  "currentUserGoal": "Keep iterating the clean-break redesign by making Scourge pressure, wound openings, and dormancy collapse feel like visible threat beats instead of only numbers changing.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added Scourge presentation/debug state to RedesignPrototypeScene: lastScourgeEvent, lastScourgePulseAt, lastScourgePressureWaveAt, lastWoundPressureWarningAt, lastDormancyCollapseAt, woundPressureWarned, and woundPressureRatio.",
+    "Added a one-shot pressure-warning wave that fires shortly before timed wound pressure opens a root.",
+    "Added a wound-open pressure wave and Scourge strike line into the target root so wound openings feel caused by pressure.",
+    "Added a small HUD pressure spark to Scourge HP drain ticks.",
+    "Strengthened dormancy collapse with a larger Scourge pressure wave and debug marker.",
+    "Reset Scourge feedback/debug markers when starting a fresh run so next-loop smoke state does not inherit stale collapse markers.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md with Scourge pressure feedback behavior and smoke expectations."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-07_SCOURGE_PRESSURE_FEEL.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the Scourge feedback changes: ESLint passed, Vitest passed with 2 files and 19 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory&fastDormancy&scourgeSmoke=... reached the 3x3 wound lesson with real root-hitbox clicks.",
+    "Browser smoke confirmed a wound-open Scourge event with a visible wound marker and no browser warn/error logs.",
+    "Browser smoke confirmed dormancy collapse with phase dormant, lastScourgeEvent dormancy-collapse, lastDormancyCollapseAt > 0, summaryVisible true, and no browser warn/error logs.",
+    "A second browser smoke confirmed lastWoundPressureWarningAt fired before or at the wound-open pressure wave timestamp, then wound-open and dormancy-collapse events were both reported."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "Scourge pressure feedback is presentational only; it does not alter drain, wound timing, wound selection, healing, rewards, dormancy math, or hitboxes.",
+    "The pressure warning wave is intentionally brief. Browser smoke should use lastWoundPressureWarningAt rather than relying on catching the exact animation frame visually.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress.",
+    "The Vite dev server may still be running in the background from browser verification."
+  ],
+  "nextRecommendedSteps": [
+    "Play through the normal-speed ?redesign route manually and judge first-run pacing without fastDormancy.",
+    "Continue first-run feel work with stronger root idle polish or clearer normal-speed wound-pressure pacing.",
+    "Decide whether dying before tutorial wound triage should keep the objective chain blocked or transition to a recovery lesson.",
+    "After the first-run feel is readable, choose the first recast in-run tool or automation instead of porting old systems wholesale."
+  ],
+  "doNotRevert": [
+    "Do not remove the Scourge pressure warning/wound/collapse feedback without replacing it with an equally clear threat-readability layer.",
+    "Do not turn Scourge pressure feedback into a gameplay rule; it is presentational only for now.",
+    "Do not put Sensi back into the player profile/PFP panel in any viewport.",
+    "Do not replace the Field Heir portrait with the old hand-on-grass class icon unless a better dedicated player portrait is added.",
+    "Do not return redesign manual healing to broad canvas/proximity clicks.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

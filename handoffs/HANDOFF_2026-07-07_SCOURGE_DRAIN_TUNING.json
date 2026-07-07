@@ -1,0 +1,33 @@
+{
+  "date": "2026-07-07",
+  "topic": "scourge-drain-tuning",
+  "currentUserGoal": "Respond to playtest feedback that normal HP drain felt too slow in the redesign prototype.",
+  "summary": [
+    "Raised normal-route Scourge drain from 0.85 to 1.45 HP/sec at baseline pressure.",
+    "Raised normal-route Scourge pressure growth from 0.018 to 0.035 per second.",
+    "Pulled fast-dormancy drain values into named constants and left fastDormancy behavior unchanged."
+  ],
+  "filesTouched": [
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-07_SCOURGE_DRAIN_TUNING.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed: lint, 27 tests, and build.",
+    "Browser no-input smoke on normal ?redesign&resetMemory&skipIntro collapsed in 33 seconds.",
+    "Smoke samples: 70.1 HP at 5s, 59.9 HP at 10s, 50.1 HP at 15s, 36.9 HP at 20s, 27.2 HP at 25s, 11.2 HP at 30s, dormant at 33s.",
+    "Browser was reset to http://127.0.0.1:5173/?redesign&resetMemory&skipIntro afterward."
+  ],
+  "knownIssues": [
+    "This is a first tuning pass. Hands-on play with real root touches may still need another pacing adjustment.",
+    "The normal route now has a good no-input failure window, but reward pace and wound timing still need full playtest tuning."
+  ],
+  "nextRecommendedSteps": [
+    "Play one active run with real touching and tune around time-to-first-dormancy with useful healing.",
+    "If active play still drags, consider raising wound pressure or lowering root recovery rather than only increasing global drain."
+  ],
+  "doNotRevert": [
+    "Do not restore the old 0.85/0.018 normal Scourge values unless intentionally returning to slow inspection mode.",
+    "Keep fastDormancy as the separate smoke-test pacing route."
+  ]
+}

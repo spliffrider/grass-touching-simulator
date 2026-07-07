@@ -1,0 +1,530 @@
+import type { PermanentUpgradeId } from "./RunSpineSystem";
+
+export interface RedesignDomRootNode {
+  rootId: number;
+  x: number;
+  y: number;
+  visualSize: number;
+  wounded: boolean;
+  recovering: boolean;
+  recoveryRatio: number;
+  scourgeSenseTarget: boolean;
+  scourgeSenseMarkerVisible: boolean;
+}
+
+export interface RedesignDomMemoryButton {
+  upgradeId: PermanentUpgradeId;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visible: boolean;
+  affordable: boolean;
+  owned: boolean;
+}
+
+export interface RedesignDomLockedMetaNode {
+  title: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visible: boolean;
+}
+
+export interface RedesignDomNextRunButton {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visible: boolean;
+}
+
+export interface RedesignDomRunToolButton {
+  toolId: "dewPulse" | "rootSalve" | "tinySprinkler";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visible: boolean;
+  usable: boolean;
+  affordable: boolean;
+}
+
+export interface RedesignDomButtonBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visible: boolean;
+  enabled: boolean;
+}
+
+export interface RedesignDomSliderBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visible: boolean;
+  value: number;
+}
+
+export interface RedesignDomOptionsState {
+  visible: boolean;
+  musicEnabled: boolean;
+  musicVolume: number;
+  openButton: RedesignDomButtonBounds;
+  closeButton: RedesignDomButtonBounds;
+  musicOnButton: RedesignDomButtonBounds;
+  musicOffButton: RedesignDomButtonBounds;
+  musicVolumeSlider: RedesignDomSliderBounds;
+}
+
+export interface RedesignDomSnapshot {
+  phase: "active" | "dormant";
+  runEnded: boolean;
+  ancientHp: number;
+  ancientMaxHp: number;
+  runTouches: number;
+  totalRunTouchesEarned: number;
+  permanentGrassTouches: number;
+  permanentUpgrades: PermanentUpgradeId[];
+  tinySprinklers: number;
+  scourgeSenseOwned: boolean;
+  scourgeSenseTargetRootId: number | null;
+  scourgeSenseWarningVisible: boolean;
+  lastStandOwned: boolean;
+  lastStandAvailable: boolean;
+  lastStandUsed: boolean;
+  lastStandTriggeredAt: number;
+  woundPressureRatio: number;
+  activeObjectiveId: string | null;
+  roots: RedesignDomRootNode[];
+  introActive: boolean;
+  playerPanelTitle: string;
+  playerPanelBody: string;
+  advisorPanelBody: string;
+  objectiveText: string;
+  promptText: string;
+  metaScreenVisible: boolean;
+  summaryVisible: boolean;
+  dormancyRewardLine: string;
+  dormancyReportLines: string[];
+  dormancyActionHint: string;
+  memoryUpgradeButtons: RedesignDomMemoryButton[];
+  lockedMetaNodes: RedesignDomLockedMetaNode[];
+  nextRunButton: RedesignDomNextRunButton;
+  runToolButtons: RedesignDomRunToolButton[];
+  options: RedesignDomOptionsState;
+}
+
+interface RedesignDomActions {
+  touchRoot(rootId: number): void;
+  useDewPulse(): void;
+  useRootSalve(): void;
+  useTinySprinkler(): void;
+  purchaseMemory(upgradeId: PermanentUpgradeId): void;
+  beginNextRun(): void;
+  openOptions(): void;
+  closeOptions(): void;
+  turnMusicOn(): void;
+  turnMusicOff(): void;
+  setMusicVolume(volume: number): void;
+}
+
+const MEMORY_NODE_LABELS: Record<PermanentUpgradeId, string> = {
+  softTouch: "Soft Touch",
+  deeperRoots: "Deeper Roots",
+  tinySprinkler: "Tiny Sprinkler",
+  scourgeSense: "Scourge Sense",
+  lastStand: "Last Stand",
+};
+
+const RUN_TOOL_LABELS: Record<RedesignDomRunToolButton["toolId"], string> = {
+  dewPulse: "Dew Pulse",
+  rootSalve: "Root Salve",
+  tinySprinkler: "Tiny Sprinkler",
+};
+
+export class RedesignDomBridge {
+  private readonly layer: HTMLElement;
+  private readonly readable: HTMLElement;
+  private readonly dormancyReport: HTMLElement;
+  private readonly rootButtons = new Map<number, HTMLButtonElement>();
+  private readonly memoryButtons = new Map<PermanentUpgradeId, HTMLButtonElement>();
+  private readonly lockedNodeButtons = new Map<string, HTMLButtonElement>();
+  private readonly runToolButtons: Record<RedesignDomRunToolButton["toolId"], HTMLButtonElement>;
+  private readonly nextRunButton: HTMLButtonElement;
+  private readonly optionsButton: HTMLButtonElement;
+  private readonly optionsCloseButton: HTMLButtonElement;
+  private readonly musicToggleButton: HTMLButtonElement;
+  private readonly musicVolumeRange: HTMLInputElement;
+  private musicToggleAction: "turn-on" | "turn-off" = "turn-off";
+
+  constructor(private readonly actions: RedesignDomActions) {
+    document.getElementById("grass-agent-layer")?.remove();
+    this.layer = document.createElement("section");
+    this.layer.id = "grass-agent-layer";
+    this.layer.className = "grass-agent-layer";
+    this.layer.setAttribute("aria-label", "Grass Touching Simulator agent controls");
+    this.layer.dataset.testid = "redesign-dom-agent-layer";
+
+    this.readable = document.createElement("output");
+    this.readable.className = "grass-agent-readable";
+    this.readable.dataset.testid = "redesign-readable-state";
+    this.readable.setAttribute("aria-live", "polite");
+    this.layer.append(this.readable);
+
+    this.dormancyReport = document.createElement("output");
+    this.dormancyReport.className = "grass-agent-dormancy-report";
+    this.dormancyReport.dataset.testid = "redesign-dormancy-report";
+    this.dormancyReport.setAttribute("aria-live", "polite");
+    this.layer.append(this.dormancyReport);
+
+    this.runToolButtons = {
+      dewPulse: this.createButton("redesign-dew-pulse-button", "Dew Pulse", () => this.actions.useDewPulse()),
+      rootSalve: this.createButton("redesign-root-salve-button", "Root Salve", () => this.actions.useRootSalve()),
+      tinySprinkler: this.createButton("redesign-tiny-sprinkler-button", "Tiny Sprinkler", () => this.actions.useTinySprinkler()),
+    };
+    this.nextRunButton = this.createButton("redesign-begin-next-run-button", "Begin Next Run", () => this.actions.beginNextRun());
+    this.nextRunButton.classList.add("grass-agent-meta-action");
+    this.optionsButton = this.createButton("redesign-options-button", "Options", () => this.actions.openOptions());
+    this.optionsButton.classList.add("grass-agent-options-button");
+    this.optionsCloseButton = this.createButton("redesign-options-close-button", "Close Options", () => this.actions.closeOptions());
+    this.optionsCloseButton.classList.add("grass-agent-options-control");
+    this.musicToggleButton = this.createButton("redesign-music-off-button", "Turn Music Off", () => {
+      if (this.musicToggleAction === "turn-on") {
+        this.actions.turnMusicOn();
+        return;
+      }
+
+      this.actions.turnMusicOff();
+    });
+    this.musicToggleButton.classList.add("grass-agent-options-control");
+    this.musicVolumeRange = this.createRange("redesign-music-volume-range", "Music volume", (volume) => this.actions.setMusicVolume(volume));
+
+    document.body.append(this.layer);
+    document.documentElement.dataset.grassAgentDom = "ready";
+  }
+
+  destroy(): void {
+    this.layer.remove();
+    delete document.documentElement.dataset.grassAgentDom;
+  }
+
+  render(snapshot: RedesignDomSnapshot): void {
+    this.layer.dataset.phase = snapshot.phase;
+    this.layer.dataset.runEnded = String(snapshot.runEnded);
+    this.layer.dataset.objective = snapshot.activeObjectiveId ?? "";
+    this.layer.dataset.metaScreenVisible = String(snapshot.metaScreenVisible);
+    this.layer.dataset.summaryVisible = String(snapshot.summaryVisible);
+    this.renderReadableState(snapshot);
+    this.renderDormancyReport(snapshot);
+    this.renderRootButtons(snapshot);
+    this.renderRunToolButtons(snapshot);
+    this.renderMemoryButtons(snapshot);
+    this.renderLockedNodes(snapshot);
+    this.renderNextRunButton(snapshot);
+    this.renderOptions(snapshot);
+  }
+
+  private createButton(testId: string, label: string, onClick: () => void): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "grass-agent-button";
+    button.dataset.testid = testId;
+    button.textContent = label;
+    button.setAttribute("aria-label", label);
+    const activate = (now = Date.now()) => {
+      button.dataset.lastPointerActivationAt = String(now);
+      onClick();
+    };
+    const activateFromPointer = () => {
+      const now = Date.now();
+      const lastPointerActivationAt = Number(button.dataset.lastPointerActivationAt ?? 0);
+      if (now - lastPointerActivationAt < 80) {
+        return;
+      }
+      activate(now);
+    };
+    const handlePointerActivation = (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      activateFromPointer();
+    };
+    button.addEventListener("pointerdown", handlePointerActivation);
+    button.addEventListener("mousedown", handlePointerActivation);
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const lastPointerActivationAt = Number(button.dataset.lastPointerActivationAt ?? 0);
+      if (Date.now() - lastPointerActivationAt < 350) {
+        return;
+      }
+      activate();
+    });
+    this.layer.append(button);
+    return button;
+  }
+
+  private createRange(testId: string, label: string, onInput: (value: number) => void): HTMLInputElement {
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = "0";
+    input.max = "100";
+    input.step = "1";
+    input.className = "grass-agent-range";
+    input.dataset.testid = testId;
+    input.setAttribute("aria-label", label);
+    input.addEventListener("input", () => {
+      onInput(Number(input.value) / 100);
+    });
+    this.layer.append(input);
+    return input;
+  }
+
+  private renderReadableState(snapshot: RedesignDomSnapshot): void {
+    this.readable.textContent = [
+      "Grass Touching Simulator redesign DOM interface",
+      `Phase: ${snapshot.phase}`,
+      `Objective: ${snapshot.objectiveText}`,
+      `Prompt: ${snapshot.promptText}`,
+      `Ancient HP: ${snapshot.ancientHp.toFixed(1)} / ${snapshot.ancientMaxHp}`,
+      `Run Touches: ${snapshot.runTouches}`,
+      `Total Run Touches earned: ${snapshot.totalRunTouchesEarned}`,
+      `Permanent GT: ${snapshot.permanentGrassTouches}`,
+      `Tiny Sprinklers: ${snapshot.tinySprinklers}`,
+      `Scourge Sense: ${snapshot.scourgeSenseOwned ? "owned" : "locked"}`,
+      `Last Stand: ${snapshot.lastStandOwned ? snapshot.lastStandAvailable ? "armed" : snapshot.lastStandUsed ? "spent" : "owned" : "locked"}`,
+      `Last Stand triggered at: ${snapshot.lastStandTriggeredAt}`,
+      `Wound pressure: ${Math.round(snapshot.woundPressureRatio * 100)}%`,
+      `Scourge Sense target: ${snapshot.scourgeSenseTargetRootId === null ? "none" : `root ${snapshot.scourgeSenseTargetRootId + 1}`}`,
+      `Scourge Sense warning visible: ${snapshot.scourgeSenseWarningVisible}`,
+      `Player: ${snapshot.playerPanelTitle} - ${snapshot.playerPanelBody.replace(/\n/g, " ")}`,
+      `Advisor: ${snapshot.advisorPanelBody.replace(/\n/g, " ")}`,
+      `Meta screen visible: ${snapshot.metaScreenVisible}`,
+      `Run ended: ${snapshot.runEnded}`,
+      `Dormancy reward: ${snapshot.dormancyRewardLine}`,
+      `Dormancy report: ${snapshot.dormancyReportLines.join(" | ")}`,
+      `Dormancy action: ${snapshot.dormancyActionHint}`,
+      `Options visible: ${snapshot.options.visible}`,
+      `Music: ${snapshot.options.musicEnabled ? "on" : "off"} at ${Math.round(snapshot.options.musicVolume * 100)}%`,
+    ].join("\n");
+  }
+
+  private renderDormancyReport(snapshot: RedesignDomSnapshot): void {
+    this.dormancyReport.hidden = !snapshot.summaryVisible;
+    this.dormancyReport.textContent = [
+      "Game Over: Dormancy",
+      snapshot.dormancyRewardLine,
+      ...snapshot.dormancyReportLines,
+      snapshot.dormancyActionHint,
+    ].filter(Boolean).join("\n");
+  }
+
+  private renderRootButtons(snapshot: RedesignDomSnapshot): void {
+    const activeRootIds = new Set(snapshot.roots.map((root) => root.rootId));
+    for (const [rootId, button] of this.rootButtons) {
+      if (!activeRootIds.has(rootId)) {
+        button.remove();
+        this.rootButtons.delete(rootId);
+      }
+    }
+
+    for (const root of snapshot.roots) {
+      const button = this.getRootButton(root.rootId);
+      const label = `${root.wounded ? "Heal wounded" : "Touch"} root ${root.rootId + 1}`;
+      button.textContent = label;
+      button.setAttribute("aria-label", label);
+      button.dataset.wounded = String(root.wounded);
+      button.dataset.recovering = String(root.recovering);
+      button.dataset.recoveryRatio = String(root.recoveryRatio);
+      button.dataset.scourgeSenseTarget = String(root.scourgeSenseTarget);
+      button.dataset.scourgeSenseMarkerVisible = String(root.scourgeSenseMarkerVisible);
+      button.disabled = snapshot.phase !== "active" || (!root.wounded && root.recovering);
+      this.positionButton(button, root.x, root.y, root.visualSize, root.visualSize, snapshot.phase === "active");
+    }
+  }
+
+  private getRootButton(rootId: number): HTMLButtonElement {
+    const existing = this.rootButtons.get(rootId);
+    if (existing) {
+      return existing;
+    }
+
+    const button = this.createButton(`redesign-root-${rootId}`, `Touch root ${rootId + 1}`, () => this.actions.touchRoot(rootId));
+    button.classList.add("grass-agent-root-button");
+    button.dataset.rootId = String(rootId);
+    this.rootButtons.set(rootId, button);
+    return button;
+  }
+
+  private renderRunToolButtons(snapshot: RedesignDomSnapshot): void {
+    for (const tool of snapshot.runToolButtons) {
+      const button = this.runToolButtons[tool.toolId];
+      const label = RUN_TOOL_LABELS[tool.toolId];
+      button.textContent = `${label}${tool.affordable ? "" : " unavailable"}`;
+      button.setAttribute("aria-label", label);
+      button.dataset.affordable = String(tool.affordable);
+      button.dataset.usable = String(tool.usable);
+      button.disabled = !tool.usable;
+      this.positionButton(button, tool.x, tool.y, tool.width, tool.height, tool.visible);
+    }
+  }
+
+  private renderMemoryButtons(snapshot: RedesignDomSnapshot): void {
+    const visibleUpgradeIds = new Set(snapshot.memoryUpgradeButtons.map((button) => button.upgradeId));
+    for (const [upgradeId, button] of this.memoryButtons) {
+      if (!visibleUpgradeIds.has(upgradeId)) {
+        button.remove();
+        this.memoryButtons.delete(upgradeId);
+      }
+    }
+
+    for (const memoryButton of snapshot.memoryUpgradeButtons) {
+      const button = this.getMemoryButton(memoryButton.upgradeId);
+      const label = MEMORY_NODE_LABELS[memoryButton.upgradeId];
+      button.textContent = `${label}${memoryButton.owned ? " owned" : memoryButton.affordable ? " affordable" : " locked"}`;
+      button.setAttribute("aria-label", `${label} memory node`);
+      button.dataset.affordable = String(memoryButton.affordable);
+      button.dataset.owned = String(memoryButton.owned);
+      button.disabled = !memoryButton.visible || memoryButton.owned || !memoryButton.affordable;
+      this.positionButton(button, memoryButton.x, memoryButton.y, memoryButton.width, memoryButton.height, memoryButton.visible && snapshot.metaScreenVisible);
+    }
+  }
+
+  private getMemoryButton(upgradeId: PermanentUpgradeId): HTMLButtonElement {
+    const existing = this.memoryButtons.get(upgradeId);
+    if (existing) {
+      return existing;
+    }
+
+    const button = this.createButton(`redesign-memory-${upgradeId}`, MEMORY_NODE_LABELS[upgradeId], () => this.actions.purchaseMemory(upgradeId));
+    button.classList.add("grass-agent-memory-button");
+    button.dataset.upgradeId = upgradeId;
+    this.memoryButtons.set(upgradeId, button);
+    return button;
+  }
+
+  private renderLockedNodes(snapshot: RedesignDomSnapshot): void {
+    const visibleTitles = new Set(snapshot.lockedMetaNodes.map((node) => node.title));
+    for (const [title, button] of this.lockedNodeButtons) {
+      if (!visibleTitles.has(title)) {
+        button.remove();
+        this.lockedNodeButtons.delete(title);
+      }
+    }
+
+    for (const node of snapshot.lockedMetaNodes) {
+      const button = this.getLockedNodeButton(node.title);
+      button.textContent = `${node.title} locked`;
+      button.setAttribute("aria-label", `${node.title} locked branch`);
+      button.disabled = true;
+      this.positionButton(button, node.x, node.y, node.width, node.height, node.visible && snapshot.metaScreenVisible);
+    }
+  }
+
+  private getLockedNodeButton(title: string): HTMLButtonElement {
+    const existing = this.lockedNodeButtons.get(title);
+    if (existing) {
+      return existing;
+    }
+
+    const button = this.createButton(`redesign-locked-${toTestIdSlug(title)}`, `${title} locked`, () => undefined);
+    button.classList.add("grass-agent-locked-node");
+    this.lockedNodeButtons.set(title, button);
+    return button;
+  }
+
+  private renderNextRunButton(snapshot: RedesignDomSnapshot): void {
+    this.nextRunButton.disabled = !snapshot.nextRunButton.visible || !snapshot.metaScreenVisible;
+    this.positionButton(
+      this.nextRunButton,
+      snapshot.nextRunButton.x,
+      snapshot.nextRunButton.y,
+      snapshot.nextRunButton.width,
+      snapshot.nextRunButton.height,
+      snapshot.nextRunButton.visible && snapshot.metaScreenVisible,
+    );
+  }
+
+  private renderOptions(snapshot: RedesignDomSnapshot): void {
+    this.layer.dataset.optionsVisible = String(snapshot.options.visible);
+    this.optionsButton.disabled = !snapshot.options.openButton.enabled;
+    this.positionButton(
+      this.optionsButton,
+      snapshot.options.openButton.x,
+      snapshot.options.openButton.y,
+      snapshot.options.openButton.width,
+      snapshot.options.openButton.height,
+      snapshot.options.openButton.visible,
+    );
+
+    this.optionsCloseButton.disabled = !snapshot.options.closeButton.enabled;
+    this.positionButton(
+      this.optionsCloseButton,
+      snapshot.options.closeButton.x,
+      snapshot.options.closeButton.y,
+      snapshot.options.closeButton.width,
+      snapshot.options.closeButton.height,
+      snapshot.options.closeButton.visible,
+    );
+
+    const musicToggleBounds = snapshot.options.musicEnabled ? snapshot.options.musicOffButton : snapshot.options.musicOnButton;
+    const musicToggleLabel = snapshot.options.musicEnabled ? "Turn Music Off" : "Turn Music On";
+    this.musicToggleAction = snapshot.options.musicEnabled ? "turn-off" : "turn-on";
+    this.musicToggleButton.dataset.testid = snapshot.options.musicEnabled ? "redesign-music-off-button" : "redesign-music-on-button";
+    this.musicToggleButton.dataset.musicEnabled = String(snapshot.options.musicEnabled);
+    this.musicToggleButton.textContent = musicToggleLabel;
+    this.musicToggleButton.setAttribute("aria-label", musicToggleLabel);
+    this.musicToggleButton.disabled = !musicToggleBounds.enabled;
+    this.positionButton(
+      this.musicToggleButton,
+      musicToggleBounds.x,
+      musicToggleBounds.y,
+      musicToggleBounds.width,
+      musicToggleBounds.height,
+      musicToggleBounds.visible,
+    );
+
+    this.musicVolumeRange.value = String(Math.round(snapshot.options.musicVolume * 100));
+    this.musicVolumeRange.dataset.musicVolume = String(snapshot.options.musicVolume);
+    this.musicVolumeRange.disabled = !snapshot.options.visible;
+    this.positionRange(
+      this.musicVolumeRange,
+      snapshot.options.musicVolumeSlider.x,
+      snapshot.options.musicVolumeSlider.y,
+      snapshot.options.musicVolumeSlider.width,
+      snapshot.options.musicVolumeSlider.height,
+      snapshot.options.musicVolumeSlider.visible,
+    );
+  }
+
+  private positionButton(button: HTMLButtonElement, x: number, y: number, width: number, height: number, visible: boolean): void {
+    button.hidden = !visible;
+    if (!visible) {
+      return;
+    }
+
+    button.style.left = `${Math.round(x - width / 2)}px`;
+    button.style.top = `${Math.round(y - height / 2)}px`;
+    button.style.width = `${Math.round(width)}px`;
+    button.style.height = `${Math.round(height)}px`;
+  }
+
+  private positionRange(input: HTMLInputElement, x: number, y: number, width: number, height: number, visible: boolean): void {
+    input.hidden = !visible;
+    if (!visible) {
+      return;
+    }
+
+    input.style.left = `${Math.round(x - width / 2)}px`;
+    input.style.top = `${Math.round(y - height / 2)}px`;
+    input.style.width = `${Math.round(width)}px`;
+    input.style.height = `${Math.round(height)}px`;
+  }
+}
+
+function toTestIdSlug(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}

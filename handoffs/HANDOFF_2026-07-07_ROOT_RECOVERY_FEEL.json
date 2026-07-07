@@ -1,0 +1,59 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign root recovery and wound-message feel",
+  "currentUserGoal": "Keep iterating the clean-break redesign after the first wound smoke by making manual root touches feel more like game interactions and reducing post-triage wound-message noise.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added scene-level recovery state to each RedesignPrototypeScene root node: recoveringUntil and lastTouchAt.",
+    "Normal roots now enter a short recovery after valid touches. Immediate repeat clicks on a recovering normal root give feedback and do not award HP, Run Touches, or objective progress.",
+    "Wounded roots remain immediately touchable so triage can override recovery timing.",
+    "Added stronger touch feedback: impact rings, stronger grass pulse/squash, tint/alpha recovery visuals, recovery-reject shake, and missed-root shake.",
+    "Extended browser debug root payload with recovering flags for smoke verification.",
+    "Tuned post-triage wound messaging: after the stabilizeWound objective, new wounds are treated as ongoing pressure, Sensi copy stays shorter, bottom prompt supports the dormancy objective, and feed entries are throttled to pressure milestones.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md with root recovery and calmer post-triage wound messaging notes."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-07_ROOT_RECOVERY_FEEL.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the recovery/messaging slice: ESLint passed, Vitest passed with 2 files and 19 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory confirmed the first valid root click wakes the run, expands to 2x2, and marks the touched root recovering.",
+    "Browser smoke immediately clicked the same recovering normal root and confirmed totalRunTouchesEarned stayed unchanged at 4.",
+    "Browser smoke waited for recovery, clicked the same root again, and confirmed totalRunTouchesEarned increased from 4 to 5.",
+    "Browser smoke replayed the first-wound path under recovery timing and confirmed activeObjectiveId advanced to completeDormancy with activeRootCount 25 / activeGridSize 5.",
+    "Browser visual smoke waited for post-triage wounds and confirmed the UI now uses Pressure remains copy while keeping the Reach Dormancy objective active.",
+    "Browser warn/error logs were empty during recovery and post-triage smoke checks."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update still has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/sensi-pixel-portrait.png, src/game/redesign/RunSpineSystem.ts, src/game/redesign/FirstRunObjectiveSystem.ts, src/game/scenes/RedesignPrototypeScene.ts, tests/RunSpineSystem.test.ts, tests/FirstRunObjectiveSystem.test.ts, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked files remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "Root recovery currently lives in RedesignPrototypeScene only. If recovery becomes core balance, move the rule into a pure new-canon system with unit tests.",
+    "The touch animation is improved but still prototype-level; recovery could use clearer ready-state art or a tiny progress glint.",
+    "Post-triage wounds are calmer, but the pressure cadence still needs playtesting once dormancy pacing is tuned.",
+    "The prototype still needs a more authored Sensi intro sequence; current intro copy lives in the HUD/side panel rather than a deliberate dialogue beat.",
+    "The player portrait is still a placeholder Grass Toucher icon, not a custom player avatar.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress."
+  ],
+  "nextRecommendedSteps": [
+    "Tune dormancy pacing now that the manual touch loop has recovery; fastDormancy can help verify the summary and next-run loop.",
+    "Move recovery into a pure system if it starts driving balance rather than presentation.",
+    "Add a small authored Sensi dialogue layer before or around the first tile touch.",
+    "Replace the player PFP placeholder with a new-canon player avatar while keeping Sensi as advisor/NPC.",
+    "Start recasting the first in-run tool or automation only after the run/dormancy loop feels readable end to end."
+  ],
+  "doNotRevert": [
+    "Do not remove root hitbox/wound/recovery debug data without replacing the browser smoke path.",
+    "Do not return redesign manual healing to broad canvas/proximity clicks.",
+    "Do not remove the intro pause and return to immediate Scourge drain on fresh runs.",
+    "Do not replace the new objective-driven first-run flow with the old quest system.",
+    "Do not return the redesign prototype to a full 5x5 field at run start.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

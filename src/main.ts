@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { GameScene } from "./game/scenes/GameScene";
+import { RedesignPrototypeScene } from "./game/scenes/RedesignPrototypeScene";
 import { TitleScene } from "./game/scenes/TitleScene";
 import "./style.css";
 
@@ -42,6 +43,8 @@ function syncViewportCss(viewport: ViewportSize): void {
 syncViewportCss(initialViewport);
 const bootStartedAt = performance.now();
 document.documentElement.dataset.grassBootStarted = `${Math.round(bootStartedAt)}`;
+const routeParams = new URLSearchParams(window.location.search);
+const useRedesignPrototype = routeParams.has("redesign") || routeParams.has("newRun");
 
 let appReadyMarked = false;
 window.__grassAppReady = () => {
@@ -69,7 +72,7 @@ const config: Phaser.Types.Core.GameConfig = {
     antialias: false,
     roundPixels: true,
   },
-  scene: [TitleScene, GameScene],
+  scene: useRedesignPrototype ? [RedesignPrototypeScene] : [TitleScene, GameScene],
 };
 
 const game = new Phaser.Game(config);

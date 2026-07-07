@@ -1,0 +1,59 @@
+{
+  "date": "2026-07-07",
+  "topic": "Tiny Sprinkler recast",
+  "currentUserGoal": "Keep pushing the redesign toward a playable loop by turning the first automation branch into real new-canon gameplay.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added Tiny Sprinkler as a real permanent Memory node instead of a locked placeholder.",
+    "Added run-spine automation state with run-owned tinySprinklers count that resets between runs while the permanent Tiny Sprinkler license persists.",
+    "Added buyTinySprinkler with license, phase, and Run Touch cost checks. Current run cost is 16 RT.",
+    "Added applyTinySprinklerPulse. Each pulse heals 2 HP per run-owned sprinkler, awards Run Touches only from effective missing-HP healing, contributes to dormancy payout only through effective healing, and can clear one targeted wound.",
+    "Updated the meta skill tree layout to show Soft Touch and Deeper Roots on the top row, Tiny Sprinkler on the bottom-left branch node, and Scourge Sense as the remaining locked bottom-right placeholder.",
+    "Added a Tiny Sprinkler run-tool button that appears only after the permanent license is owned.",
+    "Added automatic sprinkler pulses in the prototype scene, with wounded-root priority, small water/halo feedback, and browser debug fields for tinySprinklers, lastTinySprinklerPulseAt, and lastTinySprinklerRootId.",
+    "Exposed Tiny Sprinkler through the DOM agent layer as redesign-memory-tinySprinkler and redesign-tiny-sprinkler-button, plus readable Tiny Sprinklers state.",
+    "Updated CORE_MECHANICS_REDESIGN.md and CORE_MECHANICS_IMPLEMENTATION_PLAN.md to describe the implemented automation slice."
+  ],
+  "filesTouched": [
+    "src/game/redesign/RunSpineSystem.ts",
+    "tests/RunSpineSystem.test.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-07_TINY_SPRINKLER_RECAST.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the Tiny Sprinkler changes: ESLint passed, Vitest passed with 2 files and 26 tests, TypeScript compiled, and Vite built successfully.",
+    "New RunSpineSystem unit tests cover missing license, insufficient Run Touches, successful run purchase, run-only sprinkler count reset, persistent license carryover, pulse healing/RT payout, wound clearing, and no full-HP reward minting.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory&skipIntro&fastDormancy&sprinklerSmoke=... played a fast run through DOM root buttons, earned enough GT, reached dormancy, and bought redesign-memory-tinySprinkler.",
+    "Browser smoke confirmed Tiny Sprinkler purchase reduced permanent GT, persisted permanentUpgrades: [tinySprinkler], and Begin Next Run returned to active play.",
+    "Browser smoke earned RT in the licensed run, clicked redesign-tiny-sprinkler-button, confirmed tinySprinklers became 1, lastRunToolKind became tinySprinkler, and runTouches dropped by the 16 RT cost.",
+    "Browser smoke waited for an automated pulse and confirmed lastTinySprinklerPulseAt > 0, lastTinySprinklerRootId was set, runTouches and totalRunTouchesEarned increased from effective healing, lastHealingFeedbackKind became sprinkler, readable state mentioned Tiny Sprinklers: 1, and warn/error logs were empty."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, src/main.ts, and src/style.css.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/music/lucid-field-theme.wav, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "Tiny Sprinkler is intentionally first-pass automation: no upgrade scaling beyond buying multiple run units, no dedicated sprite/icon yet, and only small pulse feedback.",
+    "Tiny Sprinkler is bought directly as a run tool after the permanent license; there is no separate run shop screen yet.",
+    "The options DOM music-on button remains hidden by design; agents unmute by setting redesign-music-volume-range above zero.",
+    "The old game still exists on the default route and obsolete stress routes; use ?redesign for the new mechanics work."
+  ],
+  "nextRecommendedSteps": [
+    "Manual-test whether Tiny Sprinkler feels understandable, visible, and worth 24 GT plus 16 RT.",
+    "Add a small sprinkler icon or in-field object so the automation has a stronger visual identity.",
+    "Tune Tiny Sprinkler pulse interval, heal amount, GT cost, and RT cost after playtesting.",
+    "Consider adding a compact run-shop strip or tool tray if more run tools are added.",
+    "Move next into Scourge Sense or a clearer first-loop goal/reward pass depending on playtest feel."
+  ],
+  "doNotRevert": [
+    "Do not bring back old automation systems wholesale; Tiny Sprinkler is a new-canon run-spine automation adapter.",
+    "Do not make sprinkler overheal mint RT or permanent GT.",
+    "Do not remove the DOM controls for Tiny Sprinkler; they are part of the agent-accessibility contract.",
+    "Do not use the obsolete ?stress route as evidence of redesign progress."
+  ]
+}

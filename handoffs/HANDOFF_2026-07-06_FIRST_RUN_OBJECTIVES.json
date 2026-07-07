@@ -1,0 +1,57 @@
+{
+  "date": "2026-07-06",
+  "topic": "Redesign first-run objective spine",
+  "currentUserGoal": "Keep pushing the clean-break redesign forward so the prototype begins to feel like an actual new game, not the old game with meters.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added src/game/redesign/FirstRunObjectiveSystem.ts as a pure new-canon onboarding/objective spine.",
+    "Added five prototype objectives: Wake the Ancient Grass, Gather Run Touches, Stabilize a Wound, Reach Dormancy, and Buy a Memory.",
+    "Added tests for objective ordering, effective-healing progress, wound triage progress, dormancy completion, and memory purchase completion.",
+    "Wired the redesign scene HUD to show one compact objective line inside the new run panel.",
+    "Wired objective completion to root touch, Root Salve, dormancy, new-run start, and memory-upgrade purchase events.",
+    "Added objective completion feed entries and a small floating completion callout.",
+    "Exposed activeObjectiveId in data-grass-redesign-prototype for browser smoke checks.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md to state that first-run guidance is a new-canon objective line, not the obsolete quest surface."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/redesign/FirstRunObjectiveSystem.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/FirstRunObjectiveSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-06_FIRST_RUN_OBJECTIVES.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the objective slice: ESLint passed, Vitest passed with 2 files and 18 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory confirmed activeObjectiveId starts as wakeAncientGrass.",
+    "Browser smoke clicked the unique canvas once, confirmed totalRunTouchesEarned became 3, and confirmed activeObjectiveId advanced to earnRunTouches.",
+    "Browser screenshot crop confirmed the objective line renders in the run HUD and the player PFP card still shows Grass Toucher with Sensi // Advisor text.",
+    "Browser warn/error logs were empty during the objective smoke."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update still has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/sensi-pixel-portrait.png, src/game/redesign/RunSpineSystem.ts, src/game/redesign/FirstRunObjectiveSystem.ts, src/game/scenes/RedesignPrototypeScene.ts, tests/RunSpineSystem.test.ts, tests/FirstRunObjectiveSystem.test.ts, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked files remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The objective spine is session-only for now; objective completion is not saved in permanent memory.",
+    "The objective line is functional but visually simple. It needs a proper first-run UX pass once the tutorial structure stabilizes.",
+    "The player PFP currently uses the old Grass Toucher class icon as a placeholder.",
+    "The redesign route is still a prototype; dormancy ceremony, field expansion, Scourge art/audio, and phone-scale UX still need work.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress."
+  ],
+  "nextRecommendedSteps": [
+    "Turn the objective spine into a proper first-run sequence: inherited field intro, Ancient Grass focus, first healing, first wound, first dormancy, and first memory purchase.",
+    "Add a small authored intro beat before the run begins instead of dropping the player straight into the 5x5 prototype board.",
+    "Consider starting the prototype at a 1x1 or 2x2 field and expanding it during objectives so the first five minutes match the design doc.",
+    "Polish the objective HUD presentation and completion ceremony after the sequence feels good.",
+    "Keep recasting old assets deliberately; do not bring back old quest/store/minimap systems as-is."
+  ],
+  "doNotRevert": [
+    "Do not replace the new objective spine with the old quest system.",
+    "Do not treat objective completion as permanent meta until a save design is chosen.",
+    "Do not remove the PFP correction that keeps Sensi out of the player portrait slot.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

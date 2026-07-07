@@ -1,0 +1,37 @@
+{
+  "date": "2026-07-07",
+  "topic": "options-menu-fix",
+  "currentUserGoal": "Fix the redesign Options menu, which was visually broken and unreliable after the DOM agent layer work.",
+  "summary": [
+    "Made the agent-readable output and dormancy report truly non-visual while keeping their DOM text available to agents and tests.",
+    "Removed the focus-within CSS rule that caused the readable agent state to appear as a large debug panel after clicking Options.",
+    "Fixed the DOM music toggle state so the agent layer exposes Turn Music On when muted and Turn Music Off when audible.",
+    "Replaced the two overlapping DOM music toggle buttons with one dynamic toggle element to avoid hidden-button hit-testing weirdness.",
+    "Hardened DOM agent button activation with pointerdown, mousedown, and click fallback plus dedupe."
+  ],
+  "filesTouched": [
+    "src/style.css",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "handoffs/HANDOFF_2026-07-07_OPTIONS_MENU_FIX.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "Browser screenshot confirmed the Options modal no longer shows agent-readable debug boxes.",
+    "Browser smoke confirmed music Off -> On -> Off -> On state transitions through DOM controls, Back closes the menu, and no warn/error logs are emitted.",
+    "Browser was reset to http://127.0.0.1:5173/?redesign&resetMemory&skipIntro with Options closed and music on.",
+    "npm run check passed: lint, 27 tests, and build."
+  ],
+  "knownIssues": [
+    "The Options panel is still minimal; it only exposes music volume/toggle and Back.",
+    "The redesign prototype still has many untracked files in the worktree, so do not use git diff alone to infer what changed."
+  ],
+  "nextRecommendedSteps": [
+    "Add more real options later: text scale, reduced motion, fullscreen/window scale, and reset-memory confirmation.",
+    "Consider adding a visual-only options smoke screenshot to future browser checks whenever the DOM agent layer changes."
+  ],
+  "doNotRevert": [
+    "Do not remove the DOM agent layer; it is intentional for accessibility/testing.",
+    "Do not bring back visible agent debug panels in normal play."
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign wound marker feel",
+  "currentUserGoal": "Keep iterating the clean-break redesign while preserving the old game's vibe and making the new wound triage loop more visually readable.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added persistent wound marker display objects to each root in RedesignPrototypeScene: a pink wound halo and shard that are only visible while a root is wounded.",
+    "Animated wound markers with a distinct beacon pulse so wounded roots read differently from healthy idle roots.",
+    "Added one-shot wound-open effects using a pink ring and existing magic-spore art.",
+    "Added one-shot wound-seal feedback when the player heals a wounded root.",
+    "Exposed woundMarkerVisible in the browser debug root nodes so canvas wound marker regressions can be smoke-checked.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md with the wound marker behavior and smoke expectation."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-07_WOUND_MARKER_FEEL.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the final wound marker changes: ESLint passed, Vitest passed with 2 files and 19 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory&fastDormancy woke the field, opened it to 3x3, waited for the wound lesson, and captured a screenshot with the new pink wound marker visible.",
+    "Browser debug state before healing confirmed activeObjectiveId stabilizeWound, activeRootCount 9, activeGridSize 3, one wounded root, and woundMarkerVisible true on the wounded root.",
+    "Browser smoke clicked the reported wounded root and confirmed activeObjectiveId advanced to completeDormancy, activeRootCount expanded to 25, activeGridSize became 5, and the healed root reported wounded false and woundMarkerVisible false.",
+    "Browser warn/error logs were empty during the wound marker smoke."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The wound marker is presentational only; it does not alter wound timing, healing, rewards, or hitboxes.",
+    "The player portrait is still a placeholder Grass Toucher class icon rather than a proper new-canon player avatar.",
+    "FastDormancy can open additional wounds quickly after the tutorial wound is healed and the field expands to 5x5; this is useful for smoke coverage but may need normal-speed pacing review.",
+    "The expansion wake beat is still lightweight and should be tuned in a dedicated juice pass after the core loop is more playable.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress."
+  ],
+  "nextRecommendedSteps": [
+    "Replace the player PFP placeholder with a proper new-canon player avatar while keeping Sensi exclusively as advisor/NPC.",
+    "Continue the animation pass with stronger touch timing, healing feedback, and root idle polish.",
+    "Play through the normal-speed ?redesign route manually and judge first-run pacing without fastDormancy.",
+    "Decide whether dying before tutorial wound triage should keep the objective chain blocked or transition to a recovery lesson.",
+    "After the first-run feel is readable, choose the first recast in-run tool or automation instead of porting old systems wholesale."
+  ],
+  "doNotRevert": [
+    "Do not remove the persistent wound marker without replacing it with an equally clear wound-readability cue.",
+    "Do not turn wound marker effects into gameplay rules; they are presentational only for now.",
+    "Do not put Sensi back into the player profile/PFP panel in any viewport.",
+    "Do not remove the player/advisor or wound marker browser debug fields without replacing the smoke coverage.",
+    "Do not return redesign manual healing to broad canvas/proximity clicks.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

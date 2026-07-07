@@ -1,0 +1,60 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign options and DOM audio controls",
+  "currentUserGoal": "Keep pushing the redesign toward a testable game by adding the missing Options surface and keeping the new DOM-agent accessibility contract intact.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added a first-pass Options button to the redesign HUD.",
+    "Added an Options overlay with Lucid music volume, Music On/Off visual toggle, close/back behavior, and backdrop click-to-close.",
+    "Reused the project's existing stored music-volume key through readStoredMusicVolume and writeStoredMusicVolume.",
+    "Changed redesign Lucid playback from fire-and-forget sound.play to a retained sound instance plus scene-level sound volume control so mute/volume changes apply after audio starts.",
+    "Extended the browser debug payload with options visibility, music enabled/volume state, option button bounds, close button bounds, music off button bounds, and music range bounds.",
+    "Extended the DOM agent layer with redesign-options-button, redesign-options-close-button, redesign-music-off-button, and redesign-music-volume-range.",
+    "Kept DOM unmute behavior on the real range input: agents set redesign-music-volume-range above zero to unmute. The DOM music-off button is only visible while music is on, so it does not cover the human visual toggle while muted.",
+    "Hardened shared DOM button activation with pointer-up plus click fallback de-duping, then verified root DOM clicks still award a single root-touch result.",
+    "Updated CORE_MECHANICS_REDESIGN.md and CORE_MECHANICS_IMPLEMENTATION_PLAN.md with the options and DOM-control behavior."
+  ],
+  "filesTouched": [
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/style.css",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-07_OPTIONS_DOM_AUDIO.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed: ESLint passed, Vitest passed with 2 files and 22 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory&skipIntro&optionsSmoke=... confirmed grassAgentDom reported ready.",
+    "Browser smoke opened Options through redesign-options-button and confirmed options.visible true plus visible music range bounds.",
+    "Browser smoke filled redesign-music-volume-range to 37 and confirmed musicVolume 0.37 with musicEnabled true.",
+    "Browser smoke clicked redesign-music-off-button and confirmed musicVolume 0, musicEnabled false, and the DOM off button hidden afterward.",
+    "Browser smoke filled redesign-music-volume-range to 42 after mute and confirmed musicVolume 0.42 with musicEnabled true.",
+    "Browser smoke clicked redesign-options-close-button and confirmed options.visible false.",
+    "Browser smoke confirmed redesign-readable-state mentions Music and browser warn/error logs were empty.",
+    "Root DOM regression smoke confirmed one redesign-root-0 click changed totalRunTouchesEarned from 0 to 4, expanded activeRootCount from 1 to 4, and reported lastHealingFeedbackKind root with empty warn/error logs."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, src/main.ts, and src/style.css.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/music/lucid-field-theme.wav, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The Options menu only covers music volume/mute for now; there is no SFX volume, reduce-motion, save reset, or keybind surface yet.",
+    "DOM agents unmute by setting the music volume range above zero rather than by clicking a separate music-on button.",
+    "The old game still exists on the default route and obsolete stress routes; use ?redesign for the new mechanics work.",
+    "The meta skill tree remains a scaffold with only Soft Touch and Deeper Roots functional."
+  ],
+  "nextRecommendedSteps": [
+    "Manual-test the Options panel during normal play and on the dormancy/meta screen to judge whether the button placement feels natural.",
+    "Add a tiny SFX/reduce-motion settings extension once more effects are added.",
+    "Turn Tiny Sprinkler into the first functional automation branch and mirror it in the DOM bridge from the start.",
+    "Consider adding a small in-game reset-memory affordance for playtesting, but keep it clearly separate from normal player progression."
+  ],
+  "doNotRevert": [
+    "Do not remove the DOM options controls as redundant; they are part of the agent-accessibility contract.",
+    "Do not make a DOM music-on button overlap the visual music toggle while muted unless the click behavior is verified in the in-app browser.",
+    "Do not restore the old Run Feed as a main play surface without a deliberate redesign.",
+    "Do not use the obsolete ?stress route as evidence of redesign progress."
+  ]
+}

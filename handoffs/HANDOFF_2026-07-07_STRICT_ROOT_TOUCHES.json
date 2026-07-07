@@ -1,0 +1,53 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign strict active-root touch targeting",
+  "currentUserGoal": "Keep iterating on the clean-break redesign while preserving the old game's graphical warmth, but make the prototype feel more like an actual game surface instead of a canvas that accepts any click.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Changed RedesignPrototypeScene so manual healing only happens when the pointer is inside an active Ancient Grass/root tile hitbox.",
+    "Kept Root Salve and dormancy controls working before root-target validation, so their UI actions still have priority.",
+    "Added missed-root feedback: empty meadow clicks show a short 'touch the tile' float text, and the intro can trigger a Sensi hint without waking the run.",
+    "Moved prototype audio start behind valid gameplay/UI actions so empty intro clicks do not count as starting play.",
+    "Updated the redesign and implementation plan docs to define target-based touch input as new-canon behavior."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-07_STRICT_ROOT_TOUCHES.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed: ESLint passed, Vitest passed with 2 files and 19 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory confirmed the fresh intro starts with introActive true, activeRootCount 1, activeGridSize 1, activeObjectiveId wakeAncientGrass, ancientHp 76, runTouches 0, and no loaded or persisted memory.",
+    "Browser smoke clicked empty meadow at viewport coordinate 1160,120 and confirmed introActive stayed true, ancientHp stayed 76, runTouches stayed 0, activeRootCount stayed 1, and the active objective stayed wakeAncientGrass.",
+    "Browser smoke clicked the active root tile around viewport coordinate 640,437 and confirmed introActive false, ancientHp increased, runTouches became 4, activeObjectiveId advanced to earnRunTouches, and the field expanded to activeRootCount 4 / activeGridSize 2.",
+    "Browser warn/error logs were empty during the strict-touch smoke."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update still has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/sensi-pixel-portrait.png, src/game/redesign/RunSpineSystem.ts, src/game/redesign/FirstRunObjectiveSystem.ts, src/game/scenes/RedesignPrototypeScene.ts, tests/RunSpineSystem.test.ts, tests/FirstRunObjectiveSystem.test.ts, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked files remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The prototype still needs a more authored Sensi intro sequence; current intro copy lives in the HUD/side panel rather than a deliberate dialogue beat.",
+    "Tile states are still visually basic: touch recovery, wound pressure, and field expansion need more animation and polish.",
+    "The player portrait is still a placeholder Grass Toucher icon, not a custom player avatar.",
+    "The first wound objective and 5x5 expansion still need a browser smoke from a real wound-healing sequence after the strict targeting change.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress."
+  ],
+  "nextRecommendedSteps": [
+    "Browser-smoke the wound triage objective through the 5x5 expansion using actual tile clicks.",
+    "Add stronger touch/recovery animation so valid root clicks feel tactile and invalid clicks feel gently rejected.",
+    "Add a small authored Sensi dialogue layer before or around the first tile touch.",
+    "Replace the player PFP placeholder with a new-canon player avatar while keeping Sensi as advisor/NPC.",
+    "Begin recasting early in-run tools/automation only after the manual healing loop feels good."
+  ],
+  "doNotRevert": [
+    "Do not return redesign manual healing to broad canvas/proximity clicks.",
+    "Do not remove the intro pause and return to immediate Scourge drain on fresh runs.",
+    "Do not replace the new objective-driven first-run flow with the old quest system.",
+    "Do not return the redesign prototype to a full 5x5 field at run start.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

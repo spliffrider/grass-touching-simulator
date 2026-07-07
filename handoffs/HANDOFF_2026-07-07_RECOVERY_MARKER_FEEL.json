@@ -1,0 +1,57 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign recovery marker feel",
+  "currentUserGoal": "Keep iterating the clean-break redesign and make root touch recovery readable without changing the new core mechanics.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added a per-root recoveryHalo display object to RedesignPrototypeScene.",
+    "Recovering non-wounded roots now show a subtle blue halo/readiness cue while their existing recovery timer is active.",
+    "Effective root touches now play a small presentational recovery-start ring after the existing touch feedback.",
+    "Repeat taps on a recovering root now play a quick rejection ring and keep the existing 'recovering' feedback without changing rewards or cooldown rules.",
+    "Added recoveryRatio and recoveryMarkerVisible to the prototype browser debug root payload.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md with the recovery marker behavior and smoke expectations."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-07_RECOVERY_MARKER_FEEL.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed: ESLint passed, Vitest passed with 2 files and 19 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory confirmed the initial debug payload includes recoveryRatio and recoveryMarkerVisible for root 0.",
+    "Browser smoke clicked the first real root and confirmed expansion to 2x2, totalRunTouchesEarned 4, lastHealingFeedbackKind root, and root 0 recovering with recoveryRatio 0 and recoveryMarkerVisible true.",
+    "A tight browser smoke clicked root 0 again inside the recovery window and confirmed totalRunTouchesEarned stayed 4 while root 0 remained recovering with recoveryMarkerVisible true.",
+    "A post-cooldown tap on root 0 awarded again, confirming the recovery rule still clears and the root becomes touchable after the existing duration.",
+    "Browser warn/error logs were empty during the recovery marker smokes."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "Recovery marker feedback is presentational only; it does not alter healing amounts, Run Touch rewards, cooldown durations, wounds, salve behavior, HP math, or hitboxes.",
+    "The prototype debug dataset is event-published, not live-published every frame. Browser checks that need after-cooldown state should trigger a post-cooldown interaction or add a deliberate debug refresh hook before relying on stale dataset values.",
+    "The player portrait is still a placeholder Grass Toucher class icon rather than a proper new-canon player avatar.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress.",
+    "The Vite dev server may still be running in the background from browser verification."
+  ],
+  "nextRecommendedSteps": [
+    "Replace the player PFP placeholder with a proper new-canon player avatar while keeping Sensi exclusively as advisor/NPC.",
+    "Continue the animation pass with stronger root idle polish, Scourge pressure transition feel, or dormancy collapse readability.",
+    "Play through the normal-speed ?redesign route manually and judge first-run pacing without fastDormancy.",
+    "Decide whether dying before tutorial wound triage should keep the objective chain blocked or transition to a recovery lesson.",
+    "After the first-run feel is readable, choose the first recast in-run tool or automation instead of porting old systems wholesale."
+  ],
+  "doNotRevert": [
+    "Do not remove the recovery halo/readiness cue without replacing it with an equally clear indication that a touched root is cooling down.",
+    "Do not turn recovery marker feedback into a gameplay rule; it is presentational only for now.",
+    "Do not remove the root-to-HP healing feedback without replacing it with an equally clear indication that touch healing affects shared Ancient HP.",
+    "Do not remove the persistent wound marker without replacing it with an equally clear wound-readability cue.",
+    "Do not put Sensi back into the player profile/PFP panel in any viewport.",
+    "Do not return redesign manual healing to broad canvas/proximity clicks.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "date": "2026-07-06",
+  "topic": "Redesign permanent memory save boundary",
+  "currentUserGoal": "Keep pushing the clean-break redesign forward, using old assets and concepts only as raw material while building the new Scourge/Ancient Grass loop properly.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added a redesign-only permanent memory save snapshot to RunSpineSystem with saveVersion 1, permanent Grass Touches, permanent upgrade ids, and savedAt.",
+    "Added normalization for redesign memory saves so malformed values, duplicate upgrades, unknown upgrade ids, negative numbers, and incompatible versions are handled safely.",
+    "Wired the ?redesign prototype to load permanent memory from grass-touching-simulator.redesign-memory.v1.",
+    "Added ?redesign&resetMemory as a repeatable prototype reset path for the new-canon memory key.",
+    "Saved permanent memory on dormancy and after permanent upgrade purchases.",
+    "Kept active-run state intentionally unsaved for this slice: HP, Run Touches, wounds, Scourge pressure, timers, and old-game currencies are not persisted.",
+    "Added a redesign-only document dataset debug signal, data-grass-redesign-prototype, so browser smoke tests can verify canvas game state without scraping pixels.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md with the current prototype save boundary and reset route.",
+    "Corrected the left profile card so the PFP slot shows the player/class icon instead of Sensi, with Sensi demoted to an advisor/comms line."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/redesign/RunSpineSystem.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/RunSpineSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-06_REDESIGN_MEMORY_SAVE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after adding persistence and the browser debug hook: ESLint passed, Vitest passed with 1 file and 14 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&fastDormancy&resetMemory confirmed reset state had no loaded or persisted memory.",
+    "Browser smoke clicked the unique canvas on the reset route and confirmed totalRunTouchesEarned became 3 while persistedMemory stayed null before dormancy.",
+    "Browser smoke waited for dormancy and confirmed persistedMemory saved saveVersion 1 with 3 permanent Grass Touches and no permanent upgrades.",
+    "Browser smoke reloaded http://127.0.0.1:5173/?redesign and confirmed loadedMemory restored 3 permanent Grass Touches while runTouches and totalRunTouchesEarned reset to 0.",
+    "Browser warn/error logs were empty after the memory reload smoke.",
+    "After correcting the PFP slot, npm run check passed again with 14 tests. Browser screenshot crop confirmed the left card now shows the Grass Toucher player icon and Sensi // Advisor text, with no warn/error logs."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update still has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/sensi-pixel-portrait.png, src/game/redesign/RunSpineSystem.ts, src/game/scenes/RedesignPrototypeScene.ts, tests/RunSpineSystem.test.ts, this handoff, and the previous milestone handoff.",
+    "Pre-existing unrelated untracked files remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The redesign route is still a prototype, not a presentation-ready game.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress.",
+    "Permanent memory saves only permanent Grass Touches and purchased permanent upgrade ids. Active-run persistence is future work.",
+    "There is no old-save migration yet, only a clean new-canon save namespace.",
+    "The browser debug dataset is for prototype smoke tests and should not become the formal public save contract.",
+    "The player PFP currently uses the old Grass Toucher class icon as a placeholder; a real player portrait/avatar flow is still future work.",
+    "Dormancy ceremony, first-run tutorial, Scourge art/audio, and phone-scale UX still need deliberate passes."
+  ],
+  "nextRecommendedSteps": [
+    "Make the first-run flow feel like an actual game: Sensi intro, one clear Ancient Grass target, first quest, and a polished dormancy summary.",
+    "Add a small new-canon tutorial/quest spine instead of reviving the old quest system.",
+    "Add a formal redesign harness or route-level smoke helper that reads data-grass-redesign-prototype.",
+    "Decide whether active-run resume belongs in the next slice or should wait until the first-run loop is fun.",
+    "Continue visual convergence toward the old game's strongest look while keeping old stores, quests, minimap, and automation out until recast.",
+    "Commit only the intended redesign files when the user confirms the current direction."
+  ],
+  "doNotRevert": [
+    "Do not replace the redesign save namespace with the old save schema.",
+    "Do not persist old-game currencies, stores, quests, or field-item state as part of this prototype memory key.",
+    "Do not remove the Sensi portrait asset unless replacing it with a deliberate new Sensi portrait.",
+    "Do not add old-system tests as redesign proof.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

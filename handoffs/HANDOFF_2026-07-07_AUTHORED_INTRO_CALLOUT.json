@@ -1,0 +1,57 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign authored intro callout",
+  "currentUserGoal": "Keep iterating the clean-break redesign by making the first run feel more intentionally authored, without breaking strict root targeting or the existing fast-loop verification.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added a non-blocking Sensi intro callout panel to RedesignPrototypeScene for fresh intro runs.",
+    "The callout explains the inherited Ancient Grass tile and invisible drain premise while leaving the actual root tile visible and clickable.",
+    "Kept strict intro behavior intact: empty canvas clicks can hint but do not wake the run, while a real root click hides the callout and starts the run.",
+    "Added introCardVisible to the prototype browser debug dataset for smoke verification.",
+    "Adjusted intro callout layout and copy after browser visual checks so it sits below the HUD and does not overflow the panel.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md with the authored intro callout behavior and smoke coverage."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-07_AUTHORED_INTRO_CALLOUT.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the intro callout changes: ESLint passed, Vitest passed with 2 files and 19 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory confirmed introActive true, introCardVisible true, activeObjectiveId wakeAncientGrass, and activeRootCount 1 on fresh load.",
+    "Browser smoke clicked empty meadow and confirmed introActive and introCardVisible stayed true, totalRunTouchesEarned stayed 0, and the field stayed at one active root.",
+    "Browser smoke clicked the reported root hitbox and confirmed introActive false, introCardVisible false, activeObjectiveId advanced to earnRunTouches, totalRunTouchesEarned became positive, and the field expanded to 2x2 / 4 active roots.",
+    "Browser visual check confirmed the callout sits below the HUD, above the first tile, and no longer overflows its panel.",
+    "Browser warn/error logs were empty during the intro callout smoke."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update still has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/sensi-pixel-portrait.png, src/game/redesign/RunSpineSystem.ts, src/game/redesign/FirstRunObjectiveSystem.ts, src/game/scenes/RedesignPrototypeScene.ts, tests/RunSpineSystem.test.ts, tests/FirstRunObjectiveSystem.test.ts, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked files remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The side panel still mixes the player placeholder portrait/title with Sensi advisor copy. This is playable for now, but a future slice should separate player identity from advisor dialogue more cleanly.",
+    "The intro callout is a lightweight authored beat, not a full dialogue system with multiple steps, choices, or portraits.",
+    "If a player dies before healing the tutorial wound, they can still buy memory, but the objective chain remains at stabilizeWound. Decide later whether this is acceptable failure/retry behavior or needs a catch-up objective rule.",
+    "Root recovery currently lives in RedesignPrototypeScene only. If recovery becomes core balance, move the rule into a pure new-canon system with unit tests.",
+    "The player portrait is still a placeholder Grass Toucher icon, not a custom player avatar.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress."
+  ],
+  "nextRecommendedSteps": [
+    "Separate Sensi/advisor dialogue presentation from the player identity panel so the side panel no longer reads as both player PFP and Sensi speaker.",
+    "Play through the normal-speed ?redesign route manually to judge first-run pacing without the fastDormancy harness.",
+    "Replace the player PFP placeholder with a new-canon player avatar while keeping Sensi as advisor/NPC.",
+    "Decide whether dying before tutorial wound triage should keep the objective chain blocked or transition to a recovery lesson.",
+    "Start recasting the first in-run tool or automation only after the normal-speed loop feels readable end to end."
+  ],
+  "doNotRevert": [
+    "Do not remove the intro callout without replacing it with an equally clear authored first-run beat.",
+    "Do not make the intro callout itself start the run; only real root tile clicks should wake the run.",
+    "Do not remove browser debug fields used by the root, intro, dormancy, and memory smoke paths without replacing those checks.",
+    "Do not return fastDormancy to a collapse so fast that the tutorial wound cannot be healed in guided smoke.",
+    "Do not return redesign manual healing to broad canvas/proximity clicks.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

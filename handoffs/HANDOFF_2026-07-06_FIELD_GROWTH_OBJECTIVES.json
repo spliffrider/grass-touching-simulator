@@ -1,0 +1,60 @@
+{
+  "date": "2026-07-06",
+  "topic": "Redesign objective-driven field growth",
+  "currentUserGoal": "Make the first run start smaller and more authored by expanding the playable root field through the new objective spine.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added pure field-expansion mapping to FirstRunObjectiveSystem: initial 1 active root, awakened 2x2/4 roots, practiced 3x3/9 roots, and opened 5x5/25 roots.",
+    "Added test coverage that verifies objective completion maps to the 1 -> 4 -> 9 -> 25 active-root sequence.",
+    "Updated RedesignPrototypeScene so the field panel, aura, touch hint, and root layout resize around the active grid instead of always showing 5x5.",
+    "Hidden inactive roots from layout, animation, readout, touch targeting, and wound spawning.",
+    "Gated Scourge wound spawning until the field has expanded to 3x3, and limited wound count to the active root count.",
+    "Wired objective completion to field expansion with feed entries, Sensi barks, a flash, and small tile wake-up animation.",
+    "Exposed activeRootCount and activeGridSize in data-grass-redesign-prototype for browser smoke checks.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md with the objective-driven field growth sequence."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/redesign/FirstRunObjectiveSystem.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/FirstRunObjectiveSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-06_FIELD_GROWTH_OBJECTIVES.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the field growth slice: ESLint passed, Vitest passed with 2 files and 19 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory confirmed initial activeRootCount 1, activeGridSize 1, and activeObjectiveId wakeAncientGrass.",
+    "Browser smoke clicked the unique canvas and confirmed the first objective advanced to earnRunTouches while activeRootCount became 4 and activeGridSize became 2.",
+    "Browser smoke continued earning Run Touches to 10 and confirmed activeObjectiveId became stabilizeWound while activeRootCount became 9 and activeGridSize became 3.",
+    "Browser screenshot crops showed the smaller field panel after expansion and no old quest surface.",
+    "Browser warn/error logs were empty during the field-growth smoke."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update still has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/sensi-pixel-portrait.png, src/game/redesign/RunSpineSystem.ts, src/game/redesign/FirstRunObjectiveSystem.ts, src/game/scenes/RedesignPrototypeScene.ts, tests/RunSpineSystem.test.ts, tests/FirstRunObjectiveSystem.test.ts, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked files remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The 5x5 expansion after stabilizing the first wound is unit-covered through objective mapping but was not browser-smoked all the way through wound healing in this slice.",
+    "Field expansion state is derived from session objective completion and is not saved yet.",
+    "The first tile starts as a large root patch but the intro still lacks authored narrative staging before the run begins.",
+    "The expansion animation is lightweight and needs a better ceremony once the first-run sequence is locked.",
+    "The player PFP currently uses the old Grass Toucher class icon as a placeholder.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress."
+  ],
+  "nextRecommendedSteps": [
+    "Add an authored intro beat before the Scourge loop starts: inherited field, Sensi explanation, one Ancient Grass focus tile, then first touch.",
+    "Browser-smoke the first wound objective through the 5x5 expansion after the wound UX is clearer.",
+    "Decide whether objective completion and field expansion should persist in the redesign memory save or reset every session.",
+    "Polish the expansion visuals, especially the transition from 1 tile to 2x2 and the later 3x3 wound stage.",
+    "Keep old quest/store/minimap systems out unless they are deliberately recast into the new objective/run structure."
+  ],
+  "doNotRevert": [
+    "Do not return the redesign prototype to a full 5x5 field at run start.",
+    "Do not spawn wounds on inactive/hidden roots.",
+    "Do not replace the new objective-driven growth with the old field expansion or quest systems.",
+    "Do not remove the PFP correction that keeps Sensi out of the player portrait slot.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign Dew Pulse run tool",
+  "currentUserGoal": "Keep iterating the clean-break redesign by adding the first recast in-run tool so Run Touches can be spent for immediate survival value.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added Dew Pulse to RunSpineSystem as a pure run-tool function.",
+    "Dew Pulse costs 8 Run Touches, heals Ancient HP by 14, contributes only effective healing to dormancy payout, tracks overheal, and does not mint replacement Run Touches.",
+    "Added RunSpineSystem unit tests for Dew Pulse affordability, missing-HP gating, HP cap/effective healing, no Run Touch self-refund, and permanent payout accounting.",
+    "Added a Dew Pulse HUD button beside Root Salve in RedesignPrototypeScene, including compact labels and usable/affordable styling.",
+    "Added Dew Pulse success/failure feedback, field pulse visuals, healing feedback, feed entry, and Sensi bark.",
+    "Added run tool debug payload data: lastRunToolKind, lastRunToolAt, and runToolButtons with bounds/state for dewPulse and rootSalve.",
+    "Updated docs/CORE_MECHANICS_REDESIGN.md and docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md with Dew Pulse behavior and smoke expectations."
+  ],
+  "filesTouched": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "src/game/redesign/RunSpineSystem.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/RunSpineSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-07_DEW_PULSE_RUN_TOOL.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the Dew Pulse changes: ESLint passed, Vitest passed with 2 files and 22 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory&fastDormancy&dewPulseSmoke=... earned 8 RT through real root-hitbox clicks.",
+    "Browser smoke confirmed the dewPulse run-tool button reported visible, affordable, and usable before clicking.",
+    "Browser smoke clicked the dewPulse button through debug coordinates and confirmed Run Touches dropped from 8 to 0, HP increased, totalRunTouchesEarned stayed 8, lastRunToolKind was dewPulse, and lastHealingFeedbackKind was dewPulse.",
+    "Browser warn/error logs were empty during the Dew Pulse smoke."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, and src/main.ts.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "Dew Pulse is a manual run-tool precursor, not automation. Tiny Sprinkler still needs a real buy-and-tick implementation later.",
+    "Dew Pulse tuning is first-pass: cost 8 RT, healing 14 HP. It may need balance after normal-speed playtesting.",
+    "Dew Pulse does not clear wounds; Root Salve remains the wound-specific tool.",
+    "The old game still exists on the default route and in obsolete systems; do not use ?stress as evidence of redesign progress.",
+    "The Vite dev server may still be running in the background from browser verification."
+  ],
+  "nextRecommendedSteps": [
+    "Play through the normal-speed ?redesign route manually and judge whether Dew Pulse creates a meaningful first spend choice before dormancy.",
+    "Tune Dew Pulse cost/healing after observing normal-speed pacing.",
+    "Build Tiny Sprinkler as the first true automation using the same Run Touch spend and effective-healing accounting rules.",
+    "Decide whether dying before tutorial wound triage should keep the objective chain blocked or transition to a recovery lesson."
+  ],
+  "doNotRevert": [
+    "Do not remove Dew Pulse without replacing it with another first run-tool spend that proves Run Touches can buy survival value.",
+    "Do not let Dew Pulse mint replacement Run Touches from its own healing unless that is an explicit future design decision.",
+    "Do not make Dew Pulse clear wounds; Root Salve owns that role for now.",
+    "Do not put Sensi back into the player profile/PFP panel in any viewport.",
+    "Do not replace the Field Heir portrait with the old hand-on-grass class icon unless a better dedicated player portrait is added.",
+    "Do not return redesign manual healing to broad canvas/proximity clicks.",
+    "Do not commit unrelated local docs or media unless the user specifically asks."
+  ]
+}

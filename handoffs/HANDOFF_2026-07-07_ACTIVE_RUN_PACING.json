@@ -1,0 +1,47 @@
+{
+  "date": "2026-07-07",
+  "topic": "active-run-pacing",
+  "currentUserGoal": "Tune the normal active first run after feedback that HP drain still felt too slow during play.",
+  "summary": [
+    "Measured normal active play with DOM root clicks at a human-ish cadence, prioritizing wounded roots and using Dew Pulse only below 32 HP.",
+    "Before tuning, active play was still alive after 121 seconds, had earned 311 RT, used Dew Pulse 8 times, and had not reached dormancy.",
+    "Reduced manual normal root healing from 5 to 3 HP.",
+    "Reduced wounded-root manual healing from 16 to 10 HP.",
+    "Raised Dew Pulse from 18 RT / 12 HP to 22 RT / 10 HP.",
+    "Changed permanent GT conversion from 1:1 effective healing to 1 permanent GT per 5 effective HP.",
+    "After tuning, the same active-play smoke reached dormancy in 88 seconds, earned 160 RT, used Dew Pulse 7 times, and paid +49 permanent GT.",
+    "Updated design and implementation docs to reflect the current Dew Pulse and permanent conversion numbers."
+  ],
+  "filesTouched": [
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/game/redesign/RunSpineSystem.ts",
+    "tests/RunSpineSystem.test.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-07_ACTIVE_RUN_PACING.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run test passed after updating Dew Pulse and payout expectations.",
+    "npm run check passed: lint, 27 tests, and build.",
+    "Browser active-play smoke after final tuning: dormancy at 88 seconds, 95 root clicks, 7 Dew Pulse uses, 160 RT earned, 6 unspent RT, +49 Permanent GT, meta screen visible, and no warn/error logs.",
+    "Browser was reset to http://127.0.0.1:5173/?redesign&resetMemory&skipIntro afterward."
+  ],
+  "knownIssues": [
+    "The first-run objective expansion still reaches 5x5 very quickly, around 11-12 seconds in automated active play.",
+    "Dew Pulse is now useful but still fired 7 times in the measured run; future tuning may want a cooldown or stronger scarcity if it feels spammy by hand.",
+    "The first active-run payout of about 49 GT may still be generous, but it no longer buys the whole early tree at once.",
+    "This pass measured DOM-button play, not a human hand on the canvas, so final feel still needs user playtesting."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user play the normal route by hand and report time-to-dormancy, whether Dew Pulse feels spammy, and whether +49 GT feels too generous.",
+    "Consider slowing first-run field expansion so the player has more time with 1x1, 2x2, and 3x3 before the full 5x5 board.",
+    "Make the Game Over/meta screen communicate the 1 GT per 5 effective HP conversion so the reward feels legible.",
+    "Add a small post-purchase feedback line that says what changed for the next run."
+  ],
+  "doNotRevert": [
+    "Do not restore 5/16 manual healing unless intentionally returning to the slower active prototype feel.",
+    "Do not restore 1:1 permanent GT conversion unless the meta tree costs are completely rebalanced upward.",
+    "Do not restore Dew Pulse to the cheap 8 RT version from older docs."
+  ]
+}

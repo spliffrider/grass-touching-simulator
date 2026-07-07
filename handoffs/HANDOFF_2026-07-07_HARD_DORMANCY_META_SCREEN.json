@@ -1,0 +1,62 @@
+{
+  "date": "2026-07-07",
+  "topic": "Hard dormancy meta screen",
+  "currentUserGoal": "Keep pushing the redesign until the core loop feels testable, with the next slice making failure a real game-over/meta-progression state.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Made the dormant phase behave more like a hard run-ended state in the prototype update loop: after HP reaches zero, Scourge timers, wound pressure warning state, accumulated damage, and Tiny Sprinkler elapsed time stop advancing.",
+    "Added dedicated dormancy report visual regions on the Phaser meta screen: run-over copy, a permanent GT reward line, summary stats, and an explicit Begin Next Run action hint.",
+    "Changed the meta screen title/copy toward a direct Game Over presentation while preserving the new-canon Dormancy language.",
+    "Refreshed the dormancy report immediately after memory purchases so banked GT and owned memory text update on the meta screen.",
+    "Added a direct guard so root touches invoked through DOM or code do nothing once the run is dormant.",
+    "Added runEnded, dormancyRewardLine, dormancyReportLines, and dormancyActionHint to the browser debug payload.",
+    "Added a real DOM dormancy report output at data-testid=\"redesign-dormancy-report\" so browser agents can read game-over/reward/report text without canvas inspection.",
+    "Fixed a transition-state publish issue: after HP collapse, the scene now republishes debug/DOM state after refreshReadout hides active run tools, so Dew Pulse and Root Salve are no longer visible to DOM agents on the meta screen.",
+    "Updated CORE_MECHANICS_REDESIGN.md and CORE_MECHANICS_IMPLEMENTATION_PLAN.md to document the hard run-ended state and DOM dormancy report."
+  ],
+  "filesTouched": [
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/style.css",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-07_HARD_DORMANCY_META_SCREEN.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run test passed with 2 files and 26 tests.",
+    "npm run build passed after the hard dormancy changes.",
+    "npm run check passed after the final transition-state publish fix: ESLint passed, Vitest passed with 2 files and 26 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory&skipIntro&fastDormancy&runEndSmoke=... let a fast run collapse naturally, then confirmed phase dormant, runEnded true, metaScreenVisible true, summaryVisible true, and dormancyRewardLine included Permanent GT.",
+    "Browser smoke confirmed data-testid=\"redesign-dormancy-report\" was visible on the meta screen and included Game Over, Permanent GT, run-ended copy, and report lines.",
+    "Browser smoke confirmed root DOM buttons and run-tool DOM buttons were hidden after run end.",
+    "Browser smoke waited after dormancy and confirmed HP and woundPressureRatio stayed stable.",
+    "Browser smoke clicked a random screen coordinate and confirmed the phase stayed dormant.",
+    "Browser smoke clicked redesign-begin-next-run-button and confirmed the next run returned to active with runEnded false and metaScreenVisible false.",
+    "Browser smoke reported no warn/error logs."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update remains intentionally dirty and uncommitted.",
+    "Modified tracked files include handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, src/main.ts, and src/style.css.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/music/lucid-field-theme.wav, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "The meta screen is functionally clearer but still first-pass visually; it is not yet a rich, polished separate scene with bespoke art transitions.",
+    "The report can show +0 Permanent GT if the player lets fast dormancy collapse without healing; this is expected for the smoke route but should be tuned for real first-run pacing.",
+    "The DOM dormancy report is intentionally visually transparent like the readable state unless focused/inspected; it exists primarily for agents and accessibility.",
+    "The old default route and obsolete stress route still exist; use ?redesign for this rework."
+  ],
+  "nextRecommendedSteps": [
+    "Playtest the new game-over/meta screen manually and judge whether the report/reward/tree layout feels like enough of a separate game state.",
+    "Add stronger visual transition polish for dormancy, such as a brief collapse-to-memory animation before the report settles.",
+    "Consider adding Scourge Sense or Last Stand next, depending on whether the next slice should improve threat readability or add a meaningful second-chance mechanic.",
+    "Eventually split the meta screen into its own scene/state if the prototype UI keeps growing."
+  ],
+  "doNotRevert": [
+    "Do not re-enable random screen clicks to restart a run; Begin Next Run is the explicit restart action.",
+    "Do not make active run tools visible or usable in the DOM layer once runEnded is true.",
+    "Do not remove data-testid=\"redesign-dormancy-report\"; it is part of the agent-accessibility contract.",
+    "Do not treat the old canvas-only route or ?stress route as the redesign target."
+  ]
+}

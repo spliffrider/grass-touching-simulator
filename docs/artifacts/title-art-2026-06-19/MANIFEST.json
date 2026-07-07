@@ -1,0 +1,137 @@
+{
+  "generated_at_local": "2026-06-19T02:08:00+02:00",
+  "purpose": "Preserve the wholesome title/menu art artifacts generated or derived during the 2026-06-19 visual session.",
+  "note": "The raw image-generation previews were not exposed as pristine saved files by the tool. This archive saves every usable image artifact that existed on disk: the clean preview screenshot, the final live assets, crop variants, inpaint experiments, and rejected visual references.",
+  "currently_live_assets": [
+    {
+      "path": "live-assets/title-wholesome-landscape.webp",
+      "dimensions": "1536x864",
+      "size_bytes": 190488,
+      "production_path": "public/assets/backgrounds/title-wholesome-landscape.webp",
+      "production_url": "https://grasstouchingsimulator.com/assets/backgrounds/title-wholesome-landscape.webp",
+      "notes": "Chosen clean landscape background, currently used by TitleScene for desktop/landscape layouts."
+    },
+    {
+      "path": "live-assets/title-wholesome-portrait.webp",
+      "dimensions": "1080x1920",
+      "size_bytes": 160036,
+      "production_path": "public/assets/backgrounds/title-wholesome-portrait.webp",
+      "production_url": "https://grasstouchingsimulator.com/assets/backgrounds/title-wholesome-portrait.webp",
+      "notes": "Chosen portrait crop, currently used by TitleScene for phone-shaped portrait layouts."
+    }
+  ],
+  "source_previews": [
+    {
+      "path": "source-previews/clean-generated-preview-screenshot.png",
+      "dimensions": "911x300",
+      "size_bytes": 395061,
+      "notes": "Screenshot containing the two clean wholesome landscape previews the user liked. The final landscape and portrait assets were derived from the right preview in this screenshot."
+    }
+  ],
+  "candidate_assets": [
+    {
+      "path": "candidates/chosen-landscape-preview-crop.webp",
+      "dimensions": "1536x864",
+      "size_bytes": 190488,
+      "notes": "Same image as the live landscape asset; saved here as the selected candidate."
+    },
+    {
+      "path": "candidates/chosen-portrait-crop-left230.webp",
+      "dimensions": "1080x1920",
+      "size_bytes": 160036,
+      "notes": "Same image as the live portrait asset; selected because it kept more of the hiker visible."
+    },
+    {
+      "path": "candidates/portrait-crop-initial.webp",
+      "dimensions": "1080x1920",
+      "size_bytes": 150904,
+      "notes": "Initial phone portrait crop; clean, but the hiker sits too close to the right edge."
+    },
+    {
+      "path": "candidates/portrait-crop-left200.webp",
+      "dimensions": "1080x1920",
+      "size_bytes": 150162,
+      "notes": "Alternate portrait crop."
+    },
+    {
+      "path": "candidates/portrait-crop-left215.webp",
+      "dimensions": "1080x1920",
+      "size_bytes": 155260,
+      "notes": "Alternate portrait crop."
+    },
+    {
+      "path": "candidates/portrait-crop-left245.webp",
+      "dimensions": "1080x1920",
+      "size_bytes": 166546,
+      "notes": "Alternate portrait crop, more character-forward than the selected one."
+    },
+    {
+      "path": "candidates/inpaint-mask.png",
+      "dimensions": "1376x768",
+      "size_bytes": 2637,
+      "notes": "Mask used for an attempted cleanup of the old baked title-screen art."
+    },
+    {
+      "path": "candidates/inpaint-telea-source-size.webp",
+      "dimensions": "1376x768",
+      "size_bytes": 231120,
+      "notes": "OpenCV Telea inpaint candidate from old title-screen art. Rejected because it left large smeary repair regions."
+    },
+    {
+      "path": "candidates/inpaint-telea-landscape.webp",
+      "dimensions": "1536x864",
+      "size_bytes": 239996,
+      "notes": "Upscaled Telea landscape candidate. Rejected."
+    },
+    {
+      "path": "candidates/inpaint-telea-portrait.webp",
+      "dimensions": "1080x1920",
+      "size_bytes": 210916,
+      "notes": "Portrait crop of Telea inpaint candidate. Rejected."
+    },
+    {
+      "path": "candidates/inpaint-ns-source-size.webp",
+      "dimensions": "1376x768",
+      "size_bytes": 229342,
+      "notes": "OpenCV Navier-Stokes inpaint candidate from old title-screen art. Rejected because it left visible smeary/striped regions."
+    },
+    {
+      "path": "candidates/inpaint-ns-landscape.webp",
+      "dimensions": "1536x864",
+      "size_bytes": 237952,
+      "notes": "Upscaled Navier-Stokes landscape candidate. Rejected."
+    },
+    {
+      "path": "candidates/inpaint-ns-portrait.webp",
+      "dimensions": "1080x1920",
+      "size_bytes": 195552,
+      "notes": "Portrait crop of Navier-Stokes inpaint candidate. Rejected."
+    }
+  ],
+  "rejected_references": [
+    {
+      "path": "rejected-references/original-title-artifacts-circled.png",
+      "dimensions": "560x303",
+      "size_bytes": 366461,
+      "notes": "User-circled screenshot of the original visible artifact problem."
+    },
+    {
+      "path": "rejected-references/old-new-ui-overlap.png",
+      "dimensions": "2376x1205",
+      "size_bytes": 1187634,
+      "notes": "Screenshot of the broken restore where old baked title/menu art and new Phaser UI overlapped."
+    },
+    {
+      "path": "rejected-references/baked-menu-rectangle-artifacts.png",
+      "dimensions": "630x338",
+      "size_bytes": 382444,
+      "notes": "Close-up showing the baked translucent rectangle artifacts around the old menu area."
+    }
+  ],
+  "usage_guidance": [
+    "Use live-assets/ or public/assets/backgrounds/title-wholesome-*.webp for the current shipped title screen.",
+    "Use source-previews/clean-generated-preview-screenshot.png as the visual reference if regenerating a pristine high-resolution source later.",
+    "Do not use public/assets/title-screen.png raw as a background because it contains baked title/menu text and translucent artifacts.",
+    "If replacing the live art later, generate true art-only 16:9 and 9:16 assets with no text, logo, UI panels, buttons, translucent rectangles, or placeholders."
+  ]
+}

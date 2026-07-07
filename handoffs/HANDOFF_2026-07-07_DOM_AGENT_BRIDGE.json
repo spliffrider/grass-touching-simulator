@@ -1,0 +1,58 @@
+{
+  "date": "2026-07-07",
+  "topic": "Redesign DOM agent bridge",
+  "currentUserGoal": "Implement the community suggestion that Grass Touching Simulator should be operable by browser/AI agents instead of exposing only a canvas surface.",
+  "branch": "codex/gameplay-update",
+  "changesMade": [
+    "Added a real DOM agent-control layer for the redesign route while preserving Phaser/canvas as the visual presentation layer.",
+    "Created src/game/redesign/RedesignDomBridge.ts to mirror critical redesign state into a readable HTML output and stable HTML buttons.",
+    "Exposed document.documentElement.dataset.grassAgentDom = ready while the DOM bridge is mounted.",
+    "Added stable DOM controls for roots, Dew Pulse, Root Salve, Soft Touch, Deeper Roots, locked Tiny Sprinkler, locked Scourge Sense, and Begin Next Run.",
+    "Refactored root-touch handling so DOM root buttons and canvas root clicks use the same touchRootNode logic.",
+    "Connected the DOM bridge to the existing browser debug snapshot so button bounds, disabled state, phase, objective, HP, RT, permanent memory, and meta-screen state stay synchronized.",
+    "Added CSS for the agent layer so it is visually unobtrusive during human play but focusable/readable for browser automation and keyboard-style inspection.",
+    "Updated the redesign spec and implementation plan to document the DOM agent layer and its browser-smoke expectations."
+  ],
+  "filesTouched": [
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/style.css",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-07_DOM_AGENT_BRIDGE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run check passed after the DOM bridge changes: ESLint passed, Vitest passed with 2 files and 22 tests, TypeScript compiled, and Vite built successfully.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory&fastDormancy&domAgentSmoke=... confirmed grassAgentDom reported ready.",
+    "Browser smoke confirmed redesign-readable-state exposed readable phase/objective/state text.",
+    "Browser smoke clicked redesign-root-0 through a Playwright DOM locator with no canvas coordinate click and confirmed the run woke and active roots expanded.",
+    "Browser smoke used DOM root buttons to earn 8 RT, clicked redesign-dew-pulse-button, and confirmed RT spent from 8 to 0, HP increased, and lastRunToolKind became dewPulse.",
+    "Browser smoke reached dormancy, confirmed memory/locked/meta DOM controls existed, clicked redesign-begin-next-run-button, and confirmed the next run returned to active.",
+    "Browser warn/error logs were empty during the DOM-agent smoke."
+  ],
+  "currentGitStatus": [
+    "Branch codex/gameplay-update has modified tracked files: handoffs/LATEST.json, package-lock.json, package.json, src/game/scenes/GameScene.ts, src/main.ts, and src/style.css.",
+    "Intended redesign files remain untracked until the user asks to stage/commit: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md, docs/CORE_MECHANICS_REDESIGN.md, eslint.config.js, vitest.config.ts, public/assets/music/lucid-field-theme.wav, public/assets/ui/characters/, src/game/redesign/, src/game/scenes/RedesignPrototypeScene.ts, tests/, this handoff, and earlier redesign handoffs.",
+    "Pre-existing unrelated untracked docs/media remain untouched: docs/GAME_SYSTEMS_REFERENCE CLAUDE.md, Dutch automation reference docs, docs/artifacts/title-art-2026-06-19/, docs/back of the enveloppe.md, docs/grasstouching.mid, docs/lucid.aif, and handoffs/HANDOFF_2026-06-20_POST_PUSH_WORKFLOW_TEST.json."
+  ],
+  "knownIssues": [
+    "This is not a full HTML rewrite. The game still uses Phaser/canvas for visuals and most presentation; the DOM layer mirrors the critical controls/state for operability.",
+    "The DOM layer currently covers the redesign prototype route only.",
+    "Only the existing first-pass run tools and memory nodes are represented; future controls need to be mirrored into the DOM bridge as they are added.",
+    "There is still no player-facing options/settings menu.",
+    "The old game still exists on the default route and obsolete stress routes; use ?redesign for the new mechanics work."
+  ],
+  "nextRecommendedSteps": [
+    "Keep using DOM locators for new browser smoke tests whenever a control has a real gameplay action.",
+    "Add options/settings next, with real DOM-accessible controls from the start.",
+    "When Tiny Sprinkler becomes functional, add it to the DOM bridge and smoke it through DOM locators.",
+    "Consider making the readable state output more structured if external agents need richer summaries than plain text."
+  ],
+  "doNotRevert": [
+    "Do not remove the DOM agent layer as dead UI; it is intentional architecture for agent/browser operability.",
+    "Do not replace the visual canvas with plain div gameplay unless the user explicitly asks for a visual technology change.",
+    "Do not force browser smoke tests back to approximate canvas coordinates when stable DOM controls exist.",
+    "Do not use the obsolete ?stress route as evidence of redesign progress."
+  ]
+}
