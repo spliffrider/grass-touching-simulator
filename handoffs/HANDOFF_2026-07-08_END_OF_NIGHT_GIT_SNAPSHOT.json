@@ -1,0 +1,81 @@
+{
+  "date": "2026-07-08",
+  "topic": "End-of-night git snapshot for Scourge redesign",
+  "currentUserGoal": "Get the accumulated Grass Touching Simulator Scourge redesign work safely onto git before stopping for the night.",
+  "branch": "codex/gameplay-update",
+  "workCompleted": [
+    "Reworked the redesign prototype toward the new Scourge loop: first-run objective gating, faster playtest pacing, wound pressure, real game-over flow, and Memory Grove meta progression.",
+    "Expanded Memory Grove into a dedicated post-run screen with old-skill-tree-inspired node layout, hover/focus details, purchase callouts, and functional memory upgrades.",
+    "Added DOM bridge controls and visible playtest tools so browser agents and accessibility tooling can inspect and drive the redesign without relying only on canvas pixels.",
+    "Improved readability by changing redesign renderer text handling, moving Options away from key information, hiding the persistent TOUCH ROOTS prompt, and giving the HUD more room for run tools.",
+    "Added Options work for separate music and SFX controls, plus procedural touch/heal/wound/purchase SFX through the existing AudioSystem.",
+    "Gated Dew Pulse, Root Salve, and Tiny Sprinkler so they are introduced during the run instead of cluttering the start state.",
+    "Updated core redesign docs and implementation plan to match the new mechanics and pacing decisions.",
+    "Saved the generated Scourge Update coming-soon poster under docs/artifacts so the promo mockup is not only a chat artifact."
+  ],
+  "filesChanged": [
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/artifacts/coming-soon-2026-07-08/grass-touching-simulator-scourge-update-coming-soon.png",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-07-08_END_OF_NIGHT_GIT_SNAPSHOT.json",
+    "handoffs/HANDOFF_2026-07-08_FIRST_LOOP_PLAYTEST_PASS.json",
+    "handoffs/HANDOFF_2026-07-08_FIRST_RUN_PACING_GATE.json",
+    "handoffs/HANDOFF_2026-07-08_MEMORY_GROVE_CALLOUT.json",
+    "handoffs/HANDOFF_2026-07-08_MEMORY_GROVE_META_SCREEN.json",
+    "handoffs/HANDOFF_2026-07-08_MEMORY_HOVER_DETAILS.json",
+    "handoffs/HANDOFF_2026-07-08_OPTIONS_SFX_PASS.json",
+    "handoffs/HANDOFF_2026-07-08_RUN_TOOL_GATING_HUD_FIX.json",
+    "handoffs/HANDOFF_2026-07-08_UI_READABILITY_FIXES.json",
+    "src/game/redesign/FirstRunObjectiveSystem.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/main.ts",
+    "src/style.css",
+    "tests/FirstRunObjectiveSystem.test.ts"
+  ],
+  "verificationRun": [
+    "npm run check passed on 2026-07-08: ESLint, 30 Vitest tests, TypeScript, and Vite production build.",
+    "Latest earlier browser smoke confirmed http://127.0.0.1:5173/?redesign&playtest returned HTTP 200.",
+    "The poster image was visually inspected after copying from the generated image cache."
+  ],
+  "currentGitStatusBeforeCommit": [
+    " M docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    " M docs/CORE_MECHANICS_REDESIGN.md",
+    " M handoffs/LATEST.json",
+    " M src/game/redesign/FirstRunObjectiveSystem.ts",
+    " M src/game/redesign/RedesignDomBridge.ts",
+    " M src/game/scenes/RedesignPrototypeScene.ts",
+    " M src/main.ts",
+    " M src/style.css",
+    " M tests/FirstRunObjectiveSystem.test.ts",
+    "?? docs/artifacts/coming-soon-2026-07-08/",
+    "?? handoffs/HANDOFF_2026-07-08_FIRST_LOOP_PLAYTEST_PASS.json",
+    "?? handoffs/HANDOFF_2026-07-08_FIRST_RUN_PACING_GATE.json",
+    "?? handoffs/HANDOFF_2026-07-08_MEMORY_GROVE_CALLOUT.json",
+    "?? handoffs/HANDOFF_2026-07-08_MEMORY_GROVE_META_SCREEN.json",
+    "?? handoffs/HANDOFF_2026-07-08_MEMORY_HOVER_DETAILS.json",
+    "?? handoffs/HANDOFF_2026-07-08_OPTIONS_SFX_PASS.json",
+    "?? handoffs/HANDOFF_2026-07-08_RUN_TOOL_GATING_HUD_FIX.json",
+    "?? handoffs/HANDOFF_2026-07-08_UI_READABILITY_FIXES.json"
+  ],
+  "knownIssues": [
+    "The current redesign is still prototype-quality and needs another user playtest after the HUD/run-tool gating fix.",
+    "The user liked the SFX but has not yet confirmed that the Options sliders feel fully fixed in a fresh test.",
+    "The Memory Grove is closer to the old skill-tree charm, but still needs more polish, progression depth, and possibly old asset adaptation.",
+    "The coming-soon poster is a generated mockup and may need a second pass before public posting."
+  ],
+  "nextRecommendedSteps": [
+    "After pulling this commit, test http://127.0.0.1:5173/?redesign&playtest with a hard refresh.",
+    "Confirm start-of-run HUD has no Dew Pulse, Root Salve, or Tiny Sprinkler buttons until relevant.",
+    "Play through game over into Memory Grove and verify skills with exact-cost purchases work.",
+    "Polish Options sliders and SFX volume feel if the next playtest still shows rough edges.",
+    "Continue restoring cute old-game visual charm while keeping the new Scourge mechanics."
+  ],
+  "doNotRevert": [
+    "Do not bring the old clicker/automation gameplay back as the primary loop; the redesign branch is intentionally rebuilding around Scourge pressure, wounds, runs, and Memory Grove progression.",
+    "Keep the graphical tone and old assets as inspiration; the user wants the cute original vibe rebuilt into the new mechanics.",
+    "Keep DOM-accessible controls and state because the user liked the AI-agent-accessibility suggestion.",
+    "Keep SFX work intact; the user specifically said the sound effects are pretty nice."
+  ]
+}

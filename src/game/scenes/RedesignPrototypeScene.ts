@@ -1,5 +1,11 @@
 import Phaser from "phaser";
-import { DEFAULT_MUSIC_VOLUME, readStoredMusicVolume, writeStoredMusicVolume } from "../data/audio-settings";
+import {
+  DEFAULT_MUSIC_VOLUME,
+  readStoredMusicVolume,
+  readStoredSfxVolume,
+  writeStoredMusicVolume,
+  writeStoredSfxVolume,
+} from "../data/audio-settings";
 import {
   createFirstRunObjectiveState,
   getActiveFirstRunObjective,
@@ -9,6 +15,8 @@ import {
   type FirstRunObjectiveState,
 } from "../redesign/FirstRunObjectiveSystem";
 import { RedesignDomBridge } from "../redesign/RedesignDomBridge";
+import { AudioSystem } from "../systems/AudioSystem";
+import type { GrassTierId, TileTrait } from "../types/game-state";
 import {
   applyTinySprinklerPulse,
   advanceRun,
@@ -22,6 +30,7 @@ import {
   formatAncientGrassHp,
   getAncientGrassHpRatio,
   getDormancySummary,
+  getDormancyGrassTouches,
   getPermanentUpgradeEffects,
   getWoundedRootCount,
   hasPermanentUpgrade,
@@ -134,11 +143,13 @@ interface BrowserDebugOptionsState {
   visible: boolean;
   musicEnabled: boolean;
   musicVolume: number;
+  sfxVolume: number;
   openButton: BrowserDebugButtonBounds;
   closeButton: BrowserDebugButtonBounds;
   musicOnButton: BrowserDebugButtonBounds;
   musicOffButton: BrowserDebugButtonBounds;
   musicVolumeSlider: BrowserDebugSliderBounds;
+  sfxVolumeSlider: BrowserDebugSliderBounds;
 }
 
 interface PrototypeFeedEntry {
@@ -162,7 +173,11 @@ interface SensiBark extends SensiMessage {
 interface MemoryUpgradeButtonView {
   upgradeId: PermanentUpgradeId;
   background: Phaser.GameObjects.Rectangle;
+  glow: Phaser.GameObjects.Arc;
+  frame: Phaser.GameObjects.Image;
+  icon: Phaser.GameObjects.Image;
   title: Phaser.GameObjects.Text;
+  branch: Phaser.GameObjects.Text;
   detail: Phaser.GameObjects.Text;
 }
 
@@ -179,16 +194,23 @@ const WOUNDED_ROOT_RECOVERY_MS = 420;
 const OVERHEAL_RECOVERY_MS = 360;
 const ROOT_COUNT = 25;
 const BASE_WOUND_INTERVAL_MS = 3300;
+const PLAYTEST_WOUND_INTERVAL_MS = 1800;
 const FAST_WOUND_INTERVAL_MS = 650;
-const NORMAL_SCOURGE_DRAIN_PER_SECOND = 1.45;
-const NORMAL_SCOURGE_PRESSURE_GROWTH_PER_SECOND = 0.035;
+const NORMAL_STARTING_HP = 70;
+const PLAYTEST_STARTING_HP = 54;
+const FAST_STARTING_HP = 34;
+const NORMAL_SCOURGE_DRAIN_PER_SECOND = 1.85;
+const NORMAL_SCOURGE_PRESSURE_GROWTH_PER_SECOND = 0.045;
+const PLAYTEST_SCOURGE_DRAIN_PER_SECOND = 2.8;
+const PLAYTEST_SCOURGE_PRESSURE_GROWTH_PER_SECOND = 0.07;
 const FAST_SCOURGE_DRAIN_PER_SECOND = 4.4;
 const FAST_SCOURGE_PRESSURE_GROWTH_PER_SECOND = 0.09;
+const PLAYTEST_MEMORY_GRANT = 20;
 const DEFAULT_WOUND_WARNING_RATIO = 0.72;
 const SCOURGE_SENSE_WARNING_RATIO = 0.42;
 const MAX_OPEN_WOUNDS = 7;
 const HUD_PANEL_BASE_WIDTH = 640;
-const HUD_PANEL_BASE_HEIGHT = 202;
+const HUD_PANEL_BASE_HEIGHT = 232;
 const FIELD_PANEL_BASE_WIDTH = 520;
 const FIELD_PANEL_BASE_HEIGHT = 520;
 const SUMMARY_PANEL_BASE_WIDTH = 760;
@@ -208,7 +230,7 @@ const FAST_TINY_SPRINKLER_PULSE_INTERVAL_MS = 900;
 const OPTIONS_BUTTON_WIDTH = 78;
 const OPTIONS_BUTTON_HEIGHT = 26;
 const OPTIONS_PANEL_BASE_WIDTH = 420;
-const OPTIONS_PANEL_BASE_HEIGHT = 244;
+const OPTIONS_PANEL_BASE_HEIGHT = 314;
 const OPTIONS_TRACK_BASE_WIDTH = 250;
 const OPTIONS_TRACK_BASE_HEIGHT = 12;
 const OPTIONS_HIT_BASE_WIDTH = 288;
@@ -227,8 +249,61 @@ const COMPACT_PANEL_MIN_HEIGHT = 620;
 const COMPACT_STACK_MAX_WIDTH = 430;
 const COMPACT_STACK_MIN_HEIGHT = 760;
 const FEED_VISIBLE_ROWS = 4;
+const UI_TEXT_RESOLUTION = 2;
 const GRASS_TEXTURES = ["grass-normal", "grass-thick", "grass-clover", "grass-wildflower", "grass-moss"] as const;
+type RedesignGrassTextureKey = (typeof GRASS_TEXTURES)[number];
+const GRASS_TEXTURE_AUDIO: Record<RedesignGrassTextureKey, { tier: GrassTierId; trait: TileTrait }> = {
+  "grass-normal": { tier: "normal", trait: "normal" },
+  "grass-thick": { tier: "thick", trait: "lush" },
+  "grass-clover": { tier: "clover", trait: "dewy" },
+  "grass-wildflower": { tier: "wildflower", trait: "lush" },
+  "grass-moss": { tier: "moss", trait: "normal" },
+};
 const MEMORY_UPGRADE_IDS: PermanentUpgradeId[] = ["softTouch", "deeperRoots", "tinySprinkler", "scourgeSense", "lastStand"];
+const MEMORY_UPGRADE_VIEW: Record<
+  PermanentUpgradeId,
+  { branch: string; color: number; iconKey: string; x: number; y: number; connectsTo?: PermanentUpgradeId[] }
+> = {
+  softTouch: {
+    branch: "Touch",
+    color: 0xa8df68,
+    iconKey: "memory-icon-soft-touch",
+    x: 0.16,
+    y: 0.48,
+  },
+  deeperRoots: {
+    branch: "Vitality",
+    color: 0x8fdfff,
+    iconKey: "memory-icon-deeper-roots",
+    x: 0.42,
+    y: 0.24,
+    connectsTo: ["softTouch"],
+  },
+  tinySprinkler: {
+    branch: "Automation",
+    color: 0xbff4ff,
+    iconKey: "memory-icon-tiny-sprinkler",
+    x: 0.44,
+    y: 0.7,
+    connectsTo: ["softTouch"],
+  },
+  scourgeSense: {
+    branch: "Scourge",
+    color: 0xffb3cf,
+    iconKey: "memory-icon-scourge-sense",
+    x: 0.72,
+    y: 0.32,
+    connectsTo: ["deeperRoots"],
+  },
+  lastStand: {
+    branch: "Resolve",
+    color: 0xffef78,
+    iconKey: "memory-icon-last-stand",
+    x: 0.76,
+    y: 0.66,
+    connectsTo: ["deeperRoots", "tinySprinkler"],
+  },
+};
 const LOCKED_META_NODES: readonly { title: string; detail: string }[] = [];
 const SENSI_MOOD_TITLE_COLORS: Record<SensiMood, string> = {
   idle: "#ffefb0",
@@ -239,9 +314,10 @@ const SENSI_MOOD_TITLE_COLORS: Record<SensiMood, string> = {
 
 export class RedesignPrototypeScene extends Phaser.Scene {
   private readonly routeParams = new URLSearchParams(window.location.search);
+  private readonly playtestMode = this.routeParams.has("playtest");
   private readonly fastDormancy = this.routeParams.has("fastDormancy");
   private readonly loadedMemory = this.loadPermanentMemory();
-  private readonly woundIntervalMs = this.fastDormancy ? FAST_WOUND_INTERVAL_MS : BASE_WOUND_INTERVAL_MS;
+  private readonly woundIntervalMs = this.fastDormancy ? FAST_WOUND_INTERVAL_MS : this.playtestMode ? PLAYTEST_WOUND_INTERVAL_MS : BASE_WOUND_INTERVAL_MS;
   private state: RunSpineState = this.createPrototypeRunState();
   private introActive = !this.loadedMemory && !this.routeParams.has("skipIntro");
 
@@ -262,9 +338,18 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private summaryRewardText!: Phaser.GameObjects.Text;
   private summaryStatsText!: Phaser.GameObjects.Text;
   private skillTreeFrame!: Phaser.GameObjects.Rectangle;
+  private skillTreeLines!: Phaser.GameObjects.Graphics;
   private skillTreeTitle!: Phaser.GameObjects.Text;
   private skillTreeHelp!: Phaser.GameObjects.Text;
   private skillTreeConnector!: Phaser.GameObjects.Rectangle;
+  private memoryHoverFrame!: Phaser.GameObjects.Rectangle;
+  private memoryHoverTitle!: Phaser.GameObjects.Text;
+  private memoryHoverBody!: Phaser.GameObjects.Text;
+  private memoryDetailFrame!: Phaser.GameObjects.Rectangle;
+  private memoryDetailTitle!: Phaser.GameObjects.Text;
+  private memoryDetailBranch!: Phaser.GameObjects.Text;
+  private memoryDetailBody!: Phaser.GameObjects.Text;
+  private memoryDetailCost!: Phaser.GameObjects.Text;
   private summaryHint!: Phaser.GameObjects.Text;
   private memoryUpgradeButtons: MemoryUpgradeButtonView[] = [];
   private lockedMetaNodes: LockedMetaNodeView[] = [];
@@ -311,6 +396,11 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private optionsMusicFill!: Phaser.GameObjects.Rectangle;
   private optionsMusicHit!: Phaser.GameObjects.Rectangle;
   private optionsMusicKnob!: Phaser.GameObjects.Arc;
+  private optionsSfxLabel!: Phaser.GameObjects.Text;
+  private optionsSfxTrack!: Phaser.GameObjects.Rectangle;
+  private optionsSfxFill!: Phaser.GameObjects.Rectangle;
+  private optionsSfxHit!: Phaser.GameObjects.Rectangle;
+  private optionsSfxKnob!: Phaser.GameObjects.Arc;
   private optionsMusicToggleButton!: Phaser.GameObjects.Rectangle;
   private optionsMusicToggleText!: Phaser.GameObjects.Text;
   private optionsCloseButton!: Phaser.GameObjects.Rectangle;
@@ -331,11 +421,16 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private lastScourgeSenseTargetRootId: number | null = null;
   private tinySprinklerElapsed = 0;
   private optionsOpen = false;
-  private draggingMusicVolume = false;
+  private draggingOptionsVolume: "music" | "sfx" | null = null;
   private musicVolume = readStoredMusicVolume();
   private lastAudibleMusicVolume = this.musicVolume > 0 ? this.musicVolume : DEFAULT_MUSIC_VOLUME;
+  private sfxVolume = readStoredSfxVolume();
   private optionsMusicTrackX = 0;
   private optionsMusicTrackWidth = 1;
+  private optionsSfxTrackX = 0;
+  private optionsSfxTrackWidth = 1;
+  private readonly sfx = new AudioSystem();
+  private lastSfxPreviewAt = -Infinity;
   private audioStarted = false;
   private lucidTheme?: Phaser.Sound.BaseSound;
   private feedEntries: PrototypeFeedEntry[] = [];
@@ -344,6 +439,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private sensiPortraitDisplaySize = PLAYER_PORTRAIT_SIZE;
   private currentSensiLine = "";
   private lastMemoryPurchaseHint = "";
+  private selectedMemoryUpgradeId: PermanentUpgradeId = "softTouch";
   private sensiMood: SensiMood = "idle";
   private sensiBark?: SensiBark;
   private objectiveState: FirstRunObjectiveState = createFirstRunObjectiveState();
@@ -371,6 +467,15 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   preload(): void {
     this.load.image("redesign-meadow-bg", "/assets/backgrounds/meadow-clearing-concept.webp");
     this.load.image("panel-emerald", "/assets/ui/panel-emerald.png");
+    this.load.image("skill-node-locked", "/assets/ui/skill-node-locked.png");
+    this.load.image("skill-node-available", "/assets/ui/skill-node-available.png");
+    this.load.image("skill-node-owned", "/assets/ui/skill-node-owned.png");
+    this.load.image("skill-node-selected", "/assets/ui/skill-node-selected.png");
+    this.load.image("memory-icon-soft-touch", "/assets/ui/skills/softer-grass.png");
+    this.load.image("memory-icon-deeper-roots", "/assets/ui/skills/root-network.png");
+    this.load.image("memory-icon-tiny-sprinkler", "/assets/ui/skills/sprinkler-calibration.png");
+    this.load.image("memory-icon-scourge-sense", "/assets/ui/skills/grass-identification.png");
+    this.load.image("memory-icon-last-stand", "/assets/ui/skills/honest-work.png");
     this.load.image("player-pixel-portrait", "/assets/ui/characters/player-field-heir.png");
     this.load.image("tile-dirt", "/assets/tiles/tile-dirt.png");
     this.load.image("grass-normal", "/assets/tiles/grass-normal.png");
@@ -467,6 +572,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       .setDepth(31)
       .setStrokeStyle(2, 0xd7a64e, 0.5)
       .setVisible(false);
+    this.skillTreeLines = this.add.graphics().setDepth(31.5).setVisible(false);
     this.skillTreeTitle = this.add.text(0, 0, "Memory Skill Tree", {
       color: "#ffefb0",
       fontFamily: "Georgia, serif",
@@ -487,6 +593,65 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       .rectangle(0, 0, 4, 140, 0xd7a64e, 0.38)
       .setDepth(31)
       .setVisible(false);
+    this.memoryHoverFrame = this.add
+      .rectangle(0, 0, 190, 70, 0x07170f, 0.9)
+      .setDepth(34)
+      .setStrokeStyle(2, 0xeaff9b, 0.68)
+      .setVisible(false);
+    this.memoryHoverTitle = this.add.text(0, 0, "", {
+      color: "#ffefb0",
+      fontFamily: "Georgia, serif",
+      fontSize: "15px",
+      fontStyle: "bold",
+      stroke: "#07100c",
+      strokeThickness: 3,
+    }).setDepth(35).setVisible(false);
+    this.memoryHoverBody = this.add.text(0, 0, "", {
+      color: "#dff6ca",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "11px",
+      lineSpacing: 2,
+      stroke: "#07100c",
+      strokeThickness: 3,
+    }).setDepth(35).setVisible(false);
+    this.memoryDetailFrame = this.add
+      .rectangle(0, 0, 260, 260, 0x07170f, 0.7)
+      .setDepth(31)
+      .setStrokeStyle(2, 0xd7a64e, 0.58)
+      .setVisible(false);
+    this.memoryDetailTitle = this.add.text(0, 0, "", {
+      color: "#ffefb0",
+      fontFamily: "Georgia, serif",
+      fontSize: "24px",
+      fontStyle: "bold",
+      stroke: "#07100c",
+      strokeThickness: 4,
+    }).setDepth(32).setVisible(false);
+    this.memoryDetailBranch = this.add.text(0, 0, "", {
+      color: "#eaff9b",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "13px",
+      fontStyle: "bold",
+      stroke: "#07100c",
+      strokeThickness: 3,
+    }).setDepth(32).setVisible(false);
+    this.memoryDetailBody = this.add.text(0, 0, "", {
+      color: "#dff6ca",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "14px",
+      lineSpacing: 4,
+      stroke: "#07100c",
+      strokeThickness: 3,
+    }).setDepth(32).setVisible(false);
+    this.memoryDetailCost = this.add.text(0, 0, "", {
+      color: "#f7ffd6",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "14px",
+      fontStyle: "bold",
+      lineSpacing: 4,
+      stroke: "#07100c",
+      strokeThickness: 3,
+    }).setDepth(32).setVisible(false);
     this.summaryHint = this.add.text(0, 0, "Spend GT in the skill tree, then use Begin Next Run.", {
       color: "#ffefb0",
       fontFamily: "Arial, sans-serif",
@@ -518,29 +683,54 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     }).setOrigin(0, 0).setDepth(14).setVisible(false);
     for (const upgradeId of MEMORY_UPGRADE_IDS) {
       const upgrade = PERMANENT_UPGRADE_DEFINITIONS[upgradeId];
+      const view = MEMORY_UPGRADE_VIEW[upgradeId];
+      const glow = this.add
+        .circle(0, 0, 54, view.color, 0.12)
+        .setDepth(31.8)
+        .setStrokeStyle(2, view.color, 0.28)
+        .setVisible(false);
       const background = this.add
-        .rectangle(0, 0, 210, 54, 0x14351f, 0.94)
-        .setDepth(32)
-        .setStrokeStyle(2, 0xd7a64e, 0.82)
+        .rectangle(0, 0, 140, 110, 0xffffff, 0.001)
+        .setDepth(33)
+        .setStrokeStyle(1, 0xffffff, 0)
         .setVisible(false)
         .setInteractive({ useHandCursor: true });
+      const frame = this.add.image(0, 0, "skill-node-locked").setDepth(32).setVisible(false);
+      const icon = this.add.image(0, 0, view.iconKey).setDepth(32.2).setVisible(false);
       const title = this.add.text(0, 0, upgrade.name, {
+        align: "center",
         color: "#ffefb0",
         fontFamily: "Georgia, serif",
-        fontSize: "16px",
+        fontSize: "15px",
         fontStyle: "bold",
         stroke: "#07100c",
         strokeThickness: 3,
-      }).setDepth(33).setVisible(false);
+      }).setOrigin(0.5).setDepth(33).setVisible(false);
+      const branch = this.add.text(0, 0, view.branch, {
+        align: "center",
+        color: "#dff6ca",
+        fontFamily: "Arial, sans-serif",
+        fontSize: "10px",
+        fontStyle: "bold",
+        stroke: "#07100c",
+        strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(33).setVisible(false);
       const detail = this.add.text(0, 0, "", {
+        align: "center",
         color: "#dff6ca",
         fontFamily: "Arial, sans-serif",
         fontSize: "12px",
         stroke: "#07100c",
         strokeThickness: 3,
-      }).setDepth(33).setVisible(false);
-      background.on("pointerdown", () => this.handleMemoryUpgradeClick(upgradeId));
-      this.memoryUpgradeButtons.push({ upgradeId, background, title, detail });
+      }).setOrigin(0.5).setDepth(33).setVisible(false);
+      background.on("pointerover", () => {
+        this.previewMemoryUpgrade(upgradeId);
+      });
+      background.on("pointerdown", () => {
+        this.previewMemoryUpgrade(upgradeId);
+        this.handleMemoryUpgradeClick(upgradeId);
+      });
+      this.memoryUpgradeButtons.push({ upgradeId, background, glow, frame, icon, title, branch, detail });
     }
     for (const node of LOCKED_META_NODES) {
       const background = this.add
@@ -763,11 +953,14 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.createOptionsButton();
     this.createOptionsPanel();
     this.createRootField();
+    this.sfx.setVolume(this.sfxVolume);
+    this.sharpenPersistentText();
     this.domBridge = new RedesignDomBridge({
       touchRoot: (rootId) => this.handleRootDomClick(rootId),
       useDewPulse: () => this.handleDewPulseClick(),
       useRootSalve: () => this.handleRootSalveClick(),
       useTinySprinkler: () => this.handleTinySprinklerClick(),
+      previewMemory: (upgradeId) => this.previewMemoryUpgrade(upgradeId),
       purchaseMemory: (upgradeId) => this.handleMemoryUpgradeClick(upgradeId),
       beginNextRun: () => this.startNextRunFromMeta(),
       openOptions: () => this.openOptions(),
@@ -775,6 +968,11 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       turnMusicOn: () => this.turnPrototypeMusicOn(),
       turnMusicOff: () => this.turnPrototypeMusicOff(),
       setMusicVolume: (volume) => this.setPrototypeMusicVolume(volume),
+      setSfxVolume: (volume) => this.setPrototypeSfxVolume(volume, true),
+      forceDormancy: () => this.forcePlaytestDormancy(),
+      grantMemory: () => this.grantPlaytestMemory(),
+      restartRun: () => this.restartPlaytestRun(),
+      resetMemory: () => this.resetPlaytestMemory(),
     });
     this.events.once("shutdown", () => this.domBridge?.destroy());
     this.events.once("destroy", () => this.domBridge?.destroy());
@@ -796,6 +994,14 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.refreshReadout();
     this.publishBrowserDebugState();
     window.__grassAppReady?.();
+  }
+
+  private sharpenPersistentText(): void {
+    this.children.list.forEach((child) => {
+      if (child instanceof Phaser.GameObjects.Text) {
+        child.setResolution(UI_TEXT_RESOLUTION);
+      }
+    });
   }
 
   private createOptionsButton(): void {
@@ -868,6 +1074,37 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       .setStrokeStyle(3, 0x8bdc69, 0.92)
       .setInteractive({ useHandCursor: true })
       .setVisible(false);
+    this.optionsSfxLabel = this.add.text(0, 0, "", {
+      align: "center",
+      color: "#dff6ca",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "15px",
+      stroke: "#07100c",
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(42).setVisible(false);
+    this.optionsSfxTrack = this.add
+      .rectangle(0, 0, OPTIONS_TRACK_BASE_WIDTH, OPTIONS_TRACK_BASE_HEIGHT, 0x10251a, 1)
+      .setOrigin(0, 0.5)
+      .setDepth(42)
+      .setStrokeStyle(1, 0xbff4ff, 0.52)
+      .setVisible(false);
+    this.optionsSfxFill = this.add
+      .rectangle(0, 0, OPTIONS_TRACK_BASE_WIDTH, OPTIONS_TRACK_BASE_HEIGHT, 0xbff4ff, 1)
+      .setOrigin(0, 0.5)
+      .setDepth(43)
+      .setVisible(false);
+    this.optionsSfxHit = this.add
+      .rectangle(0, 0, OPTIONS_HIT_BASE_WIDTH, OPTIONS_HIT_BASE_HEIGHT, 0xffffff, 0.001)
+      .setOrigin(0.5)
+      .setDepth(44)
+      .setInteractive({ useHandCursor: true })
+      .setVisible(false);
+    this.optionsSfxKnob = this.add
+      .circle(0, 0, 13, 0xf7ffd6, 1)
+      .setDepth(45)
+      .setStrokeStyle(3, 0xbff4ff, 0.92)
+      .setInteractive({ useHandCursor: true })
+      .setVisible(false);
     this.optionsMusicToggleButton = this.add
       .rectangle(0, 0, 138, 38, 0x173822, 0.94)
       .setDepth(42)
@@ -901,8 +1138,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0.5).setDepth(43).setVisible(false);
 
-    this.optionsMusicHit.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startOptionsVolumeDrag(pointer));
-    this.optionsMusicKnob.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startOptionsVolumeDrag(pointer));
+    this.optionsMusicHit.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startOptionsVolumeDrag(pointer, "music"));
+    this.optionsMusicKnob.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startOptionsVolumeDrag(pointer, "music"));
+    this.optionsSfxHit.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startOptionsVolumeDrag(pointer, "sfx"));
+    this.optionsSfxKnob.on("pointerdown", (pointer: Phaser.Input.Pointer) => this.startOptionsVolumeDrag(pointer, "sfx"));
     this.input.on("pointermove", this.handleOptionsVolumeDrag, this);
     this.input.on("pointerup", this.stopOptionsVolumeDrag, this);
     this.refreshOptionsPanel();
@@ -1024,34 +1263,38 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const panelScaleX = panelWidth / HUD_PANEL_BASE_WIDTH;
     this.hudPanel.setScale(panelScaleX, 1);
     this.hudPanel.setPosition(centerX, top + HUD_PANEL_BASE_HEIGHT / 2);
-    this.titleText.setText(width < 600 ? "Ancient Grass" : "Ancient Grass: Scourge Prototype");
-    this.titleText.setPosition(Math.max(24, centerX - this.titleText.width / 2), top);
-    this.objectiveText.setPosition(centerX - panelWidth / 2 + 40, top + 52);
+    const hudLeft = centerX - panelWidth / 2;
+    const hudRight = centerX + panelWidth / 2;
+    this.titleText.setText(width < 600 ? "Ancient Grass" : "Ancient Grass: Scourge");
+    this.titleText.setFontSize(width < 600 ? 23 : width < 900 ? 25 : 28);
+    this.titleText.setWordWrapWidth(Math.max(210, panelWidth - OPTIONS_BUTTON_WIDTH - 124));
+    this.titleText.setPosition(hudLeft + 38, top + 2);
+    this.objectiveText.setPosition(hudLeft + 40, top + 52);
     this.objectiveText.setWordWrapWidth(panelWidth - 80);
-    this.hpBarBack.setPosition(centerX - panelWidth / 2 + 38, top + 82).setSize(panelWidth - 76, 24);
-    this.hpBarFill.setPosition(centerX - panelWidth / 2 + 38, top + 82);
+    this.hpBarBack.setPosition(hudLeft + 38, top + 82).setSize(panelWidth - 76, 24);
+    this.hpBarFill.setPosition(hudLeft + 38, top + 82);
     this.hpBarGlint.setPosition(this.hpBarFill.x, this.hpBarFill.y).setSize(18, 20);
-    this.hpText.setPosition(centerX - panelWidth / 2 + 40, top + 98);
-    this.runTouchText.setPosition(centerX - panelWidth / 2 + 40, top + 124);
+    this.hpText.setPosition(hudLeft + 40, top + 98);
+    this.runTouchText.setPosition(hudLeft + 40, top + 124);
     const rootSalveButtonWidth = width < 720 ? COMPACT_ROOT_SALVE_BUTTON_WIDTH : ROOT_SALVE_BUTTON_WIDTH;
     const dewPulseButtonWidth = width < 720 ? COMPACT_DEW_PULSE_BUTTON_WIDTH : DEW_PULSE_BUTTON_WIDTH;
     const tinySprinklerButtonWidth = width < 720 ? COMPACT_TINY_SPRINKLER_BUTTON_WIDTH : TINY_SPRINKLER_BUTTON_WIDTH;
-    const rootSalveButtonX = centerX + panelWidth / 2 - rootSalveButtonWidth / 2 - 36;
+    const rootSalveButtonX = hudRight - rootSalveButtonWidth / 2 - 36;
     const dewPulseButtonX = rootSalveButtonX - rootSalveButtonWidth / 2 - RUN_TOOL_BUTTON_GAP - dewPulseButtonWidth / 2;
     const tinySprinklerButtonX = dewPulseButtonX - dewPulseButtonWidth / 2 - RUN_TOOL_BUTTON_GAP - tinySprinklerButtonWidth / 2;
-    const runToolButtonY = top + 150;
+    const runToolButtonY = top + 162;
     this.dewPulseButton.setPosition(dewPulseButtonX, runToolButtonY).setSize(dewPulseButtonWidth, ROOT_SALVE_BUTTON_HEIGHT);
     this.dewPulseText.setPosition(dewPulseButtonX, runToolButtonY);
     this.rootSalveButton.setPosition(rootSalveButtonX, runToolButtonY).setSize(rootSalveButtonWidth, ROOT_SALVE_BUTTON_HEIGHT);
     this.rootSalveText.setPosition(rootSalveButtonX, runToolButtonY);
     this.tinySprinklerButton.setPosition(tinySprinklerButtonX, runToolButtonY).setSize(tinySprinklerButtonWidth, ROOT_SALVE_BUTTON_HEIGHT);
     this.tinySprinklerText.setPosition(tinySprinklerButtonX, runToolButtonY);
-    const optionsButtonX = centerX + panelWidth / 2 - OPTIONS_BUTTON_WIDTH / 2 - 18;
+    const optionsButtonX = hudRight - OPTIONS_BUTTON_WIDTH / 2 - 18;
     const optionsButtonY = top + 22;
     this.optionsButton.setPosition(optionsButtonX, optionsButtonY).setSize(OPTIONS_BUTTON_WIDTH, OPTIONS_BUTTON_HEIGHT);
     this.optionsButtonText.setPosition(optionsButtonX, optionsButtonY);
-    this.scourgeBarFill.setPosition(centerX - 82, top + 184);
-    this.scourgeText.setPosition(centerX - panelWidth / 2 + 40, top + 174);
+    this.scourgeBarFill.setPosition(centerX - 82, top + 210);
+    this.scourgeText.setPosition(hudLeft + 40, top + 198);
     const promptY = height - 96;
     this.promptText.setWordWrapWidth(Math.min(580, width - 52));
     this.promptText.setPosition(centerX, promptY);
@@ -1096,90 +1339,139 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       .setPosition(centerX - introPanelWidth / 2 + 24, introPanelY - introPanelHeight / 2 + (compact ? 34 : 42));
 
     this.summaryBackdrop.setPosition(0, 0).setSize(width, height);
-    const summaryWidth = Math.min(SUMMARY_PANEL_BASE_WIDTH, width - 64);
-    const summaryHeight = Math.min(SUMMARY_PANEL_BASE_HEIGHT, height - 80);
+    const metaMargin = width < 720 ? 10 : 22;
+    const summaryWidth = Math.max(320, width - metaMargin * 2);
+    const summaryHeight = Math.max(420, height - metaMargin * 2);
+    const summaryLeft = centerX - summaryWidth / 2;
+    const summaryTop = height / 2 - summaryHeight / 2;
+    const summaryRight = summaryLeft + summaryWidth;
+    const summaryBottom = summaryTop + summaryHeight;
+    const compactReport = summaryWidth < 820;
     this.summaryPanel.setScale(summaryWidth / SUMMARY_PANEL_BASE_WIDTH, summaryHeight / SUMMARY_PANEL_BASE_HEIGHT);
     this.summaryPanel.setPosition(centerX, height / 2);
-    this.summaryTitle.setPosition(centerX, height / 2 - summaryHeight / 2 + 46);
-    this.summarySubtitle.setPosition(centerX, height / 2 - summaryHeight / 2 + 78);
-    this.summarySubtitle.setWordWrapWidth(summaryWidth - 80);
+    this.summaryTitle.setText("Memory Grove").setFontSize(width < 720 ? 27 : 36).setPosition(centerX, summaryTop + 42);
+    this.summarySubtitle
+      .setText("Game Over: dormancy claimed the Ancient Grass. Spend memory, then begin the next run.")
+      .setFontSize(width < 720 ? 12 : 14)
+      .setPosition(centerX, summaryTop + 76);
+    this.summarySubtitle.setWordWrapWidth(summaryWidth - (compactReport ? 110 : 80));
 
-    const metaTop = height / 2 - summaryHeight / 2 + 112;
-    const metaBottom = height / 2 + summaryHeight / 2 - 88;
-    const metaHeight = Math.max(220, metaBottom - metaTop);
-    const metaInnerWidth = summaryWidth - 72;
-    const twoColumnMeta = summaryWidth >= 680 && summaryHeight >= 420;
-    const summaryFrameWidth = twoColumnMeta ? Math.min(286, metaInnerWidth * 0.42) : metaInnerWidth;
-    const skillFrameWidth = twoColumnMeta ? metaInnerWidth - summaryFrameWidth - 24 : metaInnerWidth;
-    const summaryFrameHeight = twoColumnMeta ? metaHeight : Math.min(138, metaHeight * 0.36);
-    const skillFrameHeight = twoColumnMeta ? metaHeight : metaHeight - summaryFrameHeight - 18;
-    const summaryFrameX = twoColumnMeta ? centerX - metaInnerWidth / 2 + summaryFrameWidth / 2 : centerX;
-    const skillFrameX = twoColumnMeta ? centerX + metaInnerWidth / 2 - skillFrameWidth / 2 : centerX;
-    const summaryFrameY = twoColumnMeta ? metaTop + summaryFrameHeight / 2 : metaTop + summaryFrameHeight / 2;
-    const skillFrameY = twoColumnMeta ? metaTop + skillFrameHeight / 2 : metaTop + summaryFrameHeight + 18 + skillFrameHeight / 2;
+    const contentTop = summaryTop + (compactReport ? 100 : 112);
+    const contentBottom = summaryBottom - (compactReport ? 78 : 92);
+    const contentHeight = Math.max(260, contentBottom - contentTop);
+    const contentLeft = summaryLeft + 26;
+    const contentRight = summaryRight - 26;
+    const contentWidth = Math.max(300, contentRight - contentLeft);
+    const gap = compactReport ? 12 : 18;
+    const summaryFrameWidth = compactReport ? contentWidth : Math.min(300, Math.max(250, contentWidth * 0.27));
+    const detailFrameWidth = compactReport ? contentWidth : Math.min(290, Math.max(246, contentWidth * 0.25));
+    const skillFrameWidth = compactReport ? contentWidth : Math.max(340, contentWidth - summaryFrameWidth - detailFrameWidth - gap * 2);
+    const summaryFrameHeight = compactReport ? Math.min(168, contentHeight * 0.34) : contentHeight;
+    const detailFrameHeight = compactReport ? Math.min(200, Math.max(176, contentHeight * 0.31)) : contentHeight;
+    const skillFrameHeight = compactReport ? Math.max(230, contentHeight - summaryFrameHeight - detailFrameHeight - gap * 2) : contentHeight;
+    const summaryFrameX = compactReport ? centerX : contentLeft + summaryFrameWidth / 2;
+    const summaryFrameY = compactReport ? contentTop + summaryFrameHeight / 2 : contentTop + summaryFrameHeight / 2;
+    const skillFrameX = compactReport
+      ? centerX
+      : contentLeft + summaryFrameWidth + gap + skillFrameWidth / 2;
+    const skillFrameY = compactReport
+      ? contentTop + summaryFrameHeight + gap + skillFrameHeight / 2
+      : contentTop + skillFrameHeight / 2;
+    const detailFrameX = compactReport
+      ? centerX
+      : contentRight - detailFrameWidth / 2;
+    const detailFrameY = compactReport
+      ? contentBottom - detailFrameHeight / 2
+      : contentTop + detailFrameHeight / 2;
 
     this.summaryStatsFrame.setPosition(summaryFrameX, summaryFrameY).setSize(summaryFrameWidth, summaryFrameHeight);
     const summaryFrameLeft = summaryFrameX - summaryFrameWidth / 2;
     const summaryFrameTop = summaryFrameY - summaryFrameHeight / 2;
-    const compactReport = !twoColumnMeta;
-    this.summaryBody.setFontSize(compactReport ? 12 : 13);
-    this.summaryBody.setWordWrapWidth(summaryFrameWidth - 30);
-    this.summaryBody.setPosition(summaryFrameLeft + 16, summaryFrameTop + (compactReport ? 12 : 16));
-    this.summaryRewardText.setFontSize(compactReport ? 20 : 25);
-    this.summaryRewardText.setWordWrapWidth(summaryFrameWidth - 30);
-    this.summaryRewardText.setPosition(summaryFrameLeft + 16, summaryFrameTop + (compactReport ? 42 : 86));
-    this.summaryStatsText.setFontSize(compactReport ? 11 : 12);
-    this.summaryStatsText.setWordWrapWidth(summaryFrameWidth - 30);
-    this.summaryStatsText.setPosition(summaryFrameLeft + 16, summaryFrameTop + (compactReport ? 76 : 134));
+    this.summaryBody.setFontSize(compactReport ? 11 : 13);
+    this.summaryBody.setWordWrapWidth(summaryFrameWidth - 34);
+    this.summaryBody.setPosition(summaryFrameLeft + 18, summaryFrameTop + (compactReport ? 12 : 18));
+    this.summaryRewardText.setFontSize(compactReport ? 21 : 27);
+    this.summaryRewardText.setWordWrapWidth(summaryFrameWidth - 34);
+    this.summaryRewardText.setPosition(summaryFrameLeft + 18, summaryFrameTop + (compactReport ? 50 : 98));
+    this.summaryStatsText.setFontSize(compactReport ? 10 : 12);
+    this.summaryStatsText.setWordWrapWidth(summaryFrameWidth - 34);
+    this.summaryStatsText.setPosition(summaryFrameLeft + 18, summaryFrameTop + (compactReport ? 84 : 150));
     if (this.summaryPanel.visible) {
       this.refreshDormancyReport();
     }
 
     this.skillTreeFrame.setPosition(skillFrameX, skillFrameY).setSize(skillFrameWidth, skillFrameHeight);
-    this.skillTreeTitle.setPosition(skillFrameX - skillFrameWidth / 2 + 18, skillFrameY - skillFrameHeight / 2 + 16);
+    const skillFrameLeft = skillFrameX - skillFrameWidth / 2;
+    const skillFrameTop = skillFrameY - skillFrameHeight / 2;
+    this.skillTreeTitle.setFontSize(compactReport ? 18 : 24).setPosition(skillFrameLeft + 22, skillFrameTop + 18);
     this.skillTreeHelp
       .setText(`Available GT: ${this.state.economy.permanentGrassTouches}\nMemories carry into future runs.`)
       .setWordWrapWidth(skillFrameWidth - 36)
-      .setPosition(skillFrameX - skillFrameWidth / 2 + 18, skillFrameY - skillFrameHeight / 2 + 46);
+      .setPosition(skillFrameLeft + 22, skillFrameTop + (compactReport ? 44 : 54));
+    this.skillTreeConnector.setVisible(false);
 
-    const nodeWidth = Math.min(206, (skillFrameWidth - 58) / 2);
-    const nodeHeight = Math.min(56, Math.max(46, (skillFrameHeight - 132) / 3));
-    const nodeColumnOffset = nodeWidth / 2 + 12;
-    const nodeTopY = skillFrameY - skillFrameHeight / 2 + 114;
-    const nodeBottomY = skillFrameY + skillFrameHeight / 2 - 40;
-    const nodeMiddleY = (nodeTopY + nodeBottomY) / 2;
-    const nodeRows = [nodeTopY, nodeMiddleY, nodeBottomY];
-    const nodePositions = [
-      { column: -1, row: 0 },
-      { column: 1, row: 0 },
-      { column: -1, row: 1 },
-      { column: 1, row: 1 },
-      { column: 0, row: 2 },
-    ];
-    this.skillTreeConnector.setPosition(skillFrameX, (nodeTopY + nodeBottomY) / 2).setSize(4, Math.max(28, nodeBottomY - nodeTopY));
-
-    this.memoryUpgradeButtons.forEach((button, index) => {
-      const position = nodePositions[index] ?? { column: 0, row: 2 };
-      const x = position.column === 0 ? skillFrameX : skillFrameX + position.column * nodeColumnOffset;
-      const y = nodeRows[position.row] ?? nodeBottomY;
-      button.background.setPosition(x, y).setSize(nodeWidth, nodeHeight);
-      button.title.setPosition(x - nodeWidth / 2 + 12, y - nodeHeight / 2 + 7);
-      button.detail.setPosition(x - nodeWidth / 2 + 12, y - nodeHeight / 2 + 28);
-      button.detail.setWordWrapWidth(nodeWidth - 24);
+    const treeLeft = skillFrameLeft + 28;
+    const treeTop = skillFrameTop + (compactReport ? 64 : 92);
+    const treeWidth = skillFrameWidth - 56;
+    const treeHeight = skillFrameHeight - (compactReport ? 82 : 126);
+    const nodeSize = Phaser.Math.Clamp(Math.min(treeWidth * 0.2, treeHeight * 0.24), compactReport ? 44 : 64, compactReport ? 58 : 88);
+    this.memoryUpgradeButtons.forEach((button) => {
+      const view = MEMORY_UPGRADE_VIEW[button.upgradeId];
+      const x = treeLeft + treeWidth * view.x;
+      const y = treeTop + treeHeight * view.y;
+      button.background.setPosition(x, y + nodeSize * 0.22).setSize(nodeSize + 76, nodeSize + 70);
+      button.glow.setPosition(x, y).setRadius(nodeSize * 0.7);
+      button.frame.setPosition(x, y).setDisplaySize(nodeSize, nodeSize);
+      button.icon.setPosition(x, y).setDisplaySize(nodeSize * 0.52, nodeSize * 0.52);
+      button.title.setFontSize(compactReport ? 11 : 15).setPosition(x, y + nodeSize * 0.72);
+      button.title.setWordWrapWidth(nodeSize + 76);
+      button.branch.setFontSize(compactReport ? 9 : 10).setPosition(x, y + nodeSize * 1);
+      button.branch.setAlpha(compactReport ? 0 : 1);
+      button.branch.setWordWrapWidth(nodeSize + 70);
+      button.detail.setFontSize(compactReport ? 9 : 11).setPosition(x, y + (compactReport ? nodeSize * 1.08 : nodeSize * 1.24));
+      button.detail.setWordWrapWidth(nodeSize + 74);
     });
+    this.drawMemorySkillTreeLines(nodeSize);
+
+    this.memoryDetailFrame.setPosition(detailFrameX, detailFrameY).setSize(detailFrameWidth, detailFrameHeight);
+    const detailFrameLeft = detailFrameX - detailFrameWidth / 2;
+    const detailFrameTop = detailFrameY - detailFrameHeight / 2;
+    this.memoryDetailTitle.setFontSize(compactReport ? 18 : 24).setPosition(detailFrameLeft + 18, detailFrameTop + 18);
+    this.memoryDetailBranch.setFontSize(compactReport ? 11 : 13).setPosition(detailFrameLeft + 18, detailFrameTop + (compactReport ? 46 : 54));
+    this.memoryDetailBody
+      .setFontSize(compactReport ? 10 : 14)
+      .setLineSpacing(compactReport ? 2 : 4)
+      .setWordWrapWidth(detailFrameWidth - 36)
+      .setPosition(detailFrameLeft + 18, detailFrameTop + (compactReport ? 66 : 82));
+    this.memoryDetailCost
+      .setFontSize(compactReport ? 11 : 14)
+      .setLineSpacing(compactReport ? 2 : 4)
+      .setWordWrapWidth(detailFrameWidth - 36)
+      .setPosition(detailFrameLeft + 18, detailFrameY + detailFrameHeight / 2 - (compactReport ? 58 : 70));
+    this.refreshMemoryDetail();
     this.lockedMetaNodes.forEach((node, index) => {
-      const x = skillFrameX + (index % 2 === 0 ? 1 : -1) * nodeColumnOffset;
-      node.background.setPosition(x, nodeBottomY).setSize(nodeWidth, nodeHeight);
-      node.title.setPosition(x - nodeWidth / 2 + 12, nodeBottomY - nodeHeight / 2 + 10);
-      node.detail.setPosition(x - nodeWidth / 2 + 12, nodeBottomY - nodeHeight / 2 + 34);
-      node.detail.setWordWrapWidth(nodeWidth - 24);
+      const x = skillFrameX + (index % 2 === 0 ? 1 : -1) * 120;
+      const y = skillFrameY + skillFrameHeight / 2 - 40;
+      node.background.setPosition(x, y).setSize(120, 48);
+      node.title.setPosition(x - 48, y - 16);
+      node.detail.setPosition(x - 48, y + 8);
+      node.detail.setWordWrapWidth(96);
     });
 
-    this.summaryHint.setPosition(centerX, height / 2 + summaryHeight / 2 - 60);
+    this.summaryHint.setFontSize(compactReport ? 12 : 15).setPosition(centerX, summaryBottom - (compactReport ? 62 : 58));
     this.summaryHint.setWordWrapWidth(summaryWidth - 80);
-    this.nextRunButton.setPosition(centerX, height / 2 + summaryHeight / 2 - 28).setSize(190, 38);
-    this.nextRunText.setPosition(centerX, height / 2 + summaryHeight / 2 - 28);
+    this.nextRunButton.setPosition(centerX, summaryBottom - 27).setSize(compactReport ? 180 : 210, 38);
+    this.nextRunText.setPosition(centerX, summaryBottom - 27);
     this.layoutOptionsPanel(width, height, centerX);
+    const compactMetaOptionsHidden = this.summaryPanel.visible && compactReport && width < 720;
+    if (this.summaryPanel.visible && !compactMetaOptionsHidden) {
+      const metaOptionsX = summaryRight - OPTIONS_BUTTON_WIDTH / 2 - 34;
+      const metaOptionsY = summaryTop + 56;
+      this.optionsButton.setPosition(metaOptionsX, metaOptionsY).setSize(OPTIONS_BUTTON_WIDTH, OPTIONS_BUTTON_HEIGHT);
+      this.optionsButtonText.setPosition(metaOptionsX, metaOptionsY);
+    }
+    this.optionsButton.setVisible(!compactMetaOptionsHidden);
+    this.optionsButtonText.setVisible(!compactMetaOptionsHidden);
 
     const sideX = Math.max(150, centerX - panelWidth / 2 - SIDE_PANEL_BASE_WIDTH / 2 - 18);
     const playerPanelVisible = sidePanelVisible || compactPanelsVisible;
@@ -1318,22 +1610,31 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const panelBottom = centerY + panelHeight / 2;
     const trackWidth = Math.max(160, Math.min(OPTIONS_TRACK_BASE_WIDTH, panelWidth - 112));
     const trackX = centerX - trackWidth / 2;
-    const trackY = centerY - 10;
+    const musicLabelY = panelTop + 86;
+    const musicTrackY = panelTop + 120;
+    const sfxLabelY = panelTop + 164;
+    const sfxTrackY = panelTop + 198;
     const buttonY = panelBottom - 44;
 
     this.optionsPanel.setScale(panelWidth / OPTIONS_PANEL_BASE_WIDTH, panelHeight / OPTIONS_PANEL_BASE_HEIGHT);
     this.optionsPanel.setPosition(centerX, centerY);
     this.optionsTitle.setPosition(centerX, panelTop + 40);
-    this.optionsMusicLabel.setPosition(centerX, centerY - 48);
-    this.optionsMusicTrack.setPosition(trackX, trackY).setScale(trackWidth / OPTIONS_TRACK_BASE_WIDTH, 1);
-    this.optionsMusicFill.setPosition(trackX, trackY);
-    this.optionsMusicHit.setPosition(centerX, trackY).setScale((trackWidth + 38) / OPTIONS_HIT_BASE_WIDTH, 1);
+    this.optionsMusicLabel.setPosition(centerX, musicLabelY);
+    this.optionsMusicTrack.setPosition(trackX, musicTrackY).setScale(trackWidth / OPTIONS_TRACK_BASE_WIDTH, 1);
+    this.optionsMusicFill.setPosition(trackX, musicTrackY);
+    this.optionsMusicHit.setPosition(centerX, musicTrackY).setScale((trackWidth + 38) / OPTIONS_HIT_BASE_WIDTH, 1);
+    this.optionsSfxLabel.setPosition(centerX, sfxLabelY);
+    this.optionsSfxTrack.setPosition(trackX, sfxTrackY).setScale(trackWidth / OPTIONS_TRACK_BASE_WIDTH, 1);
+    this.optionsSfxFill.setPosition(trackX, sfxTrackY);
+    this.optionsSfxHit.setPosition(centerX, sfxTrackY).setScale((trackWidth + 38) / OPTIONS_HIT_BASE_WIDTH, 1);
     this.optionsMusicToggleButton.setPosition(centerX - 78, buttonY).setSize(138, 38);
     this.optionsMusicToggleText.setPosition(centerX - 78, buttonY);
     this.optionsCloseButton.setPosition(centerX + 94, buttonY).setSize(104, 38);
     this.optionsCloseText.setPosition(centerX + 94, buttonY);
     this.optionsMusicTrackX = trackX;
     this.optionsMusicTrackWidth = trackWidth;
+    this.optionsSfxTrackX = trackX;
+    this.optionsSfxTrackWidth = trackWidth;
     this.refreshOptionsPanel();
   }
 
@@ -1531,6 +1832,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     }
 
     this.startPrototypeAudio();
+    const firstTouch = this.introActive;
     if (this.introActive) {
       this.beginIntroRun();
     }
@@ -1547,6 +1849,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
     const healing = (wounded ? WOUNDED_TOUCH_HEALING : TOUCH_HEALING) * proximity * getPermanentUpgradeEffects(this.state).manualHealingMultiplier;
     const result = touchAncientGrassRoot(this.state, healing, nearest.rootId);
+    this.playRootTouchSfx(nearest, firstTouch, result.healedWound, result.effectiveHealing > 0, proximity);
     const text = result.healedWound ? `wound healed +${result.runTouchesGained}` : result.effectiveHealing > 0 ? `+${result.runTouchesGained} RT` : "overheal";
     nearest.lastTouchAt = this.time.now;
     nearest.recoveringUntil =
@@ -1711,8 +2014,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.scourgeVeil.setAlpha(Math.min(0.34, 0.05 + (1 - hpRatio) * 0.16 + (this.state.scourge.pressure - 1) * 0.08));
     this.shade.setAlpha(this.state.phase === "active" ? 0.3 + (1 - hpRatio) * 0.16 : 0.58);
     this.fieldPanel.setAlpha(this.state.phase === "active" ? 0.88 + hpRatio * 0.08 : 0.62);
-    this.touchHintRing.setVisible(this.state.phase === "active");
-    this.touchHintText.setVisible(this.state.phase === "active");
+    const showTouchHint = this.shouldShowTouchHint();
+    this.touchHintRing.setVisible(showTouchHint);
+    this.touchHintText.setVisible(showTouchHint);
 
     this.rootNodes.forEach((node, index) => {
       if (index >= this.activeRootCount) {
@@ -1776,6 +2080,15 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.introBody.setVisible(nextVisible);
   }
 
+  private shouldShowTouchHint(): boolean {
+    if (this.state.phase !== "active") {
+      return false;
+    }
+
+    const activeObjectiveId = getActiveFirstRunObjective(this.objectiveState, this.state)?.definition.id;
+    return activeObjectiveId === "wakeAncientGrass";
+  }
+
   private updatePlayerPanel(compact: boolean): void {
     const ownedMemory = this.formatOwnedMemory();
     const phaseText = this.state.phase === "dormant" ? "Dormant heir" : this.introActive ? "Field heir" : "Manual caretaker";
@@ -1795,9 +2108,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.background.setPosition(this.scale.width / 2 + Math.sin(seconds * 0.12) * 4, this.scale.height / 2 + Math.cos(seconds * 0.1) * 3);
     this.rootAura.setAlpha(this.state.phase === "active" ? 0.04 + hpRatio * 0.06 + Math.sin(seconds * 1.8) * 0.018 : 0.02);
     this.rootAura.setScale(1 + Math.sin(seconds * 1.35) * 0.025);
-    this.touchHintRing.setAlpha(this.state.phase === "active" ? 0.14 + Math.sin(seconds * 2.1) * 0.06 : 0);
+    const showTouchHint = this.shouldShowTouchHint();
+    this.touchHintRing.setAlpha(showTouchHint ? 0.14 + Math.sin(seconds * 2.1) * 0.06 : 0);
     this.touchHintRing.setScale(1 + Math.sin(seconds * 2.1) * 0.035);
-    this.touchHintText.setAlpha(this.state.phase === "active" ? 0.72 + Math.sin(seconds * 2.1) * 0.16 : 0);
+    this.touchHintText.setAlpha(showTouchHint ? 0.72 + Math.sin(seconds * 2.1) * 0.16 : 0);
 
     this.rootNodes.forEach((node, index) => {
       if (index >= this.activeRootCount) {
@@ -2009,6 +2323,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.startPrototypeAudio();
     const result = useDewPulse(this.state);
     if (!result.used) {
+      this.sfx.play("blocked");
       const reasonText =
         result.reason === "not-enough-run-touches"
           ? `need ${DEW_PULSE_RUN_TOUCH_COST} RT`
@@ -2030,6 +2345,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
     this.lastRunToolKind = "dewPulse";
     this.lastRunToolAt = Math.round(this.time.now);
+    this.sfx.play("regrow");
     this.addFeedEntry("Dew Pulse", `+${result.effectiveHealing.toFixed(0)} HP bought`, "DP", "#bff4ff");
     this.saySensi("Dew Pulse.\nBought time, not victory.", "approval", 3200);
     this.floatText(this.dewPulseButton.x, this.dewPulseButton.y - 20, `-${result.spent} RT`, "#bff4ff");
@@ -2091,6 +2407,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.startPrototypeAudio();
     const result = useRootSalve(this.state);
     if (!result.used) {
+      this.sfx.play("blocked");
       const reasonText =
         result.reason === "not-enough-run-touches"
           ? `need ${ROOT_SALVE_RUN_TOUCH_COST} RT`
@@ -2105,6 +2422,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const healedNode = this.rootNodes.find((node) => node.rootId === result.healedRootId);
     this.lastRunToolKind = "rootSalve";
     this.lastRunToolAt = Math.round(this.time.now);
+    this.sfx.play("regrow");
     this.addFeedEntry("Root Salve", `root ${(result.healedRootId ?? 0) + 1} sealed`, "RS", "#bff4ff");
     this.saySensi("Good.\nTemporary money, permanent lesson.", "approval", 3600);
     this.floatText(this.rootSalveButton.x, this.rootSalveButton.y - 20, `-${result.spent} RT`, "#bff4ff");
@@ -2119,7 +2437,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private refreshDewPulseButton(compact: boolean): void {
-    const visible = this.state.phase === "active" && !this.introActive;
+    const visible = this.shouldShowDewPulseButton();
     const usable = this.isDewPulseUsable();
     const label = compact ? `Dew ${DEW_PULSE_RUN_TOUCH_COST}` : `Dew Pulse ${DEW_PULSE_RUN_TOUCH_COST} RT`;
     this.dewPulseButton.setVisible(visible);
@@ -2144,6 +2462,16 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       !this.introActive &&
       this.state.economy.runTouches >= DEW_PULSE_RUN_TOUCH_COST &&
       this.state.ancientGrass.currentHp < this.state.ancientGrass.maxHp
+    );
+  }
+
+  private shouldShowDewPulseButton(): boolean {
+    return (
+      this.state.phase === "active" &&
+      !this.introActive &&
+      (this.state.economy.runTouches >= DEW_PULSE_RUN_TOUCH_COST ||
+        this.state.economy.totalRunTouchesEarned >= DEW_PULSE_RUN_TOUCH_COST ||
+        this.lastDewPulseReadyAt > 0)
     );
   }
 
@@ -2189,7 +2517,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private refreshRootSalveButton(woundedCount: number, compact: boolean): void {
-    const visible = this.state.phase === "active" && !this.introActive;
+    const visible = this.shouldShowRootSalveButton(woundedCount);
     const affordable = this.state.economy.runTouches >= ROOT_SALVE_RUN_TOUCH_COST;
     const usable = visible && woundedCount > 0 && affordable;
     const label = compact ? `Salve ${ROOT_SALVE_RUN_TOUCH_COST}` : `Root Salve ${ROOT_SALVE_RUN_TOUCH_COST} RT`;
@@ -2202,10 +2530,15 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       .setStrokeStyle(2, usable ? 0xd7a64e : 0x6f6a52, usable ? 0.86 : 0.45);
   }
 
+  private shouldShowRootSalveButton(woundedCount = getWoundedRootCount(this.state)): boolean {
+    return this.state.phase === "active" && !this.introActive && woundedCount > 0;
+  }
+
   private handleTinySprinklerClick(): void {
     this.startPrototypeAudio();
     const result = buyTinySprinkler(this.state);
     if (!result.bought) {
+      this.sfx.play("blocked");
       const reasonText =
         result.reason === "license-missing"
           ? "need license"
@@ -2228,6 +2561,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
     this.lastRunToolKind = "tinySprinkler";
     this.lastRunToolAt = Math.round(this.time.now);
+    this.sfx.play("upgrade");
     this.tinySprinklerElapsed = 0;
     this.addFeedEntry("Tiny Sprinkler", `x${result.tinySprinklers} installed`, "SP", "#bff4ff");
     this.saySensi(`Tiny Sprinkler x${result.tinySprinklers}.\nThe field has a little helper now.`, "approval", 3600);
@@ -2239,7 +2573,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
   private refreshTinySprinklerButton(compact: boolean): void {
     const licensed = hasPermanentUpgrade(this.state, "tinySprinkler");
-    const visible = this.state.phase === "active" && !this.introActive && licensed;
+    const visible = this.shouldShowTinySprinklerButton(licensed);
     const affordable = this.state.economy.runTouches >= TINY_SPRINKLER_RUN_TOUCH_COST;
     const count = this.state.automation.tinySprinklers;
     const usable = visible && affordable;
@@ -2251,6 +2585,17 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.tinySprinklerButton
       .setFillStyle(usable ? 0x164554 : 0x223026, usable ? 0.94 : 0.62)
       .setStrokeStyle(2, usable ? 0x8fdfff : 0x6f6a52, usable ? 0.86 : 0.45);
+  }
+
+  private shouldShowTinySprinklerButton(licensed = hasPermanentUpgrade(this.state, "tinySprinkler")): boolean {
+    return (
+      this.state.phase === "active" &&
+      !this.introActive &&
+      licensed &&
+      (this.state.economy.runTouches >= TINY_SPRINKLER_RUN_TOUCH_COST ||
+        this.state.automation.tinySprinklers > 0 ||
+        this.lastRunToolKind === "tinySprinkler")
+    );
   }
 
   private pulseTinySprinklerButton(): void {
@@ -2364,7 +2709,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
   private closeOptions(): void {
     this.optionsOpen = false;
-    this.draggingMusicVolume = false;
+    this.draggingOptionsVolume = null;
     this.setOptionsPanelVisible(false);
     this.publishBrowserDebugState();
   }
@@ -2378,6 +2723,11 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.optionsMusicFill.setVisible(visible);
     this.optionsMusicHit.setVisible(visible);
     this.optionsMusicKnob.setVisible(visible);
+    this.optionsSfxLabel.setVisible(visible);
+    this.optionsSfxTrack.setVisible(visible);
+    this.optionsSfxFill.setVisible(visible);
+    this.optionsSfxHit.setVisible(visible);
+    this.optionsSfxKnob.setVisible(visible);
     this.optionsMusicToggleButton.setVisible(visible);
     this.optionsMusicToggleText.setVisible(visible);
     this.optionsCloseButton.setVisible(visible);
@@ -2411,26 +2761,37 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.saySensi(this.audioStarted ? "Music on.\nLucid grass, tasteful menace." : "Music armed.\nFirst root touch wakes it.", "approval", 3000);
   }
 
-  private startOptionsVolumeDrag(pointer: Phaser.Input.Pointer): void {
-    this.draggingMusicVolume = true;
-    this.setMusicVolumeFromPointer(pointer);
+  private startOptionsVolumeDrag(pointer: Phaser.Input.Pointer, target: "music" | "sfx"): void {
+    this.draggingOptionsVolume = target;
+    this.setOptionsVolumeFromPointer(pointer, target);
   }
 
   private handleOptionsVolumeDrag(pointer: Phaser.Input.Pointer): void {
-    if (!this.draggingMusicVolume || !this.optionsOpen) {
+    if (!this.draggingOptionsVolume || !this.optionsOpen) {
       return;
     }
 
-    this.setMusicVolumeFromPointer(pointer);
+    this.setOptionsVolumeFromPointer(pointer, this.draggingOptionsVolume);
   }
 
   private stopOptionsVolumeDrag(): void {
-    this.draggingMusicVolume = false;
+    const target = this.draggingOptionsVolume;
+    this.draggingOptionsVolume = null;
+    if (target === "sfx" && this.sfxVolume > 0) {
+      this.sfx.play("skill_select");
+    }
   }
 
-  private setMusicVolumeFromPointer(pointer: Phaser.Input.Pointer): void {
-    const volume = Phaser.Math.Clamp((pointer.x - this.optionsMusicTrackX) / this.optionsMusicTrackWidth, 0, 1);
-    this.setPrototypeMusicVolume(volume);
+  private setOptionsVolumeFromPointer(pointer: Phaser.Input.Pointer, target: "music" | "sfx"): void {
+    const trackX = target === "music" ? this.optionsMusicTrackX : this.optionsSfxTrackX;
+    const trackWidth = target === "music" ? this.optionsMusicTrackWidth : this.optionsSfxTrackWidth;
+    const volume = Phaser.Math.Clamp((pointer.x - trackX) / Math.max(1, trackWidth), 0, 1);
+    if (target === "music") {
+      this.setPrototypeMusicVolume(volume);
+      return;
+    }
+
+    this.setPrototypeSfxVolume(volume);
   }
 
   private setPrototypeMusicVolume(volume: number): void {
@@ -2440,6 +2801,17 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     }
     this.applyPrototypeMusicVolume();
     this.refreshOptionsPanel();
+    this.publishBrowserDebugState();
+  }
+
+  private setPrototypeSfxVolume(volume: number, preview = false): void {
+    this.sfxVolume = writeStoredSfxVolume(volume);
+    this.sfx.setVolume(this.sfxVolume);
+    this.refreshOptionsPanel();
+    if (preview && this.sfxVolume > 0 && this.time.now - this.lastSfxPreviewAt > 180) {
+      this.lastSfxPreviewAt = this.time.now;
+      this.sfx.play("skill_select");
+    }
     this.publishBrowserDebugState();
   }
 
@@ -2464,11 +2836,28 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private refreshOptionsPanel(): void {
     const musicEnabled = this.musicVolume > 0;
     this.optionsMusicLabel?.setText(`Music volume: ${Math.round(this.musicVolume * 100)}%`);
+    this.optionsSfxLabel?.setText(`SFX volume: ${Math.round(this.sfxVolume * 100)}%`);
     this.optionsMusicToggleText?.setText(musicEnabled ? "Music: On" : "Music: Off");
     this.optionsMusicToggleText?.setColor(musicEnabled ? "#ffefb0" : "#9e9a84");
     this.optionsMusicToggleButton?.setFillStyle(musicEnabled ? 0x173822 : 0x223026, musicEnabled ? 0.94 : 0.74);
     this.optionsMusicFill?.setScale((this.optionsMusicTrackWidth * this.musicVolume) / OPTIONS_TRACK_BASE_WIDTH, 1);
     this.optionsMusicKnob?.setPosition(this.optionsMusicTrackX + this.optionsMusicTrackWidth * this.musicVolume, this.optionsMusicTrack.y);
+    this.optionsSfxFill?.setScale((this.optionsSfxTrackWidth * this.sfxVolume) / OPTIONS_TRACK_BASE_WIDTH, 1);
+    this.optionsSfxKnob?.setPosition(this.optionsSfxTrackX + this.optionsSfxTrackWidth * this.sfxVolume, this.optionsSfxTrack.y);
+  }
+
+  private playRootTouchSfx(node: RootNodeView, firstTouch: boolean, healedWound: boolean, effective: boolean, proximity: number): void {
+    const profile = this.getRootAudioProfile(node);
+    if (firstTouch) {
+      this.sfx.playFirstTouch(profile.tier, profile.trait);
+      return;
+    }
+
+    this.sfx.playGrassTouch(profile.tier, profile.trait, healedWound, effective ? Math.round(proximity * 8) : 0);
+  }
+
+  private getRootAudioProfile(node: RootNodeView): { tier: GrassTierId; trait: TileTrait } {
+    return GRASS_TEXTURE_AUDIO[GRASS_TEXTURES[node.rootId % GRASS_TEXTURES.length]];
   }
 
   private playRootTouch(node: RootNodeView, proximity: number, effective: boolean): void {
@@ -2567,6 +2956,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private playRootRecoveryReject(node: RootNodeView): void {
+    this.sfx.play("blocked");
     this.cameras.main.shake(55, 0.0007);
     this.tweens.killTweensOf([node.grass, node.pulse, node.recoveryHalo]);
     const rejectRing = this.add
@@ -2635,6 +3025,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private playWoundOpen(node: RootNodeView): void {
+    this.sfx.play("prick");
     const ring = this.add
       .circle(node.homeX, node.homeY, Math.max(12, node.visualSize * 0.18), 0x7c1939, 0.2)
       .setDepth(13)
@@ -2667,6 +3058,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private playWoundSeal(node: RootNodeView): void {
+    this.sfx.play("regrow");
     const ring = this.add
       .circle(node.homeX, node.homeY, Math.max(12, node.visualSize * 0.18), 0xbff4ff, 0.18)
       .setDepth(13)
@@ -2814,13 +3206,26 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.summaryRewardText.setVisible(visible);
     this.summaryStatsText.setVisible(visible);
     this.skillTreeFrame.setVisible(visible);
+    this.skillTreeLines.setVisible(visible);
     this.skillTreeTitle.setVisible(visible);
     this.skillTreeHelp.setVisible(visible);
     this.skillTreeConnector.setVisible(visible);
+    if (!visible) {
+      this.setMemoryHoverCalloutVisible(false);
+    }
+    this.memoryDetailFrame.setVisible(visible);
+    this.memoryDetailTitle.setVisible(visible);
+    this.memoryDetailBranch.setVisible(visible);
+    this.memoryDetailBody.setVisible(visible);
+    this.memoryDetailCost.setVisible(visible);
     this.summaryHint.setVisible(visible);
     this.memoryUpgradeButtons.forEach((button) => {
       button.background.setVisible(visible);
+      button.glow.setVisible(visible);
+      button.frame.setVisible(visible);
+      button.icon.setVisible(visible);
       button.title.setVisible(visible);
+      button.branch.setVisible(visible);
       button.detail.setVisible(visible);
     });
     this.lockedMetaNodes.forEach((node) => {
@@ -2840,8 +3245,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private refreshDormancyReport(): void {
     const summary = getDormancySummary(this.state);
     const compact = this.isCompactDormancyReport();
-    this.summaryTitle.setText("Game Over");
-    this.summarySubtitle.setText("Dormancy claimed the Ancient Grass. The run is stopped; only memory choices remain.");
+    this.summaryTitle.setText("Memory Grove");
+    this.summarySubtitle.setText("Game Over: dormancy claimed the Ancient Grass. Spend memory, then begin the next run.");
     this.summaryBody.setText(
       compact
         ? "Run over. Healing became GT; unspent RT is gone."
@@ -2899,32 +3304,227 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private getDormancyActionHint(): string {
+    const compact = this.isCompactDormancyReport();
     if (this.lastMemoryPurchaseHint) {
-      return `${this.lastMemoryPurchaseHint} Begin Next Run when ready.`;
+      return compact ? `${this.lastMemoryPurchaseHint} Next run ready.` : `${this.lastMemoryPurchaseHint} Begin Next Run when ready.`;
     }
 
-    return "Spend GT in the skill tree, then use Begin Next Run.";
+    return compact ? "Spend GT, then begin next run." : "Spend GT in the skill tree, then use Begin Next Run.";
+  }
+
+  private drawMemorySkillTreeLines(nodeSize: number): void {
+    this.skillTreeLines.clear();
+    if (!this.summaryPanel.visible) {
+      return;
+    }
+
+    const nodes = new Map(this.memoryUpgradeButtons.map((button) => [button.upgradeId, button]));
+    this.skillTreeLines.fillStyle(0xeaff9b, 0.42);
+    for (const button of this.memoryUpgradeButtons) {
+      this.skillTreeLines.fillCircle(
+        button.frame.x + Math.sin(button.frame.x * 0.03) * nodeSize * 0.92,
+        button.frame.y - nodeSize * 0.92,
+        Math.max(1.2, nodeSize * 0.025),
+      );
+    }
+
+    for (const button of this.memoryUpgradeButtons) {
+      const meta = MEMORY_UPGRADE_VIEW[button.upgradeId];
+      for (const sourceId of meta.connectsTo ?? []) {
+        const source = nodes.get(sourceId);
+        if (!source) {
+          continue;
+        }
+
+        const targetOwned = hasPermanentUpgrade(this.state, button.upgradeId);
+        const sourceOwned = hasPermanentUpgrade(this.state, sourceId);
+        const affordable = this.state.economy.permanentGrassTouches >= PERMANENT_UPGRADE_DEFINITIONS[button.upgradeId].cost;
+        const selected = this.selectedMemoryUpgradeId === button.upgradeId || this.selectedMemoryUpgradeId === sourceId;
+        const active = targetOwned && sourceOwned;
+        const color = selected ? 0xf4df6a : active ? 0x8bdc69 : affordable ? meta.color : 0x6f9473;
+        const alpha = selected ? 0.58 : active ? 0.46 : affordable ? 0.34 : 0.16;
+        this.drawMemoryConnector(source.frame.x, source.frame.y, button.frame.x, button.frame.y, color, alpha, selected, nodeSize);
+      }
+    }
+  }
+
+  private drawMemoryConnector(
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+    color: number,
+    alpha: number,
+    selected: boolean,
+    nodeSize: number,
+  ): void {
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const distance = Math.max(1, Math.hypot(dx, dy));
+    const trim = nodeSize * 0.42;
+    const fromX = startX + (dx / distance) * trim;
+    const fromY = startY + (dy / distance) * trim;
+    const toX = endX - (dx / distance) * trim;
+    const toY = endY - (dy / distance) * trim;
+    const midX = fromX + dx * 0.52;
+
+    if (selected) {
+      this.skillTreeLines.lineStyle(8, color, alpha * 0.16);
+      this.skillTreeLines.beginPath();
+      this.skillTreeLines.moveTo(fromX, fromY);
+      this.skillTreeLines.lineTo(midX, fromY);
+      this.skillTreeLines.lineTo(midX, toY);
+      this.skillTreeLines.lineTo(toX, toY);
+      this.skillTreeLines.strokePath();
+    }
+
+    this.skillTreeLines.lineStyle(4, 0x06190f, 0.36);
+    this.skillTreeLines.beginPath();
+    this.skillTreeLines.moveTo(fromX, fromY);
+    this.skillTreeLines.lineTo(midX, fromY);
+    this.skillTreeLines.lineTo(midX, toY);
+    this.skillTreeLines.lineTo(toX, toY);
+    this.skillTreeLines.strokePath();
+
+    this.skillTreeLines.lineStyle(selected ? 3 : 2, color, alpha);
+    this.skillTreeLines.beginPath();
+    this.skillTreeLines.moveTo(fromX, fromY);
+    this.skillTreeLines.lineTo(midX, fromY);
+    this.skillTreeLines.lineTo(midX, toY);
+    this.skillTreeLines.lineTo(toX, toY);
+    this.skillTreeLines.strokePath();
+  }
+
+  private refreshMemoryDetail(): void {
+    const upgrade = PERMANENT_UPGRADE_DEFINITIONS[this.selectedMemoryUpgradeId];
+    const meta = MEMORY_UPGRADE_VIEW[this.selectedMemoryUpgradeId];
+    const owned = hasPermanentUpgrade(this.state, this.selectedMemoryUpgradeId);
+    const affordable = this.state.economy.permanentGrassTouches >= upgrade.cost;
+    this.memoryDetailTitle.setText(upgrade.name);
+    this.memoryDetailTitle.setColor(owned ? "#eaff9b" : affordable ? "#ffefb0" : "#c8b98b");
+    this.memoryDetailBranch.setText(`${meta.branch} memory`);
+    this.memoryDetailBranch.setColor(`#${meta.color.toString(16).padStart(6, "0")}`);
+    this.memoryDetailBody.setText(`${upgrade.description}\n\n${this.formatMemoryUpgradeFlavor(this.selectedMemoryUpgradeId)}`);
+    this.memoryDetailCost.setText(
+      owned
+        ? `Remembered.\n${this.formatMemoryUpgradeShortEffect(this.selectedMemoryUpgradeId)}`
+        : affordable
+          ? `Cost: ${upgrade.cost} GT\nClick the node to remember.`
+          : `Cost: ${upgrade.cost} GT\nNeed ${upgrade.cost - this.state.economy.permanentGrassTouches} more GT.`,
+    );
+    this.memoryDetailCost.setColor(owned ? "#eaff9b" : affordable ? "#f4df6a" : "#ffb1c7");
+    this.refreshMemoryHoverCallout();
+  }
+
+  private refreshMemoryHoverCallout(): void {
+    if (!this.summaryPanel.visible) {
+      this.setMemoryHoverCalloutVisible(false);
+      return;
+    }
+
+    const upgrade = PERMANENT_UPGRADE_DEFINITIONS[this.selectedMemoryUpgradeId];
+    const owned = hasPermanentUpgrade(this.state, this.selectedMemoryUpgradeId);
+    const affordable = this.state.economy.permanentGrassTouches >= upgrade.cost;
+    const shortEffect = this.formatMemoryUpgradeShortEffect(this.selectedMemoryUpgradeId);
+    const status = owned
+      ? `Remembered\n${shortEffect}`
+      : affordable
+        ? `Cost ${upgrade.cost} GT\nClick to remember`
+        : `Cost ${upgrade.cost} GT\nNeed ${upgrade.cost - this.state.economy.permanentGrassTouches} more`;
+
+    this.memoryHoverTitle.setText(upgrade.name);
+    this.memoryHoverTitle.setColor(owned ? "#eaff9b" : affordable ? "#ffefb0" : "#c8b98b");
+    this.memoryHoverBody.setText(status);
+    this.memoryHoverBody.setColor(owned ? "#eaff9b" : affordable ? "#dff6ca" : "#ffb1c7");
+    this.layoutMemoryHoverCallout();
+  }
+
+  private layoutMemoryHoverCallout(): void {
+    const selectedButton = this.memoryUpgradeButtons.find((button) => button.upgradeId === this.selectedMemoryUpgradeId);
+    if (!this.summaryPanel.visible || !selectedButton?.frame.visible || selectedButton.frame.displayWidth <= 0) {
+      this.setMemoryHoverCalloutVisible(false);
+      return;
+    }
+
+    const skillBounds = this.skillTreeFrame.getBounds();
+    if (skillBounds.width < 430 || skillBounds.height < 280) {
+      this.setMemoryHoverCalloutVisible(false);
+      return;
+    }
+
+    const width = Phaser.Math.Clamp(skillBounds.width * 0.28, 170, 220);
+    const height = 72;
+    const margin = 14;
+    const nodeOffset = selectedButton.frame.displayWidth * 0.72;
+    let x = selectedButton.frame.x + nodeOffset + width / 2;
+    if (x + width / 2 > skillBounds.right - margin) {
+      x = selectedButton.frame.x - nodeOffset - width / 2;
+    }
+    x = Phaser.Math.Clamp(x, skillBounds.left + margin + width / 2, skillBounds.right - margin - width / 2);
+    const y = Phaser.Math.Clamp(
+      selectedButton.frame.y - selectedButton.frame.displayHeight * 0.08,
+      skillBounds.top + margin + height / 2,
+      skillBounds.bottom - margin - height / 2,
+    );
+    const compact = width < 190;
+
+    this.memoryHoverFrame.setPosition(x, y).setSize(width, height);
+    this.memoryHoverTitle
+      .setFontSize(compact ? 13 : 15)
+      .setWordWrapWidth(width - 24)
+      .setPosition(x - width / 2 + 12, y - height / 2 + 9);
+    this.memoryHoverBody
+      .setFontSize(compact ? 10 : 11)
+      .setWordWrapWidth(width - 24)
+      .setPosition(x - width / 2 + 12, y - height / 2 + 33);
+    this.setMemoryHoverCalloutVisible(true);
+  }
+
+  private setMemoryHoverCalloutVisible(visible: boolean): void {
+    this.memoryHoverFrame.setVisible(visible);
+    this.memoryHoverTitle.setVisible(visible);
+    this.memoryHoverBody.setVisible(visible);
   }
 
   private refreshMemoryUpgradeButtons(): void {
     for (const button of this.memoryUpgradeButtons) {
       const upgrade = PERMANENT_UPGRADE_DEFINITIONS[button.upgradeId];
+      const meta = MEMORY_UPGRADE_VIEW[button.upgradeId];
       const owned = hasPermanentUpgrade(this.state, button.upgradeId);
       const affordable = this.state.economy.permanentGrassTouches >= upgrade.cost;
-      const fillColor = owned ? 0x304c28 : affordable ? 0x1b4f2c : 0x273326;
-      const strokeColor = owned ? 0xdfff8f : affordable ? 0xd7a64e : 0x7d755a;
-      const alpha = owned || affordable ? 0.94 : 0.7;
+      const selected = this.selectedMemoryUpgradeId === button.upgradeId;
       const shortEffect = this.formatMemoryUpgradeShortEffect(button.upgradeId);
       const detail = owned
         ? `${shortEffect}\nOwned`
         : affordable
-          ? `${shortEffect}\nCost ${upgrade.cost} GT`
-          : `${shortEffect}\nNeed ${upgrade.cost - this.state.economy.permanentGrassTouches} GT`;
-      button.background.setFillStyle(fillColor, alpha).setStrokeStyle(2, strokeColor, owned || affordable ? 0.86 : 0.52);
-      button.title.setColor(owned ? "#eaff9b" : affordable ? "#ffefb0" : "#b8aa82");
+          ? `Cost ${upgrade.cost} GT`
+          : `Cost ${upgrade.cost} GT\nNeed ${upgrade.cost - this.state.economy.permanentGrassTouches} more`;
+      const frameKey = selected ? "skill-node-selected" : owned ? "skill-node-owned" : affordable ? "skill-node-available" : "skill-node-locked";
+      const nodeAlpha = owned || affordable || selected ? 1 : 0.62;
+      button.background.setFillStyle(0xffffff, 0.001).setStrokeStyle(1, meta.color, 0);
+      button.frame.setTexture(frameKey).setAlpha(nodeAlpha);
+      button.icon.setAlpha(owned || affordable || selected ? 1 : 0.46);
+      button.icon.setTint(owned || affordable || selected ? 0xffffff : 0x809080);
+      button.glow
+        .setFillStyle(meta.color, selected ? 0.24 : affordable ? 0.18 : owned ? 0.16 : 0.05)
+        .setStrokeStyle(selected ? 3 : 2, selected ? 0xf4df6a : meta.color, selected ? 0.82 : affordable ? 0.48 : 0.18);
+      button.title.setColor(owned ? "#eaff9b" : affordable || selected ? "#ffefb0" : "#b8aa82");
+      button.branch.setText(meta.branch).setColor(owned || affordable || selected ? "#dff6ca" : "#85927d");
       button.detail.setColor(owned ? "#eaff9b" : affordable ? "#dff6ca" : "#aaa790");
+      button.detail.setAlpha(selected || owned || affordable ? 1 : 0.76);
       button.detail.setText(detail);
     }
+    this.drawMemorySkillTreeLines(this.memoryUpgradeButtons[0]?.frame.displayWidth ?? 72);
+    this.refreshMemoryDetail();
+  }
+
+  private previewMemoryUpgrade(upgradeId: PermanentUpgradeId): void {
+    if (this.state.phase !== "dormant" || this.selectedMemoryUpgradeId === upgradeId) {
+      return;
+    }
+
+    this.selectedMemoryUpgradeId = upgradeId;
+    this.refreshMemoryUpgradeButtons();
   }
 
   private handleMemoryUpgradeClick(upgradeId: PermanentUpgradeId): void {
@@ -2938,13 +3538,16 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const y = button?.background.y ?? this.scale.height / 2;
 
     if (!result.purchased) {
+      this.sfx.play("blocked");
       const message = result.reason === "already-owned" ? "already memory" : "not enough GT";
       this.floatText(x, y - 18, message, result.reason === "already-owned" ? "#eaff9b" : "#ffb1c7");
       this.saySensi(result.reason === "already-owned" ? "Already remembered.\nVery efficient brain grass." : "Not enough memory yet.\nSuffer usefully, then return.", "dormant", 3400);
+      this.refreshMemoryUpgradeButtons();
       return;
     }
 
     this.floatText(x, y - 18, "remembered", "#eaff9b");
+    this.sfx.play("upgrade");
     const impact = this.formatMemoryUpgradeImpact(upgradeId);
     this.lastMemoryPurchaseHint = `${result.upgrade.name} remembered: ${impact}.`;
     this.addFeedEntry("Memory bought", impact, "GT", "#eaff9b");
@@ -2953,15 +3556,17 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.syncFirstRunObjectives();
     this.refreshDormancyReport();
     this.refreshMemoryUpgradeButtons();
-    this.tweens.add({
-      targets: button?.background,
-      alpha: 1,
-      duration: 140,
-      ease: "Quad.easeOut",
-      scaleX: 1.06,
-      scaleY: 1.06,
-      yoyo: true,
-    });
+    if (button) {
+      this.tweens.add({
+        targets: [button.frame, button.glow],
+        alpha: 1,
+        duration: 140,
+        ease: "Quad.easeOut",
+        scaleX: 1.08,
+        scaleY: 1.08,
+        yoyo: true,
+      });
+    }
   }
 
   private startNextRunFromMeta(): void {
@@ -2990,6 +3595,89 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.publishBrowserDebugState();
   }
 
+  private forcePlaytestDormancy(): void {
+    if (!this.playtestMode || this.state.phase !== "active") {
+      return;
+    }
+
+    this.state.economy.permanentGrassTouches += getDormancyGrassTouches(this.state);
+    this.state.ancientGrass.currentHp = 0;
+    this.state.phase = "dormant";
+    this.dormantAnimationPlayed = true;
+    this.scourgeDamageAccum = 0;
+    this.scourgePulseElapsed = 0;
+    this.woundElapsed = 0;
+    this.woundPressureWarned = false;
+    this.clearScourgeSenseTarget();
+    this.addFeedEntry("Playtest", "forced dormancy", "PT", "#bff4ff");
+    this.saySensi("Playtest collapse.\nVery official. Very fake.", "dormant", 4200);
+    this.savePermanentMemory();
+    this.playDormancyCollapse();
+    this.showDormancySummary();
+    this.syncFirstRunObjectives(false);
+    this.refreshReadout();
+    this.publishBrowserDebugState();
+  }
+
+  private grantPlaytestMemory(): void {
+    if (!this.playtestMode) {
+      return;
+    }
+
+    this.state.economy.permanentGrassTouches += PLAYTEST_MEMORY_GRANT;
+    this.lastMemoryPurchaseHint = `Playtest grant: +${PLAYTEST_MEMORY_GRANT} GT.`;
+    this.addFeedEntry("Playtest", `+${PLAYTEST_MEMORY_GRANT} GT granted`, "PT", "#bff4ff");
+    this.saySensi("Memory grant.\nFor science, not lore.", "approval", 3200);
+    this.savePermanentMemory();
+    if (this.state.phase === "dormant") {
+      this.refreshDormancyReport();
+      this.refreshMemoryUpgradeButtons();
+    }
+    this.refreshReadout();
+    this.publishBrowserDebugState();
+  }
+
+  private restartPlaytestRun(): void {
+    if (!this.playtestMode) {
+      return;
+    }
+
+    const permanentUpgrades = [...this.state.permanentUpgrades];
+    const permanentGrassTouches = this.state.economy.permanentGrassTouches;
+    this.state = this.createPrototypeRunState(permanentUpgrades, permanentGrassTouches);
+    this.objectiveState = createFirstRunObjectiveState();
+    this.introActive = false;
+    this.lastMemoryPurchaseHint = "";
+    this.dormantAnimationPlayed = false;
+    this.scourgeDamageAccum = 0;
+    this.scourgePulseElapsed = 0;
+    this.woundElapsed = 0;
+    this.woundPressureWarned = false;
+    this.resetScourgeFeedbackState();
+    this.resetRunToolFeedbackState();
+    this.resetRootRecoveryState();
+    this.setDormancySummaryVisible(false);
+    this.clearScourgeSenseTarget();
+    this.addFeedEntry("Playtest", "run restarted", "PT", "#bff4ff");
+    this.saySensi("Fresh playtest run.\nPlease complain accurately.", "idle", 3600);
+    this.syncFirstRunObjectives(false);
+    this.refreshReadout();
+    this.publishBrowserDebugState();
+  }
+
+  private resetPlaytestMemory(): void {
+    if (!this.playtestMode) {
+      return;
+    }
+
+    try {
+      window.localStorage.removeItem(REDESIGN_MEMORY_SAVE_KEY);
+    } catch {
+      // A blocked storage reset should not break the playtest overlay.
+    }
+    window.location.reload();
+  }
+
   private isPointerOverMemoryUpgradeButton(pointer: Phaser.Input.Pointer): boolean {
     return this.memoryUpgradeButtons.some((button) => button.background.visible && button.background.getBounds().contains(pointer.x, pointer.y));
   }
@@ -3006,17 +3694,34 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private formatMemoryUpgradeImpact(upgradeId: PermanentUpgradeId): string {
     switch (upgradeId) {
       case "softTouch":
-        return "next runs heal roots 25% harder";
+        return "future runs heal roots 25% harder";
       case "deeperRoots":
-        return "next runs gain +25 max Ancient HP";
+        return "future runs gain +25 max Ancient HP";
       case "tinySprinkler":
-        return "next runs can buy sprinkler automation";
+        return "future runs can buy sprinkler automation";
       case "scourgeSense":
-        return "next runs forecast the next wound target";
+        return "future runs forecast the next wound target";
       case "lastStand":
-        return "next runs revive once at HP zero";
+        return "future runs revive once at HP zero";
       default:
-        return "next runs carry this memory";
+        return "future runs carry this memory";
+    }
+  }
+
+  private formatMemoryUpgradeFlavor(upgradeId: PermanentUpgradeId): string {
+    switch (upgradeId) {
+      case "softTouch":
+        return "Your hands learn where the roots are tender. Future manual touches restore 25% more missing HP.";
+      case "deeperRoots":
+        return "The Ancient Grass remembers how to hold on. Future runs start with a deeper HP pool.";
+      case "tinySprinkler":
+        return "A little brass helper joins the kit. Future runs can spend RT on sprinkler automation.";
+      case "scourgeSense":
+        return "The pink pressure gets easier to read. Future runs warn which root the Scourge wants next.";
+      case "lastStand":
+        return "One stubborn breath remains in the field. Future runs revive once when HP hits zero.";
+      default:
+        return "This memory follows the caretaker into future runs.";
     }
   }
 
@@ -3140,7 +3845,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const node = this.rootNodes[result.openedRootId];
     this.clearScourgeSenseTarget();
     const activeObjectiveId = getActiveFirstRunObjective(this.objectiveState, this.state)?.definition.id;
-    const postTutorialTriage = activeObjectiveId !== "stabilizeWound";
+    const triageLessonActive = activeObjectiveId === "stabilizeWound" || activeObjectiveId === "holdTheLine";
+    const postTutorialTriage = !triageLessonActive;
     const woundedCount = getWoundedRootCount(this.state);
     if (!postTutorialTriage || woundedCount === 1 || woundedCount % 3 === 0) {
       this.addFeedEntry(
@@ -3150,8 +3856,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         "#ff91b2",
       );
     }
-    if (!postTutorialTriage) {
+    if (activeObjectiveId === "stabilizeWound") {
       this.saySensi("Pink wound. No debate.\nGo there first.", "alert", 3600);
+    } else if (activeObjectiveId === "holdTheLine" && woundedCount <= 2) {
+      this.saySensi("Hold the line.\nThree sealed wounds opens the patch.", "alert", 3600);
     }
     node.woundHalo.setVisible(true);
     node.woundShard.setVisible(true);
@@ -3182,15 +3890,25 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private getRunOptions(permanentUpgrades: PermanentUpgradeId[] = this.state?.permanentUpgrades ?? this.loadedMemory?.permanentUpgrades ?? []): Parameters<typeof createRunSpineState>[0] {
-    const baseCurrentHp = this.fastDormancy ? 34 : 76;
+    const baseCurrentHp = this.fastDormancy ? FAST_STARTING_HP : this.playtestMode ? PLAYTEST_STARTING_HP : NORMAL_STARTING_HP;
+    const baseDrainPerSecond = this.fastDormancy
+      ? FAST_SCOURGE_DRAIN_PER_SECOND
+      : this.playtestMode
+        ? PLAYTEST_SCOURGE_DRAIN_PER_SECOND
+        : NORMAL_SCOURGE_DRAIN_PER_SECOND;
+    const pressureGrowthPerSecond = this.fastDormancy
+      ? FAST_SCOURGE_PRESSURE_GROWTH_PER_SECOND
+      : this.playtestMode
+        ? PLAYTEST_SCOURGE_PRESSURE_GROWTH_PER_SECOND
+        : NORMAL_SCOURGE_PRESSURE_GROWTH_PER_SECOND;
     const maxHpBonus = getPermanentUpgradeEffects(permanentUpgrades).maxHpBonus;
     const currentHp = baseCurrentHp + (baseCurrentHp / DEFAULT_ANCIENT_GRASS_MAX_HP) * maxHpBonus;
     return {
       currentHp,
-      baseDrainPerSecond: this.fastDormancy ? FAST_SCOURGE_DRAIN_PER_SECOND : NORMAL_SCOURGE_DRAIN_PER_SECOND,
-      pressureGrowthPerSecond: this.fastDormancy ? FAST_SCOURGE_PRESSURE_GROWTH_PER_SECOND : NORMAL_SCOURGE_PRESSURE_GROWTH_PER_SECOND,
+      baseDrainPerSecond,
+      pressureGrowthPerSecond,
       permanentUpgrades,
-      pressure: 1,
+      pressure: this.playtestMode && !this.fastDormancy ? 1.08 : 1,
     };
   }
 
@@ -3294,6 +4012,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       nextRunButton: this.getBrowserDebugNextRunButton(),
       runToolButtons: this.getBrowserDebugRunToolButtons(),
       options: this.getBrowserDebugOptionsState(),
+      playtest: this.getBrowserDebugPlaytestState(),
       introActive: this.introActive,
       loadedMemory: this.loadedMemory ?? null,
       persistedMemory: persistedMemory ?? null,
@@ -3407,11 +4126,35 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       visible: this.optionsOpen,
       musicEnabled: this.musicVolume > 0,
       musicVolume: Math.round(this.musicVolume * 100) / 100,
+      sfxVolume: Math.round(this.sfxVolume * 100) / 100,
       openButton: this.getBrowserDebugButtonBounds(this.optionsButton, true),
       closeButton: this.getBrowserDebugButtonBounds(this.optionsCloseButton, this.optionsOpen),
       musicOnButton: this.getBrowserDebugButtonBounds(this.optionsMusicToggleButton, this.optionsOpen && this.musicVolume <= 0, this.optionsOpen && this.musicVolume <= 0),
       musicOffButton: this.getBrowserDebugButtonBounds(this.optionsMusicToggleButton, this.optionsOpen && this.musicVolume > 0, this.optionsOpen && this.musicVolume > 0),
       musicVolumeSlider: this.getBrowserDebugSliderBounds(this.optionsMusicHit),
+      sfxVolumeSlider: this.getBrowserDebugSliderBounds(this.optionsSfxHit, this.sfxVolume),
+    };
+  }
+
+  private getBrowserDebugPlaytestState(): {
+    enabled: boolean;
+    modeLabel: string;
+    grantAmount: number;
+    canForceDormancy: boolean;
+    canRestartRun: boolean;
+    canResetMemory: boolean;
+  } {
+    return {
+      enabled: this.playtestMode,
+      modeLabel: this.playtestMode
+        ? this.fastDormancy
+          ? "Playtest + fast dormancy"
+          : "Playtest loop pacing"
+        : "Standard loop",
+      grantAmount: PLAYTEST_MEMORY_GRANT,
+      canForceDormancy: this.playtestMode && this.state.phase === "active",
+      canRestartRun: this.playtestMode,
+      canResetMemory: this.playtestMode,
     };
   }
 
@@ -3427,7 +4170,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     };
   }
 
-  private getBrowserDebugSliderBounds(slider: Phaser.GameObjects.Rectangle): BrowserDebugSliderBounds {
+  private getBrowserDebugSliderBounds(slider: Phaser.GameObjects.Rectangle, value = this.musicVolume): BrowserDebugSliderBounds {
     const bounds = slider.getBounds();
     return {
       x: Math.round(bounds.centerX),
@@ -3435,7 +4178,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       width: Math.round(bounds.width),
       height: Math.round(bounds.height),
       visible: slider.visible,
-      value: Math.round(this.musicVolume * 100) / 100,
+      value: Math.round(value * 100) / 100,
     };
   }
 
@@ -3613,6 +4356,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       strokeThickness: 3,
     });
     label.setOrigin(0.5);
+    label.setResolution(UI_TEXT_RESOLUTION);
     label.setDepth(20);
     this.tweens.add({
       targets: label,

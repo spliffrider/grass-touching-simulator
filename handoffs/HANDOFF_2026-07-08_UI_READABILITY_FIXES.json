@@ -1,0 +1,59 @@
+{
+  "date": "2026-07-08",
+  "topic": "UI readability fixes",
+  "currentUserGoal": "Fix immediate readability/UX issues found during user testing: Options overlap, low-resolution text, persistent TOUCH ROOTS label, and misleading Memory Grove affordability copy.",
+  "workCompleted": [
+    "Moved the run HUD title to reserve space for the Options button and shortened the title from 'Ancient Grass: Scourge Prototype' to 'Ancient Grass: Scourge' so it no longer wraps into the objective lane.",
+    "Re-anchored the Memory Grove Options button to the Memory Grove frame when the meta screen is visible, while keeping it hidden on narrow compact meta layouts.",
+    "Added higher text resolution for persistent redesign Phaser text and transient float text.",
+    "Scoped CSS canvas image-rendering override to the redesign route so the redesign canvas is not forced through pixelated browser scaling.",
+    "Changed the large TOUCH ROOTS overlay so it only appears during the first wake objective, not throughout the full active run.",
+    "Changed locked Memory Grove node copy from ambiguous 'Need X GT' to 'Cost Y GT / Need X more'.",
+    "Documented the readability/affordability fixes in docs/CORE_MECHANICS_REDESIGN.md."
+  ],
+  "filesChanged": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-07-08_UI_READABILITY_FIXES.json",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/main.ts",
+    "src/style.css"
+  ],
+  "verificationRun": [
+    "npm run check passed after the fixes: ESLint, 30 Vitest tests, TypeScript, and Vite production build.",
+    "git diff --check reported no whitespace errors, only expected Windows CRLF warnings.",
+    "A browser screenshot before the final touch-hint and text-readability patches confirmed the run title no longer collided with Options after shortening, but browser automation then began timing out on simple reload/click attempts.",
+    "Full post-fix visual browser verification is still needed because the in-app browser automation timed out repeatedly and reset its kernel."
+  ],
+  "currentGitStatus": [
+    " M docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    " M docs/CORE_MECHANICS_REDESIGN.md",
+    " M handoffs/LATEST.json",
+    " M src/game/redesign/FirstRunObjectiveSystem.ts",
+    " M src/game/scenes/RedesignPrototypeScene.ts",
+    " M src/main.ts",
+    " M src/style.css",
+    " M tests/FirstRunObjectiveSystem.test.ts",
+    "?? handoffs/HANDOFF_2026-07-08_FIRST_RUN_PACING_GATE.json",
+    "?? handoffs/HANDOFF_2026-07-08_MEMORY_GROVE_META_SCREEN.json",
+    "?? handoffs/HANDOFF_2026-07-08_UI_READABILITY_FIXES.json"
+  ],
+  "knownIssues": [
+    "Text readability should be improved by Text.setResolution(2) and redesign-only canvas image-rendering auto, but the user should visually confirm because browser automation timed out before a final screenshot could be captured.",
+    "The redesign route still uses many Phaser Text objects with mixed Georgia/Arial styles; a future font system pass may be needed for consistently crisp, charming UI text.",
+    "The Memory Grove affordability copy is clearer, but a future visual smoke should set up a state with owned Soft Touch and partial GT to verify the exact 'Need X more' node display in-browser.",
+    "The in-app browser automation timed out on simple route reload/click attempts late in the session. Reconnect fresh or use a new browser tab before the next visual smoke."
+  ],
+  "nextRecommendedSteps": [
+    "Ask the user to reload http://127.0.0.1:5173/?redesign and check whether text readability and Options placement feel better.",
+    "If the text is still too soft or too crunchy, do a dedicated typography pass: choose a clearer UI font, reduce heavy strokes, and standardize font sizes/resolution.",
+    "Run a manual or fresh-browser smoke that reaches Memory Grove with partial GT and confirms locked nodes now read as total cost plus remaining shortfall.",
+    "After user approval, commit the accumulated redesign slice and handoff artifacts."
+  ],
+  "doNotRevert": [
+    "Do not restore the old permanent TOUCH ROOTS field label over ordinary gameplay.",
+    "Do not return Memory Grove locked-node copy to 'Need X GT' because users can read that as the total cost.",
+    "Do not put Options back into title/subtitle lanes.",
+    "Keep the redesign route's DOM agent layer intact."
+  ]
+}

@@ -45,6 +45,9 @@ const bootStartedAt = performance.now();
 document.documentElement.dataset.grassBootStarted = `${Math.round(bootStartedAt)}`;
 const routeParams = new URLSearchParams(window.location.search);
 const useRedesignPrototype = routeParams.has("redesign") || routeParams.has("newRun");
+if (useRedesignPrototype) {
+  document.documentElement.classList.add("grass-redesign-route");
+}
 
 let appReadyMarked = false;
 window.__grassAppReady = () => {
@@ -68,9 +71,9 @@ const config: Phaser.Types.Core.GameConfig = {
     height: initialViewport.height,
   },
   render: {
-    pixelArt: true,
-    antialias: false,
-    roundPixels: true,
+    pixelArt: !useRedesignPrototype,
+    antialias: useRedesignPrototype,
+    roundPixels: !useRedesignPrototype,
   },
   scene: useRedesignPrototype ? [RedesignPrototypeScene] : [TitleScene, GameScene],
 };

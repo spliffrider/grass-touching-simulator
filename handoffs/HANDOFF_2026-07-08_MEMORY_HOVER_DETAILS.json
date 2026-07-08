@@ -1,0 +1,50 @@
+{
+  "date": "2026-07-08",
+  "topic": "Memory Grove hover details",
+  "currentUserGoal": "Restore OG-style skill info on mouseover in the Memory Grove skill tree.",
+  "workCompleted": [
+    "Added a `previewMemory` action to the transparent DOM agent bridge so Memory Grove nodes update the selected-memory detail panel on pointer hover and keyboard focus.",
+    "Kept visible Memory Grove DOM buttons hoverable/focusable even when a node is locked or owned; non-purchasable state now uses `aria-disabled` while click rejection remains handled by game logic.",
+    "Routed Phaser node hover and click through a shared `previewMemoryUpgrade` method so canvas hover and DOM hover behave consistently.",
+    "Documented that Memory Grove hover/focus details must work through the DOM agent layer as well as Phaser input."
+  ],
+  "filesChanged": [
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-07-08_MEMORY_HOVER_DETAILS.json",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 30 Vitest tests, TypeScript, and Vite production build.",
+    "Browser visual verification was not rerun in this mini-slice because the in-app browser automation had been timing out late in the previous slice; user should reload and confirm hover behavior manually."
+  ],
+  "currentGitStatus": [
+    " M docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    " M docs/CORE_MECHANICS_REDESIGN.md",
+    " M handoffs/LATEST.json",
+    " M src/game/redesign/FirstRunObjectiveSystem.ts",
+    " M src/game/redesign/RedesignDomBridge.ts",
+    " M src/game/scenes/RedesignPrototypeScene.ts",
+    " M src/main.ts",
+    " M src/style.css",
+    " M tests/FirstRunObjectiveSystem.test.ts",
+    "?? handoffs/HANDOFF_2026-07-08_FIRST_RUN_PACING_GATE.json",
+    "?? handoffs/HANDOFF_2026-07-08_MEMORY_GROVE_META_SCREEN.json",
+    "?? handoffs/HANDOFF_2026-07-08_UI_READABILITY_FIXES.json",
+    "?? handoffs/HANDOFF_2026-07-08_MEMORY_HOVER_DETAILS.json"
+  ],
+  "knownIssues": [
+    "The user should manually confirm hover behavior in the live browser because browser automation was unreliable late in the session.",
+    "Clicking a locked/owned memory node remains possible through the transparent DOM control, but game logic rejects it with existing feedback. This is intentional so locked/owned nodes can still receive hover/focus info."
+  ],
+  "nextRecommendedSteps": [
+    "Ask the user to hard-refresh http://127.0.0.1:5173/?redesign and confirm that hovering each Memory Grove node changes the right-side detail panel.",
+    "If the right-side panel still feels too detached, add a small tooltip near the hovered node in addition to the detail panel.",
+    "After user approval, commit the accumulated redesign slice and handoff artifacts."
+  ],
+  "doNotRevert": [
+    "Do not make visible memory node DOM buttons disabled again unless another hover/focus mechanism replaces them.",
+    "Keep Memory Grove hover/focus mirrored through the DOM bridge; otherwise the agent layer will block Phaser-only hover behavior."
+  ]
+}

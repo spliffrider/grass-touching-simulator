@@ -1,0 +1,60 @@
+{
+  "date": "2026-07-08",
+  "topic": "First loop playtest pass",
+  "currentUserGoal": "Make the redesign easier to test critically by tightening first-loop pacing and adding practical playtest controls.",
+  "workCompleted": [
+    "Added a dedicated `?redesign&playtest` route flag for human loop testing.",
+    "Added a visible playtest control panel through the DOM bridge when playtest mode is enabled: Force Game Over, grant permanent GT, restart run, and reset the redesign memory save.",
+    "Mirrored playtest state into the readable DOM/debug snapshot so automation and agents can tell when playtest mode is active.",
+    "Tuned normal first-loop pacing modestly upward by lowering initial HP and increasing Scourge drain/pressure growth so the run feels less sleepy.",
+    "Added separate playtest pacing that is faster than normal but less extreme than `fastDormancy`.",
+    "Documented the new playtest route in the redesign doc and implementation plan."
+  ],
+  "filesChanged": [
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-07-08_FIRST_LOOP_PLAYTEST_PASS.json",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/style.css"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 30 Vitest tests, TypeScript, and Vite production build.",
+    "Confirmed http://127.0.0.1:5173/?redesign&playtest returned HTTP 200.",
+    "No full browser visual automation was run; local Playwright/Puppeteer dependencies are not installed and the user intends to manually test this slice."
+  ],
+  "currentGitStatus": [
+    " M docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    " M docs/CORE_MECHANICS_REDESIGN.md",
+    " M handoffs/LATEST.json",
+    " M src/game/redesign/FirstRunObjectiveSystem.ts",
+    " M src/game/redesign/RedesignDomBridge.ts",
+    " M src/game/scenes/RedesignPrototypeScene.ts",
+    " M src/main.ts",
+    " M src/style.css",
+    " M tests/FirstRunObjectiveSystem.test.ts",
+    "?? handoffs/HANDOFF_2026-07-08_FIRST_RUN_PACING_GATE.json",
+    "?? handoffs/HANDOFF_2026-07-08_MEMORY_GROVE_META_SCREEN.json",
+    "?? handoffs/HANDOFF_2026-07-08_UI_READABILITY_FIXES.json",
+    "?? handoffs/HANDOFF_2026-07-08_MEMORY_HOVER_DETAILS.json",
+    "?? handoffs/HANDOFF_2026-07-08_MEMORY_GROVE_CALLOUT.json",
+    "?? handoffs/HANDOFF_2026-07-08_FIRST_LOOP_PLAYTEST_PASS.json"
+  ],
+  "knownIssues": [
+    "The user has not manually tested the new `?playtest` controls yet.",
+    "The playtest panel is intentionally utilitarian and only appears with the playtest query flag; it is not a finished in-game UI surface.",
+    "Normal-mode pacing was nudged faster but still needs human feel testing for whether pressure is exciting or merely annoying."
+  ],
+  "nextRecommendedSteps": [
+    "Ask the user to hard-refresh http://127.0.0.1:5173/?redesign&playtest and test a full loop using the playtest panel.",
+    "Collect critical notes specifically on first-touch clarity, wound pressure, HP drain speed, root feedback, Memory Grove comprehension, and whether the next run feels stronger.",
+    "After playtest feedback, tune numbers and feedback before adding new large systems.",
+    "Commit the accumulated redesign work and handoff artifacts once the user is comfortable with the slice."
+  ],
+  "doNotRevert": [
+    "Keep `?fastDormancy` for automation smoke tests; `?playtest` is a separate human-testing affordance.",
+    "Keep playtest controls gated behind `?playtest` so the normal redesign route stays clean.",
+    "Do not remove the DOM agent layer; it now supports both accessibility/automation and playtest controls."
+  ]
+}

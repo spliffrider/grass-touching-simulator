@@ -1,0 +1,62 @@
+{
+  "date": "2026-07-08",
+  "topic": "Options and SFX pass",
+  "currentUserGoal": "Fix the broken Options slider and add important tactile SFX for grass touching with a working SFX volume slider.",
+  "workCompleted": [
+    "Expanded the redesign Options panel so Music and SFX have separate readable slider rows instead of one cramped music-only control.",
+    "Reworked Options slider drag state so music and SFX use explicit targets and shared pointer-to-volume math.",
+    "Added a separate persisted SFX volume to the redesign scene using the existing audio settings helpers.",
+    "Mirrored SFX volume into the DOM agent/options layer as `redesign-sfx-volume-range` and added it to readable debug output.",
+    "Reused the existing procedural `AudioSystem` for redesign root touch SFX, with grass texture mapped to different touch sound profiles.",
+    "Added first-pass SFX for first touch, normal root touches, wounded/root seal feedback, blocked/recovering feedback, Dew Pulse, Root Salve, Tiny Sprinkler purchase, wound opening, and Memory purchases.",
+    "Throttled DOM SFX slider preview chirps so range input dragging does not spam sounds.",
+    "Documented the SFX slider and new options control in the core redesign docs."
+  ],
+  "filesChanged": [
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-07-08_OPTIONS_SFX_PASS.json",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 30 Vitest tests, TypeScript, and Vite production build.",
+    "Confirmed http://127.0.0.1:5173/?redesign&playtest returned HTTP 200.",
+    "Manual browser testing is still needed to judge slider feel and whether the procedural grass-touch SFX is pleasant enough."
+  ],
+  "currentGitStatus": [
+    " M docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    " M docs/CORE_MECHANICS_REDESIGN.md",
+    " M handoffs/LATEST.json",
+    " M src/game/redesign/FirstRunObjectiveSystem.ts",
+    " M src/game/redesign/RedesignDomBridge.ts",
+    " M src/game/scenes/RedesignPrototypeScene.ts",
+    " M src/main.ts",
+    " M src/style.css",
+    " M tests/FirstRunObjectiveSystem.test.ts",
+    "?? handoffs/HANDOFF_2026-07-08_FIRST_LOOP_PLAYTEST_PASS.json",
+    "?? handoffs/HANDOFF_2026-07-08_FIRST_RUN_PACING_GATE.json",
+    "?? handoffs/HANDOFF_2026-07-08_MEMORY_GROVE_META_SCREEN.json",
+    "?? handoffs/HANDOFF_2026-07-08_UI_READABILITY_FIXES.json",
+    "?? handoffs/HANDOFF_2026-07-08_MEMORY_HOVER_DETAILS.json",
+    "?? handoffs/HANDOFF_2026-07-08_MEMORY_GROVE_CALLOUT.json",
+    "?? handoffs/HANDOFF_2026-07-08_OPTIONS_SFX_PASS.json"
+  ],
+  "knownIssues": [
+    "The user has not yet manually confirmed whether the Options sliders feel correct in the browser.",
+    "The SFX are first-pass reused procedural sounds from the old game. They should be judged for feel and may need redesign-specific tuning.",
+    "The Options UI is improved but still not final polish; it is a functional pass."
+  ],
+  "nextRecommendedSteps": [
+    "Ask the user to hard-refresh http://127.0.0.1:5173/?redesign&playtest, open Options, test Music and SFX sliders, then touch several root textures.",
+    "Tune grass-touch SFX balance based on user reaction: volume, brightness, crunch, first-touch flourish, wound seal, and blocked feedback.",
+    "If Options still feels broken, use browser-level inspection next to verify DOM and Phaser slider bounds against pointer coordinates.",
+    "Commit the accumulated redesign work once the user confirms the options/SFX pass is acceptable."
+  ],
+  "doNotRevert": [
+    "Keep Music and SFX volumes separate; grass touching needs its own tactile audio control.",
+    "Keep `redesign-sfx-volume-range` in the DOM agent layer for accessibility and browser testing.",
+    "Do not remove the existing procedural AudioSystem reuse unless a better redesign-specific SFX system replaces it."
+  ]
+}

@@ -26,6 +26,10 @@ canvas {
   touch-action: none;
 }
 
+.grass-redesign-route canvas {
+  image-rendering: auto;
+}
+
 .grass-agent-layer {
   position: fixed;
   inset: 0;
@@ -123,4 +127,61 @@ canvas {
   opacity: 1;
   outline: 3px solid #bff4ff;
   outline-offset: 6px;
+}
+
+.grass-agent-playtest-panel {
+  position: absolute;
+  left: max(10px, env(safe-area-inset-left));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(112px, 1fr));
+  gap: 7px;
+  width: min(330px, calc(100vw - 20px));
+  box-sizing: border-box;
+  padding: 10px;
+  border: 2px solid rgba(215, 166, 78, 0.86);
+  background: rgba(7, 23, 15, 0.9);
+  color: #f7ffe8;
+  pointer-events: auto;
+  text-shadow: 0 2px 0 #07100c;
+  box-shadow: 0 0 0 2px rgba(6, 16, 12, 0.72), 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.grass-agent-playtest-panel[hidden] {
+  display: none;
+}
+
+.grass-agent-playtest-status {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  line-height: 1.25;
+  color: #dff6ca;
+}
+
+.grass-agent-playtest-button {
+  min-height: 30px;
+  border: 1px solid rgba(234, 255, 155, 0.72);
+  background: rgba(27, 79, 44, 0.96);
+  color: #f7ffd6;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.grass-agent-playtest-button:hover,
+.grass-agent-playtest-button:focus-visible {
+  border-color: #eaff9b;
+  background: rgba(36, 106, 59, 0.98);
+  outline: 2px solid rgba(191, 244, 255, 0.78);
+  outline-offset: 2px;
+}
+
+.grass-agent-playtest-button:disabled {
+  border-color: rgba(170, 167, 144, 0.48);
+  background: rgba(22, 33, 27, 0.82);
+  color: rgba(247, 255, 214, 0.48);
+  cursor: default;
 }

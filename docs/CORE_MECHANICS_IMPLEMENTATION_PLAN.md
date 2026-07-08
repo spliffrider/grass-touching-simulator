@@ -104,6 +104,7 @@ Acceptance:
 Verification routes:
 
 - `?redesign`: current new-canon prototype.
+- `?redesign&playtest`: human playtest mode with accelerated first-loop pacing plus visible dev controls for forcing Game Over, granting GT, restarting the run, and resetting the redesign memory save.
 - `?redesign&fastDormancy`: same prototype tuned for quick collapse/summary verification while still allowing the first tutorial wound and first memory purchase in a guided smoke.
 - `?redesign&resetMemory`: repeatable fresh first-run checks; the prototype debug dataset includes active root hitboxes and wounded root ids for smoke automation.
 
@@ -161,10 +162,11 @@ Acceptance:
 - Dew Pulse provides a first recast in-run tool: spend 22 Run Touches to heal Ancient HP immediately for 10 HP without minting replacement Run Touches.
 - The old run feed is hidden from the main play layout while retained as internal event history.
 - Run-tool buttons live on a dedicated HUD row and must not overlap objective, HP, Run Touch, or Scourge text.
-- HP zero presents a game-over/meta screen with a visible skill-tree layout instead of a small gameplay overlay.
+- Run-tool buttons should be paced into the run instead of appearing at the start: Dew Pulse after enough RT is earned, Root Salve when a wound exists, and Tiny Sprinkler after license plus enough RT or owned sprinkler count.
+- HP zero presents a full-screen Memory Grove game-over/meta screen instead of a small gameplay overlay.
 - The game-over/meta screen is a hard run-ending state: active run timers, wound pressure, and Tiny Sprinkler automation stop once dormancy begins.
 - The dormancy report is split into explicit run-over copy, a permanent GT reward line, conversion summary stats, lost Run Touches, and a visible next-run action hint.
-- The first-pass meta screen separates run summary from Memory Skill Tree, shows five functional memory nodes, gives post-purchase next-run feedback, and restarts only through the explicit `Begin Next Run` button.
+- The meta screen separates run summary from a larger old-style hex-node Memory Skill Tree, shows a selected-memory detail panel, includes five functional memory nodes, gives post-purchase next-run feedback, and restarts only through the explicit `Begin Next Run` button.
 - The redesign route uses the Lucid track asset converted from `docs/lucid.aif` to `public/assets/music/lucid-field-theme.wav`.
 - HP zero reliably enters dormancy once.
 - Dormancy payout uses effective healing, not unspent Run Touches. Current prototype tuning converts 5 effective HP into 1 permanent GT.
@@ -180,9 +182,9 @@ Tests:
 - Permanent values persist.
 - Re-entering dormancy does not double-award the same run.
 - Redesign memory snapshots normalize bad/old data and reject incompatible save versions.
-- First-run objectives advance in order from healing, Run Touch earning, wound triage, dormancy, and memory purchase.
-- First-run field expansion follows the new objective sequence: 1 active root, 2x2, 3x3, then 5x5.
-- Browser smoke covers the first wound triage path with real active-root clicks: wake the first tile, earn Run Touches to open 3x3, wait for a reported wounded root, click that wounded root, and confirm expansion to 5x5.
+- First-run objectives advance in order from healing, Run Touch earning, first wound triage, a three-wound `Hold the Line` pressure lesson, dormancy, and memory purchase.
+- First-run field expansion follows the new objective sequence: 1 active root, 2x2 after first healing, 3x3 after 12 Run Touches, then 5x5 after `Hold the Line` or dormancy.
+- Browser smoke covers the first wound triage path with real active-root clicks: wake the first tile, earn 12 Run Touches to open 3x3, heal the first reported wounded root, continue the `Hold the Line` pressure lesson, and confirm the field remains 3x3 until that lesson completes.
 - Browser smoke covers root recovery: after a valid root touch, the touched root reports `recovering`, `recoveryRatio < 1`, and `recoveryMarkerVisible`; an immediate repeat click on that same root does not award Run Touches, while the same root awards again after recovery expires.
 - Browser smoke covers the fast first loop: wake the field, complete wound triage, reach dormancy, verify permanent payout persisted, buy Soft Touch, and start the next run with run-only values reset and Soft Touch preserved.
 - Browser smoke verifies player/advisor panel debug text: player panel remains `Grass Toucher`, Sensi dialogue remains in `Sensi // Advisor`, and the split survives the first real root click.
@@ -194,7 +196,7 @@ Tests:
 - Browser smoke verifies the UI/meta correction: Lucid audio starts without warn/error logs, `feedPanelVisible` is false, run-tool buttons share a separated tool row, HP collapse reports `runEnded`, `metaScreenVisible`, `summaryVisible`, a non-empty dormancy reward/report, memory buttons are visible, random screen clicks do not restart the run, and clicking `Begin Next Run` starts the next run.
 - Browser smoke verifies the DOM agent layer without canvas coordinate clicks: `grassAgentDom` reports `ready`, `redesign-readable-state` exposes the active phase/objective, real root buttons wake and heal roots, the Dew Pulse DOM button spends exactly 22 RT and reports `lastRunToolKind: dewPulse`, and the `Begin Next Run` DOM button restarts from the meta screen.
 - Browser smoke verifies the DOM dormancy report: `redesign-dormancy-report` appears on the meta screen and mirrors the game-over reward/report/action text for agents that cannot inspect canvas text.
-- Browser smoke verifies the first-pass Options layer through DOM controls: `redesign-options-button` opens the panel, `redesign-music-volume-range` changes and restores music volume, `redesign-music-off-button` mutes while music is on, `redesign-options-close-button` closes the panel, and root DOM clicks still award a single root-touch result after the shared DOM button activation change.
+- Browser smoke verifies the first-pass Options layer through DOM controls: `redesign-options-button` opens the panel, `redesign-music-volume-range` changes and restores music volume, `redesign-sfx-volume-range` changes and restores SFX volume, `redesign-music-off-button` mutes while music is on, `redesign-options-close-button` closes the panel, and root DOM clicks still award a single root-touch result after the shared DOM button activation change.
 - Browser smoke verifies the Tiny Sprinkler recast: a fast run earns enough GT, `redesign-memory-tinySprinkler` purchases the permanent license, the next run exposes `redesign-tiny-sprinkler-button`, buying it spends 16 RT and sets `tinySprinklers: 1`, an automated pulse fires, and the pulse increases RT/effective healing through real missing-HP restoration.
 - Browser smoke verifies the Scourge Sense recast: a fast run earns enough GT, `redesign-memory-scourgeSense` purchases the permanent forecast node, the next run reports `scourgeSenseOwned`, wound pressure reaches the early Scourge Sense threshold, `scourgeSenseTargetRootId` and per-root `scourgeSenseMarkerVisible` appear before wound-open, and the forecast root becomes wounded.
 - Browser smoke verifies Last Stand: a fast run earns enough GT, `redesign-memory-lastStand` purchases the permanent revive node, the next run reports `lastStandOwned` and `lastStandAvailable`, the first HP-zero event fires `lastStandTriggeredAt` while the phase remains active, and the second HP-zero event reaches real dormancy.

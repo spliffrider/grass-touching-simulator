@@ -1,0 +1,55 @@
+{
+  "date": "2026-07-08",
+  "topic": "first-run-pacing-gate",
+  "currentUserGoal": "Build another redesign slice before the user tests later.",
+  "summary": [
+    "Changed the first-run Run Touch gate from 10 RT to 12 RT so 3x3 expansion is slightly delayed without starving the first run.",
+    "Added a new `Hold the Line` first-run objective after the first wound triage lesson.",
+    "`Hold the Line` keeps the field at 3x3 until the player has healed 3 total wounded roots, then opens the full 5x5 field.",
+    "If the run collapses before the player completes `Hold the Line`, dormancy completes the pressure lesson too, avoiding a tutorial soft-lock.",
+    "Updated wound-opening Sensi guidance so `Hold the Line` is treated as an early pressure lesson instead of generic background pressure.",
+    "Updated redesign docs and implementation plan to describe the new pacing sequence."
+  ],
+  "filesTouched": [
+    "src/game/redesign/FirstRunObjectiveSystem.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/FirstRunObjectiveSystem.test.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-08_FIRST_RUN_PACING_GATE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verification": [
+    "npm run test -- FirstRunObjectiveSystem passed: 7 tests.",
+    "npm run check passed: lint, 30 tests, and build.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&resetMemory&skipIntro&pacingSmoke=2 reached 3x3 at 12 total RT with active objective `stabilizeWound`.",
+    "Browser smoke healed the first wound and verified the field stayed 3x3 with active objective `holdTheLine` and objective text `Hold the Line (1/3)`.",
+    "Browser smoke healed two more wounds and verified the field opened to 5x5 with active objective `completeDormancy`.",
+    "Browser was reset to http://127.0.0.1:5173/?redesign&resetMemory&skipIntro afterward."
+  ],
+  "knownIssues": [
+    "This is still a tuning pass, not a final tutorial. User hand-feel can still disagree with the browser smoke cadence.",
+    "The first run can still collapse before meaningful meta progress if the player does not actively heal; that may be desirable, but needs playtesting.",
+    "The dev server was started locally on port 5173 for smoke testing and may still be running.",
+    "The work is saved locally but not committed or pushed after this slice."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user play the normal redesign route and judge whether 12 RT + Hold the Line feels better than the old instant 5x5 expansion.",
+    "If the first run still feels shapeless, add a clearer first-run success/failure objective or authored Sensi beat after `Hold the Line`.",
+    "Consider adding an on-screen progress cue for `Hold the Line` beyond the HUD objective text if the player misses why 5x5 is delayed.",
+    "Commit/push this pacing slice if the user wants another durable Git checkpoint before testing."
+  ],
+  "doNotRevert": [
+    "Do not restore 5x5 expansion immediately after the first wound unless deliberately returning to the faster prototype pacing.",
+    "Do not make `Hold the Line` impossible to complete on dormancy; that would soft-lock the first-run objective chain if the player collapses early."
+  ],
+  "gitStatusAtHandoff": [
+    "Modified: docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "Modified: docs/CORE_MECHANICS_REDESIGN.md",
+    "Modified: src/game/redesign/FirstRunObjectiveSystem.ts",
+    "Modified: src/game/scenes/RedesignPrototypeScene.ts",
+    "Modified: tests/FirstRunObjectiveSystem.test.ts",
+    "Modified after handoff write: handoffs/LATEST.json",
+    "Untracked after handoff write: handoffs/HANDOFF_2026-07-08_FIRST_RUN_PACING_GATE.json"
+  ]
+}

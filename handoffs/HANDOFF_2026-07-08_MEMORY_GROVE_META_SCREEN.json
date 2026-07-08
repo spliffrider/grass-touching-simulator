@@ -1,0 +1,59 @@
+{
+  "date": "2026-07-08",
+  "topic": "Memory Grove meta screen",
+  "currentUserGoal": "Continue the core mechanics redesign while restoring more of the old game's cute visual identity. Specifically, replace the cramped Game Over skill-tree card with a full post-run screen and make the memory tree feel closer to the original skill tree.",
+  "workCompleted": [
+    "Reworked the post-dormancy Game Over presentation into a full-screen Memory Grove screen instead of a small centered modal.",
+    "Restored original-style skill tree presentation for memory nodes using existing old skill-node frames and skill icons from public/assets/ui.",
+    "Added a three-column desktop Memory Grove layout: run report, larger Memory Skill Tree, selected-memory detail panel, and explicit Begin Next Run action.",
+    "Added node selection state, glow, connector lines, selected-memory flavor/detail copy, and purchase feedback that animates the old-style node frame.",
+    "Added compact stacked Memory Grove layout for narrow screens, including shorter action copy and hidden compact Options button to avoid title/subtitle collisions.",
+    "Updated durable redesign docs to describe the full-screen Memory Grove and old-style hex-node direction.",
+    "Preserved the previous first-run pacing gate work from this session: 12 RT to 3x3, Hold the Line three-wound lesson before 5x5, and matching tests/docs."
+  ],
+  "filesChanged": [
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "handoffs/LATEST.json",
+    "handoffs/HANDOFF_2026-07-08_FIRST_RUN_PACING_GATE.json",
+    "handoffs/HANDOFF_2026-07-08_MEMORY_GROVE_META_SCREEN.json",
+    "src/game/redesign/FirstRunObjectiveSystem.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/FirstRunObjectiveSystem.test.ts"
+  ],
+  "verificationRun": [
+    "npm run check passed after the Memory Grove work: ESLint, 30 Vitest tests, TypeScript, and Vite production build.",
+    "Browser smoke on http://127.0.0.1:5173/?redesign&skipIntro&fastDormancy reached dormancy and showed the full-screen Memory Grove.",
+    "Captured visual checks at default desktop, 1024x768, and 390x844 viewport sizes. The browser viewport was reset afterward.",
+    "Normal preview route restored to http://127.0.0.1:5173/?redesign; debug state reported DOM agent layer ready, active phase, and no meta screen visible."
+  ],
+  "currentGitStatus": [
+    " M docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    " M docs/CORE_MECHANICS_REDESIGN.md",
+    " M handoffs/LATEST.json",
+    " M src/game/redesign/FirstRunObjectiveSystem.ts",
+    " M src/game/scenes/RedesignPrototypeScene.ts",
+    " M tests/FirstRunObjectiveSystem.test.ts",
+    "?? handoffs/HANDOFF_2026-07-08_FIRST_RUN_PACING_GATE.json",
+    "?? handoffs/HANDOFF_2026-07-08_MEMORY_GROVE_META_SCREEN.json"
+  ],
+  "knownIssues": [
+    "Memory Grove is visually a full-screen post-run screen, but it is still implemented inside RedesignPrototypeScene rather than as a separate Phaser Scene class.",
+    "The compact/mobile skill tree is readable enough for this slice but still dense; future polish should consider a scrollable/zoomable tree or a node-focused compact view.",
+    "The current smoke verified locked/0 GT state. A future smoke should run an earning path with enough GT to verify affordable, purchased, and owned node visuals in the new layout.",
+    "The meta screen restores old skill-node assets, but more old-game charm can still be brought back through sparkles, node hover audio, ambient motion, and better background dressing."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user test a normal run and react specifically to the Memory Grove screen, pacing gate, and whether the skill tree now feels closer to the old game.",
+    "Run a browser smoke that earns enough GT, buys Soft Touch or Deeper Roots, confirms the node frame changes to owned, then starts the next run.",
+    "Continue visual restoration: add subtle animated particles/glints to Memory Grove, improve node connector art, and consider using the original skill-tree background motifs more directly.",
+    "After user approval, commit the current uncommitted redesign slice and handoff artifacts."
+  ],
+  "doNotRevert": [
+    "Do not bring back the old Run Feed as a main gameplay panel; it is intentionally hidden from the redesign play screen.",
+    "Do not put Sensi back into the player portrait slot; player identity and Sensi advisor surfaces are intentionally separate.",
+    "Do not replace the new Memory Grove direction with the earlier small modal/card meta UI.",
+    "Do not reuse old gameplay tests as proof of redesign behavior; keep redesign checks focused on the new systems and route.",
+    "Preserve the agent-readable DOM layer; it is useful for browser testing and outside automation."
+  ]
+}

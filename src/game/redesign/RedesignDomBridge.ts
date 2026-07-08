@@ -73,11 +73,22 @@ export interface RedesignDomOptionsState {
   visible: boolean;
   musicEnabled: boolean;
   musicVolume: number;
+  sfxVolume: number;
   openButton: RedesignDomButtonBounds;
   closeButton: RedesignDomButtonBounds;
   musicOnButton: RedesignDomButtonBounds;
   musicOffButton: RedesignDomButtonBounds;
   musicVolumeSlider: RedesignDomSliderBounds;
+  sfxVolumeSlider: RedesignDomSliderBounds;
+}
+
+export interface RedesignDomPlaytestState {
+  enabled: boolean;
+  modeLabel: string;
+  grantAmount: number;
+  canForceDormancy: boolean;
+  canRestartRun: boolean;
+  canResetMemory: boolean;
 }
 
 export interface RedesignDomSnapshot {
@@ -116,6 +127,7 @@ export interface RedesignDomSnapshot {
   nextRunButton: RedesignDomNextRunButton;
   runToolButtons: RedesignDomRunToolButton[];
   options: RedesignDomOptionsState;
+  playtest: RedesignDomPlaytestState;
 }
 
 interface RedesignDomActions {
@@ -123,6 +135,7 @@ interface RedesignDomActions {
   useDewPulse(): void;
   useRootSalve(): void;
   useTinySprinkler(): void;
+  previewMemory(upgradeId: PermanentUpgradeId): void;
   purchaseMemory(upgradeId: PermanentUpgradeId): void;
   beginNextRun(): void;
   openOptions(): void;
@@ -130,6 +143,11 @@ interface RedesignDomActions {
   turnMusicOn(): void;
   turnMusicOff(): void;
   setMusicVolume(volume: number): void;
+  setSfxVolume(volume: number): void;
+  forceDormancy(): void;
+  grantMemory(): void;
+  restartRun(): void;
+  resetMemory(): void;
 }
 
 const MEMORY_NODE_LABELS: Record<PermanentUpgradeId, string> = {
@@ -159,6 +177,13 @@ export class RedesignDomBridge {
   private readonly optionsCloseButton: HTMLButtonElement;
   private readonly musicToggleButton: HTMLButtonElement;
   private readonly musicVolumeRange: HTMLInputElement;
+  private readonly sfxVolumeRange: HTMLInputElement;
+  private readonly playtestPanel: HTMLElement;
+  private readonly playtestStatus: HTMLElement;
+  private readonly forceDormancyButton: HTMLButtonElement;
+  private readonly grantMemoryButton: HTMLButtonElement;
+  private readonly restartRunButton: HTMLButtonElement;
+  private readonly resetMemoryButton: HTMLButtonElement;
   private musicToggleAction: "turn-on" | "turn-off" = "turn-off";
 
   constructor(private readonly actions: RedesignDomActions) {
@@ -202,6 +227,19 @@ export class RedesignDomBridge {
     });
     this.musicToggleButton.classList.add("grass-agent-options-control");
     this.musicVolumeRange = this.createRange("redesign-music-volume-range", "Music volume", (volume) => this.actions.setMusicVolume(volume));
+    this.sfxVolumeRange = this.createRange("redesign-sfx-volume-range", "SFX volume", (volume) => this.actions.setSfxVolume(volume));
+    this.playtestPanel = document.createElement("aside");
+    this.playtestPanel.className = "grass-agent-playtest-panel";
+    this.playtestPanel.dataset.testid = "redesign-playtest-panel";
+    this.playtestPanel.setAttribute("aria-label", "Redesign playtest controls");
+    this.playtestStatus = document.createElement("div");
+    this.playtestStatus.className = "grass-agent-playtest-status";
+    this.playtestPanel.append(this.playtestStatus);
+    this.forceDormancyButton = this.createPlaytestButton("redesign-playtest-force-dormancy", "Force Game Over", () => this.actions.forceDormancy());
+    this.grantMemoryButton = this.createPlaytestButton("redesign-playtest-grant-gt", "+20 GT", () => this.actions.grantMemory());
+    this.restartRunButton = this.createPlaytestButton("redesign-playtest-restart-run", "Restart Run", () => this.actions.restartRun());
+    this.resetMemoryButton = this.createPlaytestButton("redesign-playtest-reset-save", "Reset Save", () => this.actions.resetMemory());
+    this.layer.append(this.playtestPanel);
 
     document.body.append(this.layer);
     document.documentElement.dataset.grassAgentDom = "ready";
@@ -226,6 +264,7 @@ export class RedesignDomBridge {
     this.renderLockedNodes(snapshot);
     this.renderNextRunButton(snapshot);
     this.renderOptions(snapshot);
+    this.renderPlaytest(snapshot);
   }
 
   private createButton(testId: string, label: string, onClick: () => void): HTMLButtonElement {
@@ -264,6 +303,41 @@ export class RedesignDomBridge {
       activate();
     });
     this.layer.append(button);
+    return button;
+  }
+
+  private createPlaytestButton(testId: string, label: string, onClick: () => void): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "grass-agent-playtest-button";
+    button.dataset.testid = testId;
+    button.textContent = label;
+    button.setAttribute("aria-label", label);
+    let lastPointerActivationAt = 0;
+    const activate = () => {
+      onClick();
+    };
+    const handlePointerActivation = (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const now = Date.now();
+      if (now - lastPointerActivationAt < 80) {
+        return;
+      }
+      lastPointerActivationAt = now;
+      activate();
+    };
+    button.addEventListener("pointerdown", handlePointerActivation);
+    button.addEventListener("mousedown", handlePointerActivation);
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (Date.now() - lastPointerActivationAt < 350) {
+        return;
+      }
+      activate();
+    });
+    this.playtestPanel.append(button);
     return button;
   }
 
@@ -309,6 +383,8 @@ export class RedesignDomBridge {
       `Dormancy action: ${snapshot.dormancyActionHint}`,
       `Options visible: ${snapshot.options.visible}`,
       `Music: ${snapshot.options.musicEnabled ? "on" : "off"} at ${Math.round(snapshot.options.musicVolume * 100)}%`,
+      `SFX: ${Math.round(snapshot.options.sfxVolume * 100)}%`,
+      `Playtest: ${snapshot.playtest.enabled ? snapshot.playtest.modeLabel : "off"}`,
     ].join("\n");
   }
 
@@ -388,7 +464,8 @@ export class RedesignDomBridge {
       button.setAttribute("aria-label", `${label} memory node`);
       button.dataset.affordable = String(memoryButton.affordable);
       button.dataset.owned = String(memoryButton.owned);
-      button.disabled = !memoryButton.visible || memoryButton.owned || !memoryButton.affordable;
+      button.disabled = !memoryButton.visible;
+      button.setAttribute("aria-disabled", String(memoryButton.owned || !memoryButton.affordable));
       this.positionButton(button, memoryButton.x, memoryButton.y, memoryButton.width, memoryButton.height, memoryButton.visible && snapshot.metaScreenVisible);
     }
   }
@@ -402,6 +479,10 @@ export class RedesignDomBridge {
     const button = this.createButton(`redesign-memory-${upgradeId}`, MEMORY_NODE_LABELS[upgradeId], () => this.actions.purchaseMemory(upgradeId));
     button.classList.add("grass-agent-memory-button");
     button.dataset.upgradeId = upgradeId;
+    const preview = () => this.actions.previewMemory(upgradeId);
+    button.addEventListener("pointerenter", preview);
+    button.addEventListener("mouseover", preview);
+    button.addEventListener("focus", preview);
     this.memoryButtons.set(upgradeId, button);
     return button;
   }
@@ -498,6 +579,38 @@ export class RedesignDomBridge {
       snapshot.options.musicVolumeSlider.height,
       snapshot.options.musicVolumeSlider.visible,
     );
+
+    this.sfxVolumeRange.value = String(Math.round(snapshot.options.sfxVolume * 100));
+    this.sfxVolumeRange.dataset.sfxVolume = String(snapshot.options.sfxVolume);
+    this.sfxVolumeRange.disabled = !snapshot.options.visible;
+    this.positionRange(
+      this.sfxVolumeRange,
+      snapshot.options.sfxVolumeSlider.x,
+      snapshot.options.sfxVolumeSlider.y,
+      snapshot.options.sfxVolumeSlider.width,
+      snapshot.options.sfxVolumeSlider.height,
+      snapshot.options.sfxVolumeSlider.visible,
+    );
+  }
+
+  private renderPlaytest(snapshot: RedesignDomSnapshot): void {
+    this.layer.dataset.playtest = String(snapshot.playtest.enabled);
+    this.playtestPanel.hidden = !snapshot.playtest.enabled;
+    if (!snapshot.playtest.enabled) {
+      return;
+    }
+
+    this.playtestStatus.textContent = [
+      snapshot.playtest.modeLabel,
+      `HP ${snapshot.ancientHp.toFixed(1)} / ${snapshot.ancientMaxHp}`,
+      `RT ${snapshot.runTouches}  GT ${snapshot.permanentGrassTouches}`,
+      snapshot.runEnded ? "Memory Grove active" : "Run active",
+    ].join(" | ");
+    this.forceDormancyButton.disabled = !snapshot.playtest.canForceDormancy;
+    this.grantMemoryButton.textContent = `+${snapshot.playtest.grantAmount} GT`;
+    this.grantMemoryButton.disabled = false;
+    this.restartRunButton.disabled = !snapshot.playtest.canRestartRun;
+    this.resetMemoryButton.disabled = !snapshot.playtest.canResetMemory;
   }
 
   private positionButton(button: HTMLButtonElement, x: number, y: number, width: number, height: number, visible: boolean): void {

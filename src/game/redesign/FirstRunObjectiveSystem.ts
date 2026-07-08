@@ -4,6 +4,7 @@ export type FirstRunObjectiveId =
   | "wakeAncientGrass"
   | "earnRunTouches"
   | "stabilizeWound"
+  | "holdTheLine"
   | "completeDormancy"
   | "rememberUpgrade";
 
@@ -57,9 +58,9 @@ export const FIRST_RUN_OBJECTIVE_DEFINITIONS: FirstRunObjectiveDefinition[] = [
   {
     id: "earnRunTouches",
     title: "Gather Run Touches",
-    detail: "Earn 10 RT from effective healing.",
-    completedFeed: "10 Run Touches earned",
-    target: 10,
+    detail: "Earn 12 RT from effective healing.",
+    completedFeed: "12 Run Touches earned",
+    target: 12,
     getProgress: (state) => state.economy.totalRunTouchesEarned,
   },
   {
@@ -69,6 +70,14 @@ export const FIRST_RUN_OBJECTIVE_DEFINITIONS: FirstRunObjectiveDefinition[] = [
     completedFeed: "wound triage learned",
     target: 1,
     getProgress: (state) => state.wounds.totalWoundsHealed,
+  },
+  {
+    id: "holdTheLine",
+    title: "Hold the Line",
+    detail: "Heal 3 wounded roots before the field fully opens.",
+    completedFeed: "pressure lesson survived",
+    target: 3,
+    getProgress: (state) => (state.phase === "dormant" ? 3 : state.wounds.totalWoundsHealed),
   },
   {
     id: "completeDormancy",
@@ -149,7 +158,7 @@ export function getFirstRunObjectiveProgress(
 }
 
 export function getFirstRunFieldExpansion(objectiveState: FirstRunObjectiveState): FirstRunFieldExpansion {
-  if (objectiveState.completedObjectiveIds.includes("stabilizeWound")) {
+  if (objectiveState.completedObjectiveIds.includes("holdTheLine")) {
     return FIRST_RUN_FIELD_EXPANSION_STAGES.opened;
   }
 
