@@ -119,14 +119,46 @@ canvas {
   position: absolute;
   box-sizing: border-box;
   margin: 0;
-  opacity: 0.01;
+  appearance: none;
+  opacity: 1;
+  border: 0;
+  background: transparent;
+  color: transparent;
   pointer-events: auto;
 }
 
 .grass-agent-range:focus-visible {
-  opacity: 1;
   outline: 3px solid #bff4ff;
   outline-offset: 6px;
+}
+
+.grass-agent-range::-webkit-slider-runnable-track {
+  border: 0;
+  background: transparent;
+}
+
+.grass-agent-range::-webkit-slider-thumb {
+  width: 1px;
+  height: 1px;
+  appearance: none;
+  border: 0;
+  background: transparent;
+}
+
+.grass-agent-range::-moz-range-track {
+  border: 0;
+  background: transparent;
+}
+
+.grass-agent-range::-moz-range-progress {
+  background: transparent;
+}
+
+.grass-agent-range::-moz-range-thumb {
+  width: 1px;
+  height: 1px;
+  border: 0;
+  background: transparent;
 }
 
 .grass-agent-playtest-panel {

@@ -1,0 +1,48 @@
+{
+  "date": "2026-07-09",
+  "topic": "Memory Grove tree readability and hover polish",
+  "currentUserGoal": "Respond to playtest feedback that balance felt better, but the Memory Grove skill screen needs work: no crossing lines, smaller tree icons, zoomed icon on hover/card, and animated hover feedback.",
+  "workCompleted": [
+    "Reworked Memory Grove node positions into a two-lane layout: Soft Touch branches to Deeper Roots and Tiny Sprinkler; the top lane leads to Scourge Sense; the bottom/right lane leads to Last Stand.",
+    "Changed Last Stand's visual connection from Deeper Roots + Tiny Sprinkler to Scourge Sense + Tiny Sprinkler so connector lines no longer cross through the tree.",
+    "Reduced overview icon scale inside each skill node while keeping node frames readable.",
+    "Simplified overview node labels to name plus one short state line, moving richer description/effect information into the side detail card.",
+    "Added a large zoomed skill icon to the Memory Grove detail card that updates on hover/selection.",
+    "Added animation for the selected tree icon and the zoomed detail-card icon: pulse, tiny bob, and subtle angle motion.",
+    "Disabled the old floating hover tooltip so it no longer covers nodes or connector lines."
+  ],
+  "filesChanged": [
+    "handoffs/HANDOFF_2026-07-09_MEMORY_GROVE_TREE_POLISH.json",
+    "handoffs/LATEST.json",
+    "src/game/scenes/RedesignPrototypeScene.ts"
+  ],
+  "verificationRun": [
+    "npm run check passed after the Memory Grove polish: ESLint, 30 Vitest tests, TypeScript, and Vite production build.",
+    "Confirmed http://127.0.0.1:5173/?redesign&playtest returns HTTP 200.",
+    "Earlier browser visual pass after the first tree-layout change confirmed the Memory Grove rendered with the new two-row node layout and zoomed detail icon.",
+    "After the final label cleanup, the in-app browser control session timed out while reconnecting, so the final visual pass still needs user/manual confirmation."
+  ],
+  "currentGitStatus": [
+    " M handoffs/LATEST.json",
+    " M src/game/redesign/RedesignDomBridge.ts",
+    " M src/game/scenes/RedesignPrototypeScene.ts",
+    " M src/style.css",
+    "?? handoffs/HANDOFF_2026-07-09_OPTIONS_SLIDER_SFX_TEST.json",
+    "?? handoffs/HANDOFF_2026-07-09_MEMORY_GROVE_TREE_POLISH.json"
+  ],
+  "knownIssues": [
+    "The final Memory Grove visual cleanup has not been manually confirmed by the user yet.",
+    "The tree is now cleaner, but the whole Memory Grove screen still needs deeper visual polish and likely more old-game charm.",
+    "The in-app browser automation timed out after reconnecting; use manual browser testing or retry browser tooling later."
+  ],
+  "nextRecommendedSteps": [
+    "Ask the user to test http://127.0.0.1:5173/?redesign&playtest, force Game Over if needed, and inspect Memory Grove.",
+    "Specifically verify that connector lines do not cross, overview icons feel smaller/cleaner, and hover/selection updates the zoom icon in the detail card.",
+    "If the detail card feels too static or too dim for locked nodes, brighten the zoomed icon treatment and add stronger hover glow."
+  ],
+  "doNotRevert": [
+    "Keep the new Scourge-run balance changes intact; the user said the game felt much better balanced.",
+    "Do not bring back the crossing tree connector layout.",
+    "Keep the detail-card zoomed icon and hover animation direction unless the user explicitly prefers a different hover surface."
+  ]
+}

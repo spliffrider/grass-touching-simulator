@@ -80,6 +80,7 @@ export interface RedesignDomOptionsState {
   musicOffButton: RedesignDomButtonBounds;
   musicVolumeSlider: RedesignDomSliderBounds;
   sfxVolumeSlider: RedesignDomSliderBounds;
+  sfxTestButton: RedesignDomButtonBounds;
 }
 
 export interface RedesignDomPlaytestState {
@@ -144,6 +145,7 @@ interface RedesignDomActions {
   turnMusicOff(): void;
   setMusicVolume(volume: number): void;
   setSfxVolume(volume: number): void;
+  testSfx(): void;
   forceDormancy(): void;
   grantMemory(): void;
   restartRun(): void;
@@ -176,6 +178,7 @@ export class RedesignDomBridge {
   private readonly optionsButton: HTMLButtonElement;
   private readonly optionsCloseButton: HTMLButtonElement;
   private readonly musicToggleButton: HTMLButtonElement;
+  private readonly sfxTestButton: HTMLButtonElement;
   private readonly musicVolumeRange: HTMLInputElement;
   private readonly sfxVolumeRange: HTMLInputElement;
   private readonly playtestPanel: HTMLElement;
@@ -226,6 +229,8 @@ export class RedesignDomBridge {
       this.actions.turnMusicOff();
     });
     this.musicToggleButton.classList.add("grass-agent-options-control");
+    this.sfxTestButton = this.createButton("redesign-sfx-test-button", "Test SFX", () => this.actions.testSfx());
+    this.sfxTestButton.classList.add("grass-agent-options-control");
     this.musicVolumeRange = this.createRange("redesign-music-volume-range", "Music volume", (volume) => this.actions.setMusicVolume(volume));
     this.sfxVolumeRange = this.createRange("redesign-sfx-volume-range", "SFX volume", (volume) => this.actions.setSfxVolume(volume));
     this.playtestPanel = document.createElement("aside");
@@ -566,6 +571,16 @@ export class RedesignDomBridge {
       musicToggleBounds.width,
       musicToggleBounds.height,
       musicToggleBounds.visible,
+    );
+
+    this.sfxTestButton.disabled = !snapshot.options.sfxTestButton.enabled;
+    this.positionButton(
+      this.sfxTestButton,
+      snapshot.options.sfxTestButton.x,
+      snapshot.options.sfxTestButton.y,
+      snapshot.options.sfxTestButton.width,
+      snapshot.options.sfxTestButton.height,
+      snapshot.options.sfxTestButton.visible,
     );
 
     this.musicVolumeRange.value = String(Math.round(snapshot.options.musicVolume * 100));

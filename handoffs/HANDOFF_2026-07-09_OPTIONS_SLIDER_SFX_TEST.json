@@ -1,0 +1,48 @@
+{
+  "date": "2026-07-09",
+  "topic": "Options slider reliability and SFX test control",
+  "currentUserGoal": "Do a small Grass Touching Simulator redesign slice while waiting for new model availability, focusing on the still-rough Options/SFX controls.",
+  "workCompleted": [
+    "Added a visible Test SFX button to the redesign Options panel and exposed it through the DOM agent layer as redesign-sfx-test-button.",
+    "Changed redesign Options slider tracks, fills, and hit areas to use explicit sizes instead of scaled rectangles so visual state, pointer math, and DOM bounds align better.",
+    "Stopped option-panel controls from propagating pointerdown into the backdrop close handler, and added pointerupoutside cleanup for slider drags.",
+    "Made the panel itself interactive so clicking inside empty panel space does not accidentally close Options.",
+    "Hid native browser range visuals for the transparent DOM sliders while preserving a focus outline for keyboard/agent accessibility."
+  ],
+  "filesChanged": [
+    "handoffs/HANDOFF_2026-07-09_OPTIONS_SLIDER_SFX_TEST.json",
+    "handoffs/LATEST.json",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/style.css"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 30 Vitest tests, TypeScript, and Vite production build.",
+    "Started Vite on http://127.0.0.1:5173 and loaded http://127.0.0.1:5173/?redesign&playtest in the in-app browser.",
+    "Opened Options through redesign-options-button and verified one music slider, one SFX slider, and one Test SFX button were present.",
+    "Set music to 45% and SFX to 55% through DOM range controls; documentElement dataset state reported musicVolume 0.45 and sfxVolume 0.55.",
+    "Clicked Test SFX and checked browser console errors; none were reported.",
+    "Visually inspected the Options panel screenshot after hiding native range visuals; the custom sliders remained visible without the browser-native blue slider overlay."
+  ],
+  "currentGitStatus": [
+    " M src/game/redesign/RedesignDomBridge.ts",
+    " M src/game/scenes/RedesignPrototypeScene.ts",
+    " M src/style.css",
+    "?? handoffs/HANDOFF_2026-07-09_OPTIONS_SLIDER_SFX_TEST.json"
+  ],
+  "knownIssues": [
+    "The in-app browser domSnapshot API errored with incrementalAriaSnapshot during this check, so targeted locator/evaluate checks were used instead.",
+    "The Options panel is functionally cleaner, but the broader redesign still needs user playtesting for feel and visual nostalgia.",
+    "The focus outline can appear around the invisible DOM range when automation focuses it; this is intentional for accessibility, but real mouse use should mostly show the custom Phaser slider."
+  ],
+  "nextRecommendedSteps": [
+    "Ask the user to test Options in a normal mouse flow: open Options, drag Music/SFX, click Test SFX, close, reopen, and confirm values persist.",
+    "If the focus outline is visually distracting during normal use, narrow it to keyboard-only behavior or restyle it as a subtler glow around the Phaser track.",
+    "Continue the next gameplay slice after the user confirms the Options controls feel reliable."
+  ],
+  "doNotRevert": [
+    "Keep the separate SFX volume setting and Test SFX affordance; the user values grass-touch sound feedback.",
+    "Keep DOM-accessible options controls for agent/browser testing.",
+    "Do not reintroduce native range visuals over the Phaser sliders."
+  ]
+}
