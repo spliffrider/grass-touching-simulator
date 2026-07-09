@@ -74,6 +74,10 @@ export interface RunTickResult {
   becameDormant: boolean;
 }
 
+export interface RunTickOptions {
+  drainMultiplier?: number;
+}
+
 export interface TouchAncientGrassResult {
   previousHp: number;
   currentHp: number;
@@ -271,7 +275,7 @@ export function createRunSpineState(options: RunSpineOptions = {}): RunSpineStat
   };
 }
 
-export function advanceRun(state: RunSpineState, deltaMs: number): RunTickResult {
+export function advanceRun(state: RunSpineState, deltaMs: number, options: RunTickOptions = {}): RunTickResult {
   const previousHp = state.ancientGrass.currentHp;
   const previousPressure = state.scourge.pressure;
 
@@ -291,7 +295,8 @@ export function advanceRun(state: RunSpineState, deltaMs: number): RunTickResult
   const nextPressure = previousPressure + state.scourge.pressureGrowthPerSecond * seconds;
   const woundPressure = state.wounds.woundedRootIds.length * SCOURGE_PRESSURE_PER_OPEN_WOUND;
   const averagePressure = (previousPressure + nextPressure) / 2 + woundPressure;
-  const drained = state.scourge.baseDrainPerSecond * averagePressure * seconds;
+  const drainMultiplier = normalizeNonNegativeNumber(options.drainMultiplier, 1);
+  const drained = state.scourge.baseDrainPerSecond * averagePressure * seconds * drainMultiplier;
 
   state.elapsedMs += Math.max(0, deltaMs);
   state.scourge.pressure = nextPressure;

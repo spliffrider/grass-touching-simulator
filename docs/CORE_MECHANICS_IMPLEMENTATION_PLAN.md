@@ -182,13 +182,15 @@ Tests:
 - Permanent values persist.
 - Re-entering dormancy does not double-award the same run.
 - Redesign memory snapshots normalize bad/old data and reject incompatible save versions.
-- First-run objectives advance in order from healing, Run Touch earning, first wound triage, a three-wound `Hold the Line` pressure lesson, dormancy, and memory purchase.
-- First-run field expansion follows the new objective sequence: 1 active root, 2x2 after first healing, 3x3 after 12 Run Touches, then 5x5 after `Hold the Line` or dormancy.
-- Browser smoke covers the first wound triage path with real active-root clicks: wake the first tile, earn 12 Run Touches to open 3x3, heal the first reported wounded root, continue the `Hold the Line` pressure lesson, and confirm the field remains 3x3 until that lesson completes.
+- First-run objectives advance in order from first healing through four one-tile care upgrades, 2x2 and 3x3 root-network expansion, first wound triage, a three-wound `Hold the Line` pressure lesson, dormancy, and memory purchase.
+- First-run field expansion follows the new objective sequence: remain at 1 active root through `Soft Loam`, `Dew Veins`, and `Root Heart`; open 2x2 with `Ancient Crown` at 36 cumulative care RT; open 3x3 at 50 cumulative care RT; then open 5x5 after `Hold the Line` or dormancy.
+- One-tile mastery grants real cumulative manual-healing and recovery benefits. Its care RT progress survives a failed attempt in the current session, and the isolated tile uses reduced Scourge drain until the first expansion without slowing elapsed time or pressure growth.
+- Browser smoke covers the one-tile chapter with real root clicks: each mastery rank appears while `activeRootCount` remains 1, the thirteenth paced playtest touch reaches `Ancient Crown` and opens 2x2, and the run remains active after expansion.
+- Browser smoke covers the first wound triage path with real active-root clicks: master the opening tile, earn 50 cumulative care RT to open 3x3, heal the first reported wounded root, continue the `Hold the Line` pressure lesson, and confirm the field remains 3x3 until that lesson completes.
 - Browser smoke covers root recovery: after a valid root touch, the touched root reports `recovering`, `recoveryRatio < 1`, and `recoveryMarkerVisible`; an immediate repeat click on that same root does not award Run Touches, while the same root awards again after recovery expires.
 - Browser smoke covers the fast first loop: wake the field, complete wound triage, reach dormancy, verify permanent payout persisted, buy Soft Touch, and start the next run with run-only values reset and Soft Touch preserved.
 - Browser smoke verifies player/advisor panel debug text: player panel remains `Grass Toucher`, Sensi dialogue remains in `Sensi // Advisor`, and the split survives the first real root click.
-- Browser smoke covers compact layout at 640x720 and 390x844: player and advisor panels are visible, non-overlapping, and the first real root click still opens the 2x2 field.
+- Browser smoke covers compact layout at 640x720 and 390x844: player and advisor panels are visible and non-overlapping, the first real root click keeps the field at 1x1, and the one-tile mastery label remains readable.
 - Browser smoke verifies wound markers: after opening the 3x3 wound lesson, the wounded root reports `woundMarkerVisible`, and after clicking that wounded root, the healed root marker clears.
 - Browser smoke verifies healing feedback: the first real root touch reports `lastHealingFeedbackKind: root`, and a wounded-root heal reports `lastHealingFeedbackKind: wound`.
 - Browser smoke verifies Scourge pressure feedback: after opening the 3x3 wound lesson in fast dormancy, `lastWoundPressureWarningAt` fires before or at `lastScourgePressureWaveAt`, the wound-open event reports `lastScourgeEvent: wound-open`, and HP zero reports `lastScourgeEvent: dormancy-collapse` with `lastDormancyCollapseAt > 0`.

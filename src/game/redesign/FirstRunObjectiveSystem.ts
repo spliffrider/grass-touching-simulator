@@ -2,6 +2,10 @@ import type { RunSpineState } from "./RunSpineSystem";
 
 export type FirstRunObjectiveId =
   | "wakeAncientGrass"
+  | "cultivateSoftLoam"
+  | "openDewVeins"
+  | "strengthenRootHeart"
+  | "raiseAncientCrown"
   | "earnRunTouches"
   | "stabilizeWound"
   | "holdTheLine"
@@ -14,7 +18,7 @@ export interface FirstRunObjectiveDefinition {
   detail: string;
   completedFeed: string;
   target: number;
-  getProgress(state: RunSpineState): number;
+  getProgress(state: RunSpineState, objectiveState: FirstRunObjectiveState): number;
 }
 
 export interface FirstRunObjectiveProgress {
@@ -26,6 +30,8 @@ export interface FirstRunObjectiveProgress {
 
 export interface FirstRunObjectiveState {
   completedObjectiveIds: FirstRunObjectiveId[];
+  cumulativeRunTouchesEarned: number;
+  observedRunTouchesEarned: number;
 }
 
 export interface FirstRunObjectiveUpdate {
@@ -39,10 +45,64 @@ export interface FirstRunFieldExpansion {
   gridSize: number;
 }
 
+export interface FirstRunOneTileMastery {
+  rank: number;
+  maxRank: number;
+  name: string;
+  shortEffect: string;
+  manualHealingMultiplier: number;
+  recoveryDurationMultiplier: number;
+}
+
+export const FIRST_RUN_ONE_TILE_UPGRADE_OBJECTIVE_IDS = [
+  "cultivateSoftLoam",
+  "openDewVeins",
+  "strengthenRootHeart",
+  "raiseAncientCrown",
+] as const satisfies readonly FirstRunObjectiveId[];
+
+export const FIRST_RUN_ONE_TILE_MASTERY_STAGES: readonly Omit<FirstRunOneTileMastery, "maxRank">[] = [
+  {
+    rank: 0,
+    name: "Dormant Inheritance",
+    shortEffect: "No care upgrades yet",
+    manualHealingMultiplier: 1,
+    recoveryDurationMultiplier: 1,
+  },
+  {
+    rank: 1,
+    name: "Soft Loam",
+    shortEffect: "Heal +10%",
+    manualHealingMultiplier: 1.1,
+    recoveryDurationMultiplier: 1,
+  },
+  {
+    rank: 2,
+    name: "Dew Veins",
+    shortEffect: "Heal +10% | recover +15%",
+    manualHealingMultiplier: 1.1,
+    recoveryDurationMultiplier: 0.85,
+  },
+  {
+    rank: 3,
+    name: "Root Heart",
+    shortEffect: "Heal +25% | recover +15%",
+    manualHealingMultiplier: 1.25,
+    recoveryDurationMultiplier: 0.85,
+  },
+  {
+    rank: 4,
+    name: "Ancient Crown",
+    shortEffect: "Heal +25% | recover +30%",
+    manualHealingMultiplier: 1.25,
+    recoveryDurationMultiplier: 0.7,
+  },
+];
+
 export const FIRST_RUN_FIELD_EXPANSION_STAGES = {
   initial: { rootCount: 1, gridSize: 1 },
-  awakened: { rootCount: 4, gridSize: 2 },
-  practiced: { rootCount: 9, gridSize: 3 },
+  crowned: { rootCount: 4, gridSize: 2 },
+  networked: { rootCount: 9, gridSize: 3 },
   opened: { rootCount: 25, gridSize: 5 },
 } as const satisfies Record<string, FirstRunFieldExpansion>;
 
@@ -56,12 +116,44 @@ export const FIRST_RUN_OBJECTIVE_DEFINITIONS: FirstRunObjectiveDefinition[] = [
     getProgress: (state) => (state.ancientGrass.effectiveHealingThisRun > 0 ? 1 : 0),
   },
   {
+    id: "cultivateSoftLoam",
+    title: "Cultivate Soft Loam",
+    detail: "Earn 6 care RT. Upgrade: manual healing +10%.",
+    completedFeed: "Soft Loam: healing +10%",
+    target: 6,
+    getProgress: getCumulativeRunTouches,
+  },
+  {
+    id: "openDewVeins",
+    title: "Open the Dew Veins",
+    detail: "Earn 14 care RT. Upgrade: root recovery 15% faster.",
+    completedFeed: "Dew Veins: recovery 15% faster",
+    target: 14,
+    getProgress: getCumulativeRunTouches,
+  },
+  {
+    id: "strengthenRootHeart",
+    title: "Strengthen the Root Heart",
+    detail: "Earn 24 care RT. Upgrade: manual healing +25% total.",
+    completedFeed: "Root Heart: healing +25% total",
+    target: 24,
+    getProgress: getCumulativeRunTouches,
+  },
+  {
+    id: "raiseAncientCrown",
+    title: "Raise the Ancient Crown",
+    detail: "Earn 36 care RT. Upgrade: recovery 30% faster; first expansion.",
+    completedFeed: "Ancient Crown: first expansion ready",
+    target: 36,
+    getProgress: getCumulativeRunTouches,
+  },
+  {
     id: "earnRunTouches",
-    title: "Gather Run Touches",
-    detail: "Earn 12 RT from effective healing.",
-    completedFeed: "12 Run Touches earned",
-    target: 12,
-    getProgress: (state) => state.economy.totalRunTouchesEarned,
+    title: "Map the Root Network",
+    detail: "Earn 50 care RT to awaken a 3x3 root network.",
+    completedFeed: "root network mapped",
+    target: 50,
+    getProgress: getCumulativeRunTouches,
   },
   {
     id: "stabilizeWound",
@@ -102,6 +194,8 @@ export function createFirstRunObjectiveState(
 ): FirstRunObjectiveState {
   return {
     completedObjectiveIds: normalizeObjectiveIds(completedObjectiveIds),
+    cumulativeRunTouchesEarned: 0,
+    observedRunTouchesEarned: 0,
   };
 }
 
@@ -109,7 +203,8 @@ export function updateFirstRunObjectives(
   objectiveState: FirstRunObjectiveState,
   runState: RunSpineState,
 ): FirstRunObjectiveUpdate {
-  const objectives = getFirstRunObjectiveProgress(runState, objectiveState.completedObjectiveIds);
+  captureRunTouchProgress(objectiveState, runState);
+  const objectives = getFirstRunObjectiveProgress(runState, objectiveState);
   const newlyCompleted: FirstRunObjectiveProgress[] = [];
 
   for (const objective of objectives) {
@@ -128,7 +223,7 @@ export function updateFirstRunObjectives(
   return {
     newlyCompleted,
     activeObjective: getActiveFirstRunObjective(objectiveState, runState),
-    objectives: getFirstRunObjectiveProgress(runState, objectiveState.completedObjectiveIds),
+    objectives: getFirstRunObjectiveProgress(runState, objectiveState),
   };
 }
 
@@ -136,18 +231,18 @@ export function getActiveFirstRunObjective(
   objectiveState: FirstRunObjectiveState,
   runState: RunSpineState,
 ): FirstRunObjectiveProgress | undefined {
-  return getFirstRunObjectiveProgress(runState, objectiveState.completedObjectiveIds).find(
+  return getFirstRunObjectiveProgress(runState, objectiveState).find(
     (objective) => !objectiveState.completedObjectiveIds.includes(objective.definition.id),
   );
 }
 
 export function getFirstRunObjectiveProgress(
   runState: RunSpineState,
-  completedObjectiveIds: FirstRunObjectiveId[] = [],
+  objectiveState: FirstRunObjectiveState = createFirstRunObjectiveState(),
 ): FirstRunObjectiveProgress[] {
-  const completed = new Set(normalizeObjectiveIds(completedObjectiveIds));
+  const completed = new Set(normalizeObjectiveIds(objectiveState.completedObjectiveIds));
   return FIRST_RUN_OBJECTIVE_DEFINITIONS.map((definition) => {
-    const current = Math.max(0, Math.floor(definition.getProgress(runState)));
+    const current = Math.max(0, Math.floor(definition.getProgress(runState, objectiveState)));
     return {
       definition,
       current: Math.min(current, definition.target),
@@ -163,14 +258,51 @@ export function getFirstRunFieldExpansion(objectiveState: FirstRunObjectiveState
   }
 
   if (objectiveState.completedObjectiveIds.includes("earnRunTouches")) {
-    return FIRST_RUN_FIELD_EXPANSION_STAGES.practiced;
+    return FIRST_RUN_FIELD_EXPANSION_STAGES.networked;
   }
 
-  if (objectiveState.completedObjectiveIds.includes("wakeAncientGrass")) {
-    return FIRST_RUN_FIELD_EXPANSION_STAGES.awakened;
+  if (objectiveState.completedObjectiveIds.includes("raiseAncientCrown")) {
+    return FIRST_RUN_FIELD_EXPANSION_STAGES.crowned;
   }
 
   return FIRST_RUN_FIELD_EXPANSION_STAGES.initial;
+}
+
+export function getFirstRunOneTileMastery(objectiveState: FirstRunObjectiveState): FirstRunOneTileMastery {
+  const rank = FIRST_RUN_ONE_TILE_UPGRADE_OBJECTIVE_IDS.reduce(
+    (total, objectiveId) => total + Number(objectiveState.completedObjectiveIds.includes(objectiveId)),
+    0,
+  );
+  const stage = FIRST_RUN_ONE_TILE_MASTERY_STAGES[Math.min(rank, FIRST_RUN_ONE_TILE_MASTERY_STAGES.length - 1)];
+  return {
+    ...stage,
+    maxRank: FIRST_RUN_ONE_TILE_UPGRADE_OBJECTIVE_IDS.length,
+  };
+}
+
+function captureRunTouchProgress(objectiveState: FirstRunObjectiveState, runState: RunSpineState): void {
+  const currentRunTouches = normalizeRunTouches(runState.economy.totalRunTouchesEarned);
+  if (currentRunTouches < objectiveState.observedRunTouchesEarned) {
+    objectiveState.observedRunTouchesEarned = 0;
+  }
+
+  objectiveState.cumulativeRunTouchesEarned += Math.max(
+    0,
+    currentRunTouches - objectiveState.observedRunTouchesEarned,
+  );
+  objectiveState.observedRunTouchesEarned = currentRunTouches;
+}
+
+function getCumulativeRunTouches(state: RunSpineState, objectiveState: FirstRunObjectiveState): number {
+  const currentRunTouches = normalizeRunTouches(state.economy.totalRunTouchesEarned);
+  const observedThisRun = currentRunTouches < objectiveState.observedRunTouchesEarned
+    ? 0
+    : objectiveState.observedRunTouchesEarned;
+  return objectiveState.cumulativeRunTouchesEarned + Math.max(0, currentRunTouches - observedThisRun);
+}
+
+function normalizeRunTouches(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
 }
 
 function normalizeObjectiveIds(ids: FirstRunObjectiveId[]): FirstRunObjectiveId[] {

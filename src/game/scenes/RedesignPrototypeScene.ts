@@ -10,6 +10,7 @@ import {
   createFirstRunObjectiveState,
   getActiveFirstRunObjective,
   getFirstRunFieldExpansion,
+  getFirstRunOneTileMastery,
   updateFirstRunObjectives,
   type FirstRunObjectiveProgress,
   type FirstRunObjectiveState,
@@ -219,6 +220,7 @@ const PLAYTEST_SCOURGE_DRAIN_PER_SECOND = 2.8;
 const PLAYTEST_SCOURGE_PRESSURE_GROWTH_PER_SECOND = 0.07;
 const FAST_SCOURGE_DRAIN_PER_SECOND = 4.4;
 const FAST_SCOURGE_PRESSURE_GROWTH_PER_SECOND = 0.09;
+const ONE_TILE_SCOURGE_DRAIN_MULTIPLIER = 0.58;
 const PLAYTEST_MEMORY_GRANT = 20;
 const DEFAULT_WOUND_WARNING_RATIO = 0.72;
 const SCOURGE_SENSE_WARNING_RATIO = 0.42;
@@ -270,6 +272,13 @@ const MUSIC_CROSSFADE_MS = 1200;
 const ROOT_TOUCH_IMPACT_MS = 360;
 const GRASS_TEXTURES = ["grass-normal", "grass-thick", "grass-clover", "grass-wildflower", "grass-moss"] as const;
 type RedesignGrassTextureKey = (typeof GRASS_TEXTURES)[number];
+const ONE_TILE_MASTERY_TEXTURES: readonly RedesignGrassTextureKey[] = [
+  "grass-moss",
+  "grass-normal",
+  "grass-thick",
+  "grass-clover",
+  "grass-wildflower",
+];
 const GRASS_TEXTURE_AUDIO: Record<RedesignGrassTextureKey, { tier: GrassTierId; trait: TileTrait }> = {
   "grass-normal": { tier: "normal", trait: "normal" },
   "grass-thick": { tier: "thick", trait: "lush" },
@@ -343,6 +352,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private rootAura!: Phaser.GameObjects.Arc;
   private touchHintRing!: Phaser.GameObjects.Arc;
   private touchHintText!: Phaser.GameObjects.Text;
+  private oneTileMasteryText!: Phaser.GameObjects.Text;
   private summaryBackdrop!: Phaser.GameObjects.Rectangle;
   private summaryPanel!: Phaser.GameObjects.NineSlice;
   private summaryTitle!: Phaser.GameObjects.Text;
@@ -432,6 +442,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private fieldCenterX = 0;
   private fieldCenterY = 0;
   private fieldTouchRadius = 220;
+  private oneTileMasteryRank = 0;
   private dormantAnimationPlayed = false;
   private scourgeDamageAccum = 0;
   private scourgePulseElapsed = 0;
@@ -536,6 +547,16 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       fontFamily: "Arial, sans-serif",
       fontSize: "14px",
       fontStyle: "bold",
+      stroke: "#07100c",
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(8);
+    this.oneTileMasteryText = this.add.text(0, 0, "", {
+      align: "center",
+      color: "#eaff9b",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "13px",
+      fontStyle: "bold",
+      lineSpacing: 2,
       stroke: "#07100c",
       strokeThickness: 3,
     }).setOrigin(0.5).setDepth(8);
@@ -1235,7 +1256,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       return;
     }
 
-    const tick = advanceRun(this.state, delta);
+    const tick = advanceRun(this.state, delta, {
+      drainMultiplier: this.activeRootCount === 1 ? ONE_TILE_SCOURGE_DRAIN_MULTIPLIER : 1,
+    });
     if (this.state.phase === "active") {
       this.scourgeDamageAccum += tick.drained;
       this.scourgePulseElapsed += delta;
@@ -1398,11 +1421,15 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.fieldCenterX = centerX;
     this.fieldCenterY = startY + gridSize / 2 - tileSize / 2;
     this.fieldTouchRadius = Math.max(tileSize * 0.8, gridSize * 0.56);
-    this.fieldPanel.setScale((gridSize + 78) / FIELD_PANEL_BASE_WIDTH, (gridSize + 78) / FIELD_PANEL_BASE_HEIGHT);
+    const fieldPanelHeight = gridSize + (this.activeGridSize === 1 ? 118 : 78);
+    this.fieldPanel.setScale((gridSize + 78) / FIELD_PANEL_BASE_WIDTH, fieldPanelHeight / FIELD_PANEL_BASE_HEIGHT);
     this.fieldPanel.setPosition(centerX, startY + gridSize / 2 - tileSize / 2);
     this.rootAura.setPosition(this.fieldCenterX, this.fieldCenterY).setRadius(gridSize * 0.36);
     this.touchHintRing.setPosition(this.fieldCenterX, this.fieldCenterY).setRadius(gridSize * 0.43);
     this.touchHintText.setPosition(this.fieldCenterX, startY - 28);
+    this.oneTileMasteryText
+      .setPosition(this.fieldCenterX, this.fieldCenterY + tileSize / 2 + 14)
+      .setWordWrapWidth(gridSize + 54);
     const introPanelVisible = this.introActive && this.state.phase === "active" && !compactPanelsVisible;
     const introPanelWidth = Math.min(INTRO_PANEL_BASE_WIDTH, width - 48);
     const introPanelHeight = compact ? 76 : INTRO_PANEL_BASE_HEIGHT;
@@ -1770,6 +1797,56 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     return this.rootNodes.slice(0, this.activeRootCount);
   }
 
+  private applyOneTileMasteryPresentation(announce: boolean): void {
+    const mastery = getFirstRunOneTileMastery(this.objectiveState);
+    this.oneTileMasteryRank = mastery.rank;
+    const ancientRoot = this.rootNodes[0];
+    const colors = [0xdff6ca, 0xd9c48f, 0xbff4ff, 0xa8df68, 0xffef78];
+    const color = colors[Math.min(mastery.rank, colors.length - 1)] ?? colors[0];
+    const texture = ONE_TILE_MASTERY_TEXTURES[Math.min(mastery.rank, ONE_TILE_MASTERY_TEXTURES.length - 1)] ?? "grass-normal";
+
+    ancientRoot?.grass.setTexture(texture);
+    ancientRoot?.base.setTint(color);
+    this.rootAura.setStrokeStyle(2 + mastery.rank * 0.35, color, 0.18 + mastery.rank * 0.06);
+    this.oneTileMasteryText
+      .setColor(`#${color.toString(16).padStart(6, "0")}`)
+      .setText(`TILE MASTERY ${mastery.rank}/${mastery.maxRank}\n${mastery.name}\n${mastery.shortEffect}`);
+
+    if (!announce || !ancientRoot) {
+      return;
+    }
+
+    this.playOneTileUpgrade(ancientRoot, mastery.name, color);
+  }
+
+  private playOneTileUpgrade(root: RootNodeView, name: string, color: number): void {
+    root.touchImpactAt = this.time.now;
+    root.touchImpactStrength = 0.9;
+    const ring = this.add
+      .circle(root.homeX, root.homeY, Math.max(28, root.visualSize * 0.3), color, 0.08)
+      .setDepth(8)
+      .setStrokeStyle(3, color, 0.92);
+    this.tweens.add({
+      targets: ring,
+      alpha: 0,
+      scale: 2.1,
+      duration: 680,
+      ease: "Cubic.easeOut",
+      onComplete: () => ring.destroy(),
+    });
+    this.cameras.main.flash(120, 212, 255, 154, false);
+    this.sfx.play("upgrade");
+    this.floatText(root.homeX, root.homeY - root.visualSize * 0.6, name, `#${color.toString(16).padStart(6, "0")}`);
+    const barks = [
+      "",
+      "Soft Loam.\nThe tile has standards now.",
+      "Dew Veins.\nIt catches its breath faster.",
+      "Root Heart.\nThat little thing is getting stubborn.",
+      "Ancient Crown.\nAll right. Now it may spread.",
+    ];
+    this.saySensi(barks[this.oneTileMasteryRank] ?? `${name}.\nThe old root remembers.`, "approval", 3400);
+  }
+
   private syncFieldExpansion(announce: boolean): void {
     const nextExpansion = getFirstRunFieldExpansion(this.objectiveState);
     if (nextExpansion.rootCount === this.activeRootCount && nextExpansion.gridSize === this.activeGridSize) {
@@ -1959,13 +2036,22 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       return;
     }
 
-    const healing = (wounded ? WOUNDED_TOUCH_HEALING : TOUCH_HEALING) * proximity * getPermanentUpgradeEffects(this.state).manualHealingMultiplier;
+    const tileMastery = getFirstRunOneTileMastery(this.objectiveState);
+    const healing =
+      (wounded ? WOUNDED_TOUCH_HEALING : TOUCH_HEALING) *
+      proximity *
+      getPermanentUpgradeEffects(this.state).manualHealingMultiplier *
+      tileMastery.manualHealingMultiplier;
     const result = touchAncientGrassRoot(this.state, healing, nearest.rootId);
     this.playRootTouchSfx(nearest, firstTouch, result.healedWound, result.effectiveHealing > 0, proximity);
     const text = result.healedWound ? `wound healed +${result.runTouchesGained}` : result.effectiveHealing > 0 ? `+${result.runTouchesGained} RT` : "overheal";
     nearest.lastTouchAt = this.time.now;
-    nearest.recoveringUntil =
-      this.time.now + (result.healedWound ? WOUNDED_ROOT_RECOVERY_MS : result.effectiveHealing > 0 ? ROOT_RECOVERY_MS : OVERHEAL_RECOVERY_MS);
+    const baseRecoveryDuration = result.healedWound
+      ? WOUNDED_ROOT_RECOVERY_MS
+      : result.effectiveHealing > 0
+        ? ROOT_RECOVERY_MS
+        : OVERHEAL_RECOVERY_MS;
+    nearest.recoveringUntil = this.time.now + Math.round(baseRecoveryDuration * tileMastery.recoveryDurationMultiplier);
     if (result.healedWound) {
       this.addFeedEntry("Wound healed", `root ${nearest.rootId + 1} stabilized`, "WD", "#ffefb0");
       this.saySensi("Clean work.\nPressure drops when the root believes you.", "approval", 3600);
@@ -2014,6 +2100,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private syncFirstRunObjectives(announce = true): void {
+    const previousMasteryRank = getFirstRunOneTileMastery(this.objectiveState).rank;
     const update = updateFirstRunObjectives(this.objectiveState, this.state);
     if (announce) {
       update.newlyCompleted.forEach((objective) => {
@@ -2021,6 +2108,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         this.floatText(this.scale.width / 2, Math.max(104, this.scale.height * 0.14), "objective complete", "#eaff9b");
       });
     }
+    const nextMasteryRank = getFirstRunOneTileMastery(this.objectiveState).rank;
+    this.applyOneTileMasteryPresentation(announce && nextMasteryRank > previousMasteryRank);
     this.syncFieldExpansion(announce);
     this.setObjectiveText(update.activeObjective);
     this.publishBrowserDebugState();
@@ -2028,7 +2117,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
   private setObjectiveText(objective?: FirstRunObjectiveProgress): void {
     if (this.introActive) {
-      this.objectiveText.setText("Intro: Your uncle left you one suspicious tile. Touch the Ancient Grass.");
+      this.objectiveText.setText("Goal: touch the inherited Ancient Grass.");
       this.updateIntroCard();
       return;
     }
@@ -2036,13 +2125,11 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.setIntroCardVisible(false);
 
     if (!objective) {
-      this.objectiveText.setText("Objective: first loop mapped. Keep the Ancient Grass alive.");
+      this.objectiveText.setText("Goal: keep the Ancient Grass alive.");
       return;
     }
 
-    this.objectiveText.setText(
-      `Objective: ${objective.definition.title} (${objective.current}/${objective.target}) - ${objective.definition.detail}`,
-    );
+    this.objectiveText.setText(`Goal: ${objective.definition.title} ${objective.current}/${objective.target}`);
   }
 
   private refreshReadout(): void {
@@ -2071,6 +2158,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     );
     const woundedCount = getWoundedRootCount(this.state);
     const activeObjectiveId = getActiveFirstRunObjective(this.objectiveState, this.state)?.definition.id;
+    const tileMastery = getFirstRunOneTileMastery(this.objectiveState);
     const dewPulseUsable = this.isDewPulseUsable();
     this.refreshDewPulseButton(compact);
     this.refreshRootSalveButton(woundedCount, compact);
@@ -2112,6 +2200,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
             : compact
               ? `Heal wounded roots: ${woundedCount} open.`
               : `Sensi points at the sick roots. Heal wounds first: ${woundedCount} open.`
+          : this.activeRootCount === 1
+            ? compact
+              ? `${tileMastery.name} ${tileMastery.rank}/${tileMastery.maxRank}. Keep tending it.`
+              : `Tend the one Ancient tile. Each care milestone upgrades it before the field is allowed to spread.`
           : dewPulseUsable
             ? compact
               ? "Dew Pulse ready. Spend RT to buy time."
@@ -2129,6 +2221,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const showTouchHint = this.shouldShowTouchHint();
     this.touchHintRing.setVisible(showTouchHint);
     this.touchHintText.setVisible(showTouchHint);
+    this.oneTileMasteryText.setVisible(this.state.phase === "active" && this.activeRootCount === 1);
 
     this.rootNodes.forEach((node, index) => {
       if (index >= this.activeRootCount) {
@@ -2218,12 +2311,16 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const hpRatio = getAncientGrassHpRatio(this.state);
     const pressure = this.state.scourge.pressure;
     this.background.setPosition(this.scale.width / 2 + Math.sin(seconds * 0.12) * 4, this.scale.height / 2 + Math.cos(seconds * 0.1) * 3);
-    this.rootAura.setAlpha(this.state.phase === "active" ? 0.04 + hpRatio * 0.06 + Math.sin(seconds * 1.8) * 0.018 : 0.02);
+    const masteryGlow = this.activeRootCount === 1 ? this.oneTileMasteryRank * 0.014 : 0;
+    this.rootAura.setAlpha(this.state.phase === "active" ? 0.04 + hpRatio * 0.06 + masteryGlow + Math.sin(seconds * 1.8) * 0.018 : 0.02);
     this.rootAura.setScale(1 + Math.sin(seconds * 1.35) * 0.025);
     const showTouchHint = this.shouldShowTouchHint();
     this.touchHintRing.setAlpha(showTouchHint ? 0.14 + Math.sin(seconds * 2.1) * 0.06 : 0);
     this.touchHintRing.setScale(1 + Math.sin(seconds * 2.1) * 0.035);
     this.touchHintText.setAlpha(showTouchHint ? 0.72 + Math.sin(seconds * 2.1) * 0.16 : 0);
+    if (this.oneTileMasteryText.visible) {
+      this.oneTileMasteryText.setAlpha(0.82 + Math.sin(seconds * 1.6) * 0.08);
+    }
 
     this.rootNodes.forEach((node, index) => {
       if (index >= this.activeRootCount) {
@@ -2242,6 +2339,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
           ? Math.sin((touchProgress + 0.14) * Math.PI * 3) * (1 - touchProgress) * (1 - touchProgress) * node.touchImpactStrength
           : 0;
       const touchPress = Math.abs(touchWave);
+      const masteryScale = index === 0 ? 1 + this.oneTileMasteryRank * 0.012 : 1;
       node.grass
         .setPosition(
           node.homeX + sway + pressureJitter,
@@ -2249,8 +2347,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         )
         .setAngle(Math.sin(seconds * 1.1 + node.phase) * 0.9 * hpRatio + node.touchImpactDirection * touchWave * 3.8)
         .setDisplaySize(
-          node.visualSize * 0.92 * breath * recoveryScale * (1 + touchWave * 0.13),
-          node.visualSize * 0.92 * breath * recoveryScale * (1 - touchWave * 0.18),
+          node.visualSize * 0.92 * breath * recoveryScale * masteryScale * (1 + touchWave * 0.13),
+          node.visualSize * 0.92 * breath * recoveryScale * masteryScale * (1 - touchWave * 0.18),
         );
       node.spark
         .setPosition(
@@ -2650,6 +2748,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     return (
       this.state.phase === "active" &&
       !this.introActive &&
+      this.activeRootCount > 1 &&
       this.state.economy.runTouches >= DEW_PULSE_RUN_TOUCH_COST &&
       this.state.ancientGrass.currentHp < this.state.ancientGrass.maxHp
     );
@@ -2659,6 +2758,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     return (
       this.state.phase === "active" &&
       !this.introActive &&
+      this.activeRootCount > 1 &&
       (this.state.economy.runTouches >= DEW_PULSE_RUN_TOUCH_COST ||
         this.state.economy.totalRunTouchesEarned >= DEW_PULSE_RUN_TOUCH_COST ||
         this.lastDewPulseReadyAt > 0)
@@ -2781,6 +2881,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     return (
       this.state.phase === "active" &&
       !this.introActive &&
+      this.activeRootCount > 1 &&
       licensed &&
       (this.state.economy.runTouches >= TINY_SPRINKLER_RUN_TOUCH_COST ||
         this.state.automation.tinySprinklers > 0 ||
@@ -4237,6 +4338,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private publishBrowserDebugState(lastSavedMemory?: PermanentMemorySnapshot): void {
     let persistedMemory = lastSavedMemory;
     const activeObjective = getActiveFirstRunObjective(this.objectiveState, this.state);
+    const tileMastery = getFirstRunOneTileMastery(this.objectiveState);
     if (!persistedMemory) {
       try {
         const rawSave = window.localStorage.getItem(REDESIGN_MEMORY_SAVE_KEY);
@@ -4267,6 +4369,11 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       lastStandUsed: this.state.revivals.lastStandUsed,
       lastStandTriggeredAt: this.lastStandTriggeredAt,
       activeObjectiveId: activeObjective?.definition.id ?? null,
+      oneTileMasteryRank: tileMastery.rank,
+      oneTileMasteryMaxRank: tileMastery.maxRank,
+      oneTileMasteryName: tileMastery.name,
+      oneTileMasteryEffect: tileMastery.shortEffect,
+      cumulativeCareRunTouches: this.objectiveState.cumulativeRunTouchesEarned,
       activeRootCount: this.activeRootCount,
       activeGridSize: this.activeGridSize,
       woundedRootIds: [...this.state.wounds.woundedRootIds],
@@ -4550,6 +4657,16 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         text: compact
           ? `Bad roots first.\n${woundedCount} wound${woundedCount === 1 ? "" : "s"} open.`
           : `Bad roots first.\nThe pink ones are not decorative.\n${woundedCount} wound${woundedCount === 1 ? "" : "s"} open.`,
+      };
+    }
+
+    if (this.activeRootCount === 1) {
+      const mastery = getFirstRunOneTileMastery(this.objectiveState);
+      return {
+        mood: mastery.rank > 0 ? "approval" : "idle",
+        text: compact
+          ? `${mastery.name}.\nTile mastery ${mastery.rank}/${mastery.maxRank}.`
+          : `${mastery.name}.\nMaster this one tile before asking it to become a field.`,
       };
     }
 

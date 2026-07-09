@@ -1,0 +1,57 @@
+{
+  "date": "2026-07-09",
+  "topic": "One-tile mastery chapter and delayed field expansion",
+  "currentUserGoal": "Keep the inherited field at one tile for a meaningful opening chapter, let that tile earn several real upgrades, and only then expand to more tiles while preserving the redesign's improved sensory direction.",
+  "workCompleted": [
+    "Replaced the first-touch 2x2 jump with four cumulative one-tile care upgrades: Soft Loam at 6 care RT, Dew Veins at 14, Root Heart at 24, and Ancient Crown at 36.",
+    "Made the care upgrades mechanically meaningful: cumulative manual healing rises to +25% and root recovery becomes up to 30% faster.",
+    "Carried cumulative one-tile care RT across failed attempts within the current session so partial mastery is not erased by dormancy.",
+    "Delayed expansion to 2x2 until Ancient Crown at 36 cumulative care RT, delayed 3x3 until 50, and preserved Hold the Line as the 5x5 gate.",
+    "Added an isolated-tile Scourge drain modifier: one-tile drain is 58% of normal while elapsed time and pressure still advance normally; full drain resumes at 2x2.",
+    "Added visible tile evolution from dormant moss through existing grass textures, a three-line mastery label, rank-colored aura/tile framing, upgrade rings, SFX, and authored Sensi barks.",
+    "Kept Dew Pulse and Tiny Sprinkler hidden and unusable until after the first expansion so the opening teaches direct care before run tools.",
+    "Shortened the run HUD objective line to a one-line goal format so new progression copy no longer overlaps the HP bar.",
+    "Updated the durable redesign and implementation-plan documents to make one-tile mastery the canonical opening progression.",
+    "Expanded unit coverage for mastery order, effects, cross-run cumulative progress, expansion gates, and temporary drain multipliers."
+  ],
+  "filesChanged": [
+    "src/game/redesign/FirstRunObjectiveSystem.ts",
+    "src/game/redesign/RunSpineSystem.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/FirstRunObjectiveSystem.test.ts",
+    "tests/RunSpineSystem.test.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-09_ONE_TILE_MASTERY.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 34 Vitest tests, TypeScript, and Vite production build.",
+    "Browser playthrough confirmed ranks 0-3 remain at activeRootCount 1 and activeGridSize 1.",
+    "Continuous playtest-route smoke reached Ancient Crown on the thirteenth paced touch at 36 care RT, expanded to 2x2, and remained active at 46 HP.",
+    "Browser screenshots confirmed the shortened objective line no longer overlaps the HP bar and the taller one-tile panel contains all three mastery-label lines.",
+    "Browser console check reported no errors."
+  ],
+  "currentGitStatus": [
+    "Expected after this handoff commit: clean worktree on codex/gameplay-update, five commits ahead of origin/codex/gameplay-update."
+  ],
+  "knownIssues": [
+    "One-tile objective/mastery progress persists across attempts only while the current page session remains alive; the narrow redesign save still stores only permanent GT and permanent memory upgrades.",
+    "The four opening upgrades are automatic milestone rewards, not player-selected branches or purchases. A later progression slice can add choice after the core cadence is proven.",
+    "Full Scourge drain resumes at 2x2. Browser smoke proved the player survives the transition, but the user should judge whether the post-Crown pressure ramp feels fair in a complete hands-on run.",
+    "This slice browser-tested the first 2x2 expansion. The 50-care-RT 3x3 gate and wound lesson remain unit-covered but should receive another full browser playthrough when their pacing is tuned."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user play the opening with audio enabled and judge whether four upgrades over roughly thirteen paced touches feels satisfyingly long rather than repetitive.",
+    "Tune milestone thresholds, one-tile drain protection, and upgrade gains from that hands-on feedback before adding more ranks.",
+    "Then deepen the 2x2-to-3x3 chapter with a small set of meaningful field choices so expansion continues to feel earned instead of becoming another automatic counter gate.",
+    "Continue the visual/audio polish pass with field lighting, stronger rank-up sound variation, and richer expansion staging while preserving existing pixel assets."
+  ],
+  "doNotRevert": [
+    "Do not restore expansion on the first successful touch; one-tile mastery is now the canonical opening pacing rule.",
+    "Keep the opening upgrades mechanically real and cumulative rather than reducing them to cosmetic objective labels.",
+    "Keep run tools gated until after Ancient Crown so the one-tile chapter remains focused.",
+    "Keep one-tile drain protection scoped to the isolated tile; do not globally undo the post-expansion balance the user preferred.",
+    "Do not reintroduce long objective copy into the single-line HUD lane above the HP bar."
+  ]
+}

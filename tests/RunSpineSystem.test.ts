@@ -43,6 +43,21 @@ describe("RunSpineSystem", () => {
     expect(state.phase).toBe("dormant");
   });
 
+  it("supports a temporary drain multiplier without slowing run time", () => {
+    const state = createRunSpineState({
+      currentHp: 100,
+      baseDrainPerSecond: 10,
+      pressure: 1,
+      pressureGrowthPerSecond: 0,
+    });
+
+    const result = advanceRun(state, 1_000, { drainMultiplier: 0.5 });
+
+    expect(result.drained).toBe(5);
+    expect(state.ancientGrass.currentHp).toBe(95);
+    expect(state.elapsedMs).toBe(1_000);
+  });
+
   it("uses Last Stand once before the run can enter dormancy", () => {
     const state = createRunSpineState({
       currentHp: 80,

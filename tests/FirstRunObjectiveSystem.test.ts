@@ -4,6 +4,7 @@ import {
   createFirstRunObjectiveState,
   getActiveFirstRunObjective,
   getFirstRunFieldExpansion,
+  getFirstRunOneTileMastery,
   updateFirstRunObjectives,
 } from "../src/game/redesign/FirstRunObjectiveSystem";
 import {
@@ -26,29 +27,54 @@ describe("FirstRunObjectiveSystem", () => {
     expect(activeObjective?.completed).toBe(false);
   });
 
-  it("advances through early touch and Run Touch objectives from effective healing", () => {
-    const runState = createRunSpineState({ currentHp: 80, maxHp: 100 });
+  it("earns four care upgrades before mapping the larger root network", () => {
+    const runState = createRunSpineState({ currentHp: 1, maxHp: 100 });
     const objectiveState = createFirstRunObjectiveState();
 
-    touchAncientGrass(runState, 5);
+    touchAncientGrass(runState, 3);
     const firstUpdate = updateFirstRunObjectives(objectiveState, runState);
 
     expect(firstUpdate.newlyCompleted.map((objective) => objective.definition.id)).toEqual(["wakeAncientGrass"]);
-    expect(firstUpdate.activeObjective?.definition.id).toBe("earnRunTouches");
+    expect(firstUpdate.activeObjective?.definition.id).toBe("cultivateSoftLoam");
 
-    touchAncientGrass(runState, 7);
-    const secondUpdate = updateFirstRunObjectives(objectiveState, runState);
+    touchAncientGrass(runState, 3);
+    expect(updateFirstRunObjectives(objectiveState, runState).newlyCompleted.map((objective) => objective.definition.id)).toEqual([
+      "cultivateSoftLoam",
+    ]);
 
-    expect(secondUpdate.newlyCompleted.map((objective) => objective.definition.id)).toEqual(["earnRunTouches"]);
-    expect(secondUpdate.activeObjective?.definition.id).toBe("stabilizeWound");
+    touchAncientGrass(runState, 8);
+    expect(updateFirstRunObjectives(objectiveState, runState).newlyCompleted.map((objective) => objective.definition.id)).toEqual([
+      "openDewVeins",
+    ]);
+
+    touchAncientGrass(runState, 10);
+    expect(updateFirstRunObjectives(objectiveState, runState).newlyCompleted.map((objective) => objective.definition.id)).toEqual([
+      "strengthenRootHeart",
+    ]);
+
+    touchAncientGrass(runState, 12);
+    const crownUpdate = updateFirstRunObjectives(objectiveState, runState);
+    expect(crownUpdate.newlyCompleted.map((objective) => objective.definition.id)).toEqual(["raiseAncientCrown"]);
+    expect(crownUpdate.activeObjective?.definition.id).toBe("earnRunTouches");
+
+    touchAncientGrass(runState, 14);
+    const networkUpdate = updateFirstRunObjectives(objectiveState, runState);
+    expect(networkUpdate.newlyCompleted.map((objective) => objective.definition.id)).toEqual(["earnRunTouches"]);
+    expect(networkUpdate.activeObjective?.definition.id).toBe("stabilizeWound");
   });
 
-  it("expands the tutorial field as early objectives complete", () => {
+  it("keeps one tile through four upgrades before expanding", () => {
     const objectiveState = createFirstRunObjectiveState();
 
     expect(getFirstRunFieldExpansion(objectiveState)).toEqual({ rootCount: 1, gridSize: 1 });
 
     objectiveState.completedObjectiveIds.push("wakeAncientGrass");
+    objectiveState.completedObjectiveIds.push("cultivateSoftLoam");
+    objectiveState.completedObjectiveIds.push("openDewVeins");
+    objectiveState.completedObjectiveIds.push("strengthenRootHeart");
+    expect(getFirstRunFieldExpansion(objectiveState)).toEqual({ rootCount: 1, gridSize: 1 });
+
+    objectiveState.completedObjectiveIds.push("raiseAncientCrown");
     expect(getFirstRunFieldExpansion(objectiveState)).toEqual({ rootCount: 4, gridSize: 2 });
 
     objectiveState.completedObjectiveIds.push("earnRunTouches");
@@ -61,16 +87,64 @@ describe("FirstRunObjectiveSystem", () => {
     expect(getFirstRunFieldExpansion(objectiveState)).toEqual({ rootCount: 25, gridSize: 5 });
   });
 
+  it("applies cumulative healing and recovery benefits to one-tile mastery", () => {
+    const objectiveState = createFirstRunObjectiveState();
+
+    expect(getFirstRunOneTileMastery(objectiveState)).toMatchObject({
+      rank: 0,
+      name: "Dormant Inheritance",
+      manualHealingMultiplier: 1,
+      recoveryDurationMultiplier: 1,
+    });
+
+    objectiveState.completedObjectiveIds.push("cultivateSoftLoam", "openDewVeins", "strengthenRootHeart");
+    expect(getFirstRunOneTileMastery(objectiveState)).toMatchObject({
+      rank: 3,
+      name: "Root Heart",
+      manualHealingMultiplier: 1.25,
+      recoveryDurationMultiplier: 0.85,
+    });
+
+    objectiveState.completedObjectiveIds.push("raiseAncientCrown");
+    expect(getFirstRunOneTileMastery(objectiveState)).toMatchObject({
+      rank: 4,
+      maxRank: 4,
+      name: "Ancient Crown",
+      manualHealingMultiplier: 1.25,
+      recoveryDurationMultiplier: 0.7,
+    });
+  });
+
+  it("carries one-tile care progress across runs", () => {
+    const firstRun = createRunSpineState({ currentHp: 1, maxHp: 100 });
+    const objectiveState = createFirstRunObjectiveState();
+    touchAncientGrass(firstRun, 8);
+
+    const firstUpdate = updateFirstRunObjectives(objectiveState, firstRun);
+    expect(firstUpdate.activeObjective?.definition.id).toBe("openDewVeins");
+
+    const secondRun = createRunSpineState({ currentHp: 1, maxHp: 100 });
+    touchAncientGrass(secondRun, 6);
+    const secondUpdate = updateFirstRunObjectives(objectiveState, secondRun);
+
+    expect(secondUpdate.newlyCompleted.map((objective) => objective.definition.id)).toEqual(["openDewVeins"]);
+    expect(secondUpdate.activeObjective?.definition.id).toBe("strengthenRootHeart");
+  });
+
   it("keeps objective order even if later conditions are already true", () => {
-    const runState = createRunSpineState({ currentHp: 80, maxHp: 100 });
+    const runState = createRunSpineState({ currentHp: 1, maxHp: 100 });
     const objectiveState = createFirstRunObjectiveState();
 
     openRootWound(runState, 25, 3);
-    touchAncientGrassRoot(runState, 20, 3);
+    touchAncientGrassRoot(runState, 100, 3);
     const update = updateFirstRunObjectives(objectiveState, runState);
 
     expect(update.newlyCompleted.map((objective) => objective.definition.id)).toEqual([
       "wakeAncientGrass",
+      "cultivateSoftLoam",
+      "openDewVeins",
+      "strengthenRootHeart",
+      "raiseAncientCrown",
       "earnRunTouches",
       "stabilizeWound",
     ]);
@@ -83,6 +157,10 @@ describe("FirstRunObjectiveSystem", () => {
     touchAncientGrassRoot(runState, 5, 0);
     const objectiveState = createFirstRunObjectiveState([
       "wakeAncientGrass",
+      "cultivateSoftLoam",
+      "openDewVeins",
+      "strengthenRootHeart",
+      "raiseAncientCrown",
       "earnRunTouches",
       "stabilizeWound",
     ]);
@@ -112,6 +190,10 @@ describe("FirstRunObjectiveSystem", () => {
     });
     const objectiveState = createFirstRunObjectiveState([
       "wakeAncientGrass",
+      "cultivateSoftLoam",
+      "openDewVeins",
+      "strengthenRootHeart",
+      "raiseAncientCrown",
       "earnRunTouches",
       "stabilizeWound",
     ]);
@@ -135,6 +217,10 @@ describe("FirstRunObjectiveSystem", () => {
     });
     const objectiveState = createFirstRunObjectiveState([
       "wakeAncientGrass",
+      "cultivateSoftLoam",
+      "openDewVeins",
+      "strengthenRootHeart",
+      "raiseAncientCrown",
       "earnRunTouches",
       "stabilizeWound",
       "holdTheLine",
