@@ -67,6 +67,9 @@ interface RootNodeView {
   rootId: number;
   recoveringUntil: number;
   lastTouchAt: number;
+  touchImpactAt: number;
+  touchImpactStrength: number;
+  touchImpactDirection: number;
 }
 
 interface BrowserDebugRootNode {
@@ -192,6 +195,12 @@ interface LockedMetaNodeView {
   detail: Phaser.GameObjects.Text;
 }
 
+type PrototypeMusicMode = "field" | "grove";
+type PrototypeMusicTrack = Phaser.Sound.BaseSound & {
+  readonly volume: number;
+  setVolume(value: number): PrototypeMusicTrack;
+};
+
 const TOUCH_HEALING = 3;
 const WOUNDED_TOUCH_HEALING = 10;
 const ROOT_RECOVERY_MS = 900;
@@ -255,6 +264,10 @@ const COMPACT_STACK_MAX_WIDTH = 430;
 const COMPACT_STACK_MIN_HEIGHT = 760;
 const FEED_VISIBLE_ROWS = 4;
 const UI_TEXT_RESOLUTION = 2;
+const FIELD_MUSIC_GAIN = 0.84;
+const GROVE_MUSIC_GAIN = 0.92;
+const MUSIC_CROSSFADE_MS = 1200;
+const ROOT_TOUCH_IMPACT_MS = 360;
 const GRASS_TEXTURES = ["grass-normal", "grass-thick", "grass-clover", "grass-wildflower", "grass-moss"] as const;
 type RedesignGrassTextureKey = (typeof GRASS_TEXTURES)[number];
 const GRASS_TEXTURE_AUDIO: Record<RedesignGrassTextureKey, { tier: GrassTierId; trait: TileTrait }> = {
@@ -440,7 +453,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private readonly sfx = new AudioSystem();
   private lastSfxPreviewAt = -Infinity;
   private audioStarted = false;
-  private lucidTheme?: Phaser.Sound.BaseSound;
+  private lucidTheme?: PrototypeMusicTrack;
+  private groveTheme?: PrototypeMusicTrack;
+  private musicMode: PrototypeMusicMode = "field";
+  private musicTransition?: Phaser.Tweens.Tween;
   private feedEntries: PrototypeFeedEntry[] = [];
   private sensiPortraitBaseX = 0;
   private sensiPortraitBaseY = 0;
@@ -496,6 +512,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.load.image("effect-magic-spore", "/assets/effects/magic-spore.png");
     this.load.image("effect-pollen-fleck", "/assets/effects/pollen-fleck.png");
     this.load.audio("redesign-lucid-theme", "/assets/music/lucid-field-theme.wav");
+    this.load.audio("redesign-grove-theme", "/assets/music/epic_menu_theme_mellow.wav");
   }
 
   create(): void {
@@ -1307,6 +1324,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         rootId: index,
         recoveringUntil: -Infinity,
         lastTouchAt: -Infinity,
+        touchImpactAt: -Infinity,
+        touchImpactStrength: 0,
+        touchImpactDirection: index % 2 === 0 ? 1 : -1,
       });
     }
   }
@@ -2216,16 +2236,35 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       const recoveryRatio = this.getRootRecoveryRatio(node);
       const recoveryScale = wounded ? 1 : 0.88 + recoveryRatio * 0.12;
       const pressureJitter = Math.sin(seconds * (wounded ? 16 : 9.5) + node.phase * 3) * Math.max(0, pressure - 1) * (wounded ? 0.62 : 0.22);
+      const touchProgress = Phaser.Math.Clamp((now - node.touchImpactAt) / ROOT_TOUCH_IMPACT_MS, 0, 1);
+      const touchWave =
+        touchProgress < 1
+          ? Math.sin((touchProgress + 0.14) * Math.PI * 3) * (1 - touchProgress) * (1 - touchProgress) * node.touchImpactStrength
+          : 0;
+      const touchPress = Math.abs(touchWave);
       node.grass
-        .setPosition(node.homeX + sway + pressureJitter, node.homeY + Math.cos(seconds * 1.7 + node.phase) * 0.9 * hpRatio)
-        .setAngle(Math.sin(seconds * 1.1 + node.phase) * 0.9 * hpRatio)
-        .setDisplaySize(node.visualSize * 0.92 * breath * recoveryScale, node.visualSize * 0.92 * breath * recoveryScale);
+        .setPosition(
+          node.homeX + sway + pressureJitter,
+          node.homeY + Math.cos(seconds * 1.7 + node.phase) * 0.9 * hpRatio + touchPress * node.visualSize * 0.035,
+        )
+        .setAngle(Math.sin(seconds * 1.1 + node.phase) * 0.9 * hpRatio + node.touchImpactDirection * touchWave * 3.8)
+        .setDisplaySize(
+          node.visualSize * 0.92 * breath * recoveryScale * (1 + touchWave * 0.13),
+          node.visualSize * 0.92 * breath * recoveryScale * (1 - touchWave * 0.18),
+        );
       node.spark
-        .setPosition(node.homeX + node.visualSize * 0.2 + Math.sin(seconds * 1.8 + node.phase) * 3, node.homeY - node.visualSize * 0.2 + Math.cos(seconds * 1.5 + node.phase) * 3)
+        .setPosition(
+          node.homeX + node.visualSize * 0.2 + Math.sin(seconds * 1.8 + node.phase) * 3,
+          node.homeY - node.visualSize * 0.2 + Math.cos(seconds * 1.5 + node.phase) * 3 - touchPress * node.visualSize * 0.05,
+        )
         .setAngle(now * 0.025 + node.phase * 20);
       node.pulse
         .setPosition(node.homeX + sway * 0.4, node.homeY)
-        .setScale((wounded ? 1.25 : 1) + Math.sin(seconds * (wounded ? 4.6 : 2.4) + node.phase) * (wounded ? 0.22 : 0.12));
+        .setScale(
+          (wounded ? 1.25 : 1) +
+            Math.sin(seconds * (wounded ? 4.6 : 2.4) + node.phase) * (wounded ? 0.22 : 0.12) +
+            touchPress * 0.62,
+        );
       if (!wounded && recoveryRatio < 1) {
         const recoveryBeat = 0.9 + recoveryRatio * 0.2 + Math.sin(seconds * 4.2 + node.phase) * 0.04;
         node.recoveryHalo.setPosition(node.homeX + sway * 0.25, node.homeY).setScale(recoveryBeat);
@@ -2442,6 +2481,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.rootNodes.forEach((node) => {
       node.recoveringUntil = -Infinity;
       node.lastTouchAt = -Infinity;
+      node.touchImpactAt = -Infinity;
+      node.touchImpactStrength = 0;
       node.recoveryHalo.setVisible(false).setScale(1);
     });
   }
@@ -2984,20 +3025,65 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
   private applyPrototypeMusicVolume(): void {
     this.sound.setVolume(this.musicVolume);
-    if (!this.audioStarted || !this.lucidTheme) {
+    if (!this.audioStarted || !this.lucidTheme || !this.groveTheme) {
       return;
     }
 
     if (this.musicVolume <= 0) {
-      if (this.lucidTheme.isPlaying) {
-        this.lucidTheme.stop();
-      }
+      this.musicTransition?.stop();
+      this.musicTransition = undefined;
+      this.lucidTheme.stop();
+      this.groveTheme.stop();
       return;
     }
 
-    if (!this.lucidTheme.isPlaying) {
-      this.lucidTheme.play();
+    const activeTrack = this.musicMode === "field" ? this.lucidTheme : this.groveTheme;
+    const activeGain = this.musicMode === "field" ? FIELD_MUSIC_GAIN : GROVE_MUSIC_GAIN;
+    if (!activeTrack.isPlaying) {
+      activeTrack.play({ volume: activeGain });
     }
+  }
+
+  private transitionPrototypeMusic(mode: PrototypeMusicMode): void {
+    if (this.musicMode === mode) {
+      return;
+    }
+
+    this.musicMode = mode;
+    if (!this.audioStarted || this.musicVolume <= 0 || !this.lucidTheme || !this.groveTheme) {
+      return;
+    }
+
+    const incoming = mode === "field" ? this.lucidTheme : this.groveTheme;
+    const outgoing = mode === "field" ? this.groveTheme : this.lucidTheme;
+    const targetGain = mode === "field" ? FIELD_MUSIC_GAIN : GROVE_MUSIC_GAIN;
+    this.musicTransition?.stop();
+    const incomingStart = incoming.isPlaying ? incoming.volume : 0;
+    const outgoingStart = outgoing.isPlaying ? outgoing.volume : 0;
+    if (!incoming.isPlaying) {
+      incoming.play({ volume: incomingStart });
+    }
+
+    this.musicTransition = this.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: MUSIC_CROSSFADE_MS,
+      ease: "Sine.easeInOut",
+      onUpdate: (tween) => {
+        const mix = tween.getValue() ?? 1;
+        incoming.setVolume(Phaser.Math.Linear(incomingStart, targetGain, mix));
+        if (outgoing.isPlaying) {
+          outgoing.setVolume(Phaser.Math.Linear(outgoingStart, 0, mix));
+        }
+      },
+      onComplete: () => {
+        incoming.setVolume(targetGain);
+        if (outgoing.isPlaying) {
+          outgoing.stop();
+        }
+        this.musicTransition = undefined;
+      },
+    });
   }
 
   private refreshOptionsPanel(): void {
@@ -3029,7 +3115,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
   private playRootTouch(node: RootNodeView, proximity: number, effective: boolean): void {
     this.cameras.main.shake(80, effective ? 0.0015 + proximity * 0.0015 : 0.0008);
-    this.tweens.killTweensOf([node.grass, node.pulse]);
+    node.touchImpactAt = this.time.now;
+    node.touchImpactStrength = effective ? 0.88 + proximity * 0.24 : 0.52;
+    node.touchImpactDirection = Phaser.Math.Between(0, 1) === 0 ? -1 : 1;
     const impactRing = this.add
       .circle(node.homeX, node.homeY, Math.max(8, node.visualSize * 0.18), effective ? 0xeaff9b : 0x9fcaff, effective ? 0.18 : 0.1)
       .setDepth(9)
@@ -3041,24 +3129,6 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       ease: "Sine.easeOut",
       radius: node.visualSize * (effective ? 0.58 : 0.42),
       onComplete: () => impactRing.destroy(),
-    });
-    this.tweens.add({
-      targets: node.grass,
-      duration: 110,
-      ease: "Quad.easeOut",
-      angle: effective ? node.grass.angle + Phaser.Math.Between(-3, 3) : node.grass.angle,
-      scaleX: node.grass.scaleX * (effective ? 1.18 : 1.06),
-      scaleY: node.grass.scaleY * (effective ? 1.18 : 1.06),
-      yoyo: true,
-    });
-    this.tweens.add({
-      targets: node.pulse,
-      alpha: effective ? 0.72 : 0.34,
-      duration: 140,
-      ease: "Sine.easeOut",
-      scaleX: 1.9,
-      scaleY: 1.9,
-      yoyo: true,
     });
   }
 
@@ -3072,18 +3142,31 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const hpTargetX = this.hpBarFill.x + Math.max(12, this.hpBarFill.width);
     const hpTargetY = this.hpBarFill.y;
     const tint = kind === "salve" || kind === "dewPulse" || kind === "sprinkler" ? 0xbff4ff : kind === "wound" ? 0xeaff9b : 0xdfff8f;
-    const mote = this.add.image(node.homeX, node.homeY, "effect-pollen-fleck").setDepth(18).setTint(tint).setAlpha(0.96).setScale(2.2);
-    this.tweens.add({
-      targets: mote,
-      alpha: 0.15,
-      duration: 460,
-      ease: "Sine.easeInOut",
-      scaleX: 0.85,
-      scaleY: 0.85,
-      x: hpTargetX,
-      y: hpTargetY,
-      onComplete: () => mote.destroy(),
-    });
+    for (let index = 0; index < 3; index += 1) {
+      const mote = this.add
+        .image(
+          node.homeX + Phaser.Math.FloatBetween(-node.visualSize * 0.08, node.visualSize * 0.08),
+          node.homeY + Phaser.Math.FloatBetween(-node.visualSize * 0.06, node.visualSize * 0.06),
+          index === 1 ? "effect-magic-spore" : "effect-pollen-fleck",
+        )
+        .setDepth(18)
+        .setTint(tint)
+        .setAlpha(0.9 - index * 0.12)
+        .setScale(Phaser.Math.FloatBetween(1.1, 1.65))
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: mote,
+        alpha: 0.08,
+        delay: index * 48,
+        duration: 430 + index * 55,
+        ease: "Sine.easeInOut",
+        scaleX: 0.46,
+        scaleY: 0.46,
+        x: hpTargetX + Phaser.Math.FloatBetween(-8, 8),
+        y: hpTargetY + Phaser.Math.FloatBetween(-4, 4),
+        onComplete: () => mote.destroy(),
+      });
+    }
 
     this.tweens.killTweensOf([this.hpBarFill, this.hpBarGlint]);
     this.hpBarGlint.setPosition(hpTargetX, hpTargetY).setAlpha(kind === "wound" ? 0.62 : 0.46);
@@ -3171,21 +3254,33 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private emitTouchBurst(x: number, y: number, effective: boolean): void {
-    const texture = effective ? "effect-pollen-fleck" : "effect-magic-spore";
-    const tint = effective ? 0xeaff9b : 0x9fcaff;
-    for (let index = 0; index < 10; index += 1) {
-      const angle = (Math.PI * 2 * index) / 10 + Phaser.Math.FloatBetween(-0.22, 0.22);
-      const distance = Phaser.Math.Between(22, 54);
-      const fleck = this.add.image(x, y, texture).setDepth(12).setTint(tint).setAlpha(0.95).setScale(Phaser.Math.FloatBetween(1.4, 2.4));
+    const count = effective ? 8 : 5;
+    const tints = effective ? [0xeaff9b, 0xbff4ff, 0xffefb0] : [0x9fcaff, 0xb7c7ff];
+    for (let index = 0; index < count; index += 1) {
+      const angle = -Math.PI / 2 + Phaser.Math.FloatBetween(-2.15, 2.15);
+      const distance = Phaser.Math.Between(20, effective ? 58 : 42);
+      const texture = index % 3 === 0 ? "effect-magic-spore" : "effect-pollen-fleck";
+      const fleck = this.add
+        .image(
+          x + Phaser.Math.FloatBetween(-5, 5),
+          y + Phaser.Math.FloatBetween(-4, 4),
+          texture,
+        )
+        .setDepth(12)
+        .setTint(tints[index % tints.length])
+        .setAlpha(Phaser.Math.FloatBetween(0.68, 0.94))
+        .setAngle(Phaser.Math.Between(-24, 24))
+        .setScale(Phaser.Math.FloatBetween(0.9, 1.8));
       this.tweens.add({
         targets: fleck,
         alpha: 0,
-        duration: Phaser.Math.Between(420, 720),
+        angle: fleck.angle + Phaser.Math.Between(-80, 80),
+        duration: Phaser.Math.Between(360, 660),
         ease: "Sine.easeOut",
-        scaleX: 0.35,
-        scaleY: 0.35,
+        scaleX: 0.28,
+        scaleY: 0.28,
         x: x + Math.cos(angle) * distance,
-        y: y + Math.sin(angle) * distance,
+        y: y + Math.sin(angle) * distance - distance * 0.18,
         onComplete: () => fleck.destroy(),
       });
     }
@@ -3225,7 +3320,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private playWoundSeal(node: RootNodeView): void {
-    this.sfx.play("regrow");
+    this.sfx.play("wound_seal");
     const ring = this.add
       .circle(node.homeX, node.homeY, Math.max(12, node.visualSize * 0.18), 0xbff4ff, 0.18)
       .setDepth(13)
@@ -3268,6 +3363,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private playDormancyCollapse(): void {
+    this.sfx.play("dormancy");
     this.lastScourgeEvent = "dormancy-collapse";
     this.lastDormancyCollapseAt = Math.round(this.time.now);
     this.lastScourgePressureWaveAt = this.lastDormancyCollapseAt;
@@ -3287,6 +3383,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private playLastStandRevive(): void {
+    this.sfx.play("last_stand");
     this.lastScourgeEvent = "last-stand";
     this.lastStandTriggeredAt = Math.round(this.time.now);
     this.lastScourgePressureWaveAt = this.lastStandTriggeredAt;
@@ -3361,6 +3458,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private showDormancySummary(): void {
     this.refreshDormancyReport();
     this.setDormancySummaryVisible(true);
+    this.transitionPrototypeMusic("grove");
   }
 
   private setDormancySummaryVisible(visible: boolean): void {
@@ -3777,6 +3875,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.resetRunToolFeedbackState();
     this.resetRootRecoveryState();
     this.setDormancySummaryVisible(false);
+    this.transitionPrototypeMusic("field");
     this.cameras.main.flash(260, 190, 255, 160, false);
     this.addFeedEntry("New run", "The grass remembers", "GT", "#dfffc8");
     this.saySensi("Again.\nThis time the memory comes with us.", "approval", 4200);
@@ -3847,6 +3946,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.resetRunToolFeedbackState();
     this.resetRootRecoveryState();
     this.setDormancySummaryVisible(false);
+    this.transitionPrototypeMusic("field");
     this.clearScourgeSenseTarget();
     this.addFeedEntry("Playtest", "run restarted", "PT", "#bff4ff");
     this.saySensi("Fresh playtest run.\nPlease complain accurately.", "idle", 3600);
@@ -4193,6 +4293,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       lastScourgePressureWaveAt: this.lastScourgePressureWaveAt,
       lastWoundPressureWarningAt: this.lastWoundPressureWarningAt,
       lastDormancyCollapseAt: this.lastDormancyCollapseAt,
+      musicMode: this.musicMode,
+      fieldThemePlaying: this.lucidTheme?.isPlaying ?? false,
+      groveThemePlaying: this.groveTheme?.isPlaying ?? false,
       woundPressureWarned: this.woundPressureWarned,
       woundPressureRatio: Math.round(this.getWoundPressureRatio() * 100) / 100,
       metaScreenVisible: this.summaryBackdrop.visible,
@@ -4530,11 +4633,16 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.sound.setVolume(this.musicVolume);
     this.lucidTheme = this.sound.add("redesign-lucid-theme", {
       loop: true,
-      volume: 1,
-    });
+      volume: this.musicMode === "field" ? FIELD_MUSIC_GAIN : 0,
+    }) as PrototypeMusicTrack;
+    this.groveTheme = this.sound.add("redesign-grove-theme", {
+      loop: true,
+      volume: this.musicMode === "grove" ? GROVE_MUSIC_GAIN : 0,
+    }) as PrototypeMusicTrack;
     if (this.musicVolume > 0) {
-      this.lucidTheme.play();
-      this.addFeedEntry("Music awake", "lucid field theme online", "AU", "#bff4ff");
+      const activeTrack = this.musicMode === "field" ? this.lucidTheme : this.groveTheme;
+      activeTrack.play();
+      this.addFeedEntry("Music awake", this.musicMode === "field" ? "lucid field theme online" : "memory grove theme online", "AU", "#bff4ff");
       this.saySensi("Good.\nNow the field has a pulse.", "approval", 3400);
     } else {
       this.addFeedEntry("Music muted", "lucid field theme standing by", "AU", "#bff4ff");

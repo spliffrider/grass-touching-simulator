@@ -1,0 +1,49 @@
+{
+  "date": "2026-07-09",
+  "topic": "First sensory polish pass for field touch and audio states",
+  "currentUserGoal": "Make the redesign look and sound less cheap by improving repeated-action feedback and giving run/meta states distinct audio identities.",
+  "workCompleted": [
+    "Added a two-track redesign music state: active runs use lucid-field-theme.wav and Memory Grove uses epic_menu_theme_mellow.wav.",
+    "Added a 1.2 second field-to-Grove and Grove-to-field crossfade, including music mute/unmute handling and browser debug state for active track verification.",
+    "Added dedicated procedural sound signatures for wound sealing, dormancy collapse, and Last Stand instead of reusing generic UI/regrow sounds.",
+    "Moved root touch squash/rebound into the root animation loop so ambient animation no longer overwrites the impact motion.",
+    "Reworked touch particles from a perfect radial stamp into varied, upward-biased mixed-texture flecks.",
+    "Changed effective-healing feedback from one oversized mote into a staggered three-mote stream toward the Ancient HP bar.",
+    "Reduced ordinary touch-burst particle count from ten to eight while adding variation, keeping the repeated effect allocation roughly flat.",
+    "Updated the durable redesign document with the music-state split, tactile touch behavior, dedicated event SFX, and current Memory Grove cost wording."
+  ],
+  "filesChanged": [
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/game/systems/AudioSystem.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "handoffs/HANDOFF_2026-07-09_SENSORY_POLISH.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 31 Vitest tests, TypeScript, and Vite production build.",
+    "Browser touch smoke confirmed first touch starts the field track, expands the field, and renders the new impact/particle feedback.",
+    "Browser state after dormancy confirmed musicMode grove, fieldThemePlaying false, groveThemePlaying true, and Memory Grove visible.",
+    "Browser state after Begin Next Run confirmed musicMode field, fieldThemePlaying true, groveThemePlaying false, and active run phase.",
+    "Browser console check reported no warnings or errors."
+  ],
+  "currentGitStatus": [
+    "Expected after this handoff commit: clean worktree on codex/gameplay-update, four commits ahead of origin/codex/gameplay-update."
+  ],
+  "knownIssues": [
+    "Audio quality is subjective and must be judged by the user on their actual speakers or headphones; browser verification can confirm routing and errors but cannot replace listening feedback.",
+    "This is a sensory foundation pass, not a full art-direction overhaul. The static HUD panels and broader scene composition can still receive a dedicated visual-depth pass.",
+    "The Lucid field source is mono 22.05 kHz while the Grove track is mono 44.1 kHz, so the source recording limits the maximum field-music fidelity.",
+    "The playtest run can collapse while browser automation waits because its accelerated drain continues in real time; this is expected on the playtest route."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user play one complete run with SFX and music audible, paying attention to ordinary touch, wound seal, dormancy transition, and return to the field.",
+    "Use that listening feedback to tune gains and tone profiles instead of adding more simultaneous layers blindly.",
+    "For the next visual slice, improve scene depth with restrained field lighting, panel hierarchy, and wound-state contrast while preserving the existing pixel assets."
+  ],
+  "doNotRevert": [
+    "Keep field and Memory Grove music as separate stateful tracks unless a replacement soundtrack plan supersedes both.",
+    "Keep touch impact motion inside animateScene rather than restoring a tween that animateScene overwrites.",
+    "Keep touch flecks asymmetric and avoid returning to the perfect ten-particle radial stamp.",
+    "Do not reintroduce the old gameplay loop while restoring its visual charm and sound assets."
+  ]
+}

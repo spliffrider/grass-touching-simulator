@@ -14,7 +14,10 @@ type SoundName =
   | "unlock"
   | "perfect"
   | "prick"
-  | "mower";
+  | "mower"
+  | "wound_seal"
+  | "dormancy"
+  | "last_stand";
 
 const NOISE_BUFFER_SECONDS = 0.5;
 const TOUCH_SOUND_MIN_INTERVAL_MS = 42;
@@ -250,6 +253,15 @@ export class AudioSystem {
       case "mower":
         this.playMower();
         break;
+      case "wound_seal":
+        this.playWoundSeal();
+        break;
+      case "dormancy":
+        this.playDormancy();
+        break;
+      case "last_stand":
+        this.playLastStand();
+        break;
     }
   }
 
@@ -446,6 +458,30 @@ export class AudioSystem {
     this.playNoiseSweep(0.26, 420, 0.045, now);
   }
 
+  private playWoundSeal(): void {
+    const now = this.now();
+    this.playNoiseSweep(0.22, 920 + Math.random() * 180, 0.04, now);
+    this.playToneSweep(112, 168, 0.24, 0.052, "sine", now);
+    this.playArp([293.66, 440, 587.33], now + 0.045, 0.065, 0.038, "sine");
+    this.playTone(880 + Math.random() * 40, 0.16, 0.022, "sine", now + 0.2);
+  }
+
+  private playDormancy(): void {
+    const now = this.now();
+    this.playNoiseSweep(0.5, 250 + Math.random() * 70, 0.052, now);
+    this.playToneSweep(196, 55, 0.74, 0.068, "triangle", now);
+    this.playToneSweep(293.66, 82.41, 0.66, 0.034, "sine", now + 0.055);
+    this.playTone(48, 0.52, 0.025, "sine", now + 0.22);
+  }
+
+  private playLastStand(): void {
+    const now = this.now();
+    this.playNoiseSweep(0.3, 780 + Math.random() * 160, 0.045, now);
+    this.playToneSweep(72, 154, 0.4, 0.065, "sine", now);
+    this.playArp([220, 330, 440, 660], now + 0.06, 0.07, 0.046, "triangle");
+    this.playTone(990, 0.2, 0.025, "sine", now + 0.3);
+  }
+
   private playArp(frequencies: number[], startAt: number, step: number, volume: number, type: OscillatorType): void {
     frequencies.forEach((frequency, index) => {
       const accent = index === frequencies.length - 1 ? 1.08 : 1;
@@ -467,6 +503,30 @@ export class AudioSystem {
     oscillator.frequency.setValueAtTime(frequency, startAt);
     gain.gain.setValueAtTime(0.0001, startAt);
     gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+
+    oscillator.connect(gain);
+    gain.connect(this.master!);
+    oscillator.start(startAt);
+    oscillator.stop(startAt + duration + 0.02);
+  }
+
+  private playToneSweep(
+    startFrequency: number,
+    endFrequency: number,
+    duration: number,
+    volume: number,
+    type: OscillatorType,
+    startAt: number,
+  ): void {
+    const oscillator = this.context!.createOscillator();
+    const gain = this.context!.createGain();
+
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(Math.max(20, startFrequency), startAt);
+    oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), startAt + duration);
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.018);
     gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
 
     oscillator.connect(gain);
