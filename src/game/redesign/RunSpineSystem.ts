@@ -6,6 +6,7 @@ export interface PermanentUpgradeDefinition {
   name: string;
   cost: number;
   description: string;
+  prerequisiteIds: PermanentUpgradeId[];
 }
 
 export interface AncientGrassVitals {
@@ -140,7 +141,8 @@ export interface ApplyTinySprinklerPulseResult {
 export interface PurchasePermanentUpgradeResult {
   upgrade: PermanentUpgradeDefinition;
   purchased: boolean;
-  reason?: "already-owned" | "not-enough-grass-touches";
+  reason?: "already-owned" | "prerequisites-missing" | "not-enough-grass-touches";
+  missingPrerequisiteIds?: PermanentUpgradeId[];
   remainingGrassTouches: number;
 }
 
@@ -195,30 +197,35 @@ export const PERMANENT_UPGRADE_DEFINITIONS: Record<PermanentUpgradeId, Permanent
     name: "Soft Touch",
     cost: 12,
     description: "Manual root healing +25%",
+    prerequisiteIds: [],
   },
   deeperRoots: {
     id: "deeperRoots",
     name: "Deeper Roots",
     cost: 18,
     description: "+25 max Ancient HP",
+    prerequisiteIds: ["softTouch"],
   },
   tinySprinkler: {
     id: "tinySprinkler",
     name: "Tiny Sprinkler",
     cost: 24,
     description: "Unlocks run-bought sprinkler automation",
+    prerequisiteIds: ["softTouch"],
   },
   scourgeSense: {
     id: "scourgeSense",
     name: "Scourge Sense",
     cost: 20,
     description: "Forecasts the next wound pressure target",
+    prerequisiteIds: ["deeperRoots"],
   },
   lastStand: {
     id: "lastStand",
     name: "Last Stand",
     cost: 32,
     description: "One automatic revive per run",
+    prerequisiteIds: ["tinySprinkler", "scourgeSense"],
   },
 };
 
@@ -604,6 +611,17 @@ export function purchasePermanentUpgrade(state: RunSpineState, upgradeId: Perman
     };
   }
 
+  const missingPrerequisiteIds = getMissingPermanentUpgradePrerequisites(state, upgradeId);
+  if (missingPrerequisiteIds.length > 0) {
+    return {
+      upgrade,
+      purchased: false,
+      reason: "prerequisites-missing",
+      missingPrerequisiteIds,
+      remainingGrassTouches: state.economy.permanentGrassTouches,
+    };
+  }
+
   if (state.economy.permanentGrassTouches < upgrade.cost) {
     return {
       upgrade,
@@ -620,6 +638,15 @@ export function purchasePermanentUpgrade(state: RunSpineState, upgradeId: Perman
     purchased: true,
     remainingGrassTouches: state.economy.permanentGrassTouches,
   };
+}
+
+export function getMissingPermanentUpgradePrerequisites(
+  state: RunSpineState,
+  upgradeId: PermanentUpgradeId,
+): PermanentUpgradeId[] {
+  return PERMANENT_UPGRADE_DEFINITIONS[upgradeId].prerequisiteIds.filter(
+    (prerequisiteId) => !state.permanentUpgrades.includes(prerequisiteId),
+  );
 }
 
 export function getPermanentUpgradeEffects(upgradesOrState: PermanentUpgradeId[] | RunSpineState): PermanentUpgradeEffects {

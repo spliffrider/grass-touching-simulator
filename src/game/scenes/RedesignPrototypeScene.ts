@@ -31,6 +31,7 @@ import {
   getAncientGrassHpRatio,
   getDormancySummary,
   getDormancyGrassTouches,
+  getMissingPermanentUpgradePrerequisites,
   getPermanentUpgradeEffects,
   getWoundedRootCount,
   hasPermanentUpgrade,
@@ -89,6 +90,7 @@ interface BrowserDebugMemoryButton {
   width: number;
   height: number;
   visible: boolean;
+  unlocked: boolean;
   affordable: boolean;
   owned: boolean;
 }
@@ -175,6 +177,7 @@ interface MemoryUpgradeButtonView {
   upgradeId: PermanentUpgradeId;
   background: Phaser.GameObjects.Rectangle;
   glow: Phaser.GameObjects.Arc;
+  hoverRing: Phaser.GameObjects.Arc;
   frame: Phaser.GameObjects.Image;
   icon: Phaser.GameObjects.Image;
   title: Phaser.GameObjects.Text;
@@ -264,7 +267,7 @@ const GRASS_TEXTURE_AUDIO: Record<RedesignGrassTextureKey, { tier: GrassTierId; 
 const MEMORY_UPGRADE_IDS: PermanentUpgradeId[] = ["softTouch", "deeperRoots", "tinySprinkler", "scourgeSense", "lastStand"];
 const MEMORY_UPGRADE_VIEW: Record<
   PermanentUpgradeId,
-  { branch: string; color: number; iconKey: string; x: number; y: number; connectsTo?: PermanentUpgradeId[] }
+  { branch: string; color: number; iconKey: string; x: number; y: number }
 > = {
   softTouch: {
     branch: "Touch",
@@ -279,7 +282,6 @@ const MEMORY_UPGRADE_VIEW: Record<
     iconKey: "memory-icon-deeper-roots",
     x: 0.45,
     y: 0.32,
-    connectsTo: ["softTouch"],
   },
   tinySprinkler: {
     branch: "Automation",
@@ -287,7 +289,6 @@ const MEMORY_UPGRADE_VIEW: Record<
     iconKey: "memory-icon-tiny-sprinkler",
     x: 0.45,
     y: 0.72,
-    connectsTo: ["softTouch"],
   },
   scourgeSense: {
     branch: "Scourge",
@@ -295,7 +296,6 @@ const MEMORY_UPGRADE_VIEW: Record<
     iconKey: "memory-icon-scourge-sense",
     x: 0.75,
     y: 0.32,
-    connectsTo: ["deeperRoots"],
   },
   lastStand: {
     branch: "Resolve",
@@ -303,7 +303,6 @@ const MEMORY_UPGRADE_VIEW: Record<
     iconKey: "memory-icon-last-stand",
     x: 0.75,
     y: 0.72,
-    connectsTo: ["scourgeSense", "tinySprinkler"],
   },
 };
 const LOCKED_META_NODES: readonly { title: string; detail: string }[] = [];
@@ -448,6 +447,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private currentSensiLine = "";
   private lastMemoryPurchaseHint = "";
   private selectedMemoryUpgradeId: PermanentUpgradeId = "softTouch";
+  private hoveredMemoryUpgradeId: PermanentUpgradeId | null = null;
   private sensiMood: SensiMood = "idle";
   private sensiBark?: SensiBark;
   private objectiveState: FirstRunObjectiveState = createFirstRunObjectiveState();
@@ -710,6 +710,11 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         .setDepth(31.8)
         .setStrokeStyle(2, view.color, 0.28)
         .setVisible(false);
+      const hoverRing = this.add
+        .circle(0, 0, 60, view.color, 0.04)
+        .setDepth(31.9)
+        .setStrokeStyle(3, 0xffef78, 0.9)
+        .setVisible(false);
       const background = this.add
         .rectangle(0, 0, 140, 110, 0xffffff, 0.001)
         .setDepth(33)
@@ -747,11 +752,14 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       background.on("pointerover", () => {
         this.previewMemoryUpgrade(upgradeId);
       });
+      background.on("pointerout", () => {
+        this.clearMemoryUpgradePreview(upgradeId);
+      });
       background.on("pointerdown", () => {
         this.previewMemoryUpgrade(upgradeId);
         this.handleMemoryUpgradeClick(upgradeId);
       });
-      this.memoryUpgradeButtons.push({ upgradeId, background, glow, frame, icon, title, branch, detail, nodeSize: 72 });
+      this.memoryUpgradeButtons.push({ upgradeId, background, glow, hoverRing, frame, icon, title, branch, detail, nodeSize: 72 });
     }
     for (const node of LOCKED_META_NODES) {
       const background = this.add
@@ -982,6 +990,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       useRootSalve: () => this.handleRootSalveClick(),
       useTinySprinkler: () => this.handleTinySprinklerClick(),
       previewMemory: (upgradeId) => this.previewMemoryUpgrade(upgradeId),
+      clearMemoryPreview: (upgradeId) => this.clearMemoryUpgradePreview(upgradeId),
       purchaseMemory: (upgradeId) => this.handleMemoryUpgradeClick(upgradeId),
       beginNextRun: () => this.startNextRunFromMeta(),
       openOptions: () => this.openOptions(),
@@ -1476,6 +1485,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       button.nodeSize = nodeSize;
       button.background.setPosition(x, y + nodeSize * 0.28).setSize(nodeSize + 82, nodeSize + 78);
       button.glow.setPosition(x, y).setRadius(nodeSize * 0.7);
+      button.hoverRing.setPosition(x, y).setRadius(nodeSize * 0.78);
       button.frame.setPosition(x, y).setDisplaySize(nodeSize, nodeSize);
       button.icon.setPosition(x, y).setDisplaySize(nodeSize * 0.36, nodeSize * 0.36);
       button.title.setFontSize(compactReport ? 11 : 15).setPosition(x, y + nodeSize * 0.72);
@@ -2235,30 +2245,48 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       }
 
       const selected = button.upgradeId === this.selectedMemoryUpgradeId;
+      const hovered = button.upgradeId === this.hoveredMemoryUpgradeId;
       const baseSize = Math.max(1, button.nodeSize);
-      const framePulse = selected ? 1.04 + Math.sin(seconds * 5.2) * 0.045 : 1;
-      const iconPulse = selected ? 1.08 + Math.sin(seconds * 6.1) * 0.08 : 1;
-      const iconBob = selected ? Math.sin(seconds * 4.6) * baseSize * 0.035 : 0;
-      const iconSize = baseSize * (selected ? 0.41 : 0.36) * iconPulse;
+      const framePulse = hovered
+        ? 1.06 + Math.sin(seconds * 6.2) * 0.055
+        : selected
+          ? 1.025 + Math.sin(seconds * 4.2) * 0.025
+          : 1;
+      const iconPulse = hovered
+        ? 1.13 + Math.sin(seconds * 7.1) * 0.09
+        : selected
+          ? 1.05 + Math.sin(seconds * 5.1) * 0.045
+          : 1;
+      const iconBob = hovered
+        ? Math.sin(seconds * 5.6) * baseSize * 0.05
+        : selected
+          ? Math.sin(seconds * 4.1) * baseSize * 0.018
+          : 0;
+      const iconSize = baseSize * (selected || hovered ? 0.41 : 0.36) * iconPulse;
       button.frame.setDisplaySize(baseSize * framePulse, baseSize * framePulse);
       button.icon
         .setPosition(button.frame.x, button.frame.y + iconBob)
         .setDisplaySize(iconSize, iconSize)
-        .setAngle(selected ? Math.sin(seconds * 3.4) * 2.4 : 0);
-      button.glow.setScale(selected ? 1.04 + Math.sin(seconds * 4.4) * 0.05 : 1);
+        .setAngle(hovered ? Math.sin(seconds * 4.4) * 3.4 : selected ? Math.sin(seconds * 3.4) * 1.2 : 0);
+      button.glow.setScale(hovered ? 1.1 + Math.sin(seconds * 5.4) * 0.07 : selected ? 1.03 : 1);
+      button.hoverRing
+        .setVisible(hovered)
+        .setAlpha(hovered ? 0.52 + Math.sin(seconds * 5.8) * 0.24 : 0)
+        .setScale(hovered ? 0.94 + Math.sin(seconds * 4.8) * 0.1 : 1);
     }
 
     if (this.memoryDetailIcon.visible) {
-      const detailPulse = 1.06 + Math.sin(seconds * 4.8) * 0.055;
-      const detailIconPulse = 1.1 + Math.sin(seconds * 6.2) * 0.08;
-      this.memoryDetailIconGlow.setScale(1.02 + Math.sin(seconds * 3.6) * 0.06);
+      const hoverActive = this.hoveredMemoryUpgradeId !== null;
+      const detailPulse = hoverActive ? 1.08 + Math.sin(seconds * 5.2) * 0.06 : 1.02 + Math.sin(seconds * 3.8) * 0.02;
+      const detailIconPulse = hoverActive ? 1.12 + Math.sin(seconds * 6.8) * 0.08 : 1.04 + Math.sin(seconds * 4.4) * 0.035;
+      this.memoryDetailIconGlow.setScale(hoverActive ? 1.06 + Math.sin(seconds * 4.2) * 0.09 : 1.01);
       this.memoryDetailIconFrame.setDisplaySize(
         this.memoryDetailIconBaseSize * detailPulse,
         this.memoryDetailIconBaseSize * detailPulse,
       );
       this.memoryDetailIcon
         .setDisplaySize(this.memoryDetailIconBaseSize * 0.54 * detailIconPulse, this.memoryDetailIconBaseSize * 0.54 * detailIconPulse)
-        .setAngle(Math.sin(seconds * 3.2) * 2.2);
+        .setAngle(hoverActive ? Math.sin(seconds * 3.8) * 2.8 : 0);
     }
   }
 
@@ -3331,6 +3359,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.skillTreeHelp.setVisible(visible);
     this.skillTreeConnector.setVisible(visible);
     if (!visible) {
+      this.hoveredMemoryUpgradeId = null;
       this.setMemoryHoverCalloutVisible(false);
     }
     this.memoryDetailFrame.setVisible(visible);
@@ -3345,6 +3374,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.memoryUpgradeButtons.forEach((button) => {
       button.background.setVisible(visible);
       button.glow.setVisible(visible);
+      button.hoverRing.setVisible(visible && this.hoveredMemoryUpgradeId === button.upgradeId);
       button.frame.setVisible(visible);
       button.icon.setVisible(visible);
       button.title.setVisible(visible);
@@ -3453,7 +3483,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
     for (const button of this.memoryUpgradeButtons) {
       const meta = MEMORY_UPGRADE_VIEW[button.upgradeId];
-      for (const sourceId of meta.connectsTo ?? []) {
+      const upgrade = PERMANENT_UPGRADE_DEFINITIONS[button.upgradeId];
+      for (const sourceId of upgrade.prerequisiteIds) {
         const source = nodes.get(sourceId);
         if (!source) {
           continue;
@@ -3461,7 +3492,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
         const targetOwned = hasPermanentUpgrade(this.state, button.upgradeId);
         const sourceOwned = hasPermanentUpgrade(this.state, sourceId);
-        const affordable = this.state.economy.permanentGrassTouches >= PERMANENT_UPGRADE_DEFINITIONS[button.upgradeId].cost;
+        const unlocked = getMissingPermanentUpgradePrerequisites(this.state, button.upgradeId).length === 0;
+        const affordable = unlocked && this.state.economy.permanentGrassTouches >= upgrade.cost;
         const selected = this.selectedMemoryUpgradeId === button.upgradeId || this.selectedMemoryUpgradeId === sourceId;
         const active = targetOwned && sourceOwned;
         const color = selected ? 0xf4df6a : active ? 0x8bdc69 : affordable ? meta.color : 0x6f9473;
@@ -3522,7 +3554,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const upgrade = PERMANENT_UPGRADE_DEFINITIONS[this.selectedMemoryUpgradeId];
     const meta = MEMORY_UPGRADE_VIEW[this.selectedMemoryUpgradeId];
     const owned = hasPermanentUpgrade(this.state, this.selectedMemoryUpgradeId);
-    const affordable = this.state.economy.permanentGrassTouches >= upgrade.cost;
+    const missingPrerequisiteIds = getMissingPermanentUpgradePrerequisites(this.state, this.selectedMemoryUpgradeId);
+    const unlocked = missingPrerequisiteIds.length === 0;
+    const affordable = unlocked && this.state.economy.permanentGrassTouches >= upgrade.cost;
     const frameKey = owned ? "skill-node-owned" : affordable ? "skill-node-available" : "skill-node-locked";
     this.memoryDetailTitle.setText(upgrade.name);
     this.memoryDetailTitle.setColor(owned ? "#eaff9b" : affordable ? "#ffefb0" : "#c8b98b");
@@ -3540,7 +3574,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.memoryDetailCost.setText(
       owned
         ? `Remembered.\n${this.formatMemoryUpgradeShortEffect(this.selectedMemoryUpgradeId)}`
-        : affordable
+        : !unlocked
+          ? `Locked: ${upgrade.cost} GT\nRemember ${this.formatMemoryPrerequisiteNames(missingPrerequisiteIds)} first.`
+          : affordable
           ? `Cost: ${upgrade.cost} GT\nClick the node to remember.`
           : `Cost: ${upgrade.cost} GT\nNeed ${upgrade.cost - this.state.economy.permanentGrassTouches} more GT.`,
     );
@@ -3555,20 +3591,31 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private refreshMemoryUpgradeButtons(): void {
+    this.skillTreeHelp.setText(`Available GT: ${this.state.economy.permanentGrassTouches}\nMemories carry into future runs.`);
     for (const button of this.memoryUpgradeButtons) {
       const upgrade = PERMANENT_UPGRADE_DEFINITIONS[button.upgradeId];
       const meta = MEMORY_UPGRADE_VIEW[button.upgradeId];
       const owned = hasPermanentUpgrade(this.state, button.upgradeId);
-      const affordable = this.state.economy.permanentGrassTouches >= upgrade.cost;
+      const missingPrerequisiteIds = getMissingPermanentUpgradePrerequisites(this.state, button.upgradeId);
+      const unlocked = missingPrerequisiteIds.length === 0;
+      const affordable = unlocked && this.state.economy.permanentGrassTouches >= upgrade.cost;
       const selected = this.selectedMemoryUpgradeId === button.upgradeId;
       const detail = owned
         ? "Owned"
-        : affordable
+        : !unlocked
+          ? missingPrerequisiteIds.length === 1
+            ? `Need ${PERMANENT_UPGRADE_DEFINITIONS[missingPrerequisiteIds[0]].name}`
+            : `Need ${missingPrerequisiteIds.length} memories`
+          : affordable
           ? `${upgrade.cost} GT`
           : `Need ${upgrade.cost - this.state.economy.permanentGrassTouches}`;
       const frameKey = selected ? "skill-node-selected" : owned ? "skill-node-owned" : affordable ? "skill-node-available" : "skill-node-locked";
-      const nodeAlpha = owned || affordable || selected ? 1 : 0.62;
+      const nodeAlpha = owned || affordable || selected ? 1 : unlocked ? 0.72 : 0.5;
       button.background.setFillStyle(0xffffff, 0.001).setStrokeStyle(1, meta.color, 0);
+      button.hoverRing
+        .setFillStyle(meta.color, 0.06)
+        .setStrokeStyle(3, selected ? 0xffef78 : meta.color, 0.92)
+        .setVisible(this.summaryPanel.visible && this.hoveredMemoryUpgradeId === button.upgradeId);
       button.frame.setTexture(frameKey).setAlpha(nodeAlpha);
       button.icon.setAlpha(owned || affordable || selected ? 1 : 0.46);
       button.icon.setTint(owned || affordable || selected ? 0xffffff : 0x809080);
@@ -3586,11 +3633,27 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private previewMemoryUpgrade(upgradeId: PermanentUpgradeId): void {
-    if (this.state.phase !== "dormant" || this.selectedMemoryUpgradeId === upgradeId) {
+    if (this.state.phase !== "dormant") {
+      return;
+    }
+
+    const selectionChanged = this.selectedMemoryUpgradeId !== upgradeId;
+    const hoverChanged = this.hoveredMemoryUpgradeId !== upgradeId;
+    if (!selectionChanged && !hoverChanged) {
       return;
     }
 
     this.selectedMemoryUpgradeId = upgradeId;
+    this.hoveredMemoryUpgradeId = upgradeId;
+    this.refreshMemoryUpgradeButtons();
+  }
+
+  private clearMemoryUpgradePreview(upgradeId: PermanentUpgradeId): void {
+    if (this.hoveredMemoryUpgradeId !== upgradeId) {
+      return;
+    }
+
+    this.hoveredMemoryUpgradeId = null;
     this.refreshMemoryUpgradeButtons();
   }
 
@@ -3606,9 +3669,17 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
     if (!result.purchased) {
       this.sfx.play("blocked");
-      const message = result.reason === "already-owned" ? "already memory" : "not enough GT";
-      this.floatText(x, y - 18, message, result.reason === "already-owned" ? "#eaff9b" : "#ffb1c7");
-      this.saySensi(result.reason === "already-owned" ? "Already remembered.\nVery efficient brain grass." : "Not enough memory yet.\nSuffer usefully, then return.", "dormant", 3400);
+      const missingNames = this.formatMemoryPrerequisiteNames(result.missingPrerequisiteIds ?? []);
+      const alreadyOwned = result.reason === "already-owned";
+      const pathLocked = result.reason === "prerequisites-missing";
+      const message = alreadyOwned ? "already memory" : pathLocked ? "path locked" : "not enough GT";
+      const sensiLine = alreadyOwned
+        ? "Already remembered.\nVery efficient brain grass."
+        : pathLocked
+          ? `That memory has no roots yet.\nRemember ${missingNames} first.`
+          : "Not enough memory yet.\nSuffer usefully, then return.";
+      this.floatText(x, y - 18, message, alreadyOwned ? "#eaff9b" : "#ffb1c7");
+      this.saySensi(sensiLine, "dormant", 3400);
       this.refreshMemoryUpgradeButtons();
       return;
     }
@@ -3756,6 +3827,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private formatOwnedMemory(): string {
     const owned = MEMORY_UPGRADE_IDS.filter((upgradeId) => hasPermanentUpgrade(this.state, upgradeId));
     return owned.length > 0 ? owned.map((upgradeId) => PERMANENT_UPGRADE_DEFINITIONS[upgradeId].name).join(", ") : "none";
+  }
+
+  private formatMemoryPrerequisiteNames(upgradeIds: PermanentUpgradeId[]): string {
+    return upgradeIds.map((upgradeId) => PERMANENT_UPGRADE_DEFINITIONS[upgradeId].name).join(" + ");
   }
 
   private formatMemoryUpgradeImpact(upgradeId: PermanentUpgradeId): string {
@@ -4107,6 +4182,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private getBrowserDebugMemoryButtons(): BrowserDebugMemoryButton[] {
     return this.memoryUpgradeButtons.map((button) => {
       const upgrade = PERMANENT_UPGRADE_DEFINITIONS[button.upgradeId];
+      const unlocked = getMissingPermanentUpgradePrerequisites(this.state, button.upgradeId).length === 0;
       const bounds = button.background.getBounds();
       return {
         upgradeId: button.upgradeId,
@@ -4115,7 +4191,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         width: Math.round(bounds.width),
         height: Math.round(bounds.height),
         visible: button.background.visible,
-        affordable: this.state.economy.permanentGrassTouches >= upgrade.cost,
+        unlocked,
+        affordable: unlocked && this.state.economy.permanentGrassTouches >= upgrade.cost,
         owned: hasPermanentUpgrade(this.state, button.upgradeId),
       };
     });

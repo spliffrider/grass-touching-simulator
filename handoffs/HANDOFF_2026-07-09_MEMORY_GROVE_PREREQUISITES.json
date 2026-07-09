@@ -1,0 +1,48 @@
+{
+  "date": "2026-07-09",
+  "topic": "Memory Grove hover feedback and real prerequisite progression",
+  "currentUserGoal": "Continue the redesign with another update slice after the first Memory Grove layout polish.",
+  "workCompleted": [
+    "Connected Memory Grove hover enter and leave through the accessible DOM bridge so invisible agent controls no longer prevent Phaser hover feedback.",
+    "Added a dedicated animated hover ring, stronger hovered-node bob and pulse, gentler persistent selection motion, and a more active zoomed detail icon while hovering.",
+    "Moved the Memory Grove prerequisite graph into RunSpineSystem as the source of truth and made connector rendering read the same graph.",
+    "Added prerequisite purchase enforcement: Soft Touch unlocks Deeper Roots and Tiny Sprinkler, Deeper Roots unlocks Scourge Sense, and Tiny Sprinkler plus Scourge Sense unlock Last Stand.",
+    "Added locked-path labels and detail-card explanations naming the missing memories, plus Sensi feedback for blocked purchases.",
+    "Updated accessible memory buttons to expose unlocked, affordable, owned, and path-locked states.",
+    "Fixed the Memory Grove Available GT header so it refreshes immediately after a purchase instead of showing stale currency."
+  ],
+  "filesChanged": [
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/redesign/RunSpineSystem.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/RunSpineSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-09_MEMORY_GROVE_PREREQUISITES.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 31 Vitest tests, TypeScript, and Vite production build.",
+    "Browser playtest on ?redesign&playtest&resetMemory confirmed only Soft Touch starts affordable with 80 GT.",
+    "Forced a Deeper Roots purchase while locked and confirmed it spent 0 GT, bought no memory, and showed Remember Soft Touch first in the detail card.",
+    "Bought Soft Touch and confirmed GT changed from 80 to 68, both Deeper Roots and Tiny Sprinkler became affordable, and the canvas Available GT header also changed to 68.",
+    "Visually confirmed the animated ring and zoomed detail treatment on the selected and hovered memory node."
+  ],
+  "currentGitStatus": [
+    "Expected after this handoff commit: clean worktree on codex/gameplay-update, two commits ahead of origin/codex/gameplay-update."
+  ],
+  "knownIssues": [
+    "The Memory Grove still contains only five memories and will need more content and stronger environmental charm before it feels like the old full skill tree.",
+    "Legacy redesign saves with out-of-order owned memories remain accepted so existing test saves are not destructively stripped.",
+    "The user has not yet manually playtested the full prerequisite sequence with their own mouse and normal run-earned GT."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user play one normal run through dormancy and test the Memory Grove progression without playtest grants.",
+    "Next content slice: expand the Memory Grove with a second tier of small, mechanically distinct memories while preserving the non-crossing two-lane layout.",
+    "After content exists, add purchase and branch-reveal flourish using the existing skill assets and SFX rather than adding more static panels."
+  ],
+  "doNotRevert": [
+    "Keep the improved Scourge pacing and run balance from the previous slices.",
+    "Keep the accessible DOM controls; hover feedback must continue to work through them.",
+    "Keep the prerequisite graph in RunSpineSystem and derive visual connectors from it so rules and presentation stay synchronized.",
+    "Do not restore crossing connector routes or the stale Available GT behavior."
+  ]
+}

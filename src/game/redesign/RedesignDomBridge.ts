@@ -19,6 +19,7 @@ export interface RedesignDomMemoryButton {
   width: number;
   height: number;
   visible: boolean;
+  unlocked: boolean;
   affordable: boolean;
   owned: boolean;
 }
@@ -137,6 +138,7 @@ interface RedesignDomActions {
   useRootSalve(): void;
   useTinySprinkler(): void;
   previewMemory(upgradeId: PermanentUpgradeId): void;
+  clearMemoryPreview(upgradeId: PermanentUpgradeId): void;
   purchaseMemory(upgradeId: PermanentUpgradeId): void;
   beginNextRun(): void;
   openOptions(): void;
@@ -465,8 +467,16 @@ export class RedesignDomBridge {
     for (const memoryButton of snapshot.memoryUpgradeButtons) {
       const button = this.getMemoryButton(memoryButton.upgradeId);
       const label = MEMORY_NODE_LABELS[memoryButton.upgradeId];
-      button.textContent = `${label}${memoryButton.owned ? " owned" : memoryButton.affordable ? " affordable" : " locked"}`;
+      const status = memoryButton.owned
+        ? "owned"
+        : !memoryButton.unlocked
+          ? "path locked"
+          : memoryButton.affordable
+            ? "affordable"
+            : "not enough GT";
+      button.textContent = `${label} ${status}`;
       button.setAttribute("aria-label", `${label} memory node`);
+      button.dataset.unlocked = String(memoryButton.unlocked);
       button.dataset.affordable = String(memoryButton.affordable);
       button.dataset.owned = String(memoryButton.owned);
       button.disabled = !memoryButton.visible;
@@ -485,9 +495,13 @@ export class RedesignDomBridge {
     button.classList.add("grass-agent-memory-button");
     button.dataset.upgradeId = upgradeId;
     const preview = () => this.actions.previewMemory(upgradeId);
+    const clearPreview = () => this.actions.clearMemoryPreview(upgradeId);
     button.addEventListener("pointerenter", preview);
     button.addEventListener("mouseover", preview);
     button.addEventListener("focus", preview);
+    button.addEventListener("pointerleave", clearPreview);
+    button.addEventListener("mouseout", clearPreview);
+    button.addEventListener("blur", clearPreview);
     this.memoryButtons.set(upgradeId, button);
     return button;
   }

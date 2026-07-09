@@ -10,6 +10,7 @@ import {
   EFFECTIVE_HEALING_PER_PERMANENT_TOUCH,
   getDormancyGrassTouches,
   getDormancySummary,
+  getMissingPermanentUpgradePrerequisites,
   getPermanentUpgradeEffects,
   getWoundedRootCount,
   hasPermanentUpgrade,
@@ -367,6 +368,24 @@ describe("RunSpineSystem", () => {
     expect(state.economy.permanentGrassTouches).toBe(2);
   });
 
+  it("requires connected memories before buying deeper permanent upgrades", () => {
+    const state = createRunSpineState({ currentHp: 0, permanentGrassTouches: 100 });
+
+    const blockedDeeperRoots = purchasePermanentUpgrade(state, "deeperRoots");
+    purchasePermanentUpgrade(state, "softTouch");
+    const boughtDeeperRoots = purchasePermanentUpgrade(state, "deeperRoots");
+    const blockedLastStand = purchasePermanentUpgrade(state, "lastStand");
+
+    expect(blockedDeeperRoots.purchased).toBe(false);
+    expect(blockedDeeperRoots.reason).toBe("prerequisites-missing");
+    expect(blockedDeeperRoots.missingPrerequisiteIds).toEqual(["softTouch"]);
+    expect(blockedDeeperRoots.remainingGrassTouches).toBe(100);
+    expect(boughtDeeperRoots.purchased).toBe(true);
+    expect(getMissingPermanentUpgradePrerequisites(state, "lastStand")).toEqual(["tinySprinkler", "scourgeSense"]);
+    expect(blockedLastStand.reason).toBe("prerequisites-missing");
+    expect(state.economy.permanentGrassTouches).toBe(70);
+  });
+
   it("carries permanent upgrade effects into the next run", () => {
     const state = createRunSpineState({ currentHp: 0, permanentGrassTouches: 40 });
 
@@ -386,18 +405,20 @@ describe("RunSpineSystem", () => {
   });
 
   it("serializes only permanent memory into the redesign save snapshot", () => {
-    const state = createRunSpineState({ currentHp: 80, permanentGrassTouches: 100 });
+    const state = createRunSpineState({ currentHp: 80, permanentGrassTouches: 150 });
     state.economy.runTouches = 123;
 
     purchasePermanentUpgrade(state, "softTouch");
+    purchasePermanentUpgrade(state, "deeperRoots");
+    purchasePermanentUpgrade(state, "tinySprinkler");
     purchasePermanentUpgrade(state, "scourgeSense");
     purchasePermanentUpgrade(state, "lastStand");
     const snapshot = createPermanentMemorySnapshot(state, 42);
 
     expect(snapshot).toEqual({
       saveVersion: 1,
-      permanentGrassTouches: 36,
-      permanentUpgrades: ["lastStand", "scourgeSense", "softTouch"],
+      permanentGrassTouches: 44,
+      permanentUpgrades: ["deeperRoots", "lastStand", "scourgeSense", "softTouch", "tinySprinkler"],
       savedAt: 42,
     });
   });
