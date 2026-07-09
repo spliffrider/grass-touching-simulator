@@ -355,6 +355,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private memoryDetailBody!: Phaser.GameObjects.Text;
   private memoryDetailCost!: Phaser.GameObjects.Text;
   private memoryDetailIconBaseSize = 72;
+  private memoryHoverCardEnabled = false;
   private summaryHint!: Phaser.GameObjects.Text;
   private memoryUpgradeButtons: MemoryUpgradeButtonView[] = [];
   private lockedMetaNodes: LockedMetaNodeView[] = [];
@@ -602,7 +603,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       .setDepth(31)
       .setVisible(false);
     this.memoryHoverFrame = this.add
-      .rectangle(0, 0, 190, 70, 0x07170f, 0.9)
+      .rectangle(0, 0, 230, 96, 0x07170f, 0.96)
       .setDepth(34)
       .setStrokeStyle(2, 0xeaff9b, 0.68)
       .setVisible(false);
@@ -1477,7 +1478,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const treeTop = skillFrameTop + (compactReport ? 64 : 92);
     const treeWidth = skillFrameWidth - 56;
     const treeHeight = skillFrameHeight - (compactReport ? 82 : 126);
-    const nodeSize = Phaser.Math.Clamp(Math.min(treeWidth * 0.19, treeHeight * 0.23), compactReport ? 42 : 60, compactReport ? 56 : 82);
+    const nodeSize = Phaser.Math.Clamp(Math.min(treeWidth * 0.17, treeHeight * 0.2), compactReport ? 38 : 48, compactReport ? 48 : 68);
     this.memoryUpgradeButtons.forEach((button) => {
       const view = MEMORY_UPGRADE_VIEW[button.upgradeId];
       const x = treeLeft + treeWidth * view.x;
@@ -1487,21 +1488,39 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       button.glow.setPosition(x, y).setRadius(nodeSize * 0.7);
       button.hoverRing.setPosition(x, y).setRadius(nodeSize * 0.78);
       button.frame.setPosition(x, y).setDisplaySize(nodeSize, nodeSize);
-      button.icon.setPosition(x, y).setDisplaySize(nodeSize * 0.36, nodeSize * 0.36);
-      button.title.setFontSize(compactReport ? 11 : 15).setPosition(x, y + nodeSize * 0.72);
+      button.icon.setPosition(x, y).setDisplaySize(nodeSize * 0.28, nodeSize * 0.28);
+      button.title.setFontSize(compactReport ? 10 : 14).setPosition(x, y + nodeSize * 0.76);
       button.title.setWordWrapWidth(nodeSize + 76);
       button.branch.setFontSize(compactReport ? 9 : 10).setPosition(x, y + nodeSize * 1);
       button.branch.setAlpha(0);
       button.branch.setWordWrapWidth(nodeSize + 70);
-      button.detail.setFontSize(compactReport ? 9 : 11).setPosition(x, y + (compactReport ? nodeSize * 1.05 : nodeSize * 1.08));
+      button.detail
+        .setFontSize(compactReport ? 8 : 10)
+        .setLineSpacing(1)
+        .setPosition(x, y + (compactReport ? nodeSize * 1.08 : nodeSize * 1.14));
       button.detail.setWordWrapWidth(nodeSize + 74);
     });
     this.drawMemorySkillTreeLines(nodeSize);
 
+    const hoverCardWidth = Phaser.Math.Clamp(skillFrameWidth * 0.38, 190, 240);
+    const hoverCardHeight = 98;
+    const hoverCardX = skillFrameLeft + skillFrameWidth - hoverCardWidth / 2 - 16;
+    const hoverCardY = skillFrameTop + hoverCardHeight / 2 + 14;
+    const hoverCardLeft = hoverCardX - hoverCardWidth / 2;
+    const hoverCardTop = hoverCardY - hoverCardHeight / 2;
+    this.memoryHoverCardEnabled = !compactReport && skillFrameWidth >= 440 && skillFrameHeight >= 340;
+    this.memoryHoverFrame.setPosition(hoverCardX, hoverCardY).setSize(hoverCardWidth, hoverCardHeight);
+    this.memoryHoverTitle.setFontSize(16).setPosition(hoverCardLeft + 13, hoverCardTop + 11);
+    this.memoryHoverBody
+      .setFontSize(11)
+      .setLineSpacing(2)
+      .setWordWrapWidth(hoverCardWidth - 26)
+      .setPosition(hoverCardLeft + 13, hoverCardTop + 38);
+
     this.memoryDetailFrame.setPosition(detailFrameX, detailFrameY).setSize(detailFrameWidth, detailFrameHeight);
     const detailFrameLeft = detailFrameX - detailFrameWidth / 2;
     const detailFrameTop = detailFrameY - detailFrameHeight / 2;
-    const detailIconSize = Phaser.Math.Clamp(detailFrameWidth * 0.32, compactReport ? 52 : 68, compactReport ? 64 : 88);
+    const detailIconSize = Phaser.Math.Clamp(detailFrameWidth * 0.38, compactReport ? 58 : 80, compactReport ? 72 : 104);
     const detailIconY = detailFrameTop + (compactReport ? 92 : 122);
     this.memoryDetailIconBaseSize = detailIconSize;
     this.memoryDetailTitle.setFontSize(compactReport ? 18 : 24).setPosition(detailFrameLeft + 18, detailFrameTop + 18);
@@ -2262,7 +2281,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         : selected
           ? Math.sin(seconds * 4.1) * baseSize * 0.018
           : 0;
-      const iconSize = baseSize * (selected || hovered ? 0.41 : 0.36) * iconPulse;
+      const iconSize = baseSize * (selected || hovered ? 0.33 : 0.28) * iconPulse;
       button.frame.setDisplaySize(baseSize * framePulse, baseSize * framePulse);
       button.icon
         .setPosition(button.frame.x, button.frame.y + iconBob)
@@ -3557,6 +3576,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const missingPrerequisiteIds = getMissingPermanentUpgradePrerequisites(this.state, this.selectedMemoryUpgradeId);
     const unlocked = missingPrerequisiteIds.length === 0;
     const affordable = unlocked && this.state.economy.permanentGrassTouches >= upgrade.cost;
+    const shortfall = Math.max(0, upgrade.cost - this.state.economy.permanentGrassTouches);
     const frameKey = owned ? "skill-node-owned" : affordable ? "skill-node-available" : "skill-node-locked";
     this.memoryDetailTitle.setText(upgrade.name);
     this.memoryDetailTitle.setColor(owned ? "#eaff9b" : affordable ? "#ffefb0" : "#c8b98b");
@@ -3575,13 +3595,44 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       owned
         ? `Remembered.\n${this.formatMemoryUpgradeShortEffect(this.selectedMemoryUpgradeId)}`
         : !unlocked
-          ? `Locked: ${upgrade.cost} GT\nRemember ${this.formatMemoryPrerequisiteNames(missingPrerequisiteIds)} first.`
+          ? `Cost: ${upgrade.cost} GT\nRequires: ${this.formatMemoryPrerequisiteNames(missingPrerequisiteIds)}`
           : affordable
-          ? `Cost: ${upgrade.cost} GT\nClick the node to remember.`
-          : `Cost: ${upgrade.cost} GT\nNeed ${upgrade.cost - this.state.economy.permanentGrassTouches} more GT.`,
+            ? `Cost: ${upgrade.cost} GT\nReady to remember.`
+            : `Cost: ${upgrade.cost} GT\nAvailable: ${this.state.economy.permanentGrassTouches} GT\nShort: ${shortfall} GT`,
     );
     this.memoryDetailCost.setColor(owned ? "#eaff9b" : affordable ? "#f4df6a" : "#ffb1c7");
-    this.setMemoryHoverCalloutVisible(false);
+    this.refreshMemoryHoverCard();
+  }
+
+  private refreshMemoryHoverCard(): void {
+    const upgradeId = this.hoveredMemoryUpgradeId;
+    if (!upgradeId || !this.summaryPanel.visible || !this.memoryHoverCardEnabled) {
+      this.setMemoryHoverCalloutVisible(false);
+      return;
+    }
+
+    const upgrade = PERMANENT_UPGRADE_DEFINITIONS[upgradeId];
+    const meta = MEMORY_UPGRADE_VIEW[upgradeId];
+    const owned = hasPermanentUpgrade(this.state, upgradeId);
+    const missingPrerequisiteIds = getMissingPermanentUpgradePrerequisites(this.state, upgradeId);
+    const unlocked = missingPrerequisiteIds.length === 0;
+    const shortfall = Math.max(0, upgrade.cost - this.state.economy.permanentGrassTouches);
+    const status = owned
+      ? `Remembered - ${this.formatMemoryUpgradeShortEffect(upgradeId)}`
+      : !unlocked
+        ? `Requires ${this.formatMemoryPrerequisiteNames(missingPrerequisiteIds)}`
+        : shortfall === 0
+          ? `Cost ${upgrade.cost} GT - ready`
+          : `Cost ${upgrade.cost} GT - short ${shortfall} GT`;
+
+    this.memoryHoverFrame
+      .setFillStyle(0x07170f, 0.97)
+      .setStrokeStyle(2, meta.color, 0.82);
+    this.memoryHoverTitle
+      .setText(upgrade.name)
+      .setColor(`#${meta.color.toString(16).padStart(6, "0")}`);
+    this.memoryHoverBody.setText(`${upgrade.description}\n${status}`);
+    this.setMemoryHoverCalloutVisible(true);
   }
 
   private setMemoryHoverCalloutVisible(visible: boolean): void {
@@ -3600,15 +3651,16 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       const unlocked = missingPrerequisiteIds.length === 0;
       const affordable = unlocked && this.state.economy.permanentGrassTouches >= upgrade.cost;
       const selected = this.selectedMemoryUpgradeId === button.upgradeId;
+      const shortfall = Math.max(0, upgrade.cost - this.state.economy.permanentGrassTouches);
       const detail = owned
         ? "Owned"
         : !unlocked
           ? missingPrerequisiteIds.length === 1
-            ? `Need ${PERMANENT_UPGRADE_DEFINITIONS[missingPrerequisiteIds[0]].name}`
-            : `Need ${missingPrerequisiteIds.length} memories`
+            ? `Requires\n${PERMANENT_UPGRADE_DEFINITIONS[missingPrerequisiteIds[0]].name}`
+            : `Requires ${missingPrerequisiteIds.length}\nmemories`
           : affordable
-          ? `${upgrade.cost} GT`
-          : `Need ${upgrade.cost - this.state.economy.permanentGrassTouches}`;
+            ? `Cost ${upgrade.cost} GT`
+            : `Cost ${upgrade.cost} GT\nShort ${shortfall} GT`;
       const frameKey = selected ? "skill-node-selected" : owned ? "skill-node-owned" : affordable ? "skill-node-available" : "skill-node-locked";
       const nodeAlpha = owned || affordable || selected ? 1 : unlocked ? 0.72 : 0.5;
       button.background.setFillStyle(0xffffff, 0.001).setStrokeStyle(1, meta.color, 0);

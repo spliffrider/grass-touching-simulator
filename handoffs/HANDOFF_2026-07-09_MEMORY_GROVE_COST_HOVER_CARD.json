@@ -1,0 +1,45 @@
+{
+  "date": "2026-07-09",
+  "topic": "Memory Grove cost clarity, smaller nodes, and hover card",
+  "currentUserGoal": "Fix the misleading case where 7 available GT appeared sufficient for a node labeled Need 5, make tree skill icons smaller, and show details in a card on mouseover.",
+  "workCompleted": [
+    "Clarified that Soft Touch still costs 12 GT: unaffordable overview nodes now show total cost and shortfall as separate lines, for example Cost 12 GT / Short 5 GT at 7 available GT.",
+    "Changed prerequisite labels from ambiguous Need wording to explicit Requires wording.",
+    "Expanded the right-side insufficient-funds copy to show Cost, Available, and Short values separately.",
+    "Reduced Memory Grove overview hex nodes and their icon art while preserving the larger invisible hit targets.",
+    "Increased the zoomed icon size in the right-side inspector so overview icons can remain compact.",
+    "Restored an in-tree hover card with the memory name, mechanical effect, total price, and ready/shortfall/prerequisite state.",
+    "Anchored the hover card in unused upper-right tree space and disabled it on compact layouts so it does not cover nodes or connector lines."
+  ],
+  "filesChanged": [
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-09_MEMORY_GROVE_COST_HOVER_CARD.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 31 Vitest tests, TypeScript, and Vite production build.",
+    "Browser visual check at 1528x1210 confirmed smaller overview nodes, explicit Cost/Short labels, a non-overlapping hover card, and the larger right-side detail icon.",
+    "Browser visual check at 1280x720 confirmed the hover card stays above the connector lanes and all node text remains inside the tree panel.",
+    "Browser console check reported no warnings or errors.",
+    "Temporary browser viewport overrides were reset after verification."
+  ],
+  "currentGitStatus": [
+    "Expected after this handoff commit: clean worktree on codex/gameplay-update, three commits ahead of origin/codex/gameplay-update."
+  ],
+  "knownIssues": [
+    "Soft Touch still costs 12 GT. A run paying 7 GT intentionally leaves the player 5 GT short; whether the first run should always afford a memory is a separate balance decision.",
+    "The in-tree hover card is hidden on compact layouts, where the stacked detail inspector remains the information surface.",
+    "The user still needs to confirm the smaller overview scale feels right with their own mouse and display scaling."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user repeat the 7-GT dormancy case and verify the node now reads Cost 12 GT / Short 5 GT and the hover card feels clear.",
+    "Decide explicitly whether a normal first run should guarantee one affordable starter memory; if yes, tune Soft Touch cost or first-run payout rather than disguising the shortfall in UI copy.",
+    "Continue with second-tier Memory Grove content only after the starter-purchase pacing decision is settled."
+  ],
+  "doNotRevert": [
+    "Do not return to bare Need X labels for unaffordable memories.",
+    "Keep overview icons compact and preserve the large zoomed inspector icon.",
+    "Keep hover/focus mirrored through the accessible DOM bridge.",
+    "Keep the hover card outside connector lanes and hidden on compact layouts."
+  ]
+}
