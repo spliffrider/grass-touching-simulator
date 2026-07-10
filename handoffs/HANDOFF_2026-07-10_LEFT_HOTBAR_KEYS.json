@@ -1,0 +1,62 @@
+{
+  "date": "2026-07-10",
+  "topic": "Left vertical Field Kit and number-key controls",
+  "currentUserGoal": "Move the Field Kit away from the field frame, place it as a vertical icon line on the left, and activate its slots with keyboard numbers 1 through 7.",
+  "workCompleted": [
+    "Rebuilt the Field Kit as a one-column vertical rail on the left side of the playfield with seven slots per page.",
+    "Reserved the rail width plus a fixed 16px logical gap in field layout. Narrow layouts now shrink the board and center the combined rail-plus-field group instead of allowing overlap.",
+    "Changed stable tool order to 1 Dew Pulse, 2 Root Salve, 3 Tiny Sprinkler, and 4 Pocket Sunshine.",
+    "Added visible top-left number badges to every visible tool slot and retained cost badges at the bottom plus sprinkler counts at the top right.",
+    "Added number-key activation for slots 1 through 7 on the current page, ignoring held-key repeats, modifier chords, Options, hidden slots, and text/range input focus.",
+    "Added hotkey values to browser debug state, DOM datasets, accessible labels, and aria-keyshortcuts.",
+    "Kept Root Salve visible but disabled after the first field expansion so slot 2 remains stable instead of leaving a hole whenever no wound is open.",
+    "Made tooltips prefer the outside-left side of the rail when space permits.",
+    "Added exact rail bounds to debug state for layout checks.",
+    "Added a scheduled browser/debug publication when root recovery completes, keeping the accessible DOM root button truthful without per-frame bridge work.",
+    "Updated durable redesign and implementation-plan docs for the vertical rail, responsive reservation, stable numbering, keyboard controls, and recovery publication."
+  ],
+  "filesChanged": [
+    "src/game/redesign/RunToolBarLayout.ts",
+    "src/game/redesign/RunToolCatalog.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/RunToolBarLayout.test.ts",
+    "tests/RunToolCatalog.test.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-10_LEFT_HOTBAR_KEYS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "Final npm run check passed: ESLint, 55 Vitest tests across six files, TypeScript, and the Vite production build.",
+    "Pure layout tests verify one-column three/four-slot layouts, seven-slot pages, ten-tool overflow, 1-7 key mapping, and a fixed non-overlapping rail-to-field gap at 1280px and 390px widths.",
+    "Desktop browser smoke at 1280x720 bought Field Satchel, entered a four-tool run, and reported a one-column four-row rail at x 450 with width 82.",
+    "All visible current tools reported x 450 and stable hotkeys 1 Dew Pulse, 2 Root Salve, 3 Tiny Sprinkler, and 4 Pocket Sunshine.",
+    "Screenshot smoke confirmed the complete rail is left of the field frame with visible number/cost badges and no field overlap.",
+    "Keyboard smoke pressed key 1 through the real browser control, spent RT from 38 to 16, preserved the active phase, and reported lastRunToolKind dewPulse.",
+    "Recovery publication smoke completed ten paced root interactions through the DOM layer and reached the four-root field without a stale disabled root control."
+  ],
+  "currentGitStatus": [
+    "Expected after this handoff commit: clean worktree on codex/gameplay-update, one commit ahead of origin/codex/gameplay-update until pushed."
+  ],
+  "knownIssues": [
+    "The browser runtime remains fixed at 1280x720, so 390px non-overlap is covered by pure placement tests rather than a fresh screenshot.",
+    "Only slots 1 through 7 on the current page have direct number shortcuts; future overflow pages still use the existing page controls.",
+    "Hidden unlicensed tools retain their stable catalog number, so a fresh save can intentionally show fewer icons until those systems are introduced.",
+    "Transient hover tooltips may open toward the field on very narrow screens when there is not enough room outside the rail; the persistent rail itself never overlaps the field."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user test /?alpha naturally and judge rail size, left placement, disabled-slot readability, and 1-4 keyboard feel.",
+    "Run a fresh narrow-phone screenshot when a resizable browser surface is available.",
+    "Fix only alpha-blocking feedback from this test, then create the Vercel preview for the first Discord cohort.",
+    "Decide later whether overflow pages need dedicated page hotkeys after the tool catalog actually exceeds seven entries."
+  ],
+  "doNotRevert": [
+    "Keep the Field Kit as a one-column left rail; do not return it to a right-side grid or place it inside the field frame.",
+    "Keep board width constrained on narrow screens so the rail and field reserve separate space.",
+    "Keep hotkey order stable as Dew Pulse 1, Root Salve 2, Tiny Sprinkler 3, and Pocket Sunshine 4.",
+    "Keep visible number badges synchronized with debug/DOM aria-keyshortcuts.",
+    "Keep Root Salve's stable disabled slot after field expansion.",
+    "Keep recovery-state publication scheduled once per completed recovery instead of rendering the entire DOM bridge every frame."
+  ]
+}

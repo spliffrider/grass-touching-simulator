@@ -50,6 +50,7 @@ export interface RedesignDomRunToolButton {
   height: number;
   cost: number;
   count: number;
+  hotkey: number | null;
   visible: boolean;
   usable: boolean;
   affordable: boolean;
@@ -84,6 +85,10 @@ export interface RedesignDomMemoryTreeView {
 }
 
 export interface RedesignDomRunToolBarView {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
   slotCapacity: number;
   equippedCount: number;
   page: number;
@@ -508,8 +513,16 @@ export class RedesignDomBridge {
       const button = this.runToolButtons[tool.toolId];
       const label = RUN_TOOL_VIEW[tool.toolId].name;
       const count = tool.count > 0 ? `, ${tool.count} installed` : "";
-      button.textContent = `${label}, ${tool.cost} RT${count}${tool.usable ? ", ready" : ", unavailable"}`;
-      button.setAttribute("aria-label", `${label}, costs ${tool.cost} Run Touches${count}`);
+      const hotkey = tool.hotkey === null ? "" : `, key ${tool.hotkey}`;
+      button.textContent = `${label}, ${tool.cost} RT${count}${hotkey}${tool.usable ? ", ready" : ", unavailable"}`;
+      button.setAttribute("aria-label", `${label}, costs ${tool.cost} Run Touches${count}${hotkey}`);
+      if (tool.hotkey === null) {
+        button.removeAttribute("aria-keyshortcuts");
+        delete button.dataset.hotkey;
+      } else {
+        button.setAttribute("aria-keyshortcuts", `${tool.hotkey}`);
+        button.dataset.hotkey = `${tool.hotkey}`;
+      }
       button.dataset.affordable = String(tool.affordable);
       button.dataset.usable = String(tool.usable);
       button.disabled = !tool.usable;

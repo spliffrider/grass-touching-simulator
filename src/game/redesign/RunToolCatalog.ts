@@ -9,7 +9,7 @@ export interface RunToolPresentation {
   description: string;
 }
 
-export const RUN_TOOL_IDS = ["tinySprinkler", "dewPulse", "rootSalve", "pocketSunshine"] as const satisfies readonly RunToolId[];
+export const RUN_TOOL_IDS = ["dewPulse", "rootSalve", "tinySprinkler", "pocketSunshine"] as const satisfies readonly RunToolId[];
 
 export const RUN_TOOL_VIEW: Record<RunToolId, RunToolPresentation> = {
   dewPulse: {

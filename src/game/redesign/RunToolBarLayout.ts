@@ -1,10 +1,8 @@
 export const RUN_TOOL_SLOT_SIZE = 58;
 export const RUN_TOOL_SLOT_GAP = 7;
 export const RUN_TOOL_BAR_PADDING = 12;
-export const RUN_TOOL_BAR_MAX_ROWS = 4;
-export const RUN_TOOL_BAR_DESKTOP_COLUMNS = 2;
-export const RUN_TOOL_BAR_NARROW_COLUMNS = 1;
-export const RUN_TOOL_BAR_NARROW_BREAKPOINT = 600;
+export const RUN_TOOL_BAR_MAX_ROWS = 7;
+export const RUN_TOOL_BAR_COLUMNS = 1;
 export const RUN_TOOL_BAR_NAV_HEIGHT = 24;
 
 export interface RunToolSlotPosition {
@@ -27,11 +25,16 @@ export interface RunToolBarLayout {
   slotPositions: RunToolSlotPosition[];
 }
 
-export function getRunToolBarLayout(toolCount: number, viewportWidth: number, requestedPage = 0): RunToolBarLayout {
+export interface LeftRunToolRailPlacement {
+  railCenterX: number;
+  railRight: number;
+  fieldCenterX: number;
+  fieldLeft: number;
+}
+
+export function getRunToolBarLayout(toolCount: number, _viewportWidth: number, requestedPage = 0): RunToolBarLayout {
   const normalizedToolCount = Math.max(0, Math.floor(toolCount));
-  const columns = viewportWidth < RUN_TOOL_BAR_NARROW_BREAKPOINT
-    ? RUN_TOOL_BAR_NARROW_COLUMNS
-    : RUN_TOOL_BAR_DESKTOP_COLUMNS;
+  const columns = RUN_TOOL_BAR_COLUMNS;
   const pageCapacity = columns * RUN_TOOL_BAR_MAX_ROWS;
   const pageCount = Math.max(1, Math.ceil(normalizedToolCount / pageCapacity));
   const page = Math.min(pageCount - 1, Math.max(0, Math.floor(requestedPage)));
@@ -69,5 +72,34 @@ export function getRunToolBarLayout(toolCount: number, viewportWidth: number, re
     height,
     navigationY: height / 2 - RUN_TOOL_BAR_NAV_HEIGHT / 2 - RUN_TOOL_BAR_PADDING / 2,
     slotPositions,
+  };
+}
+
+export function getRunToolHotkeyIndex(key: string): number | undefined {
+  if (!/^[1-7]$/.test(key)) {
+    return undefined;
+  }
+
+  return Number(key) - 1;
+}
+
+export function getLeftRunToolRailPlacement(
+  viewportWidth: number,
+  fieldPanelWidth: number,
+  railWidth: number,
+  gap: number,
+  margin = 12,
+): LeftRunToolRailPlacement {
+  const combinedWidth = railWidth + gap + fieldPanelWidth;
+  const groupLeft = Math.max(margin, (viewportWidth - combinedWidth) / 2);
+  const railCenterX = groupLeft + railWidth / 2;
+  const railRight = groupLeft + railWidth;
+  const fieldLeft = railRight + gap;
+
+  return {
+    railCenterX,
+    railRight,
+    fieldCenterX: fieldLeft + fieldPanelWidth / 2,
+    fieldLeft,
   };
 }

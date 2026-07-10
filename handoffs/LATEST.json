@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-10",
-  "latestHandoff": "HANDOFF_2026-07-10_PUBLIC_ALPHA_PREP.json",
+  "latestHandoff": "HANDOFF_2026-07-10_LEFT_HOTBAR_KEYS.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

@@ -18,7 +18,7 @@ describe("RunToolCatalog", () => {
   });
 
   it("keeps Pocket Sunshine behind the first slot-capacity upgrade", () => {
-    expect(getEquippedRunToolIds(3)).toEqual(["tinySprinkler", "dewPulse", "rootSalve"]);
-    expect(getEquippedRunToolIds(6)).toEqual(["tinySprinkler", "dewPulse", "rootSalve", "pocketSunshine"]);
+    expect(getEquippedRunToolIds(3)).toEqual(["dewPulse", "rootSalve", "tinySprinkler"]);
+    expect(getEquippedRunToolIds(6)).toEqual(["dewPulse", "rootSalve", "tinySprinkler", "pocketSunshine"]);
   });
 });

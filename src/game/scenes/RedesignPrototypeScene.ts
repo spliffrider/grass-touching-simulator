@@ -38,7 +38,9 @@ import {
   type RunToolId,
 } from "../redesign/RunToolCatalog";
 import {
+  getLeftRunToolRailPlacement,
   getRunToolBarLayout,
+  getRunToolHotkeyIndex,
   RUN_TOOL_SLOT_SIZE,
   type RunToolBarLayout,
 } from "../redesign/RunToolBarLayout";
@@ -155,12 +157,17 @@ interface BrowserDebugRunToolButton {
   height: number;
   cost: number;
   count: number;
+  hotkey: number | null;
   visible: boolean;
   usable: boolean;
   affordable: boolean;
 }
 
 interface BrowserDebugRunToolBarView {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
   slotCapacity: number;
   equippedCount: number;
   page: number;
@@ -268,6 +275,8 @@ interface RunToolSlotView {
   costText: Phaser.GameObjects.Text;
   countBadge: Phaser.GameObjects.Arc;
   countText: Phaser.GameObjects.Text;
+  hotkeyBadge: Phaser.GameObjects.Rectangle;
+  hotkeyText: Phaser.GameObjects.Text;
   available: boolean;
   usable: boolean;
   count: number;
@@ -313,6 +322,8 @@ const INTRO_PANEL_BASE_HEIGHT = 92;
 const RUN_TOOL_ICON_SIZE = 34;
 const RUN_TOOL_TOOLTIP_WIDTH = 244;
 const RUN_TOOL_TOOLTIP_HEIGHT = 88;
+const RUN_TOOL_RAIL_GAP = 16;
+const FIELD_PANEL_HORIZONTAL_PADDING = 78;
 const TINY_SPRINKLER_PULSE_INTERVAL_MS = 2400;
 const FAST_TINY_SPRINKLER_PULSE_INTERVAL_MS = 900;
 const OPTIONS_BUTTON_WIDTH = 78;
@@ -1213,6 +1224,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.input.on("pointerup", this.stopMemoryTreePan, this);
     this.input.on("pointerupoutside", this.stopMemoryTreePan, this);
     this.input.on("wheel", this.handleMemoryTreeWheel, this);
+    this.input.keyboard?.on("keydown", this.handleRunToolHotkey, this);
+    this.events.once("shutdown", () => this.input.keyboard?.off("keydown", this.handleRunToolHotkey, this));
+    this.events.once("destroy", () => this.input.keyboard?.off("keydown", this.handleRunToolHotkey, this));
     this.scale.on("resize", this.layout, this);
     this.layout();
     this.refreshReadout();
@@ -1462,6 +1476,31 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     }
   }
 
+  private handleRunToolHotkey(event: KeyboardEvent): void {
+    if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || this.optionsOpen) {
+      return;
+    }
+
+    const target = event.target;
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+      return;
+    }
+
+    const hotkeyIndex = getRunToolHotkeyIndex(event.key);
+    if (hotkeyIndex === undefined) {
+      return;
+    }
+
+    const catalogIndex = this.runToolPage * this.runToolBarLayout.pageCapacity + hotkeyIndex;
+    const toolId = this.equippedRunToolIds[catalogIndex];
+    if (!toolId || !this.runToolSlots[toolId].button.visible) {
+      return;
+    }
+
+    event.preventDefault();
+    this.activateRunTool(toolId);
+  }
+
   private createRunToolSlot(toolId: RunToolId, cost: number, activate: () => void): RunToolSlotView {
     const view = RUN_TOOL_VIEW[toolId];
     const button = this.add
@@ -1507,8 +1546,35 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       stroke: "#07100c",
       strokeThickness: 2,
     }).setOrigin(0.5).setDepth(21).setVisible(false);
+    const hotkeyBadge = this.add
+      .rectangle(0, 0, 16, 16, 0x07100c, 0.96)
+      .setDepth(20)
+      .setStrokeStyle(1, 0xffefb0, 0.78)
+      .setVisible(false);
+    const hotkeyText = this.add.text(0, 0, "", {
+      align: "center",
+      color: "#ffefb0",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "10px",
+      fontStyle: "bold",
+      stroke: "#07100c",
+      strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(21).setVisible(false);
 
-    return { toolId, button, icon, costBadge, costText, countBadge, countText, available: false, usable: false, count: 0 };
+    return {
+      toolId,
+      button,
+      icon,
+      costBadge,
+      costText,
+      countBadge,
+      countText,
+      hotkeyBadge,
+      hotkeyText,
+      available: false,
+      usable: false,
+      count: 0,
+    };
   }
 
   private syncRunToolSlotCapacity(): void {
@@ -1676,23 +1742,42 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const availableFieldHeight = Math.max(230, fieldAreaBottom - fieldAreaTop);
     const maxGridSize = this.getMaxGridSize();
     const minGridSize = Math.min(maxGridSize, this.activeGridSize * 84 + 64);
-    const gridSize = Math.min(maxGridSize, Math.max(minGridSize, Math.min(width * 0.58, availableFieldHeight)));
+    const reserveRunToolRail = this.activeRootCount > 1;
+    const plannedRunToolLayout = getRunToolBarLayout(this.equippedRunToolIds.length, width, this.runToolPage);
+    const runToolRailReserve = reserveRunToolRail ? plannedRunToolLayout.width + RUN_TOOL_RAIL_GAP : 0;
+    const horizontalGridLimit = Math.max(
+      150,
+      width - 24 - FIELD_PANEL_HORIZONTAL_PADDING - runToolRailReserve,
+    );
+    const gridSize = Math.min(
+      maxGridSize,
+      horizontalGridLimit,
+      Math.max(minGridSize, Math.min(width * 0.58, availableFieldHeight)),
+    );
     const tileSize = gridSize / this.activeGridSize;
-    const startX = centerX - gridSize / 2 + tileSize / 2;
+    const fieldPanelWidth = gridSize + FIELD_PANEL_HORIZONTAL_PADDING;
+    const railPlacement = getLeftRunToolRailPlacement(
+      width,
+      fieldPanelWidth,
+      plannedRunToolLayout.width,
+      reserveRunToolRail ? RUN_TOOL_RAIL_GAP : 0,
+    );
+    const fieldLayoutCenterX = reserveRunToolRail ? railPlacement.fieldCenterX : centerX;
+    const startX = fieldLayoutCenterX - gridSize / 2 + tileSize / 2;
     const startY = fieldAreaTop + Math.max(0, availableFieldHeight - gridSize) / 2 + tileSize / 2;
-    this.fieldCenterX = centerX;
+    this.fieldCenterX = fieldLayoutCenterX;
     this.fieldCenterY = startY + gridSize / 2 - tileSize / 2;
     this.fieldTouchRadius = Math.max(tileSize * 0.8, gridSize * 0.56);
     const fieldPanelHeight = gridSize + (this.activeGridSize === 1 ? 118 : 78);
     this.fieldPanel.setScale((gridSize + 78) / FIELD_PANEL_BASE_WIDTH, fieldPanelHeight / FIELD_PANEL_BASE_HEIGHT);
-    this.fieldPanel.setPosition(centerX, startY + gridSize / 2 - tileSize / 2);
+    this.fieldPanel.setPosition(fieldLayoutCenterX, startY + gridSize / 2 - tileSize / 2);
     this.rootAura.setPosition(this.fieldCenterX, this.fieldCenterY).setRadius(gridSize * 0.36);
     this.touchHintRing.setPosition(this.fieldCenterX, this.fieldCenterY).setRadius(gridSize * 0.43);
     this.touchHintText.setPosition(this.fieldCenterX, startY - 28);
     this.oneTileMasteryText
       .setPosition(this.fieldCenterX, this.fieldCenterY + tileSize / 2 + 14)
       .setWordWrapWidth(gridSize + 54);
-    this.layoutRunToolBar(width, height, centerX, this.fieldCenterY, gridSize, promptY);
+    this.layoutRunToolBar(width, height, fieldLayoutCenterX, this.fieldCenterY, gridSize, promptY);
     const introPanelVisible = introCalloutVisible;
     const introPanelWidth = Math.min(INTRO_PANEL_BASE_WIDTH, width - 48);
     const introPanelHeight = compact ? 76 : INTRO_PANEL_BASE_HEIGHT;
@@ -2072,7 +2157,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.runToolPage = this.runToolBarLayout.page;
     const barWidth = this.runToolBarLayout.width;
     const barHeight = this.runToolBarLayout.height;
-    const preferredX = fieldCenterX + gridSize / 2 + barWidth / 2 + 26;
+    const fieldPanelLeft = fieldCenterX - (gridSize + FIELD_PANEL_HORIZONTAL_PADDING) / 2;
+    const preferredX = fieldPanelLeft - RUN_TOOL_RAIL_GAP - barWidth / 2;
     const barX = Phaser.Math.Clamp(preferredX, barWidth / 2 + 12, width - barWidth / 2 - 12);
     const minY = barHeight / 2 + 12;
     const maxY = Math.max(minY, Math.min(height - barHeight / 2 - 12, promptY - barHeight / 2 - 12));
@@ -2095,6 +2181,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       slot.costText.setPosition(slotX, slotY + RUN_TOOL_SLOT_SIZE / 2 - 9);
       slot.countBadge.setPosition(slotX + RUN_TOOL_SLOT_SIZE / 2 - 7, slotY - RUN_TOOL_SLOT_SIZE / 2 + 7);
       slot.countText.setPosition(slot.countBadge.x, slot.countBadge.y);
+      const hotkey = position.catalogIndex - this.runToolBarLayout.page * this.runToolBarLayout.pageCapacity + 1;
+      slot.hotkeyBadge.setPosition(slotX - RUN_TOOL_SLOT_SIZE / 2 + 8, slotY - RUN_TOOL_SLOT_SIZE / 2 + 8);
+      slot.hotkeyText.setPosition(slot.hotkeyBadge.x, slot.hotkeyBadge.y).setText(`${hotkey}`);
       this.applyRunToolSlotVisibility(slot);
     });
     const navigationY = barY + this.runToolBarLayout.navigationY;
@@ -2116,7 +2205,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const height = this.scale.height;
     const rightX = slot.button.x + RUN_TOOL_SLOT_SIZE / 2 + 12 + RUN_TOOL_TOOLTIP_WIDTH / 2;
     const leftX = slot.button.x - RUN_TOOL_SLOT_SIZE / 2 - 12 - RUN_TOOL_TOOLTIP_WIDTH / 2;
-    const tooltipX = rightX + RUN_TOOL_TOOLTIP_WIDTH / 2 <= width - 12 ? rightX : Math.max(RUN_TOOL_TOOLTIP_WIDTH / 2 + 12, leftX);
+    const tooltipX = leftX - RUN_TOOL_TOOLTIP_WIDTH / 2 >= 12
+      ? leftX
+      : Math.min(width - RUN_TOOL_TOOLTIP_WIDTH / 2 - 12, rightX);
     const tooltipY = Phaser.Math.Clamp(
       slot.button.y,
       RUN_TOOL_TOOLTIP_HEIGHT / 2 + 12,
@@ -2446,13 +2537,13 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       : result.effectiveHealing > 0
         ? ROOT_RECOVERY_MS
         : OVERHEAL_RECOVERY_MS;
-    nearest.recoveringUntil =
-      this.time.now +
-      Math.round(
-        baseRecoveryDuration *
-          tileMastery.recoveryDurationMultiplier *
-          upgradeEffects.manualRecoveryDurationMultiplier,
-      );
+    const recoveryDuration = Math.round(
+      baseRecoveryDuration *
+        tileMastery.recoveryDurationMultiplier *
+        upgradeEffects.manualRecoveryDurationMultiplier,
+    );
+    nearest.recoveringUntil = this.time.now + recoveryDuration;
+    this.scheduleRootRecoveryStateRefresh(nearest, recoveryDuration);
     if (result.healedWound) {
       this.addFeedEntry("Wound healed", `root ${nearest.rootId + 1} stabilized`, "WD", "#ffefb0");
       this.saySensi("Clean work.\nPressure drops when the root believes you.", "approval", 3600);
@@ -2906,6 +2997,16 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     return this.state.phase === "active" && this.time.now < node.recoveringUntil;
   }
 
+  private scheduleRootRecoveryStateRefresh(node: RootNodeView, recoveryDuration: number): void {
+    const expectedRecoveryEnd = node.recoveringUntil;
+    this.time.delayedCall(recoveryDuration + 24, () => {
+      if (this.state.phase !== "active" || node.recoveringUntil !== expectedRecoveryEnd) {
+        return;
+      }
+      this.publishBrowserDebugState();
+    });
+  }
+
   private getRootRecoveryRatio(node: RootNodeView): number {
     if (!this.isRootRecovering(node)) {
       return 1;
@@ -3240,14 +3341,14 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private refreshRootSalveButton(woundedCount: number): void {
-    const visible = this.shouldShowRootSalveButton(woundedCount);
+    const visible = this.shouldShowRootSalveButton();
     const affordable = this.state.economy.runTouches >= ROOT_SALVE_RUN_TOUCH_COST;
     const usable = visible && woundedCount > 0 && affordable;
     this.setRunToolSlotState("rootSalve", visible, usable);
   }
 
-  private shouldShowRootSalveButton(woundedCount = getWoundedRootCount(this.state)): boolean {
-    return this.state.phase === "active" && !this.introActive && woundedCount > 0;
+  private shouldShowRootSalveButton(): boolean {
+    return this.state.phase === "active" && !this.introActive && this.activeRootCount > 1;
   }
 
   private handleTinySprinklerClick(): void {
@@ -3470,6 +3571,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const showCount = visible && slot.toolId === "tinySprinkler" && slot.count > 0;
     slot.countBadge.setVisible(showCount);
     slot.countText.setVisible(showCount);
+    slot.hotkeyBadge.setVisible(visible);
+    slot.hotkeyText.setVisible(visible);
   }
 
   private refreshRunToolBarVisibility(): void {
@@ -5363,6 +5466,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       const slot = this.runToolSlots[toolId];
       const bounds = slot.button.getBounds();
       const cost = this.getRunToolCost(toolId);
+      const catalogIndex = this.equippedRunToolIds.indexOf(toolId);
+      const localIndex = catalogIndex - this.runToolPage * this.runToolBarLayout.pageCapacity;
       return {
         toolId,
         x: Math.round(bounds.centerX),
@@ -5371,6 +5476,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         height: Math.round(bounds.height),
         cost,
         count: slot.count,
+        hotkey: localIndex >= 0 && localIndex < this.runToolBarLayout.pageCapacity ? localIndex + 1 : null,
         visible: slot.button.visible,
         usable: slot.usable,
         affordable: this.state.economy.runTouches >= cost,
@@ -5380,7 +5486,12 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
   private getBrowserDebugRunToolBarView(): BrowserDebugRunToolBarView {
     const visible = this.runToolBar.visible && this.runToolBarLayout.pageCount > 1;
+    const bounds = this.runToolBar.getBounds();
     return {
+      x: Math.round(bounds.centerX),
+      y: Math.round(bounds.centerY),
+      width: Math.round(bounds.width),
+      height: Math.round(bounds.height),
       slotCapacity: this.runToolSlotCapacity,
       equippedCount: this.equippedRunToolIds.length,
       page: this.runToolPage,
