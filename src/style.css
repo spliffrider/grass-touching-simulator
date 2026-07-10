@@ -111,8 +111,13 @@ canvas {
 }
 
 .grass-agent-memory-button:focus-visible,
-.grass-agent-meta-action:focus-visible {
+.grass-agent-meta-action:focus-visible,
+.grass-agent-memory-view-control:focus-visible {
   border-color: rgba(215, 166, 78, 0.9);
+}
+
+.grass-agent-layer[data-memory-tree-dragging="true"] .grass-agent-memory-button {
+  pointer-events: none;
 }
 
 .grass-agent-range {

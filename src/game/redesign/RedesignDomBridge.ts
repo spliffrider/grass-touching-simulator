@@ -61,6 +61,22 @@ export interface RedesignDomButtonBounds {
   enabled: boolean;
 }
 
+export interface RedesignDomMemoryTreeView {
+  zoom: number;
+  minZoom: number;
+  maxZoom: number;
+  panX: number;
+  panY: number;
+  dragging: boolean;
+  viewportX: number;
+  viewportY: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  zoomOutButton: RedesignDomButtonBounds;
+  resetButton: RedesignDomButtonBounds;
+  zoomInButton: RedesignDomButtonBounds;
+}
+
 export interface RedesignDomSliderBounds {
   x: number;
   y: number;
@@ -126,6 +142,7 @@ export interface RedesignDomSnapshot {
   dormancyActionHint: string;
   memoryUpgradeButtons: RedesignDomMemoryButton[];
   lockedMetaNodes: RedesignDomLockedMetaNode[];
+  memoryTreeView: RedesignDomMemoryTreeView;
   nextRunButton: RedesignDomNextRunButton;
   runToolButtons: RedesignDomRunToolButton[];
   options: RedesignDomOptionsState;
@@ -141,6 +158,9 @@ interface RedesignDomActions {
   clearMemoryPreview(upgradeId: PermanentUpgradeId): void;
   purchaseMemory(upgradeId: PermanentUpgradeId): void;
   beginNextRun(): void;
+  zoomMemoryTreeIn(): void;
+  zoomMemoryTreeOut(): void;
+  resetMemoryTreeView(): void;
   openOptions(): void;
   closeOptions(): void;
   turnMusicOn(): void;
@@ -177,6 +197,9 @@ export class RedesignDomBridge {
   private readonly lockedNodeButtons = new Map<string, HTMLButtonElement>();
   private readonly runToolButtons: Record<RedesignDomRunToolButton["toolId"], HTMLButtonElement>;
   private readonly nextRunButton: HTMLButtonElement;
+  private readonly memoryTreeZoomOutButton: HTMLButtonElement;
+  private readonly memoryTreeZoomResetButton: HTMLButtonElement;
+  private readonly memoryTreeZoomInButton: HTMLButtonElement;
   private readonly optionsButton: HTMLButtonElement;
   private readonly optionsCloseButton: HTMLButtonElement;
   private readonly musicToggleButton: HTMLButtonElement;
@@ -218,6 +241,12 @@ export class RedesignDomBridge {
     };
     this.nextRunButton = this.createButton("redesign-begin-next-run-button", "Begin Next Run", () => this.actions.beginNextRun());
     this.nextRunButton.classList.add("grass-agent-meta-action");
+    this.memoryTreeZoomOutButton = this.createButton("redesign-memory-tree-zoom-out", "Zoom out", () => this.actions.zoomMemoryTreeOut());
+    this.memoryTreeZoomOutButton.classList.add("grass-agent-memory-view-control");
+    this.memoryTreeZoomResetButton = this.createButton("redesign-memory-tree-reset-view", "Reset tree view", () => this.actions.resetMemoryTreeView());
+    this.memoryTreeZoomResetButton.classList.add("grass-agent-memory-view-control");
+    this.memoryTreeZoomInButton = this.createButton("redesign-memory-tree-zoom-in", "Zoom in", () => this.actions.zoomMemoryTreeIn());
+    this.memoryTreeZoomInButton.classList.add("grass-agent-memory-view-control");
     this.optionsButton = this.createButton("redesign-options-button", "Options", () => this.actions.openOptions());
     this.optionsButton.classList.add("grass-agent-options-button");
     this.optionsCloseButton = this.createButton("redesign-options-close-button", "Close Options", () => this.actions.closeOptions());
@@ -269,6 +298,7 @@ export class RedesignDomBridge {
     this.renderRunToolButtons(snapshot);
     this.renderMemoryButtons(snapshot);
     this.renderLockedNodes(snapshot);
+    this.renderMemoryTreeView(snapshot);
     this.renderNextRunButton(snapshot);
     this.renderOptions(snapshot);
     this.renderPlaytest(snapshot);
@@ -388,6 +418,7 @@ export class RedesignDomBridge {
       `Dormancy reward: ${snapshot.dormancyRewardLine}`,
       `Dormancy report: ${snapshot.dormancyReportLines.join(" | ")}`,
       `Dormancy action: ${snapshot.dormancyActionHint}`,
+      `Memory tree zoom: ${Math.round(snapshot.memoryTreeView.zoom * 100)}%`,
       `Options visible: ${snapshot.options.visible}`,
       `Music: ${snapshot.options.musicEnabled ? "on" : "off"} at ${Math.round(snapshot.options.musicVolume * 100)}%`,
       `SFX: ${Math.round(snapshot.options.sfxVolume * 100)}%`,
@@ -502,6 +533,15 @@ export class RedesignDomBridge {
     button.addEventListener("pointerleave", clearPreview);
     button.addEventListener("mouseout", clearPreview);
     button.addEventListener("blur", clearPreview);
+    button.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.deltaY > 0) {
+        this.actions.zoomMemoryTreeOut();
+      } else if (event.deltaY < 0) {
+        this.actions.zoomMemoryTreeIn();
+      }
+    });
     this.memoryButtons.set(upgradeId, button);
     return button;
   }
@@ -546,6 +586,21 @@ export class RedesignDomBridge {
       snapshot.nextRunButton.height,
       snapshot.nextRunButton.visible && snapshot.metaScreenVisible,
     );
+  }
+
+  private renderMemoryTreeView(snapshot: RedesignDomSnapshot): void {
+    this.layer.dataset.memoryTreeDragging = String(snapshot.memoryTreeView.dragging);
+    this.layer.dataset.memoryTreeZoom = snapshot.memoryTreeView.zoom.toFixed(2);
+    const controls: Array<[HTMLButtonElement, RedesignDomButtonBounds]> = [
+      [this.memoryTreeZoomOutButton, snapshot.memoryTreeView.zoomOutButton],
+      [this.memoryTreeZoomResetButton, snapshot.memoryTreeView.resetButton],
+      [this.memoryTreeZoomInButton, snapshot.memoryTreeView.zoomInButton],
+    ];
+    for (const [button, bounds] of controls) {
+      button.disabled = !bounds.enabled;
+      this.positionButton(button, bounds.x, bounds.y, bounds.width, bounds.height, bounds.visible);
+    }
+    this.memoryTreeZoomResetButton.textContent = `Reset tree view (${Math.round(snapshot.memoryTreeView.zoom * 100)}%)`;
   }
 
   private renderOptions(snapshot: RedesignDomSnapshot): void {

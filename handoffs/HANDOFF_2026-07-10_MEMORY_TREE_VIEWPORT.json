@@ -1,0 +1,54 @@
+{
+  "date": "2026-07-10",
+  "topic": "Zoomable Memory Tree and stronger next-run action",
+  "currentUserGoal": "Make the Memory Grove skill tree zoomable for a much larger future catalog and make Begin Next Run more enticing.",
+  "workCompleted": [
+    "Moved Memory Tree nodes and connectors into a masked Phaser container with a dedicated viewport transform.",
+    "Added bounded 60%-180% zoom through minus, percentage-reset, plus, and mouse-wheel controls; pointer-anchored zoom preserves the inspected branch.",
+    "Added drag-pan while zoomed above 100%, with clamped movement and stable layout work outside the frame loop.",
+    "Mirrored tree navigation into the DOM agent layer and clipped both Phaser and DOM node hitboxes to the visible tree viewport.",
+    "Reworked the compact Memory Grove tree into smaller name-only nodes with separated tap targets and a readable selected-memory detail layout.",
+    "Enlarged Begin Next Run to a primary footer action and added a restrained idle glow/text pulse without animating its hitbox.",
+    "Added unit coverage for zoom clamping, pan clamping, and pointer-anchored zoom math.",
+    "Updated the durable redesign and implementation-plan documents with the Memory Tree navigation contract and future catalog direction."
+  ],
+  "filesChanged": [
+    "src/game/redesign/MemoryTreeViewport.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/style.css",
+    "tests/MemoryTreeViewport.test.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-10_MEMORY_TREE_VIEWPORT.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 37 Vitest tests, TypeScript, and Vite production build.",
+    "Browser smoke verified zoom buttons at 100%, 120%, and 140%, the 60% minimum disabled state, pointer-anchored wheel zoom, bounded drag-pan, and reset to 100% with zero pan.",
+    "Browser debug state confirmed node bounds are clipped at the tree viewport while zoomed and DOM controls expose the current zoom percentage.",
+    "Responsive browser screenshots at 390x844 confirmed the compact title, controls, nodes, and detail copy no longer overlap.",
+    "A clean fast-dormancy run confirmed the enlarged Begin Next Run footer is unobstructed on the real game-over screen.",
+    "Browser console check reported no warnings or errors."
+  ],
+  "currentGitStatus": [
+    "Expected after this handoff commit: clean worktree on codex/gameplay-update, two commits ahead of origin/codex/gameplay-update."
+  ],
+  "knownIssues": [
+    "The Memory catalog still contains only five functional skills; the larger branch catalog and progression economy are a separate design slice.",
+    "Tree zoom/pan is session UI state and is intentionally not persisted into the permanent Memory save.",
+    "The current normalized five-node layout is ready for navigation but will need a data-driven world extent when the catalog grows beyond a single overview."
+  ],
+  "nextRecommendedSteps": [
+    "Design the first larger Memory catalog: branch identities, prerequisites, costs, and run-changing effects before adding nodes.",
+    "Promote tree coordinates and world extent into data so new branches expand the navigable canvas without scene-layout edits.",
+    "Add fit-to-tree or branch-focus navigation once the first larger catalog proves the required world size.",
+    "Continue hands-on pacing work for the 2x2-to-3x3 run chapters."
+  ],
+  "doNotRevert": [
+    "Keep tree content inside the geometry-masked container and keep all node hitboxes clipped to that viewport.",
+    "Keep zoom and pan transform-only; do not trigger full scene layout on pointer movement.",
+    "Keep the Begin Next Run hitbox stable while its presentation pulses.",
+    "Every new run must still return to one tile at mastery rank 0 while permanent GT and Memory upgrades survive."
+  ]
+}

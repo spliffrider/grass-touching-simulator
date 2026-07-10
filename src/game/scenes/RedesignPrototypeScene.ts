@@ -15,6 +15,14 @@ import {
   type FirstRunObjectiveProgress,
   type FirstRunObjectiveState,
 } from "../redesign/FirstRunObjectiveSystem";
+import {
+  clampMemoryTreePan,
+  MEMORY_TREE_MAX_ZOOM,
+  MEMORY_TREE_MIN_ZOOM,
+  MEMORY_TREE_ZOOM_STEP,
+  zoomMemoryTreeAtPoint,
+  type MemoryTreeViewport,
+} from "../redesign/MemoryTreeViewport";
 import { RedesignDomBridge } from "../redesign/RedesignDomBridge";
 import { AudioSystem } from "../systems/AudioSystem";
 import type { GrassTierId, TileTrait } from "../types/game-state";
@@ -134,6 +142,22 @@ interface BrowserDebugButtonBounds {
   height: number;
   visible: boolean;
   enabled: boolean;
+}
+
+interface BrowserDebugMemoryTreeView {
+  zoom: number;
+  minZoom: number;
+  maxZoom: number;
+  panX: number;
+  panY: number;
+  dragging: boolean;
+  viewportX: number;
+  viewportY: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  zoomOutButton: BrowserDebugButtonBounds;
+  resetButton: BrowserDebugButtonBounds;
+  zoomInButton: BrowserDebugButtonBounds;
 }
 
 interface BrowserDebugSliderBounds {
@@ -362,10 +386,18 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private summaryRewardText!: Phaser.GameObjects.Text;
   private summaryStatsText!: Phaser.GameObjects.Text;
   private skillTreeFrame!: Phaser.GameObjects.Rectangle;
+  private memoryTreeContent!: Phaser.GameObjects.Container;
+  private memoryTreeMaskShape!: Phaser.GameObjects.Graphics;
   private skillTreeLines!: Phaser.GameObjects.Graphics;
   private skillTreeTitle!: Phaser.GameObjects.Text;
   private skillTreeHelp!: Phaser.GameObjects.Text;
   private skillTreeConnector!: Phaser.GameObjects.Rectangle;
+  private memoryTreeZoomOutButton!: Phaser.GameObjects.Rectangle;
+  private memoryTreeZoomOutText!: Phaser.GameObjects.Text;
+  private memoryTreeZoomResetButton!: Phaser.GameObjects.Rectangle;
+  private memoryTreeZoomResetText!: Phaser.GameObjects.Text;
+  private memoryTreeZoomInButton!: Phaser.GameObjects.Rectangle;
+  private memoryTreeZoomInText!: Phaser.GameObjects.Text;
   private memoryHoverFrame!: Phaser.GameObjects.Rectangle;
   private memoryHoverTitle!: Phaser.GameObjects.Text;
   private memoryHoverBody!: Phaser.GameObjects.Text;
@@ -383,6 +415,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private memoryUpgradeButtons: MemoryUpgradeButtonView[] = [];
   private lockedMetaNodes: LockedMetaNodeView[] = [];
   private nextRunButton!: Phaser.GameObjects.Rectangle;
+  private nextRunGlow!: Phaser.GameObjects.Rectangle;
   private nextRunText!: Phaser.GameObjects.Text;
   private introPanel!: Phaser.GameObjects.NineSlice;
   private introTitle!: Phaser.GameObjects.Text;
@@ -476,6 +509,16 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private lastMemoryPurchaseHint = "";
   private selectedMemoryUpgradeId: PermanentUpgradeId = "softTouch";
   private hoveredMemoryUpgradeId: PermanentUpgradeId | null = null;
+  private memoryTreeZoom = 1;
+  private memoryTreePanX = 0;
+  private memoryTreePanY = 0;
+  private memoryTreeViewport: MemoryTreeViewport = { centerX: 0, centerY: 0, width: 1, height: 1 };
+  private memoryTreeDragging = false;
+  private memoryTreeDragPointerId = -1;
+  private memoryTreeDragStartX = 0;
+  private memoryTreeDragStartY = 0;
+  private memoryTreeDragStartPanX = 0;
+  private memoryTreeDragStartPanY = 0;
   private sensiMood: SensiMood = "idle";
   private sensiBark?: SensiBark;
   private objectiveState: FirstRunObjectiveState = createFirstRunObjectiveState();
@@ -618,8 +661,18 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       .rectangle(0, 0, 360, 260, 0x07170f, 0.58)
       .setDepth(31)
       .setStrokeStyle(2, 0xd7a64e, 0.5)
+      .setInteractive({ useHandCursor: true })
       .setVisible(false);
-    this.skillTreeLines = this.add.graphics().setDepth(31.5).setVisible(false);
+    this.skillTreeFrame.on(
+      "pointerdown",
+      (pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) =>
+        this.startMemoryTreePan(pointer, event),
+    );
+    this.memoryTreeContent = this.add.container(0, 0).setDepth(31.5).setVisible(false);
+    this.memoryTreeMaskShape = this.make.graphics({ x: 0, y: 0 }, false);
+    this.memoryTreeContent.setMask(this.memoryTreeMaskShape.createGeometryMask());
+    this.skillTreeLines = this.add.graphics();
+    this.memoryTreeContent.add(this.skillTreeLines);
     this.skillTreeTitle = this.add.text(0, 0, "Memory Skill Tree", {
       color: "#ffefb0",
       fontFamily: "Georgia, serif",
@@ -636,6 +689,15 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       stroke: "#07100c",
       strokeThickness: 3,
     }).setDepth(32).setVisible(false);
+    const zoomOutControl = this.createMemoryTreeZoomControl("-", 34, () => this.adjustMemoryTreeZoom(-MEMORY_TREE_ZOOM_STEP));
+    this.memoryTreeZoomOutButton = zoomOutControl.button;
+    this.memoryTreeZoomOutText = zoomOutControl.text;
+    const zoomResetControl = this.createMemoryTreeZoomControl("100%", 58, () => this.resetMemoryTreeView());
+    this.memoryTreeZoomResetButton = zoomResetControl.button;
+    this.memoryTreeZoomResetText = zoomResetControl.text;
+    const zoomInControl = this.createMemoryTreeZoomControl("+", 34, () => this.adjustMemoryTreeZoom(MEMORY_TREE_ZOOM_STEP));
+    this.memoryTreeZoomInButton = zoomInControl.button;
+    this.memoryTreeZoomInText = zoomInControl.text;
     this.skillTreeConnector = this.add
       .rectangle(0, 0, 4, 140, 0xd7a64e, 0.38)
       .setDepth(31)
@@ -798,6 +860,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         this.previewMemoryUpgrade(upgradeId);
         this.handleMemoryUpgradeClick(upgradeId);
       });
+      this.memoryTreeContent.add([glow, hoverRing, frame, icon, title, branch, detail, background]);
       this.memoryUpgradeButtons.push({ upgradeId, background, glow, hoverRing, frame, icon, title, branch, detail, nodeSize: 72 });
     }
     for (const node of LOCKED_META_NODES) {
@@ -821,8 +884,14 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         stroke: "#07100c",
         strokeThickness: 3,
       }).setDepth(33).setVisible(false);
+      this.memoryTreeContent.add([background, title, detail]);
       this.lockedMetaNodes.push({ background, title, detail });
     }
+    this.nextRunGlow = this.add
+      .rectangle(0, 0, 230, 50, 0xeaff9b, 0.08)
+      .setDepth(31.7)
+      .setStrokeStyle(2, 0xeaff9b, 0.24)
+      .setVisible(false);
     this.nextRunButton = this.add
       .rectangle(0, 0, 190, 38, 0x1b4f2c, 0.94)
       .setDepth(32)
@@ -1032,6 +1101,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       clearMemoryPreview: (upgradeId) => this.clearMemoryUpgradePreview(upgradeId),
       purchaseMemory: (upgradeId) => this.handleMemoryUpgradeClick(upgradeId),
       beginNextRun: () => this.startNextRunFromMeta(),
+      zoomMemoryTreeIn: () => this.adjustMemoryTreeZoom(MEMORY_TREE_ZOOM_STEP),
+      zoomMemoryTreeOut: () => this.adjustMemoryTreeZoom(-MEMORY_TREE_ZOOM_STEP),
+      resetMemoryTreeView: () => this.resetMemoryTreeView(),
       openOptions: () => this.openOptions(),
       closeOptions: () => this.closeOptions(),
       turnMusicOn: () => this.turnPrototypeMusicOn(),
@@ -1059,11 +1131,45 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     }
     this.syncFirstRunObjectives(false);
     this.input.on("pointerdown", this.handleTouch, this);
+    this.input.on("pointermove", this.handleMemoryTreePan, this);
+    this.input.on("pointerup", this.stopMemoryTreePan, this);
+    this.input.on("pointerupoutside", this.stopMemoryTreePan, this);
+    this.input.on("wheel", this.handleMemoryTreeWheel, this);
     this.scale.on("resize", this.layout, this);
     this.layout();
     this.refreshReadout();
     this.publishBrowserDebugState();
     window.__grassAppReady?.();
+  }
+
+  private createMemoryTreeZoomControl(
+    label: string,
+    width: number,
+    onPress: () => void,
+  ): { button: Phaser.GameObjects.Rectangle; text: Phaser.GameObjects.Text } {
+    const button = this.add
+      .rectangle(0, 0, width, 30, 0x123621, 0.94)
+      .setDepth(33)
+      .setStrokeStyle(2, 0xd7a64e, 0.68)
+      .setInteractive({ useHandCursor: true })
+      .setVisible(false);
+    button.on(
+      "pointerdown",
+      (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
+        event.stopPropagation();
+        onPress();
+      },
+    );
+    const text = this.add.text(0, 0, label, {
+      align: "center",
+      color: "#f7ffd6",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "13px",
+      fontStyle: "bold",
+      stroke: "#07100c",
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(34).setVisible(false);
+    return { button, text };
   }
 
   private sharpenPersistentText(): void {
@@ -1468,7 +1574,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.summarySubtitle.setWordWrapWidth(summaryWidth - (compactReport ? 110 : 80));
 
     const contentTop = summaryTop + (compactReport ? 100 : 112);
-    const contentBottom = summaryBottom - (compactReport ? 78 : 92);
+    const contentBottom = summaryBottom - (compactReport ? 116 : 122);
     const contentHeight = Math.max(260, contentBottom - contentTop);
     const contentLeft = summaryLeft + 26;
     const contentRight = summaryRight - 26;
@@ -1514,30 +1620,69 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.skillTreeFrame.setPosition(skillFrameX, skillFrameY).setSize(skillFrameWidth, skillFrameHeight);
     const skillFrameLeft = skillFrameX - skillFrameWidth / 2;
     const skillFrameTop = skillFrameY - skillFrameHeight / 2;
-    this.skillTreeTitle.setFontSize(compactReport ? 18 : 24).setPosition(skillFrameLeft + 22, skillFrameTop + 18);
+    this.skillTreeTitle
+      .setText(compactReport ? "Memory Tree" : "Memory Skill Tree")
+      .setFontSize(compactReport ? 18 : 24)
+      .setPosition(skillFrameLeft + 22, skillFrameTop + 18);
     this.skillTreeHelp
       .setText(`Available GT: ${this.state.economy.permanentGrassTouches}\nMemories carry into future runs.`)
       .setWordWrapWidth(skillFrameWidth - 36)
       .setPosition(skillFrameLeft + 22, skillFrameTop + (compactReport ? 44 : 54));
     this.skillTreeConnector.setVisible(false);
+    const zoomControlY = skillFrameTop + 30;
+    const zoomInX = skillFrameLeft + skillFrameWidth - 34;
+    const zoomResetX = zoomInX - 54;
+    const zoomOutX = zoomResetX - 52;
+    this.memoryTreeZoomOutButton.setPosition(zoomOutX, zoomControlY);
+    this.memoryTreeZoomOutText.setPosition(zoomOutX, zoomControlY);
+    this.memoryTreeZoomResetButton.setPosition(zoomResetX, zoomControlY);
+    this.memoryTreeZoomResetText.setPosition(zoomResetX, zoomControlY);
+    this.memoryTreeZoomInButton.setPosition(zoomInX, zoomControlY);
+    this.memoryTreeZoomInText.setPosition(zoomInX, zoomControlY);
 
     const treeLeft = skillFrameLeft + 28;
     const treeTop = skillFrameTop + (compactReport ? 64 : 92);
     const treeWidth = skillFrameWidth - 56;
     const treeHeight = skillFrameHeight - (compactReport ? 82 : 126);
-    const nodeSize = Phaser.Math.Clamp(Math.min(treeWidth * 0.17, treeHeight * 0.2), compactReport ? 38 : 48, compactReport ? 48 : 68);
+    const nodeSize = Phaser.Math.Clamp(Math.min(treeWidth * 0.17, treeHeight * 0.2), compactReport ? 34 : 48, compactReport ? 40 : 68);
+    this.memoryTreeViewport = {
+      centerX: treeLeft + treeWidth / 2,
+      centerY: treeTop + treeHeight / 2,
+      width: treeWidth,
+      height: treeHeight,
+    };
+    this.memoryTreeMaskShape.clear().fillStyle(0xffffff, 1).fillRect(treeLeft, treeTop, treeWidth, treeHeight);
+    const clampedPan = clampMemoryTreePan(
+      { x: this.memoryTreePanX, y: this.memoryTreePanY },
+      this.memoryTreeViewport,
+      this.memoryTreeZoom,
+    );
+    this.memoryTreePanX = clampedPan.x;
+    this.memoryTreePanY = clampedPan.y;
+    this.applyMemoryTreeViewTransform();
     this.memoryUpgradeButtons.forEach((button) => {
       const view = MEMORY_UPGRADE_VIEW[button.upgradeId];
-      const x = treeLeft + treeWidth * view.x;
-      const y = treeTop + treeHeight * view.y;
+      const compactPosition = compactReport
+        ? {
+            softTouch: { x: 0.14, y: 0.5 },
+            deeperRoots: { x: 0.45, y: 0.2 },
+            tinySprinkler: { x: 0.45, y: 0.7 },
+            scourgeSense: { x: 0.79, y: 0.2 },
+            lastStand: { x: 0.79, y: 0.7 },
+          }[button.upgradeId]
+        : view;
+      const x = treeWidth * (compactPosition.x - 0.5);
+      const y = treeHeight * (compactPosition.y - 0.5);
       button.nodeSize = nodeSize;
-      button.background.setPosition(x, y + nodeSize * 0.28).setSize(nodeSize + 82, nodeSize + 78);
+      button.background
+        .setPosition(x, y + nodeSize * 0.28)
+        .setSize(nodeSize + (compactReport ? 30 : 82), nodeSize + (compactReport ? 34 : 78));
       button.glow.setPosition(x, y).setRadius(nodeSize * 0.7);
       button.hoverRing.setPosition(x, y).setRadius(nodeSize * 0.78);
       button.frame.setPosition(x, y).setDisplaySize(nodeSize, nodeSize);
-      button.icon.setPosition(x, y).setDisplaySize(nodeSize * 0.28, nodeSize * 0.28);
+      button.icon.setPosition(x, y).setDisplaySize(nodeSize * (compactReport ? 0.4 : 0.28), nodeSize * (compactReport ? 0.4 : 0.28));
       button.title.setFontSize(compactReport ? 10 : 14).setPosition(x, y + nodeSize * 0.76);
-      button.title.setWordWrapWidth(nodeSize + 76);
+      button.title.setWordWrapWidth(nodeSize + (compactReport ? 34 : 76));
       button.branch.setFontSize(compactReport ? 9 : 10).setPosition(x, y + nodeSize * 1);
       button.branch.setAlpha(0);
       button.branch.setWordWrapWidth(nodeSize + 70);
@@ -1546,13 +1691,15 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         .setLineSpacing(1)
         .setPosition(x, y + (compactReport ? nodeSize * 1.08 : nodeSize * 1.14));
       button.detail.setWordWrapWidth(nodeSize + 74);
+      button.detail.setVisible(this.summaryPanel.visible && !compactReport);
     });
     this.drawMemorySkillTreeLines(nodeSize);
+    this.syncMemoryTreeInteractiveBounds();
 
     const hoverCardWidth = Phaser.Math.Clamp(skillFrameWidth * 0.38, 190, 240);
     const hoverCardHeight = 98;
     const hoverCardX = skillFrameLeft + skillFrameWidth - hoverCardWidth / 2 - 16;
-    const hoverCardY = skillFrameTop + hoverCardHeight / 2 + 14;
+    const hoverCardY = skillFrameTop + hoverCardHeight / 2 + 68;
     const hoverCardLeft = hoverCardX - hoverCardWidth / 2;
     const hoverCardTop = hoverCardY - hoverCardHeight / 2;
     this.memoryHoverCardEnabled = !compactReport && skillFrameWidth >= 440 && skillFrameHeight >= 340;
@@ -1567,38 +1714,47 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.memoryDetailFrame.setPosition(detailFrameX, detailFrameY).setSize(detailFrameWidth, detailFrameHeight);
     const detailFrameLeft = detailFrameX - detailFrameWidth / 2;
     const detailFrameTop = detailFrameY - detailFrameHeight / 2;
-    const detailIconSize = Phaser.Math.Clamp(detailFrameWidth * 0.38, compactReport ? 58 : 80, compactReport ? 72 : 104);
-    const detailIconY = detailFrameTop + (compactReport ? 92 : 122);
+    const detailIconSize = compactReport ? 50 : Phaser.Math.Clamp(detailFrameWidth * 0.38, 80, 104);
+    const detailIconX = compactReport ? detailFrameLeft + detailFrameWidth - 52 : detailFrameX;
+    const detailIconY = detailFrameTop + (compactReport ? 48 : 122);
     this.memoryDetailIconBaseSize = detailIconSize;
     this.memoryDetailTitle.setFontSize(compactReport ? 18 : 24).setPosition(detailFrameLeft + 18, detailFrameTop + 18);
     this.memoryDetailBranch.setFontSize(compactReport ? 11 : 13).setPosition(detailFrameLeft + 18, detailFrameTop + (compactReport ? 46 : 54));
-    this.memoryDetailIconGlow.setPosition(detailFrameX, detailIconY).setRadius(detailIconSize * 0.64);
-    this.memoryDetailIconFrame.setPosition(detailFrameX, detailIconY).setDisplaySize(detailIconSize, detailIconSize);
-    this.memoryDetailIcon.setPosition(detailFrameX, detailIconY).setDisplaySize(detailIconSize * 0.54, detailIconSize * 0.54);
+    this.memoryDetailIconGlow.setPosition(detailIconX, detailIconY).setRadius(detailIconSize * 0.64);
+    this.memoryDetailIconFrame.setPosition(detailIconX, detailIconY).setDisplaySize(detailIconSize, detailIconSize);
+    this.memoryDetailIcon.setPosition(detailIconX, detailIconY).setDisplaySize(detailIconSize * 0.54, detailIconSize * 0.54);
     this.memoryDetailBody
       .setFontSize(compactReport ? 10 : 14)
       .setLineSpacing(compactReport ? 2 : 4)
       .setWordWrapWidth(detailFrameWidth - 36)
-      .setPosition(detailFrameLeft + 18, detailIconY + detailIconSize * 0.58 + (compactReport ? 14 : 20));
+      .setPosition(
+        detailFrameLeft + 18,
+        compactReport ? detailFrameTop + 76 : detailIconY + detailIconSize * 0.58 + 20,
+      );
     this.memoryDetailCost
       .setFontSize(compactReport ? 11 : 14)
       .setLineSpacing(compactReport ? 2 : 4)
       .setWordWrapWidth(detailFrameWidth - 36)
-      .setPosition(detailFrameLeft + 18, detailFrameY + detailFrameHeight / 2 - (compactReport ? 58 : 70));
+      .setPosition(detailFrameLeft + 18, detailFrameY + detailFrameHeight / 2 - (compactReport ? 50 : 70));
     this.refreshMemoryDetail();
     this.lockedMetaNodes.forEach((node, index) => {
-      const x = skillFrameX + (index % 2 === 0 ? 1 : -1) * 120;
-      const y = skillFrameY + skillFrameHeight / 2 - 40;
+      const x = (index % 2 === 0 ? 1 : -1) * Math.min(120, treeWidth * 0.3);
+      const y = treeHeight / 2 - 40;
       node.background.setPosition(x, y).setSize(120, 48);
       node.title.setPosition(x - 48, y - 16);
       node.detail.setPosition(x - 48, y + 8);
       node.detail.setWordWrapWidth(96);
     });
 
-    this.summaryHint.setFontSize(compactReport ? 12 : 15).setPosition(centerX, summaryBottom - (compactReport ? 62 : 58));
+    this.summaryHint.setFontSize(compactReport ? 12 : 15).setPosition(centerX, summaryBottom - (compactReport ? 90 : 94));
     this.summaryHint.setWordWrapWidth(summaryWidth - 80);
-    this.nextRunButton.setPosition(centerX, summaryBottom - 27).setSize(compactReport ? 180 : 210, 38);
-    this.nextRunText.setPosition(centerX, summaryBottom - 27);
+    const nextRunWidth = compactReport ? 230 : 300;
+    const nextRunHeight = compactReport ? 48 : 54;
+    const nextRunY = summaryBottom - (compactReport ? 36 : 39);
+    this.nextRunGlow.setPosition(centerX, nextRunY).setSize(nextRunWidth + 16, nextRunHeight + 12);
+    this.nextRunButton.setPosition(centerX, nextRunY).setSize(nextRunWidth, nextRunHeight);
+    this.nextRunText.setFontSize(compactReport ? 15 : 17).setPosition(centerX, nextRunY);
+    this.refreshMemoryTreeZoomControls();
     this.layoutOptionsPanel(width, height, centerX);
     const compactMetaOptionsHidden = this.summaryPanel.visible && compactReport && width < 720;
     if (this.summaryPanel.visible && !compactMetaOptionsHidden) {
@@ -2444,6 +2600,13 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         .setDisplaySize(this.memoryDetailIconBaseSize * 0.54 * detailIconPulse, this.memoryDetailIconBaseSize * 0.54 * detailIconPulse)
         .setAngle(hoverActive ? Math.sin(seconds * 3.8) * 2.8 : 0);
     }
+
+    const nextRunPulse = (Math.sin(seconds * 2.8) + 1) / 2;
+    this.nextRunGlow
+      .setAlpha(0.08 + nextRunPulse * 0.12)
+      .setScale(1 + nextRunPulse * 0.035);
+    this.nextRunButton.setStrokeStyle(2, 0xeaff9b, 0.72 + nextRunPulse * 0.24);
+    this.nextRunText.setScale(1 + nextRunPulse * 0.018);
   }
 
   private animateSensi(seconds: number): void {
@@ -3572,12 +3735,21 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.summaryRewardText.setVisible(visible);
     this.summaryStatsText.setVisible(visible);
     this.skillTreeFrame.setVisible(visible);
+    this.memoryTreeContent.setVisible(visible);
     this.skillTreeLines.setVisible(visible);
     this.skillTreeTitle.setVisible(visible);
     this.skillTreeHelp.setVisible(visible);
     this.skillTreeConnector.setVisible(visible);
+    this.memoryTreeZoomOutButton.setVisible(visible);
+    this.memoryTreeZoomOutText.setVisible(visible);
+    this.memoryTreeZoomResetButton.setVisible(visible);
+    this.memoryTreeZoomResetText.setVisible(visible);
+    this.memoryTreeZoomInButton.setVisible(visible);
+    this.memoryTreeZoomInText.setVisible(visible);
     if (!visible) {
       this.hoveredMemoryUpgradeId = null;
+      this.memoryTreeDragging = false;
+      this.memoryTreeDragPointerId = -1;
       this.setMemoryHoverCalloutVisible(false);
     }
     this.memoryDetailFrame.setVisible(visible);
@@ -3604,6 +3776,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       node.title.setVisible(visible);
       node.detail.setVisible(visible);
     });
+    this.nextRunGlow.setVisible(visible);
     this.nextRunButton.setVisible(visible);
     this.nextRunText.setVisible(visible);
     if (visible) {
@@ -3681,6 +3854,168 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     }
 
     return compact ? "Spend GT, then begin next run." : "Spend GT in the skill tree, then use Begin Next Run.";
+  }
+
+  private applyMemoryTreeViewTransform(syncInteractiveBounds = true): void {
+    this.memoryTreeContent
+      .setPosition(
+        this.memoryTreeViewport.centerX + this.memoryTreePanX,
+        this.memoryTreeViewport.centerY + this.memoryTreePanY,
+      )
+      .setScale(this.memoryTreeZoom);
+    if (syncInteractiveBounds) {
+      this.syncMemoryTreeInteractiveBounds();
+    }
+  }
+
+  private syncMemoryTreeInteractiveBounds(): void {
+    if (!this.summaryPanel.visible) {
+      return;
+    }
+
+    for (const button of this.memoryUpgradeButtons) {
+      const input = button.background.input;
+      if (!input || !(input.hitArea instanceof Phaser.Geom.Rectangle)) {
+        continue;
+      }
+
+      const bounds = button.background.getBounds();
+      const clipped = this.clipBoundsToMemoryTreeViewport(bounds);
+      input.hitArea.setTo(
+        Math.max(0, (clipped.left - bounds.left) / this.memoryTreeZoom),
+        Math.max(0, (clipped.top - bounds.top) / this.memoryTreeZoom),
+        clipped.width / this.memoryTreeZoom,
+        clipped.height / this.memoryTreeZoom,
+      );
+    }
+  }
+
+  private clipBoundsToMemoryTreeViewport(bounds: Phaser.Geom.Rectangle): Phaser.Geom.Rectangle {
+    const viewportLeft = this.memoryTreeViewport.centerX - this.memoryTreeViewport.width / 2;
+    const viewportTop = this.memoryTreeViewport.centerY - this.memoryTreeViewport.height / 2;
+    const left = Math.max(bounds.left, viewportLeft);
+    const top = Math.max(bounds.top, viewportTop);
+    const right = Math.min(bounds.right, viewportLeft + this.memoryTreeViewport.width);
+    const bottom = Math.min(bounds.bottom, viewportTop + this.memoryTreeViewport.height);
+    return new Phaser.Geom.Rectangle(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
+  }
+
+  private refreshMemoryTreeZoomControls(): void {
+    const canZoomOut = this.memoryTreeZoom > MEMORY_TREE_MIN_ZOOM + 0.01;
+    const canZoomIn = this.memoryTreeZoom < MEMORY_TREE_MAX_ZOOM - 0.01;
+    this.memoryTreeZoomResetText.setText(`${Math.round(this.memoryTreeZoom * 100)}%`);
+    this.memoryTreeZoomOutButton
+      .setFillStyle(canZoomOut ? 0x123621 : 0x17231b, canZoomOut ? 0.94 : 0.62)
+      .setStrokeStyle(2, canZoomOut ? 0xd7a64e : 0x6f6a52, canZoomOut ? 0.68 : 0.4);
+    this.memoryTreeZoomOutText.setColor(canZoomOut ? "#f7ffd6" : "#8e9588");
+    this.memoryTreeZoomInButton
+      .setFillStyle(canZoomIn ? 0x123621 : 0x17231b, canZoomIn ? 0.94 : 0.62)
+      .setStrokeStyle(2, canZoomIn ? 0xd7a64e : 0x6f6a52, canZoomIn ? 0.68 : 0.4);
+    this.memoryTreeZoomInText.setColor(canZoomIn ? "#f7ffd6" : "#8e9588");
+  }
+
+  private adjustMemoryTreeZoom(delta: number, anchorX = this.memoryTreeViewport.centerX, anchorY = this.memoryTreeViewport.centerY): void {
+    if (!this.summaryPanel.visible) {
+      return;
+    }
+
+    const result = zoomMemoryTreeAtPoint(
+      this.memoryTreeZoom,
+      this.memoryTreeZoom + delta,
+      { x: this.memoryTreePanX, y: this.memoryTreePanY },
+      { x: anchorX, y: anchorY },
+      this.memoryTreeViewport,
+    );
+    if (Math.abs(result.zoom - this.memoryTreeZoom) < 0.001) {
+      return;
+    }
+
+    this.memoryTreeZoom = result.zoom;
+    this.memoryTreePanX = result.pan.x;
+    this.memoryTreePanY = result.pan.y;
+    this.applyMemoryTreeViewTransform();
+    this.refreshMemoryTreeZoomControls();
+    this.publishBrowserDebugState();
+  }
+
+  private resetMemoryTreeView(): void {
+    if (!this.summaryPanel.visible) {
+      return;
+    }
+
+    this.memoryTreeZoom = 1;
+    this.memoryTreePanX = 0;
+    this.memoryTreePanY = 0;
+    this.applyMemoryTreeViewTransform();
+    this.refreshMemoryTreeZoomControls();
+    this.publishBrowserDebugState();
+  }
+
+  private handleMemoryTreeWheel(
+    pointer: Phaser.Input.Pointer,
+    _gameObjects: Phaser.GameObjects.GameObject[],
+    _deltaX: number,
+    deltaY: number,
+  ): void {
+    if (!this.isPointerInsideMemoryTreeViewport(pointer.x, pointer.y) || deltaY === 0) {
+      return;
+    }
+
+    this.adjustMemoryTreeZoom(deltaY > 0 ? -MEMORY_TREE_ZOOM_STEP : MEMORY_TREE_ZOOM_STEP, pointer.x, pointer.y);
+  }
+
+  private startMemoryTreePan(pointer: Phaser.Input.Pointer, event: Phaser.Types.Input.EventData): void {
+    if (
+      !this.summaryPanel.visible ||
+      this.memoryTreeZoom <= 1 ||
+      !this.isPointerInsideMemoryTreeViewport(pointer.x, pointer.y)
+    ) {
+      return;
+    }
+
+    event.stopPropagation();
+    this.memoryTreeDragging = true;
+    this.memoryTreeDragPointerId = pointer.id;
+    this.memoryTreeDragStartX = pointer.x;
+    this.memoryTreeDragStartY = pointer.y;
+    this.memoryTreeDragStartPanX = this.memoryTreePanX;
+    this.memoryTreeDragStartPanY = this.memoryTreePanY;
+    this.publishBrowserDebugState();
+  }
+
+  private handleMemoryTreePan(pointer: Phaser.Input.Pointer): void {
+    if (!this.memoryTreeDragging || pointer.id !== this.memoryTreeDragPointerId) {
+      return;
+    }
+
+    const pan = clampMemoryTreePan(
+      {
+        x: this.memoryTreeDragStartPanX + pointer.x - this.memoryTreeDragStartX,
+        y: this.memoryTreeDragStartPanY + pointer.y - this.memoryTreeDragStartY,
+      },
+      this.memoryTreeViewport,
+      this.memoryTreeZoom,
+    );
+    this.memoryTreePanX = pan.x;
+    this.memoryTreePanY = pan.y;
+    this.applyMemoryTreeViewTransform(false);
+  }
+
+  private stopMemoryTreePan(): void {
+    if (!this.memoryTreeDragging) {
+      return;
+    }
+
+    this.memoryTreeDragging = false;
+    this.memoryTreeDragPointerId = -1;
+    this.syncMemoryTreeInteractiveBounds();
+    this.publishBrowserDebugState();
+  }
+
+  private isPointerInsideMemoryTreeViewport(x: number, y: number): boolean {
+    const left = this.memoryTreeViewport.centerX - this.memoryTreeViewport.width / 2;
+    const top = this.memoryTreeViewport.centerY - this.memoryTreeViewport.height / 2;
+    return x >= left && x <= left + this.memoryTreeViewport.width && y >= top && y <= top + this.memoryTreeViewport.height;
   }
 
   private drawMemorySkillTreeLines(nodeSize: number): void {
@@ -4071,7 +4406,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private isPointerOverMemoryUpgradeButton(pointer: Phaser.Input.Pointer): boolean {
-    return this.memoryUpgradeButtons.some((button) => button.background.visible && button.background.getBounds().contains(pointer.x, pointer.y));
+    return (
+      this.isPointerInsideMemoryTreeViewport(pointer.x, pointer.y) &&
+      this.memoryUpgradeButtons.some((button) => button.background.visible && button.background.getBounds().contains(pointer.x, pointer.y))
+    );
   }
 
   private isPointerOverNextRunButton(pointer: Phaser.Input.Pointer): boolean {
@@ -4414,6 +4752,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       dormancyActionHint: dormancySummary ? this.getDormancyActionHint() : "",
       memoryUpgradeButtons: this.getBrowserDebugMemoryButtons(),
       lockedMetaNodes: this.getBrowserDebugLockedMetaNodes(),
+      memoryTreeView: this.getBrowserDebugMemoryTreeView(),
       nextRunButton: this.getBrowserDebugNextRunButton(),
       runToolButtons: this.getBrowserDebugRunToolButtons(),
       options: this.getBrowserDebugOptionsState(),
@@ -4446,14 +4785,14 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     return this.memoryUpgradeButtons.map((button) => {
       const upgrade = PERMANENT_UPGRADE_DEFINITIONS[button.upgradeId];
       const unlocked = getMissingPermanentUpgradePrerequisites(this.state, button.upgradeId).length === 0;
-      const bounds = button.background.getBounds();
+      const bounds = this.clipBoundsToMemoryTreeViewport(button.background.getBounds());
       return {
         upgradeId: button.upgradeId,
         x: Math.round(bounds.centerX),
         y: Math.round(bounds.centerY),
         width: Math.round(bounds.width),
         height: Math.round(bounds.height),
-        visible: button.background.visible,
+        visible: button.background.visible && bounds.width > 0 && bounds.height > 0,
         unlocked,
         affordable: unlocked && this.state.economy.permanentGrassTouches >= upgrade.cost,
         owned: hasPermanentUpgrade(this.state, button.upgradeId),
@@ -4541,6 +4880,31 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       musicVolumeSlider: this.getBrowserDebugSliderBounds(this.optionsMusicHit),
       sfxVolumeSlider: this.getBrowserDebugSliderBounds(this.optionsSfxHit, this.sfxVolume),
       sfxTestButton: this.getBrowserDebugButtonBounds(this.optionsSfxTestButton, this.optionsOpen && this.sfxVolume > 0),
+    };
+  }
+
+  private getBrowserDebugMemoryTreeView(): BrowserDebugMemoryTreeView {
+    const visible = this.summaryPanel.visible;
+    return {
+      zoom: Math.round(this.memoryTreeZoom * 100) / 100,
+      minZoom: MEMORY_TREE_MIN_ZOOM,
+      maxZoom: MEMORY_TREE_MAX_ZOOM,
+      panX: Math.round(this.memoryTreePanX),
+      panY: Math.round(this.memoryTreePanY),
+      dragging: this.memoryTreeDragging,
+      viewportX: Math.round(this.memoryTreeViewport.centerX),
+      viewportY: Math.round(this.memoryTreeViewport.centerY),
+      viewportWidth: Math.round(this.memoryTreeViewport.width),
+      viewportHeight: Math.round(this.memoryTreeViewport.height),
+      zoomOutButton: this.getBrowserDebugButtonBounds(
+        this.memoryTreeZoomOutButton,
+        visible && this.memoryTreeZoom > MEMORY_TREE_MIN_ZOOM + 0.01,
+      ),
+      resetButton: this.getBrowserDebugButtonBounds(this.memoryTreeZoomResetButton, visible),
+      zoomInButton: this.getBrowserDebugButtonBounds(
+        this.memoryTreeZoomInButton,
+        visible && this.memoryTreeZoom < MEMORY_TREE_MAX_ZOOM - 0.01,
+      ),
     };
   }
 
