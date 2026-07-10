@@ -166,8 +166,10 @@ Acceptance:
 - HP zero presents a full-screen Memory Grove game-over/meta screen instead of a small gameplay overlay.
 - The game-over/meta screen is a hard run-ending state: active run timers, wound pressure, and Tiny Sprinkler automation stop once dormancy begins.
 - The dormancy report is split into explicit run-over copy, a permanent GT reward line, conversion summary stats, lost Run Touches, and a visible next-run action hint.
-- The meta screen separates run summary from a larger old-style hex-node Memory Skill Tree, shows a selected-memory detail panel, includes five functional memory nodes, gives post-purchase next-run feedback, and restarts only through the explicit `Begin Next Run` button.
+- The meta screen separates run summary from a larger old-style hex-node Memory Skill Tree, shows a selected-memory detail panel, includes ten functional memory nodes, gives post-purchase next-run feedback, and restarts only through the explicit `Begin Next Run` button.
 - The Memory Skill Tree is a masked, scalable viewport with bounded 60%-180% zoom, pointer-anchored wheel zoom, explicit minus/reset/plus controls, and drag-pan above 100%. Future skills can extend the catalog without turning the whole Grove into a tiny fixed diagram.
+- Memory node identity, branch presentation, icon, copy, and normalized position come from one shared catalog rendered in a fixed 720x450 logical world. Overview nodes show only icon and name; hover/focus moves the full explanation and enlarged animated icon into the detail presentation.
+- The first second tier has real run effects: faster manual recovery, lower base drain, stronger sprinkler pulses, lower wound pressure, and a stronger Last Stand revival. Save version 1 remains compatible because the persistent schema already stores normalized upgrade ids.
 - Compact Memory Grove layouts keep tree node labels and hitboxes separated, move full skill information into the selected-memory panel, and preserve a large unobstructed next-run action.
 - `Begin Next Run` is visually dominant and gently animated while keeping a stable interactive area.
 - The redesign route uses the Lucid track asset converted from `docs/lucid.aif` to `public/assets/music/lucid-field-theme.wav`.
@@ -185,6 +187,8 @@ Tests:
 - Permanent values persist.
 - Re-entering dormancy does not double-award the same run.
 - Redesign memory snapshots normalize bad/old data and reject incompatible save versions.
+- Permanent-memory tests cover all ten upgrade ids, prerequisite gates, save round-tripping, and each second-tier run effect.
+- Memory catalog tests require presentation data for every permanent upgrade and reject unrelated orthogonal connector crossings.
 - First-run objectives advance in order from first healing through four one-tile care upgrades, 2x2 and 3x3 root-network expansion, first wound triage, a three-wound `Hold the Line` pressure lesson, dormancy, and memory purchase.
 - Each run's field expansion follows the new objective sequence: remain at 1 active root through `Soft Loam`, `Dew Veins`, and `Root Heart`; open 2x2 with `Ancient Crown` at 36 run-local care RT; open 3x3 at 50 care RT; then open 5x5 after `Hold the Line`.
 - One-tile mastery grants real manual-healing and recovery benefits for the current run. Dormancy resets mastery and field size to 1x1, while permanent GT and purchased Memory upgrades carry forward. The isolated tile uses reduced Scourge drain until the first expansion without slowing elapsed time or pressure growth.

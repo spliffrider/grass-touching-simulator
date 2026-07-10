@@ -16,6 +16,13 @@ import {
   type FirstRunObjectiveState,
 } from "../redesign/FirstRunObjectiveSystem";
 import {
+  MEMORY_TREE_NODE_SIZE,
+  MEMORY_TREE_WORLD_HEIGHT,
+  MEMORY_TREE_WORLD_WIDTH,
+  MEMORY_UPGRADE_IDS,
+  MEMORY_UPGRADE_VIEW,
+} from "../redesign/MemoryTreeCatalog";
+import {
   clampMemoryTreePan,
   MEMORY_TREE_MAX_ZOOM,
   MEMORY_TREE_MIN_ZOOM,
@@ -155,6 +162,9 @@ interface BrowserDebugMemoryTreeView {
   viewportY: number;
   viewportWidth: number;
   viewportHeight: number;
+  worldWidth: number;
+  worldHeight: number;
+  fitScale: number;
   zoomOutButton: BrowserDebugButtonBounds;
   resetButton: BrowserDebugButtonBounds;
   zoomInButton: BrowserDebugButtonBounds;
@@ -309,47 +319,6 @@ const GRASS_TEXTURE_AUDIO: Record<RedesignGrassTextureKey, { tier: GrassTierId; 
   "grass-clover": { tier: "clover", trait: "dewy" },
   "grass-wildflower": { tier: "wildflower", trait: "lush" },
   "grass-moss": { tier: "moss", trait: "normal" },
-};
-const MEMORY_UPGRADE_IDS: PermanentUpgradeId[] = ["softTouch", "deeperRoots", "tinySprinkler", "scourgeSense", "lastStand"];
-const MEMORY_UPGRADE_VIEW: Record<
-  PermanentUpgradeId,
-  { branch: string; color: number; iconKey: string; x: number; y: number }
-> = {
-  softTouch: {
-    branch: "Touch",
-    color: 0xa8df68,
-    iconKey: "memory-icon-soft-touch",
-    x: 0.18,
-    y: 0.56,
-  },
-  deeperRoots: {
-    branch: "Vitality",
-    color: 0x8fdfff,
-    iconKey: "memory-icon-deeper-roots",
-    x: 0.45,
-    y: 0.32,
-  },
-  tinySprinkler: {
-    branch: "Automation",
-    color: 0xbff4ff,
-    iconKey: "memory-icon-tiny-sprinkler",
-    x: 0.45,
-    y: 0.72,
-  },
-  scourgeSense: {
-    branch: "Scourge",
-    color: 0xffb3cf,
-    iconKey: "memory-icon-scourge-sense",
-    x: 0.75,
-    y: 0.32,
-  },
-  lastStand: {
-    branch: "Resolve",
-    color: 0xffef78,
-    iconKey: "memory-icon-last-stand",
-    x: 0.75,
-    y: 0.72,
-  },
 };
 const LOCKED_META_NODES: readonly { title: string; detail: string }[] = [];
 const SENSI_MOOD_TITLE_COLORS: Record<SensiMood, string> = {
@@ -512,6 +481,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private memoryTreeZoom = 1;
   private memoryTreePanX = 0;
   private memoryTreePanY = 0;
+  private memoryTreeFitScale = 1;
+  private memoryTreeFittedWidth = 1;
+  private memoryTreeFittedHeight = 1;
   private memoryTreeViewport: MemoryTreeViewport = { centerX: 0, centerY: 0, width: 1, height: 1 };
   private memoryTreeDragging = false;
   private memoryTreeDragPointerId = -1;
@@ -550,11 +522,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.load.image("skill-node-available", "/assets/ui/skill-node-available.png");
     this.load.image("skill-node-owned", "/assets/ui/skill-node-owned.png");
     this.load.image("skill-node-selected", "/assets/ui/skill-node-selected.png");
-    this.load.image("memory-icon-soft-touch", "/assets/ui/skills/softer-grass.png");
-    this.load.image("memory-icon-deeper-roots", "/assets/ui/skills/root-network.png");
-    this.load.image("memory-icon-tiny-sprinkler", "/assets/ui/skills/sprinkler-calibration.png");
-    this.load.image("memory-icon-scourge-sense", "/assets/ui/skills/grass-identification.png");
-    this.load.image("memory-icon-last-stand", "/assets/ui/skills/honest-work.png");
+    for (const upgradeId of MEMORY_UPGRADE_IDS) {
+      const view = MEMORY_UPGRADE_VIEW[upgradeId];
+      this.load.image(view.iconKey, view.iconPath);
+    }
     this.load.image("player-pixel-portrait", "/assets/ui/characters/player-field-heir.png");
     this.load.image("tile-dirt", "/assets/tiles/tile-dirt.png");
     this.load.image("grass-normal", "/assets/tiles/grass-normal.png");
@@ -1644,54 +1615,52 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const treeTop = skillFrameTop + (compactReport ? 64 : 92);
     const treeWidth = skillFrameWidth - 56;
     const treeHeight = skillFrameHeight - (compactReport ? 82 : 126);
-    const nodeSize = Phaser.Math.Clamp(Math.min(treeWidth * 0.17, treeHeight * 0.2), compactReport ? 34 : 48, compactReport ? 40 : 68);
+    const nodeSize = MEMORY_TREE_NODE_SIZE;
     this.memoryTreeViewport = {
       centerX: treeLeft + treeWidth / 2,
       centerY: treeTop + treeHeight / 2,
       width: treeWidth,
       height: treeHeight,
     };
+    this.memoryTreeFitScale = Math.min(
+      treeWidth / MEMORY_TREE_WORLD_WIDTH,
+      treeHeight / MEMORY_TREE_WORLD_HEIGHT,
+    );
+    this.memoryTreeFittedWidth = MEMORY_TREE_WORLD_WIDTH * this.memoryTreeFitScale;
+    this.memoryTreeFittedHeight = MEMORY_TREE_WORLD_HEIGHT * this.memoryTreeFitScale;
     this.memoryTreeMaskShape.clear().fillStyle(0xffffff, 1).fillRect(treeLeft, treeTop, treeWidth, treeHeight);
     const clampedPan = clampMemoryTreePan(
       { x: this.memoryTreePanX, y: this.memoryTreePanY },
       this.memoryTreeViewport,
       this.memoryTreeZoom,
+      this.getMemoryTreeFittedContentSize(),
     );
     this.memoryTreePanX = clampedPan.x;
     this.memoryTreePanY = clampedPan.y;
     this.applyMemoryTreeViewTransform();
     this.memoryUpgradeButtons.forEach((button) => {
       const view = MEMORY_UPGRADE_VIEW[button.upgradeId];
-      const compactPosition = compactReport
-        ? {
-            softTouch: { x: 0.14, y: 0.5 },
-            deeperRoots: { x: 0.45, y: 0.2 },
-            tinySprinkler: { x: 0.45, y: 0.7 },
-            scourgeSense: { x: 0.79, y: 0.2 },
-            lastStand: { x: 0.79, y: 0.7 },
-          }[button.upgradeId]
-        : view;
-      const x = treeWidth * (compactPosition.x - 0.5);
-      const y = treeHeight * (compactPosition.y - 0.5);
+      const x = MEMORY_TREE_WORLD_WIDTH * (view.x - 0.5);
+      const y = MEMORY_TREE_WORLD_HEIGHT * (view.y - 0.5);
       button.nodeSize = nodeSize;
       button.background
         .setPosition(x, y + nodeSize * 0.28)
-        .setSize(nodeSize + (compactReport ? 30 : 82), nodeSize + (compactReport ? 34 : 78));
+        .setSize(nodeSize + (compactReport ? 42 : 70), nodeSize + (compactReport ? 48 : 72));
       button.glow.setPosition(x, y).setRadius(nodeSize * 0.7);
       button.hoverRing.setPosition(x, y).setRadius(nodeSize * 0.78);
       button.frame.setPosition(x, y).setDisplaySize(nodeSize, nodeSize);
-      button.icon.setPosition(x, y).setDisplaySize(nodeSize * (compactReport ? 0.4 : 0.28), nodeSize * (compactReport ? 0.4 : 0.28));
-      button.title.setFontSize(compactReport ? 10 : 14).setPosition(x, y + nodeSize * 0.76);
-      button.title.setWordWrapWidth(nodeSize + (compactReport ? 34 : 76));
-      button.branch.setFontSize(compactReport ? 9 : 10).setPosition(x, y + nodeSize * 1);
+      button.icon.setPosition(x, y).setDisplaySize(nodeSize * 0.28, nodeSize * 0.28);
+      button.title.setFontSize(16).setPosition(x, y + nodeSize * 0.76);
+      button.title.setWordWrapWidth(nodeSize + 68);
+      button.branch.setFontSize(10).setPosition(x, y + nodeSize * 1);
       button.branch.setAlpha(0);
       button.branch.setWordWrapWidth(nodeSize + 70);
       button.detail
-        .setFontSize(compactReport ? 8 : 10)
+        .setFontSize(11)
         .setLineSpacing(1)
-        .setPosition(x, y + (compactReport ? nodeSize * 1.08 : nodeSize * 1.14));
+        .setPosition(x, y + nodeSize * 1.14);
       button.detail.setWordWrapWidth(nodeSize + 74);
-      button.detail.setVisible(this.summaryPanel.visible && !compactReport);
+      button.detail.setVisible(false);
     });
     this.drawMemorySkillTreeLines(nodeSize);
     this.syncMemoryTreeInteractiveBounds();
@@ -1704,7 +1673,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const hoverCardTop = hoverCardY - hoverCardHeight / 2;
     this.memoryHoverCardEnabled = !compactReport && skillFrameWidth >= 440 && skillFrameHeight >= 340;
     this.memoryHoverFrame.setPosition(hoverCardX, hoverCardY).setSize(hoverCardWidth, hoverCardHeight);
-    this.memoryHoverTitle.setFontSize(16).setPosition(hoverCardLeft + 13, hoverCardTop + 11);
+    this.memoryHoverTitle
+      .setFontSize(16)
+      .setWordWrapWidth(hoverCardWidth - 26)
+      .setPosition(hoverCardLeft + 13, hoverCardTop + 11);
     this.memoryHoverBody
       .setFontSize(11)
       .setLineSpacing(2)
@@ -1718,7 +1690,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const detailIconX = compactReport ? detailFrameLeft + detailFrameWidth - 52 : detailFrameX;
     const detailIconY = detailFrameTop + (compactReport ? 48 : 122);
     this.memoryDetailIconBaseSize = detailIconSize;
-    this.memoryDetailTitle.setFontSize(compactReport ? 18 : 24).setPosition(detailFrameLeft + 18, detailFrameTop + 18);
+    this.memoryDetailTitle
+      .setFontSize(compactReport ? 18 : 24)
+      .setWordWrapWidth(detailFrameWidth - 36)
+      .setPosition(detailFrameLeft + 18, detailFrameTop + 18);
     this.memoryDetailBranch.setFontSize(compactReport ? 11 : 13).setPosition(detailFrameLeft + 18, detailFrameTop + (compactReport ? 46 : 54));
     this.memoryDetailIconGlow.setPosition(detailIconX, detailIconY).setRadius(detailIconSize * 0.64);
     this.memoryDetailIconFrame.setPosition(detailIconX, detailIconY).setDisplaySize(detailIconSize, detailIconSize);
@@ -2193,10 +2168,11 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     }
 
     const tileMastery = getFirstRunOneTileMastery(this.objectiveState);
+    const upgradeEffects = getPermanentUpgradeEffects(this.state);
     const healing =
       (wounded ? WOUNDED_TOUCH_HEALING : TOUCH_HEALING) *
       proximity *
-      getPermanentUpgradeEffects(this.state).manualHealingMultiplier *
+      upgradeEffects.manualHealingMultiplier *
       tileMastery.manualHealingMultiplier;
     const result = touchAncientGrassRoot(this.state, healing, nearest.rootId);
     this.playRootTouchSfx(nearest, firstTouch, result.healedWound, result.effectiveHealing > 0, proximity);
@@ -2207,7 +2183,13 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       : result.effectiveHealing > 0
         ? ROOT_RECOVERY_MS
         : OVERHEAL_RECOVERY_MS;
-    nearest.recoveringUntil = this.time.now + Math.round(baseRecoveryDuration * tileMastery.recoveryDurationMultiplier);
+    nearest.recoveringUntil =
+      this.time.now +
+      Math.round(
+        baseRecoveryDuration *
+          tileMastery.recoveryDurationMultiplier *
+          upgradeEffects.manualRecoveryDurationMultiplier,
+      );
     if (result.healedWound) {
       this.addFeedEntry("Wound healed", `root ${nearest.rootId + 1} stabilized`, "WD", "#ffefb0");
       this.saySensi("Clean work.\nPressure drops when the root believes you.", "approval", 3600);
@@ -3862,7 +3844,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         this.memoryTreeViewport.centerX + this.memoryTreePanX,
         this.memoryTreeViewport.centerY + this.memoryTreePanY,
       )
-      .setScale(this.memoryTreeZoom);
+      .setScale(this.getMemoryTreeDisplayScale());
     if (syncInteractiveBounds) {
       this.syncMemoryTreeInteractiveBounds();
     }
@@ -3873,6 +3855,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       return;
     }
 
+    const displayScale = this.getMemoryTreeDisplayScale();
     for (const button of this.memoryUpgradeButtons) {
       const input = button.background.input;
       if (!input || !(input.hitArea instanceof Phaser.Geom.Rectangle)) {
@@ -3882,12 +3865,23 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       const bounds = button.background.getBounds();
       const clipped = this.clipBoundsToMemoryTreeViewport(bounds);
       input.hitArea.setTo(
-        Math.max(0, (clipped.left - bounds.left) / this.memoryTreeZoom),
-        Math.max(0, (clipped.top - bounds.top) / this.memoryTreeZoom),
-        clipped.width / this.memoryTreeZoom,
-        clipped.height / this.memoryTreeZoom,
+        Math.max(0, (clipped.left - bounds.left) / displayScale),
+        Math.max(0, (clipped.top - bounds.top) / displayScale),
+        clipped.width / displayScale,
+        clipped.height / displayScale,
       );
     }
+  }
+
+  private getMemoryTreeDisplayScale(): number {
+    return this.memoryTreeFitScale * this.memoryTreeZoom;
+  }
+
+  private getMemoryTreeFittedContentSize(): { width: number; height: number } {
+    return {
+      width: this.memoryTreeFittedWidth,
+      height: this.memoryTreeFittedHeight,
+    };
   }
 
   private clipBoundsToMemoryTreeViewport(bounds: Phaser.Geom.Rectangle): Phaser.Geom.Rectangle {
@@ -3925,6 +3919,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       { x: this.memoryTreePanX, y: this.memoryTreePanY },
       { x: anchorX, y: anchorY },
       this.memoryTreeViewport,
+      this.getMemoryTreeFittedContentSize(),
     );
     if (Math.abs(result.zoom - this.memoryTreeZoom) < 0.001) {
       return;
@@ -3995,6 +3990,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       },
       this.memoryTreeViewport,
       this.memoryTreeZoom,
+      this.getMemoryTreeFittedContentSize(),
     );
     this.memoryTreePanX = pan.x;
     this.memoryTreePanY = pan.y;
@@ -4112,7 +4108,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const affordable = unlocked && this.state.economy.permanentGrassTouches >= upgrade.cost;
     const shortfall = Math.max(0, upgrade.cost - this.state.economy.permanentGrassTouches);
     const frameKey = owned ? "skill-node-owned" : affordable ? "skill-node-available" : "skill-node-locked";
-    this.memoryDetailTitle.setText(upgrade.name);
+    const compact = this.isCompactDormancyReport();
+    this.memoryDetailTitle
+      .setFontSize(upgrade.name.length > 20 ? (compact ? 14 : 18) : compact ? 18 : 24)
+      .setText(upgrade.name);
     this.memoryDetailTitle.setColor(owned ? "#eaff9b" : affordable ? "#ffefb0" : "#c8b98b");
     this.memoryDetailBranch.setText(`${meta.branch} memory`);
     this.memoryDetailBranch.setColor(`#${meta.color.toString(16).padStart(6, "0")}`);
@@ -4163,6 +4162,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       .setFillStyle(0x07170f, 0.97)
       .setStrokeStyle(2, meta.color, 0.82);
     this.memoryHoverTitle
+      .setFontSize(upgrade.name.length > 20 ? 13 : 16)
       .setText(upgrade.name)
       .setColor(`#${meta.color.toString(16).padStart(6, "0")}`);
     this.memoryHoverBody.setText(`${upgrade.description}\n${status}`);
@@ -4426,54 +4426,15 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private formatMemoryUpgradeImpact(upgradeId: PermanentUpgradeId): string {
-    switch (upgradeId) {
-      case "softTouch":
-        return "future runs heal roots 25% harder";
-      case "deeperRoots":
-        return "future runs gain +25 max Ancient HP";
-      case "tinySprinkler":
-        return "future runs can buy sprinkler automation";
-      case "scourgeSense":
-        return "future runs forecast the next wound target";
-      case "lastStand":
-        return "future runs revive once at HP zero";
-      default:
-        return "future runs carry this memory";
-    }
+    return MEMORY_UPGRADE_VIEW[upgradeId].impact;
   }
 
   private formatMemoryUpgradeFlavor(upgradeId: PermanentUpgradeId): string {
-    switch (upgradeId) {
-      case "softTouch":
-        return "Your hands learn where the roots are tender. Future manual touches restore 25% more missing HP.";
-      case "deeperRoots":
-        return "The Ancient Grass remembers how to hold on. Future runs start with a deeper HP pool.";
-      case "tinySprinkler":
-        return "A little brass helper joins the kit. Future runs can spend RT on sprinkler automation.";
-      case "scourgeSense":
-        return "The pink pressure gets easier to read. Future runs warn which root the Scourge wants next.";
-      case "lastStand":
-        return "One stubborn breath remains in the field. Future runs revive once when HP hits zero.";
-      default:
-        return "This memory follows the caretaker into future runs.";
-    }
+    return MEMORY_UPGRADE_VIEW[upgradeId].flavor;
   }
 
   private formatMemoryUpgradeShortEffect(upgradeId: PermanentUpgradeId): string {
-    switch (upgradeId) {
-      case "softTouch":
-        return "Manual +25%";
-      case "deeperRoots":
-        return "Max HP +25";
-      case "tinySprinkler":
-        return "Run sprinkler";
-      case "scourgeSense":
-        return "Wound forecast";
-      case "lastStand":
-        return "Revive once/run";
-      default:
-        return "Memory";
-    }
+    return MEMORY_UPGRADE_VIEW[upgradeId].shortEffect;
   }
 
   private formatHpAmount(value: number): string {
@@ -4896,6 +4857,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       viewportY: Math.round(this.memoryTreeViewport.centerY),
       viewportWidth: Math.round(this.memoryTreeViewport.width),
       viewportHeight: Math.round(this.memoryTreeViewport.height),
+      worldWidth: MEMORY_TREE_WORLD_WIDTH,
+      worldHeight: MEMORY_TREE_WORLD_HEIGHT,
+      fitScale: Math.round(this.memoryTreeFitScale * 1_000) / 1_000,
       zoomOutButton: this.getBrowserDebugButtonBounds(
         this.memoryTreeZoomOutButton,
         visible && this.memoryTreeZoom > MEMORY_TREE_MIN_ZOOM + 0.01,

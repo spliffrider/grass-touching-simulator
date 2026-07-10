@@ -33,4 +33,15 @@ describe("MemoryTreeViewport", () => {
     expect(result.pan.x).toBeCloseTo(-40);
     expect(result.pan.y).toBeCloseTo(-20);
   });
+
+  it("accounts for a letterboxed fitted tree when clamping pan", () => {
+    expect(
+      clampMemoryTreePan(
+        { x: 999, y: 999 },
+        { width: 600, height: 400 },
+        1.5,
+        { width: 600, height: 300 },
+      ),
+    ).toEqual({ x: 150, y: 25 });
+  });
 });

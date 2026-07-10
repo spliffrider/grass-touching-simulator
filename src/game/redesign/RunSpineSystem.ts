@@ -1,5 +1,15 @@
 export type RunPhase = "active" | "dormant";
-export type PermanentUpgradeId = "softTouch" | "deeperRoots" | "tinySprinkler" | "scourgeSense" | "lastStand";
+export type PermanentUpgradeId =
+  | "softTouch"
+  | "fastTouch"
+  | "deeperRoots"
+  | "ancientResilience"
+  | "tinySprinkler"
+  | "sprinklerTuning"
+  | "scourgeSense"
+  | "distributedRoots"
+  | "lastStand"
+  | "emergencyPhotosynthesis";
 
 export interface PermanentUpgradeDefinition {
   id: PermanentUpgradeId;
@@ -20,6 +30,7 @@ export interface ScourgeState {
   pressure: number;
   baseDrainPerSecond: number;
   pressureGrowthPerSecond: number;
+  woundPressurePerOpenWound: number;
 }
 
 export interface RunEconomyState {
@@ -36,10 +47,12 @@ export interface RootWoundState {
 
 export interface AutomationState {
   tinySprinklers: number;
+  tinySprinklerHealingPerUnit: number;
 }
 
 export interface RevivalState {
   lastStandUsed: boolean;
+  lastStandReviveHpRatio: number;
 }
 
 export interface RunSpineState {
@@ -152,9 +165,14 @@ export interface PurchasePermanentUpgradeResult {
 
 export interface PermanentUpgradeEffects {
   manualHealingMultiplier: number;
+  manualRecoveryDurationMultiplier: number;
   maxHpBonus: number;
+  baseScourgeDrainMultiplier: number;
+  woundPressureMultiplier: number;
+  tinySprinklerHealingBonus: number;
   scourgeSense: boolean;
   lastStand: boolean;
+  lastStandReviveHpRatio: number;
 }
 
 export interface PermanentMemorySnapshot {
@@ -194,6 +212,11 @@ export const DEW_PULSE_HEALING = 10;
 export const TINY_SPRINKLER_RUN_TOUCH_COST = 16;
 export const TINY_SPRINKLER_HEALING = 2;
 export const LAST_STAND_REVIVE_HP_RATIO = 0.35;
+export const FAST_TOUCH_RECOVERY_DURATION_MULTIPLIER = 0.8;
+export const ANCIENT_RESILIENCE_DRAIN_MULTIPLIER = 0.88;
+export const SPRINKLER_TUNING_HEALING_BONUS = 1;
+export const DISTRIBUTED_ROOTS_WOUND_PRESSURE_MULTIPLIER = 0.75;
+export const EMERGENCY_PHOTOSYNTHESIS_REVIVE_HP_RATIO = 0.55;
 export const PERMANENT_MEMORY_SAVE_VERSION = 1;
 export const PERMANENT_UPGRADE_DEFINITIONS: Record<PermanentUpgradeId, PermanentUpgradeDefinition> = {
   softTouch: {
@@ -203,12 +226,26 @@ export const PERMANENT_UPGRADE_DEFINITIONS: Record<PermanentUpgradeId, Permanent
     description: "Manual root healing +25%",
     prerequisiteIds: [],
   },
+  fastTouch: {
+    id: "fastTouch",
+    name: "Fast Touch",
+    cost: 20,
+    description: "Manual root recovery 20% faster",
+    prerequisiteIds: ["softTouch"],
+  },
   deeperRoots: {
     id: "deeperRoots",
     name: "Deeper Roots",
     cost: 18,
     description: "+25 max Ancient HP",
     prerequisiteIds: ["softTouch"],
+  },
+  ancientResilience: {
+    id: "ancientResilience",
+    name: "Ancient Resilience",
+    cost: 28,
+    description: "Base Scourge drain -12%",
+    prerequisiteIds: ["deeperRoots"],
   },
   tinySprinkler: {
     id: "tinySprinkler",
@@ -217,12 +254,26 @@ export const PERMANENT_UPGRADE_DEFINITIONS: Record<PermanentUpgradeId, Permanent
     description: "Unlocks run-bought sprinkler automation",
     prerequisiteIds: ["softTouch"],
   },
+  sprinklerTuning: {
+    id: "sprinklerTuning",
+    name: "Sprinkler Tuning",
+    cost: 32,
+    description: "+1 HP per sprinkler pulse",
+    prerequisiteIds: ["tinySprinkler"],
+  },
   scourgeSense: {
     id: "scourgeSense",
     name: "Scourge Sense",
     cost: 20,
     description: "Forecasts the next wound pressure target",
     prerequisiteIds: ["deeperRoots"],
+  },
+  distributedRoots: {
+    id: "distributedRoots",
+    name: "Distributed Roots",
+    cost: 30,
+    description: "Open-wound pressure -25%",
+    prerequisiteIds: ["scourgeSense"],
   },
   lastStand: {
     id: "lastStand",
@@ -231,6 +282,13 @@ export const PERMANENT_UPGRADE_DEFINITIONS: Record<PermanentUpgradeId, Permanent
     description: "One automatic revive per run",
     prerequisiteIds: ["tinySprinkler", "scourgeSense"],
   },
+  emergencyPhotosynthesis: {
+    id: "emergencyPhotosynthesis",
+    name: "Emergency Photosynthesis",
+    cost: 40,
+    description: "Last Stand revives at 55% HP",
+    prerequisiteIds: ["lastStand"],
+  },
 };
 
 export function createRunSpineState(options: RunSpineOptions = {}): RunSpineState {
@@ -238,6 +296,9 @@ export function createRunSpineState(options: RunSpineOptions = {}): RunSpineStat
   const upgradeEffects = getPermanentUpgradeEffects(permanentUpgrades);
   const maxHp = normalizePositiveNumber(options.maxHp, DEFAULT_ANCIENT_GRASS_MAX_HP) + upgradeEffects.maxHpBonus;
   const currentHp = clamp(normalizeNonNegativeNumber(options.currentHp, maxHp), 0, maxHp);
+  const baseDrainPerSecond =
+    normalizeNonNegativeNumber(options.baseDrainPerSecond, DEFAULT_SCOURGE_DRAIN_PER_SECOND) *
+    upgradeEffects.baseScourgeDrainMultiplier;
   return {
     phase: currentHp > 0 ? "active" : "dormant",
     elapsedMs: 0,
@@ -249,11 +310,12 @@ export function createRunSpineState(options: RunSpineOptions = {}): RunSpineStat
     },
     scourge: {
       pressure: normalizePositiveNumber(options.pressure, 1),
-      baseDrainPerSecond: normalizeNonNegativeNumber(options.baseDrainPerSecond, DEFAULT_SCOURGE_DRAIN_PER_SECOND),
+      baseDrainPerSecond,
       pressureGrowthPerSecond: normalizeNonNegativeNumber(
         options.pressureGrowthPerSecond,
         DEFAULT_SCOURGE_PRESSURE_GROWTH_PER_SECOND,
       ),
+      woundPressurePerOpenWound: SCOURGE_PRESSURE_PER_OPEN_WOUND * upgradeEffects.woundPressureMultiplier,
     },
     economy: {
       runTouches: 0,
@@ -267,9 +329,11 @@ export function createRunSpineState(options: RunSpineOptions = {}): RunSpineStat
     },
     automation: {
       tinySprinklers: 0,
+      tinySprinklerHealingPerUnit: TINY_SPRINKLER_HEALING + upgradeEffects.tinySprinklerHealingBonus,
     },
     revivals: {
       lastStandUsed: false,
+      lastStandReviveHpRatio: upgradeEffects.lastStandReviveHpRatio,
     },
     permanentUpgrades,
   };
@@ -293,7 +357,7 @@ export function advanceRun(state: RunSpineState, deltaMs: number, options: RunTi
 
   const seconds = Math.max(0, deltaMs) / 1000;
   const nextPressure = previousPressure + state.scourge.pressureGrowthPerSecond * seconds;
-  const woundPressure = state.wounds.woundedRootIds.length * SCOURGE_PRESSURE_PER_OPEN_WOUND;
+  const woundPressure = state.wounds.woundedRootIds.length * state.scourge.woundPressurePerOpenWound;
   const averagePressure = (previousPressure + nextPressure) / 2 + woundPressure;
   const drainMultiplier = normalizeNonNegativeNumber(options.drainMultiplier, 1);
   const drained = state.scourge.baseDrainPerSecond * averagePressure * seconds * drainMultiplier;
@@ -581,7 +645,7 @@ export function applyTinySprinklerPulse(state: RunSpineState, rootId?: number): 
     };
   }
 
-  const healing = TINY_SPRINKLER_HEALING * state.automation.tinySprinklers;
+  const healing = state.automation.tinySprinklerHealingPerUnit * state.automation.tinySprinklers;
   const healedWound = rootId !== undefined && clearRootWound(state, rootId);
   const effectiveHealing = Math.min(missingHp, healing);
   const overheal = Math.max(0, healing - effectiveHealing);
@@ -658,9 +722,16 @@ export function getPermanentUpgradeEffects(upgradesOrState: PermanentUpgradeId[]
   const upgradeIds = Array.isArray(upgradesOrState) ? upgradesOrState : upgradesOrState.permanentUpgrades;
   return {
     manualHealingMultiplier: upgradeIds.includes("softTouch") ? 1.25 : 1,
+    manualRecoveryDurationMultiplier: upgradeIds.includes("fastTouch") ? FAST_TOUCH_RECOVERY_DURATION_MULTIPLIER : 1,
     maxHpBonus: upgradeIds.includes("deeperRoots") ? 25 : 0,
+    baseScourgeDrainMultiplier: upgradeIds.includes("ancientResilience") ? ANCIENT_RESILIENCE_DRAIN_MULTIPLIER : 1,
+    woundPressureMultiplier: upgradeIds.includes("distributedRoots") ? DISTRIBUTED_ROOTS_WOUND_PRESSURE_MULTIPLIER : 1,
+    tinySprinklerHealingBonus: upgradeIds.includes("sprinklerTuning") ? SPRINKLER_TUNING_HEALING_BONUS : 0,
     scourgeSense: upgradeIds.includes("scourgeSense"),
     lastStand: upgradeIds.includes("lastStand"),
+    lastStandReviveHpRatio: upgradeIds.includes("emergencyPhotosynthesis")
+      ? EMERGENCY_PHOTOSYNTHESIS_REVIVE_HP_RATIO
+      : LAST_STAND_REVIVE_HP_RATIO,
   };
 }
 
@@ -762,7 +833,7 @@ function shouldTriggerLastStand(state: RunSpineState): boolean {
 }
 
 function getLastStandReviveHp(state: RunSpineState): number {
-  return Math.max(1, state.ancientGrass.maxHp * LAST_STAND_REVIVE_HP_RATIO);
+  return Math.max(1, state.ancientGrass.maxHp * state.revivals.lastStandReviveHpRatio);
 }
 
 function clearRootWound(state: RunSpineState, rootId: number): boolean {

@@ -1,4 +1,4 @@
-import type { PermanentUpgradeId } from "./RunSpineSystem";
+import { PERMANENT_UPGRADE_DEFINITIONS, type PermanentUpgradeId } from "./RunSpineSystem";
 
 export interface RedesignDomRootNode {
   rootId: number;
@@ -72,6 +72,9 @@ export interface RedesignDomMemoryTreeView {
   viewportY: number;
   viewportWidth: number;
   viewportHeight: number;
+  worldWidth: number;
+  worldHeight: number;
+  fitScale: number;
   zoomOutButton: RedesignDomButtonBounds;
   resetButton: RedesignDomButtonBounds;
   zoomInButton: RedesignDomButtonBounds;
@@ -173,14 +176,6 @@ interface RedesignDomActions {
   restartRun(): void;
   resetMemory(): void;
 }
-
-const MEMORY_NODE_LABELS: Record<PermanentUpgradeId, string> = {
-  softTouch: "Soft Touch",
-  deeperRoots: "Deeper Roots",
-  tinySprinkler: "Tiny Sprinkler",
-  scourgeSense: "Scourge Sense",
-  lastStand: "Last Stand",
-};
 
 const RUN_TOOL_LABELS: Record<RedesignDomRunToolButton["toolId"], string> = {
   dewPulse: "Dew Pulse",
@@ -497,7 +492,7 @@ export class RedesignDomBridge {
 
     for (const memoryButton of snapshot.memoryUpgradeButtons) {
       const button = this.getMemoryButton(memoryButton.upgradeId);
-      const label = MEMORY_NODE_LABELS[memoryButton.upgradeId];
+      const label = PERMANENT_UPGRADE_DEFINITIONS[memoryButton.upgradeId].name;
       const status = memoryButton.owned
         ? "owned"
         : !memoryButton.unlocked
@@ -522,7 +517,11 @@ export class RedesignDomBridge {
       return existing;
     }
 
-    const button = this.createButton(`redesign-memory-${upgradeId}`, MEMORY_NODE_LABELS[upgradeId], () => this.actions.purchaseMemory(upgradeId));
+    const button = this.createButton(
+      `redesign-memory-${upgradeId}`,
+      PERMANENT_UPGRADE_DEFINITIONS[upgradeId].name,
+      () => this.actions.purchaseMemory(upgradeId),
+    );
     button.classList.add("grass-agent-memory-button");
     button.dataset.upgradeId = upgradeId;
     const preview = () => this.actions.previewMemory(upgradeId);

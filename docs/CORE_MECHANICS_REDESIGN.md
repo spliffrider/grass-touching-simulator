@@ -166,11 +166,13 @@ Current prototype notes:
 - Root touches now use an animation-loop-driven squash and rebound so ambient grass motion no longer overwrites impact motion. Touch flecks travel in varied upward-biased sprays, effective healing sends a small staggered stream toward the HP bar, and wound sealing, dormancy, and Last Stand each have a dedicated procedural sound signature.
 - HP collapse now presents a real game-over/meta screen: the active run loop stops, the playfield is replaced by a full-screen `Memory Grove`, the run report calls out that the run is over, the reward line shows permanent GT gained, and the skill tree is the main available action before the next run.
 - The Game Over report now spells out the current conversion: useful healing becomes permanent GT at 1 GT per 5 effective HP, while unspent Run Touches are lost.
-- The meta screen now uses a full-screen Memory Grove layout inspired by the original skill tree: a run summary column, a larger old-style hex-node Memory Skill Tree, a selected-memory detail panel, five functional memory nodes (`Soft Touch`, `Deeper Roots`, `Tiny Sprinkler`, `Scourge Sense`, and `Last Stand`), and an explicit `Begin Next Run` button. Random screen clicks no longer restart the run.
+- The meta screen now uses a full-screen Memory Grove layout inspired by the original skill tree: a run summary column, a larger old-style hex-node Memory Skill Tree, a selected-memory detail panel, ten functional memory nodes across five prototype lanes, and an explicit `Begin Next Run` button. Random screen clicks no longer restart the run.
 - Locked Memory Grove nodes show their true total cost plus the remaining shortfall (`Cost X GT` / `Short Y GT`) so an upgrade cannot look purchasable merely because the player has the shortfall amount.
 - Memory Grove node hover/focus updates the selected-memory detail panel, including through the transparent DOM agent controls layered above the canvas. Locked and owned memory nodes remain hoverable/focusable for info even when they are not purchasable.
 - The selected Memory Grove node also shows a small in-tree callout with name, cost/status, and owned/shortfall state so the tree itself carries OG-style hover feedback instead of relying only on the side detail panel.
 - The Memory Skill Tree now lives inside a masked navigation viewport. Players can zoom from 60% to 180% with `-`, percentage-reset, and `+` controls or the mouse wheel, then drag-pan the tree while zoomed in. Zoom-at-pointer preserves the inspected branch, and pan is clamped so the tree cannot be lost offscreen.
+- Memory definitions and presentation now live in a shared data-driven catalog rather than scene switches. The first expandable catalog uses a fixed 720x450 logical world, small icon-and-name overview nodes, enlarged hover/detail presentation, and ten connected nodes without unrelated connector crossings.
+- The first second-tier memories are functional: `Fast Touch` shortens manual-root recovery by 20%, `Ancient Resilience` reduces base Scourge drain by 12%, `Sprinkler Tuning` adds 1 HP per sprinkler pulse, `Distributed Roots` reduces open-wound pressure by 25%, and `Emergency Photosynthesis` raises Last Stand recovery from 35% to 55% max HP.
 - The tree navigation controls and clipped node hitboxes are mirrored into the DOM agent layer. Nodes outside the visible viewport cannot leave invisible interactive regions over the run report or detail panel.
 - Compact Memory Grove layouts use smaller name-only nodes and a reorganized selected-memory panel; costs, effects, and flavor remain readable in that panel instead of colliding inside the overview. This is the mobile basis for a much larger future Memory catalog.
 - `Begin Next Run` is now the dominant footer action: 300x54 on wide layouts and 230x48 on compact layouts, with a restrained idle glow/text pulse and an unchanged hitbox.
@@ -397,6 +399,8 @@ The permanent skill tree has five branches:
 - Automation
 - Field Growth
 - Friends and Scourge Control
+
+The current ten-node prototype presents five narrower visual lanes (`Touch`, `Vitality`, `Automation`, `Scourge`, and `Resolve`) while the broader Field Growth and Friends systems are still unimplemented. Those lane labels are presentation for the current vertical slice, not a rejection of the long-term branch doctrine above.
 
 The tree should unlock systems and long-term power. It should not contain every in-run purchase. The player unlocks a system permanently, then buys that system during each run with Run Touches.
 

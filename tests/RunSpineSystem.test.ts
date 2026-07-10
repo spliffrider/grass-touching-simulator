@@ -58,6 +58,37 @@ describe("RunSpineSystem", () => {
     expect(state.elapsedMs).toBe(1_000);
   });
 
+  it("reduces base Scourge drain with Ancient Resilience", () => {
+    const state = createRunSpineState({
+      currentHp: 100,
+      baseDrainPerSecond: 10,
+      pressure: 1,
+      pressureGrowthPerSecond: 0,
+      permanentUpgrades: ["ancientResilience"],
+    });
+
+    const result = advanceRun(state, 1_000);
+
+    expect(result.drained).toBeCloseTo(8.8);
+    expect(state.ancientGrass.currentHp).toBeCloseTo(91.2);
+  });
+
+  it("reduces the added pressure from open wounds with Distributed Roots", () => {
+    const state = createRunSpineState({
+      currentHp: 100,
+      baseDrainPerSecond: 10,
+      pressure: 1,
+      pressureGrowthPerSecond: 0,
+      permanentUpgrades: ["distributedRoots"],
+    });
+    openRootWound(state, 4, 2);
+
+    const result = advanceRun(state, 1_000);
+
+    expect(result.drained).toBeCloseTo(11.2);
+    expect(state.ancientGrass.currentHp).toBeCloseTo(88.8);
+  });
+
   it("uses Last Stand once before the run can enter dormancy", () => {
     const state = createRunSpineState({
       currentHp: 80,
@@ -83,6 +114,22 @@ describe("RunSpineSystem", () => {
     expect(state.economy.permanentGrassTouches).toBe(4);
     expect(nextRun.revivals.lastStandUsed).toBe(false);
     expect(hasPermanentUpgrade(nextRun, "lastStand")).toBe(true);
+  });
+
+  it("improves the Last Stand revival with Emergency Photosynthesis", () => {
+    const state = createRunSpineState({
+      currentHp: 100,
+      maxHp: 100,
+      baseDrainPerSecond: 100,
+      pressureGrowthPerSecond: 0,
+      permanentUpgrades: ["lastStand", "emergencyPhotosynthesis"],
+    });
+
+    const result = advanceRun(state, 1_000);
+
+    expect(result.lastStandTriggered).toBe(true);
+    expect(result.currentHp).toBeCloseTo(55);
+    expect(state.phase).toBe("active");
   });
 
   it("turns only effective healing into Run Touches", () => {
@@ -351,6 +398,24 @@ describe("RunSpineSystem", () => {
     expect(isRootWounded(state, 4)).toBe(false);
   });
 
+  it("adds one HP to each Tiny Sprinkler pulse with Sprinkler Tuning", () => {
+    const state = createRunSpineState({
+      currentHp: 90,
+      maxHp: 100,
+      permanentUpgrades: ["tinySprinkler", "sprinklerTuning"],
+    });
+    state.economy.runTouches = 20;
+    buyTinySprinkler(state);
+
+    const result = applyTinySprinklerPulse(state);
+
+    expect(result.applied).toBe(true);
+    expect(result.healing).toBe(3);
+    expect(result.effectiveHealing).toBe(3);
+    expect(result.runTouchesGained).toBe(3);
+    expect(state.ancientGrass.currentHp).toBe(93);
+  });
+
   it("does not let Tiny Sprinkler mint rewards from full HP", () => {
     const state = createRunSpineState({
       currentHp: 100,
@@ -401,6 +466,16 @@ describe("RunSpineSystem", () => {
     expect(state.economy.permanentGrassTouches).toBe(70);
   });
 
+  it("requires each second-tier memory to follow its first-tier branch", () => {
+    const state = createRunSpineState({ currentHp: 0, permanentGrassTouches: 300 });
+
+    expect(purchasePermanentUpgrade(state, "fastTouch").missingPrerequisiteIds).toEqual(["softTouch"]);
+    expect(purchasePermanentUpgrade(state, "ancientResilience").missingPrerequisiteIds).toEqual(["deeperRoots"]);
+    expect(purchasePermanentUpgrade(state, "sprinklerTuning").missingPrerequisiteIds).toEqual(["tinySprinkler"]);
+    expect(purchasePermanentUpgrade(state, "distributedRoots").missingPrerequisiteIds).toEqual(["scourgeSense"]);
+    expect(purchasePermanentUpgrade(state, "emergencyPhotosynthesis").missingPrerequisiteIds).toEqual(["lastStand"]);
+  });
+
   it("carries permanent upgrade effects into the next run", () => {
     const state = createRunSpineState({ currentHp: 0, permanentGrassTouches: 40 });
 
@@ -410,30 +485,73 @@ describe("RunSpineSystem", () => {
 
     expect(getPermanentUpgradeEffects(nextRun)).toEqual({
       manualHealingMultiplier: 1.25,
+      manualRecoveryDurationMultiplier: 1,
       maxHpBonus: 25,
+      baseScourgeDrainMultiplier: 1,
+      woundPressureMultiplier: 1,
+      tinySprinklerHealingBonus: 0,
       scourgeSense: false,
       lastStand: false,
+      lastStandReviveHpRatio: 0.35,
     });
     expect(nextRun.ancientGrass.maxHp).toBe(125);
     expect(nextRun.ancientGrass.currentHp).toBe(125);
     expect(nextRun.economy.permanentGrassTouches).toBe(10);
   });
 
+  it("reports the full second-tier effect set without mutating run state", () => {
+    expect(
+      getPermanentUpgradeEffects([
+        "fastTouch",
+        "ancientResilience",
+        "sprinklerTuning",
+        "distributedRoots",
+        "emergencyPhotosynthesis",
+      ]),
+    ).toEqual({
+      manualHealingMultiplier: 1,
+      manualRecoveryDurationMultiplier: 0.8,
+      maxHpBonus: 0,
+      baseScourgeDrainMultiplier: 0.88,
+      woundPressureMultiplier: 0.75,
+      tinySprinklerHealingBonus: 1,
+      scourgeSense: false,
+      lastStand: false,
+      lastStandReviveHpRatio: 0.55,
+    });
+  });
+
   it("serializes only permanent memory into the redesign save snapshot", () => {
-    const state = createRunSpineState({ currentHp: 80, permanentGrassTouches: 150 });
+    const state = createRunSpineState({ currentHp: 80, permanentGrassTouches: 300 });
     state.economy.runTouches = 123;
 
     purchasePermanentUpgrade(state, "softTouch");
+    purchasePermanentUpgrade(state, "fastTouch");
     purchasePermanentUpgrade(state, "deeperRoots");
+    purchasePermanentUpgrade(state, "ancientResilience");
     purchasePermanentUpgrade(state, "tinySprinkler");
+    purchasePermanentUpgrade(state, "sprinklerTuning");
     purchasePermanentUpgrade(state, "scourgeSense");
+    purchasePermanentUpgrade(state, "distributedRoots");
     purchasePermanentUpgrade(state, "lastStand");
+    purchasePermanentUpgrade(state, "emergencyPhotosynthesis");
     const snapshot = createPermanentMemorySnapshot(state, 42);
 
     expect(snapshot).toEqual({
       saveVersion: 1,
       permanentGrassTouches: 44,
-      permanentUpgrades: ["deeperRoots", "lastStand", "scourgeSense", "softTouch", "tinySprinkler"],
+      permanentUpgrades: [
+        "ancientResilience",
+        "deeperRoots",
+        "distributedRoots",
+        "emergencyPhotosynthesis",
+        "fastTouch",
+        "lastStand",
+        "scourgeSense",
+        "softTouch",
+        "sprinklerTuning",
+        "tinySprinkler",
+      ],
       savedAt: 42,
     });
   });

@@ -14,6 +14,11 @@ export interface MemoryTreeViewport {
   height: number;
 }
 
+export interface MemoryTreeContentSize {
+  width: number;
+  height: number;
+}
+
 export function clampMemoryTreeZoom(value: number): number {
   const normalized = Number.isFinite(value) ? value : 1;
   return Math.min(MEMORY_TREE_MAX_ZOOM, Math.max(MEMORY_TREE_MIN_ZOOM, normalized));
@@ -23,11 +28,11 @@ export function clampMemoryTreePan(
   pan: MemoryTreePan,
   viewport: Pick<MemoryTreeViewport, "width" | "height">,
   zoom: number,
+  content: MemoryTreeContentSize = viewport,
 ): MemoryTreePan {
   const clampedZoom = clampMemoryTreeZoom(zoom);
-  const overflowScale = Math.max(0, clampedZoom - 1) / 2;
-  const maxX = Math.max(0, viewport.width) * overflowScale;
-  const maxY = Math.max(0, viewport.height) * overflowScale;
+  const maxX = Math.max(0, Math.max(0, content.width) * clampedZoom - Math.max(0, viewport.width)) / 2;
+  const maxY = Math.max(0, Math.max(0, content.height) * clampedZoom - Math.max(0, viewport.height)) / 2;
   const requestedX = Number.isFinite(pan.x) ? pan.x : 0;
   const requestedY = Number.isFinite(pan.y) ? pan.y : 0;
   return {
@@ -42,6 +47,7 @@ export function zoomMemoryTreeAtPoint(
   pan: MemoryTreePan,
   anchor: MemoryTreePan,
   viewport: MemoryTreeViewport,
+  content: MemoryTreeContentSize = viewport,
 ): { zoom: number; pan: MemoryTreePan } {
   const fromZoom = clampMemoryTreeZoom(currentZoom);
   const zoom = clampMemoryTreeZoom(requestedZoom);
@@ -53,6 +59,6 @@ export function zoomMemoryTreeAtPoint(
   };
   return {
     zoom,
-    pan: clampMemoryTreePan(nextPan, viewport, zoom),
+    pan: clampMemoryTreePan(nextPan, viewport, zoom, content),
   };
 }

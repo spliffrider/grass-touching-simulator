@@ -1,0 +1,58 @@
+{
+  "date": "2026-07-10",
+  "topic": "Ten-node Memory Grove and functional second tier",
+  "currentUserGoal": "Move past the zoomable tree shell by expanding the Memory catalog and giving the redesign more meaningful long-term progression.",
+  "workCompleted": [
+    "Expanded PermanentUpgradeId and the Memory Grove from five to ten save-compatible functional memories.",
+    "Added Fast Touch, Ancient Resilience, Sprinkler Tuning, Distributed Roots, and Emergency Photosynthesis as one real second-tier upgrade for each current prototype lane.",
+    "Applied the new effects to manual recovery, base Scourge drain, Tiny Sprinkler healing, wound pressure, and Last Stand revival without adding upgrade scans to the run tick.",
+    "Moved Memory node branch styling, icon assets, normalized positions, impact copy, flavor, and short effect text into a shared MemoryTreeCatalog.",
+    "Converted the tree to a fixed 720x450 logical world fitted inside the existing masked zoom/pan viewport, with overview nodes reduced to icon plus name and full details retained in hover/detail presentation.",
+    "Reused five original-game skill icons for the new memories and kept all ten nodes accessible through the transparent DOM agent layer.",
+    "Added catalog coverage that requires every upgrade to have presentation data and rejects connector crossings between unrelated branches.",
+    "Updated the durable redesign and implementation-plan documents with the ten-node catalog, second-tier effects, fixed-world contract, and current prototype lane caveat."
+  ],
+  "filesChanged": [
+    "src/game/redesign/MemoryTreeCatalog.ts",
+    "src/game/redesign/MemoryTreeViewport.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/redesign/RunSpineSystem.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/MemoryTreeCatalog.test.ts",
+    "tests/MemoryTreeViewport.test.ts",
+    "tests/RunSpineSystem.test.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-10_MEMORY_TREE_SECOND_TIER.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 46 Vitest tests across four files, TypeScript, and the Vite production build.",
+    "Focused coverage includes the run spine, tree viewport, and new catalog geometry.",
+    "Desktop browser smoke at 1280x720 bought all ten memories in prerequisite order, left the expected 4 GT from a 260 GT test grant, and found no missing Memory icon resources.",
+    "Browser screenshots verified the ten-node overview, active connector paths, 180% zoom, hover callout, enlarged detail icon, and long Emergency Photosynthesis title containment.",
+    "Begin Next Run browser smoke preserved all ten memories, returned to one active root and a 1x1 field, applied Deeper Roots for 125 max HP, and kept run tools hidden at run start."
+  ],
+  "currentGitStatus": [
+    "Expected after this handoff commit: clean worktree on codex/gameplay-update, three commits ahead of origin/codex/gameplay-update."
+  ],
+  "knownIssues": [
+    "The five new costs and effect values are first-pass tuning and need hands-on pacing feedback rather than more speculative expansion.",
+    "The current prototype lanes are Touch, Vitality, Automation, Scourge, and Resolve; the broader long-term Field Growth and Friends branches remain unimplemented.",
+    "This browser runtime remained fixed at 1280x720 and rejected the local narrow-frame harness, so the previously passing 390x844 compact smoke was not rerun for this slice.",
+    "Tree zoom/pan remains session-only UI state by design."
+  ],
+  "nextRecommendedSteps": [
+    "Playtest several natural runs and tune second-tier costs against actual GT earnings and perceived survival impact.",
+    "Add focused branch navigation or fit-to-selection once the third tier makes panning materially useful.",
+    "Design the next catalog tier around Field Growth and Friends only after the current ten-node economy feels earned.",
+    "Re-run the compact 390x844 Memory Grove screenshot when a resizable browser surface is available."
+  ],
+  "doNotRevert": [
+    "Keep Memory identity and presentation in MemoryTreeCatalog instead of restoring scene switch statements or hardcoded five-node DOM labels.",
+    "Keep the fixed logical tree world fitted inside the existing masked zoom/pan viewport.",
+    "Keep overview nodes name-only; cost, prerequisites, effect, flavor, and enlarged icon belong in hover/detail presentation.",
+    "Keep base drain, wound pressure, sprinkler healing, and revive ratio derived once at run creation rather than scanning permanent upgrades every tick.",
+    "Every new run must still return to one tile at mastery rank 0 while permanent GT and Memory upgrades survive."
+  ]
+}
