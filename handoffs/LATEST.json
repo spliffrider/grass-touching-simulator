@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-09",
-  "latestHandoff": "HANDOFF_2026-07-09_ONE_TILE_MASTERY.json",
+  "updatedAt": "2026-07-10",
+  "latestHandoff": "HANDOFF_2026-07-10_RUN_FIELD_RESET.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

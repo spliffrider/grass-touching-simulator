@@ -3965,6 +3965,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
     this.startPrototypeAudio();
     this.state = createNextRunFromDormancy(this.state, this.getRunOptions());
+    this.objectiveState = createFirstRunObjectiveState();
     this.introActive = false;
     this.lastMemoryPurchaseHint = "";
     this.dormantAnimationPlayed = false;

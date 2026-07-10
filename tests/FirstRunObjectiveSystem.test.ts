@@ -115,20 +115,23 @@ describe("FirstRunObjectiveSystem", () => {
     });
   });
 
-  it("carries one-tile care progress across runs", () => {
-    const firstRun = createRunSpineState({ currentHp: 1, maxHp: 100 });
-    const objectiveState = createFirstRunObjectiveState();
-    touchAncientGrass(firstRun, 8);
+  it("starts a new run with fresh one-tile care mastery", () => {
+    const completedRun = createFirstRunObjectiveState([
+      "wakeAncientGrass",
+      "cultivateSoftLoam",
+      "openDewVeins",
+      "strengthenRootHeart",
+      "raiseAncientCrown",
+      "earnRunTouches",
+      "stabilizeWound",
+      "holdTheLine",
+    ]);
+    const nextRun = createFirstRunObjectiveState();
 
-    const firstUpdate = updateFirstRunObjectives(objectiveState, firstRun);
-    expect(firstUpdate.activeObjective?.definition.id).toBe("openDewVeins");
-
-    const secondRun = createRunSpineState({ currentHp: 1, maxHp: 100 });
-    touchAncientGrass(secondRun, 6);
-    const secondUpdate = updateFirstRunObjectives(objectiveState, secondRun);
-
-    expect(secondUpdate.newlyCompleted.map((objective) => objective.definition.id)).toEqual(["openDewVeins"]);
-    expect(secondUpdate.activeObjective?.definition.id).toBe("strengthenRootHeart");
+    expect(getFirstRunFieldExpansion(completedRun)).toEqual({ rootCount: 25, gridSize: 5 });
+    expect(getFirstRunFieldExpansion(nextRun)).toEqual({ rootCount: 1, gridSize: 1 });
+    expect(getFirstRunOneTileMastery(nextRun)).toMatchObject({ rank: 0, name: "Dormant Inheritance" });
+    expect(nextRun.cumulativeRunTouchesEarned).toBe(0);
   });
 
   it("keeps objective order even if later conditions are already true", () => {

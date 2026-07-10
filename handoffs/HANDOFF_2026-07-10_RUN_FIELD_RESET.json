@@ -1,0 +1,43 @@
+{
+  "date": "2026-07-10",
+  "topic": "Reset field progression at the start of every run",
+  "currentUserGoal": "Fix subsequent runs incorrectly starting on the fully expanded field instead of rebuilding from the inherited one-tile field.",
+  "workCompleted": [
+    "Reset the run objective/mastery state when Begin Next Run creates a new active run.",
+    "Confirmed field size, one-tile mastery rank, care RT, wounds, and run tools now reset with each run while permanent GT and purchased Memory upgrades remain.",
+    "Corrected the durable redesign and implementation-plan documents: one-tile mastery and field expansion are run-local progression, not session-cumulative progression.",
+    "Replaced the obsolete cross-run care-progress test with coverage asserting that a fresh run returns to 1x1 at mastery rank 0."
+  ],
+  "filesChanged": [
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/FirstRunObjectiveSystem.test.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-10_RUN_FIELD_RESET.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 34 Vitest tests, TypeScript, and Vite production build.",
+    "Browser smoke expanded a run to 2x2 at Ancient Crown, forced dormancy, granted GT, and purchased Soft Touch.",
+    "After Begin Next Run, browser debug state reported phase active, activeRootCount 1, activeGridSize 1, mastery rank 0, wakeAncientGrass active, and 0 run touches.",
+    "The same second-run state retained 16 permanent GT and the Soft Touch permanent upgrade.",
+    "Browser console check reported no errors."
+  ],
+  "currentGitStatus": [
+    "Expected after this handoff commit: clean worktree on codex/gameplay-update, one commit ahead of origin/codex/gameplay-update."
+  ],
+  "knownIssues": [
+    "The first-run objective module name now understates its role because the same run-local objective sequence is rebuilt every run; renaming it is optional cleanup, not required for behavior.",
+    "The 2x2-to-3x3 and wound-pressure chapters still need hands-on pacing feedback after the corrected per-run reset."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user confirm that Begin Next Run visibly returns to one tile in their existing browser session.",
+    "Play one complete run from 1x1 through 3x3 and tune the post-Crown pressure ramp.",
+    "Then add meaningful 2x2 field choices before the 3x3 expansion rather than relying only on the 50 RT threshold."
+  ],
+  "doNotRevert": [
+    "Every run must start at 1x1 with mastery rank 0 and rebuild field expansion during that run.",
+    "Permanent GT and purchased Memory upgrades must survive the field reset.",
+    "Do not restore session-cumulative tile mastery or carry expanded field size through dormancy."
+  ]
+}

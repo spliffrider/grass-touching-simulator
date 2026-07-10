@@ -145,8 +145,8 @@ Current prototype notes:
 - Touch input is now target-based: only active Ancient Grass/root tiles count as healing touches. Empty meadow or HUD-area canvas clicks may show guidance, but they do not wake the intro, heal HP, award Run Touches, or advance objectives.
 - Valid root touches now put normal roots into a short visual/mechanical recovery. Recovering roots show a subtle blue halo/readiness cue; immediate repeat clicks on the same recovering root give feedback but do not award extra Run Touches. Wounded roots remain immediately touchable so triage does not feel blocked by recovery timing.
 - First-run guidance should appear as a small new-canon objective line on the run HUD. It should not reuse the old quest surface unless that system is deliberately recast later.
-- The opening is now a real one-tile chapter instead of a one-click transition. Cumulative care RT unlocks four automatic tile upgrades: `Soft Loam` at 6 RT, `Dew Veins` at 14 RT, `Root Heart` at 24 RT, and `Ancient Crown` at 36 RT. These upgrades improve manual healing and recovery cadence, carry across attempts in the current session, and visibly evolve the tile from dormant moss toward wildflowers.
-- The field remains 1x1 through the first three care upgrades. `Ancient Crown` opens 2x2 at 36 cumulative care RT, mapping 50 cumulative care RT opens 3x3, and `Hold the Line` still gates the final 5x5 patch.
+- Every run now begins with a real one-tile chapter instead of a one-click transition. Run-local care RT unlocks four automatic tile upgrades: `Soft Loam` at 6 RT, `Dew Veins` at 14 RT, `Root Heart` at 24 RT, and `Ancient Crown` at 36 RT. These upgrades improve manual healing and recovery cadence for the current run and visibly evolve the tile from dormant moss toward wildflowers.
+- The field remains 1x1 through the first three care upgrades. `Ancient Crown` opens 2x2 at 36 run-local care RT, mapping 50 care RT opens 3x3, and `Hold the Line` still gates the final 5x5 patch. Dormancy resets field size, tile mastery, wounds, and care RT; permanent GT and purchased Memory upgrades remain.
 - While the field is still a single isolated tile, Scourge HP drain runs at 58% of its normal value while elapsed time and pressure continue normally. Full drain resumes at 2x2. This preserves the established post-expansion balance while giving the one-tile mastery chapter enough room to breathe.
 - Dew Pulse and Tiny Sprinkler remain hidden and unusable during the one-tile chapter. The opening teaches direct care and tile upgrades before run tools compete for attention.
 - The `Hold the Line` objective asks the player to heal three wounded roots before the full patch opens; if the run collapses early, dormancy still advances the tutorial into the meta lesson so the first loop cannot soft-lock.
@@ -481,7 +481,7 @@ Use a hybrid trigger model:
 
 - First expansion is driven by four one-tile care/mastery upgrades.
 - Main expansion is tied to survival and Scourge stages.
-- Cumulative effective-healing rewards act as the early readiness checks, so failed attempts do not erase one-tile mastery progress within the session.
+- Run-local effective-healing rewards act as the early readiness checks. Each new attempt returns to one inherited tile and rebuilds the field with help from permanent Memory upgrades.
 
 Expansion meaning:
 
