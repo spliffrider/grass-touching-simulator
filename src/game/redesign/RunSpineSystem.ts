@@ -6,6 +6,7 @@ export type PermanentUpgradeId =
   | "ancientResilience"
   | "tinySprinkler"
   | "sprinklerTuning"
+  | "fieldSatchel"
   | "scourgeSense"
   | "distributedRoots"
   | "lastStand"
@@ -170,6 +171,7 @@ export interface PermanentUpgradeEffects {
   baseScourgeDrainMultiplier: number;
   woundPressureMultiplier: number;
   tinySprinklerHealingBonus: number;
+  runToolSlotBonus: number;
   scourgeSense: boolean;
   lastStand: boolean;
   lastStandReviveHpRatio: number;
@@ -215,6 +217,8 @@ export const LAST_STAND_REVIVE_HP_RATIO = 0.35;
 export const FAST_TOUCH_RECOVERY_DURATION_MULTIPLIER = 0.8;
 export const ANCIENT_RESILIENCE_DRAIN_MULTIPLIER = 0.88;
 export const SPRINKLER_TUNING_HEALING_BONUS = 1;
+export const BASE_RUN_TOOL_SLOT_CAPACITY = 3;
+export const FIELD_SATCHEL_SLOT_BONUS = 3;
 export const DISTRIBUTED_ROOTS_WOUND_PRESSURE_MULTIPLIER = 0.75;
 export const EMERGENCY_PHOTOSYNTHESIS_REVIVE_HP_RATIO = 0.55;
 export const PERMANENT_MEMORY_SAVE_VERSION = 1;
@@ -259,6 +263,13 @@ export const PERMANENT_UPGRADE_DEFINITIONS: Record<PermanentUpgradeId, Permanent
     name: "Sprinkler Tuning",
     cost: 32,
     description: "+1 HP per sprinkler pulse",
+    prerequisiteIds: ["tinySprinkler"],
+  },
+  fieldSatchel: {
+    id: "fieldSatchel",
+    name: "Field Satchel",
+    cost: 30,
+    description: "+3 equipped field-kit slots",
     prerequisiteIds: ["tinySprinkler"],
   },
   scourgeSense: {
@@ -727,6 +738,7 @@ export function getPermanentUpgradeEffects(upgradesOrState: PermanentUpgradeId[]
     baseScourgeDrainMultiplier: upgradeIds.includes("ancientResilience") ? ANCIENT_RESILIENCE_DRAIN_MULTIPLIER : 1,
     woundPressureMultiplier: upgradeIds.includes("distributedRoots") ? DISTRIBUTED_ROOTS_WOUND_PRESSURE_MULTIPLIER : 1,
     tinySprinklerHealingBonus: upgradeIds.includes("sprinklerTuning") ? SPRINKLER_TUNING_HEALING_BONUS : 0,
+    runToolSlotBonus: upgradeIds.includes("fieldSatchel") ? FIELD_SATCHEL_SLOT_BONUS : 0,
     scourgeSense: upgradeIds.includes("scourgeSense"),
     lastStand: upgradeIds.includes("lastStand"),
     lastStandReviveHpRatio: upgradeIds.includes("emergencyPhotosynthesis")

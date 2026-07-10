@@ -1,0 +1,69 @@
+{
+  "date": "2026-07-10",
+  "topic": "Scalable Field Kit control bar and slot-capacity progression",
+  "currentUserGoal": "Replace the temporary text-button run-tool row with a scalable icon control bar, preserve room for many future systems and items, and gate additional equipped slots behind Memory progression.",
+  "workCompleted": [
+    "Moved Tiny Sprinkler, Dew Pulse, and Root Salve out of the top status HUD into an icon-led Field Kit dock beside the playfield.",
+    "Added a shared RunToolCatalog for stable tool ids, original-game icon assets, colors, names, and player-facing descriptions.",
+    "Added stable square tool slots with RT cost badges, owned-count badges, ready/disabled presentation, hover/focus detail cards, restrained icon animation, and preserved SFX/action behavior.",
+    "Added a pure responsive Field Kit layout with two desktop columns, one narrow column, bounded four-row pages, and automatic previous/next navigation for future overflow.",
+    "Mirrored Field Kit slots, page navigation, previews, costs, counts, and readiness into the existing accessible DOM agent layer.",
+    "Added a save-compatible 30 GT Field Satchel Memory after Tiny Sprinkler. Runs begin with three equipped tool slots; Field Satchel adds three for a total capacity of six.",
+    "Added Field Satchel to the fixed Memory Grove world with original seed-satchel art, a non-crossing connector, dedicated copy, and per-node label offsets.",
+    "Shortened the main status HUD after removing its tool row, returning vertical space to the playfield while keeping objective, HP, currency, and Scourge lanes separate.",
+    "Stopped the active player card from listing every owned Memory name; mature saves now show a compact remembered-count while the full list remains in the Grove report.",
+    "Prevented focused transparent Field Kit DOM controls from painting accessibility text over their canvas icons while retaining a visible keyboard outline.",
+    "Updated the durable redesign and implementation-plan documents for the Field Kit, pagination, eleven-node Memory catalog, and slot-capacity progression."
+  ],
+  "filesChanged": [
+    "src/game/redesign/MemoryTreeCatalog.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/redesign/RunSpineSystem.ts",
+    "src/game/redesign/RunToolBarLayout.ts",
+    "src/game/redesign/RunToolCatalog.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/style.css",
+    "tests/MemoryTreeCatalog.test.ts",
+    "tests/RunSpineSystem.test.ts",
+    "tests/RunToolBarLayout.test.ts",
+    "tests/RunToolCatalog.test.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-10_FIELD_KIT_CONTROL_BAR.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "Final npm run check passed: ESLint, 50 Vitest tests across six files, TypeScript, and the Vite production build.",
+    "New unit coverage verifies unique tool metadata/assets, desktop and narrow slot geometry, future ten-tool pagination, page clamping, Field Satchel prerequisites, +3 capacity effect, save round-tripping, and connector geometry.",
+    "Desktop browser smoke at 1280x720 restarted into one root, progressed to four active roots, exposed the Field Kit at 38 RT, and reported six equipped slots with Field Satchel owned.",
+    "The live Field Kit reported a stable two-column/two-row current-tool layout with no paging required for the three-tool catalog.",
+    "Dew Pulse browser smoke spent exactly 22 RT and reported lastRunToolKind dewPulse; Tiny Sprinkler then spent exactly 16 RT, incremented tinySprinklers to 1, and reported lastRunToolKind tinySprinkler.",
+    "Keyboard focus smoke verified the Dew Pulse DOM control retained a solid focus outline while its text, background, and text shadow remained visually transparent.",
+    "Browser screenshots covered the active Field Kit and the eleven-node Memory Grove with Field Satchel visible."
+  ],
+  "currentGitStatus": [
+    "Expected after this handoff commit: clean worktree on codex/gameplay-update, four commits ahead of origin/codex/gameplay-update."
+  ],
+  "knownIssues": [
+    "The current catalog contains exactly three run tools, so Field Satchel capacity is implemented and persisted but does not force a real loadout choice until a fourth tool arrives.",
+    "Overflow paging is covered by pure layout tests with a ten-tool future catalog but cannot yet be exercised through live gameplay.",
+    "Field Satchel cost, position, and +3 value are first-pass progression tuning and need hands-on feedback alongside natural GT earnings.",
+    "This browser runtime remained fixed at 1280x720, so the one-column 390px Field Kit layout was unit-tested but not screenshot-smoked.",
+    "The compact remembered-count correction was made after the final live screenshot; it passed the full static/test/build gate but was not recaptured before browser finalization."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user play a natural run and judge the Field Kit's size, placement, icon readability, tooltip timing, and whether the shorter HUD gives the field enough breathing room.",
+    "Design the fourth run tool or item so Field Satchel becomes an immediate loadout decision rather than future scaffolding.",
+    "Define the eventual equip/loadout screen only when the catalog exceeds capacity; do not add inventory management before there is a meaningful choice.",
+    "Tune Field Satchel cost against the current Tiny Sprinkler branch and natural permanent-GT pacing.",
+    "Re-run a 390x844 Field Kit screenshot when a resizable browser surface is available."
+  ],
+  "doNotRevert": [
+    "Do not put run tools back into the top status HUD as wide text buttons.",
+    "Keep tool presentation in RunToolCatalog and layout math in RunToolBarLayout instead of adding new per-tool scene branches for future items.",
+    "Keep tool unlocks separate from equipped-slot capacity: base capacity is three and Field Satchel adds three.",
+    "Keep the Field Kit hidden during the one-tile opening and reveal each tool only when its gameplay condition matters.",
+    "Keep the transparent DOM controls and readable debug state aligned with every visible Field Kit action.",
+    "Every new run must still return to one tile at mastery rank 0 while permanent GT, Memory upgrades, and Field Satchel capacity survive."
+  ]
+}

@@ -472,6 +472,7 @@ describe("RunSpineSystem", () => {
     expect(purchasePermanentUpgrade(state, "fastTouch").missingPrerequisiteIds).toEqual(["softTouch"]);
     expect(purchasePermanentUpgrade(state, "ancientResilience").missingPrerequisiteIds).toEqual(["deeperRoots"]);
     expect(purchasePermanentUpgrade(state, "sprinklerTuning").missingPrerequisiteIds).toEqual(["tinySprinkler"]);
+    expect(purchasePermanentUpgrade(state, "fieldSatchel").missingPrerequisiteIds).toEqual(["tinySprinkler"]);
     expect(purchasePermanentUpgrade(state, "distributedRoots").missingPrerequisiteIds).toEqual(["scourgeSense"]);
     expect(purchasePermanentUpgrade(state, "emergencyPhotosynthesis").missingPrerequisiteIds).toEqual(["lastStand"]);
   });
@@ -490,6 +491,7 @@ describe("RunSpineSystem", () => {
       baseScourgeDrainMultiplier: 1,
       woundPressureMultiplier: 1,
       tinySprinklerHealingBonus: 0,
+      runToolSlotBonus: 0,
       scourgeSense: false,
       lastStand: false,
       lastStandReviveHpRatio: 0.35,
@@ -505,6 +507,7 @@ describe("RunSpineSystem", () => {
         "fastTouch",
         "ancientResilience",
         "sprinklerTuning",
+        "fieldSatchel",
         "distributedRoots",
         "emergencyPhotosynthesis",
       ]),
@@ -515,6 +518,7 @@ describe("RunSpineSystem", () => {
       baseScourgeDrainMultiplier: 0.88,
       woundPressureMultiplier: 0.75,
       tinySprinklerHealingBonus: 1,
+      runToolSlotBonus: 3,
       scourgeSense: false,
       lastStand: false,
       lastStandReviveHpRatio: 0.55,
@@ -522,7 +526,7 @@ describe("RunSpineSystem", () => {
   });
 
   it("serializes only permanent memory into the redesign save snapshot", () => {
-    const state = createRunSpineState({ currentHp: 80, permanentGrassTouches: 300 });
+    const state = createRunSpineState({ currentHp: 80, permanentGrassTouches: 330 });
     state.economy.runTouches = 123;
 
     purchasePermanentUpgrade(state, "softTouch");
@@ -531,6 +535,7 @@ describe("RunSpineSystem", () => {
     purchasePermanentUpgrade(state, "ancientResilience");
     purchasePermanentUpgrade(state, "tinySprinkler");
     purchasePermanentUpgrade(state, "sprinklerTuning");
+    purchasePermanentUpgrade(state, "fieldSatchel");
     purchasePermanentUpgrade(state, "scourgeSense");
     purchasePermanentUpgrade(state, "distributedRoots");
     purchasePermanentUpgrade(state, "lastStand");
@@ -546,6 +551,7 @@ describe("RunSpineSystem", () => {
         "distributedRoots",
         "emergencyPhotosynthesis",
         "fastTouch",
+        "fieldSatchel",
         "lastStand",
         "scourgeSense",
         "softTouch",

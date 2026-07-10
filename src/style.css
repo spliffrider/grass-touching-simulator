@@ -112,8 +112,17 @@ canvas {
 
 .grass-agent-memory-button:focus-visible,
 .grass-agent-meta-action:focus-visible,
-.grass-agent-memory-view-control:focus-visible {
+.grass-agent-memory-view-control:focus-visible,
+.grass-agent-run-tool-button:focus-visible,
+.grass-agent-run-tool-page-button:focus-visible {
   border-color: rgba(215, 166, 78, 0.9);
+}
+
+.grass-agent-run-tool-button:focus-visible,
+.grass-agent-run-tool-page-button:focus-visible {
+  background: transparent;
+  color: transparent;
+  text-shadow: none;
 }
 
 .grass-agent-layer[data-memory-tree-dragging="true"] .grass-agent-memory-button {

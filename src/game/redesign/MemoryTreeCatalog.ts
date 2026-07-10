@@ -7,6 +7,8 @@ export interface MemoryUpgradePresentation {
   iconPath: string;
   x: number;
   y: number;
+  labelOffsetX?: number;
+  labelOffsetY?: number;
   impact: string;
   flavor: string;
   shortEffect: string;
@@ -23,6 +25,7 @@ export const MEMORY_UPGRADE_IDS = [
   "ancientResilience",
   "tinySprinkler",
   "sprinklerTuning",
+  "fieldSatchel",
   "scourgeSense",
   "distributedRoots",
   "lastStand",
@@ -95,6 +98,19 @@ export const MEMORY_UPGRADE_VIEW: Record<PermanentUpgradeId, MemoryUpgradePresen
     impact: "each future sprinkler heals 1 additional HP",
     flavor: "The nozzles remember a finer mist. Every purchased sprinkler restores one more HP per pulse.",
     shortEffect: "Sprinkler +1 HP",
+  },
+  fieldSatchel: {
+    branch: "Automation",
+    color: 0xbff4ff,
+    iconKey: "memory-icon-field-satchel",
+    iconPath: "/assets/ui/items/seed-satchel.png",
+    x: 0.36,
+    y: 0.91,
+    labelOffsetX: -72,
+    labelOffsetY: 0,
+    impact: "future runs can equip 3 more field-kit tools",
+    flavor: "A practical satchel remembers where everything belongs. Future runs can carry six equipped tools instead of three.",
+    shortEffect: "Kit slots +3",
   },
   scourgeSense: {
     branch: "Scourge",

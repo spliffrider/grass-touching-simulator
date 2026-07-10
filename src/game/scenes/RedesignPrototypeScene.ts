@@ -30,12 +30,23 @@ import {
   zoomMemoryTreeAtPoint,
   type MemoryTreeViewport,
 } from "../redesign/MemoryTreeViewport";
+import {
+  RUN_TOOL_IDS,
+  RUN_TOOL_VIEW,
+  type RunToolId,
+} from "../redesign/RunToolCatalog";
+import {
+  getRunToolBarLayout,
+  RUN_TOOL_SLOT_SIZE,
+  type RunToolBarLayout,
+} from "../redesign/RunToolBarLayout";
 import { RedesignDomBridge } from "../redesign/RedesignDomBridge";
 import { AudioSystem } from "../systems/AudioSystem";
 import type { GrassTierId, TileTrait } from "../types/game-state";
 import {
   applyTinySprinklerPulse,
   advanceRun,
+  BASE_RUN_TOOL_SLOT_CAPACITY,
   buyTinySprinkler,
   createNextRunFromDormancy,
   createPermanentMemorySnapshot,
@@ -132,14 +143,28 @@ interface BrowserDebugNextRunButton {
 }
 
 interface BrowserDebugRunToolButton {
-  toolId: "dewPulse" | "rootSalve" | "tinySprinkler";
+  toolId: RunToolId;
   x: number;
   y: number;
   width: number;
   height: number;
+  cost: number;
+  count: number;
   visible: boolean;
   usable: boolean;
   affordable: boolean;
+}
+
+interface BrowserDebugRunToolBarView {
+  slotCapacity: number;
+  equippedCount: number;
+  page: number;
+  pageCount: number;
+  pageCapacity: number;
+  columns: number;
+  rows: number;
+  previousButton: BrowserDebugButtonBounds;
+  nextButton: BrowserDebugButtonBounds;
 }
 
 interface BrowserDebugButtonBounds {
@@ -230,6 +255,19 @@ interface LockedMetaNodeView {
   detail: Phaser.GameObjects.Text;
 }
 
+interface RunToolSlotView {
+  toolId: RunToolId;
+  button: Phaser.GameObjects.Rectangle;
+  icon: Phaser.GameObjects.Image;
+  costBadge: Phaser.GameObjects.Rectangle;
+  costText: Phaser.GameObjects.Text;
+  countBadge: Phaser.GameObjects.Arc;
+  countText: Phaser.GameObjects.Text;
+  available: boolean;
+  usable: boolean;
+  count: number;
+}
+
 type PrototypeMusicMode = "field" | "grove";
 type PrototypeMusicTrack = Phaser.Sound.BaseSound & {
   readonly volume: number;
@@ -260,21 +298,16 @@ const DEFAULT_WOUND_WARNING_RATIO = 0.72;
 const SCOURGE_SENSE_WARNING_RATIO = 0.42;
 const MAX_OPEN_WOUNDS = 7;
 const HUD_PANEL_BASE_WIDTH = 640;
-const HUD_PANEL_BASE_HEIGHT = 232;
+const HUD_PANEL_BASE_HEIGHT = 196;
 const FIELD_PANEL_BASE_WIDTH = 520;
 const FIELD_PANEL_BASE_HEIGHT = 520;
 const SUMMARY_PANEL_BASE_WIDTH = 760;
 const SUMMARY_PANEL_BASE_HEIGHT = 500;
 const INTRO_PANEL_BASE_WIDTH = 520;
 const INTRO_PANEL_BASE_HEIGHT = 92;
-const ROOT_SALVE_BUTTON_WIDTH = 136;
-const COMPACT_ROOT_SALVE_BUTTON_WIDTH = 108;
-const DEW_PULSE_BUTTON_WIDTH = 116;
-const COMPACT_DEW_PULSE_BUTTON_WIDTH = 94;
-const ROOT_SALVE_BUTTON_HEIGHT = 28;
-const TINY_SPRINKLER_BUTTON_WIDTH = 146;
-const COMPACT_TINY_SPRINKLER_BUTTON_WIDTH = 112;
-const RUN_TOOL_BUTTON_GAP = 8;
+const RUN_TOOL_ICON_SIZE = 34;
+const RUN_TOOL_TOOLTIP_WIDTH = 244;
+const RUN_TOOL_TOOLTIP_HEIGHT = 88;
 const TINY_SPRINKLER_PULSE_INTERVAL_MS = 2400;
 const FAST_TINY_SPRINKLER_PULSE_INTERVAL_MS = 900;
 const OPTIONS_BUTTON_WIDTH = 78;
@@ -411,12 +444,21 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private hpBarFill!: Phaser.GameObjects.Rectangle;
   private hpBarGlint!: Phaser.GameObjects.Rectangle;
   private scourgeBarFill!: Phaser.GameObjects.Rectangle;
-  private dewPulseButton!: Phaser.GameObjects.Rectangle;
-  private dewPulseText!: Phaser.GameObjects.Text;
-  private rootSalveButton!: Phaser.GameObjects.Rectangle;
-  private rootSalveText!: Phaser.GameObjects.Text;
-  private tinySprinklerButton!: Phaser.GameObjects.Rectangle;
-  private tinySprinklerText!: Phaser.GameObjects.Text;
+  private runToolBar!: Phaser.GameObjects.NineSlice;
+  private runToolSlots!: Record<RunToolId, RunToolSlotView>;
+  private runToolSlotCapacity = BASE_RUN_TOOL_SLOT_CAPACITY + getPermanentUpgradeEffects(this.state).runToolSlotBonus;
+  private equippedRunToolIds: readonly RunToolId[] = RUN_TOOL_IDS.slice(0, this.runToolSlotCapacity);
+  private runToolPage = 0;
+  private runToolBarLayout: RunToolBarLayout = getRunToolBarLayout(this.equippedRunToolIds.length, 1280);
+  private runToolPreviousPageButton!: Phaser.GameObjects.Rectangle;
+  private runToolPreviousPageText!: Phaser.GameObjects.Text;
+  private runToolNextPageButton!: Phaser.GameObjects.Rectangle;
+  private runToolNextPageText!: Phaser.GameObjects.Text;
+  private runToolPageText!: Phaser.GameObjects.Text;
+  private runToolTooltipFrame!: Phaser.GameObjects.Rectangle;
+  private runToolTooltipTitle!: Phaser.GameObjects.Text;
+  private runToolTooltipBody!: Phaser.GameObjects.Text;
+  private hoveredRunToolId: RunToolId | null = null;
   private optionsButton!: Phaser.GameObjects.Rectangle;
   private optionsButtonText!: Phaser.GameObjects.Text;
   private optionsBackdrop!: Phaser.GameObjects.Rectangle;
@@ -515,6 +557,18 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     super("RedesignPrototypeScene");
   }
 
+  private get dewPulseButton(): Phaser.GameObjects.Rectangle {
+    return this.runToolSlots.dewPulse.button;
+  }
+
+  private get rootSalveButton(): Phaser.GameObjects.Rectangle {
+    return this.runToolSlots.rootSalve.button;
+  }
+
+  private get tinySprinklerButton(): Phaser.GameObjects.Rectangle {
+    return this.runToolSlots.tinySprinkler.button;
+  }
+
   preload(): void {
     this.load.image("redesign-meadow-bg", "/assets/backgrounds/meadow-clearing-concept.webp");
     this.load.image("panel-emerald", "/assets/ui/panel-emerald.png");
@@ -524,6 +578,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.load.image("skill-node-selected", "/assets/ui/skill-node-selected.png");
     for (const upgradeId of MEMORY_UPGRADE_IDS) {
       const view = MEMORY_UPGRADE_VIEW[upgradeId];
+      this.load.image(view.iconKey, view.iconPath);
+    }
+    for (const toolId of RUN_TOOL_IDS) {
+      const view = RUN_TOOL_VIEW[toolId];
       this.load.image(view.iconKey, view.iconPath);
     }
     this.load.image("player-pixel-portrait", "/assets/ui/characters/player-field-heir.png");
@@ -550,6 +608,12 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.hudPanel = this.add
       .nineslice(0, 0, "panel-emerald", undefined, HUD_PANEL_BASE_WIDTH, HUD_PANEL_BASE_HEIGHT, 18, 18, 18, 18)
       .setDepth(2);
+    const initialRunToolBarLayout = getRunToolBarLayout(this.equippedRunToolIds.length, this.scale.width);
+    this.runToolBar = this.add
+      .nineslice(0, 0, "panel-emerald", undefined, initialRunToolBarLayout.width, initialRunToolBarLayout.height, 18, 18, 18, 18)
+      .setDepth(15)
+      .setAlpha(0.94)
+      .setVisible(false);
     this.fieldPanel = this.add
       .nineslice(0, 0, "panel-emerald", undefined, FIELD_PANEL_BASE_WIDTH, FIELD_PANEL_BASE_HEIGHT, 18, 18, 18, 18)
       .setDepth(2)
@@ -996,51 +1060,72 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       strokeThickness: 3,
       wordWrap: { width: 520 },
     }).setDepth(5);
-    this.dewPulseButton = this.add
-      .rectangle(0, 0, DEW_PULSE_BUTTON_WIDTH, ROOT_SALVE_BUTTON_HEIGHT, 0x173822, 0.9)
-      .setDepth(5)
-      .setStrokeStyle(2, 0xbff4ff, 0.72)
-      .setInteractive({ useHandCursor: true });
-    this.dewPulseButton.on("pointerdown", () => this.handleDewPulseClick());
-    this.dewPulseText = this.add.text(0, 0, "", {
-      align: "center",
-      color: "#bff4ff",
+    this.runToolSlots = Object.fromEntries(
+      RUN_TOOL_IDS.map((toolId) => [
+        toolId,
+        this.createRunToolSlot(toolId, this.getRunToolCost(toolId), () => this.activateRunTool(toolId)),
+      ]),
+    ) as Record<RunToolId, RunToolSlotView>;
+    this.runToolPreviousPageButton = this.add
+      .rectangle(0, 0, 24, 20, 0x102d1c, 0.96)
+      .setDepth(16)
+      .setStrokeStyle(1, 0xd7a64e, 0.72)
+      .setInteractive({ useHandCursor: true })
+      .setVisible(false);
+    this.runToolPreviousPageButton.on("pointerdown", () => this.changeRunToolPage(-1));
+    this.runToolPreviousPageText = this.add.text(0, 0, "<", {
+      color: "#f7ffd6",
       fontFamily: "Arial, sans-serif",
-      fontSize: "13px",
+      fontSize: "14px",
+      fontStyle: "bold",
+      stroke: "#07100c",
+      strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(17).setVisible(false);
+    this.runToolNextPageButton = this.add
+      .rectangle(0, 0, 24, 20, 0x102d1c, 0.96)
+      .setDepth(16)
+      .setStrokeStyle(1, 0xd7a64e, 0.72)
+      .setInteractive({ useHandCursor: true })
+      .setVisible(false);
+    this.runToolNextPageButton.on("pointerdown", () => this.changeRunToolPage(1));
+    this.runToolNextPageText = this.add.text(0, 0, ">", {
+      color: "#f7ffd6",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "14px",
+      fontStyle: "bold",
+      stroke: "#07100c",
+      strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(17).setVisible(false);
+    this.runToolPageText = this.add.text(0, 0, "", {
+      color: "#dff6ca",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "11px",
+      fontStyle: "bold",
+      stroke: "#07100c",
+      strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(17).setVisible(false);
+    this.runToolTooltipFrame = this.add
+      .rectangle(0, 0, RUN_TOOL_TOOLTIP_WIDTH, RUN_TOOL_TOOLTIP_HEIGHT, 0x07170f, 0.97)
+      .setDepth(22)
+      .setStrokeStyle(2, 0xbff4ff, 0.78)
+      .setVisible(false);
+    this.runToolTooltipTitle = this.add.text(0, 0, "", {
+      color: "#f7ffd6",
+      fontFamily: "Georgia, serif",
+      fontSize: "16px",
       fontStyle: "bold",
       stroke: "#07100c",
       strokeThickness: 3,
-    }).setOrigin(0.5).setDepth(6);
-    this.rootSalveButton = this.add
-      .rectangle(0, 0, ROOT_SALVE_BUTTON_WIDTH, ROOT_SALVE_BUTTON_HEIGHT, 0x173822, 0.9)
-      .setDepth(5)
-      .setStrokeStyle(2, 0xd7a64e, 0.78)
-      .setInteractive({ useHandCursor: true });
-    this.rootSalveButton.on("pointerdown", () => this.handleRootSalveClick());
-    this.rootSalveText = this.add.text(0, 0, "", {
-      align: "center",
-      color: "#ffefb0",
+    }).setDepth(23).setVisible(false);
+    this.runToolTooltipBody = this.add.text(0, 0, "", {
+      color: "#dff6ca",
       fontFamily: "Arial, sans-serif",
-      fontSize: "13px",
-      fontStyle: "bold",
+      fontSize: "10px",
+      lineSpacing: 2,
       stroke: "#07100c",
       strokeThickness: 3,
-    }).setOrigin(0.5).setDepth(6);
-    this.tinySprinklerButton = this.add
-      .rectangle(0, 0, TINY_SPRINKLER_BUTTON_WIDTH, ROOT_SALVE_BUTTON_HEIGHT, 0x173822, 0.9)
-      .setDepth(5)
-      .setStrokeStyle(2, 0x8fdfff, 0.72)
-      .setInteractive({ useHandCursor: true });
-    this.tinySprinklerButton.on("pointerdown", () => this.handleTinySprinklerClick());
-    this.tinySprinklerText = this.add.text(0, 0, "", {
-      align: "center",
-      color: "#d9fbff",
-      fontFamily: "Arial, sans-serif",
-      fontSize: "13px",
-      fontStyle: "bold",
-      stroke: "#07100c",
-      strokeThickness: 3,
-    }).setOrigin(0.5).setDepth(6);
+      wordWrap: { width: RUN_TOOL_TOOLTIP_WIDTH - 24 },
+    }).setDepth(23).setVisible(false);
     this.scourgeText = this.add.text(0, 0, "", {
       color: "#ffb1c7",
       fontFamily: "Arial, sans-serif",
@@ -1068,6 +1153,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       useDewPulse: () => this.handleDewPulseClick(),
       useRootSalve: () => this.handleRootSalveClick(),
       useTinySprinkler: () => this.handleTinySprinklerClick(),
+      previewRunTool: (toolId) => this.previewRunTool(toolId),
+      clearRunToolPreview: (toolId) => this.clearRunToolPreview(toolId),
+      previousRunToolPage: () => this.changeRunToolPage(-1),
+      nextRunToolPage: () => this.changeRunToolPage(1),
       previewMemory: (upgradeId) => this.previewMemoryUpgrade(upgradeId),
       clearMemoryPreview: (upgradeId) => this.clearMemoryUpgradePreview(upgradeId),
       purchaseMemory: (upgradeId) => this.handleMemoryUpgradeClick(upgradeId),
@@ -1326,6 +1415,86 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.refreshOptionsPanel();
   }
 
+  private getRunToolCost(toolId: RunToolId): number {
+    switch (toolId) {
+      case "dewPulse":
+        return DEW_PULSE_RUN_TOUCH_COST;
+      case "rootSalve":
+        return ROOT_SALVE_RUN_TOUCH_COST;
+      case "tinySprinkler":
+        return TINY_SPRINKLER_RUN_TOUCH_COST;
+    }
+  }
+
+  private activateRunTool(toolId: RunToolId): void {
+    switch (toolId) {
+      case "dewPulse":
+        this.handleDewPulseClick();
+        return;
+      case "rootSalve":
+        this.handleRootSalveClick();
+        return;
+      case "tinySprinkler":
+        this.handleTinySprinklerClick();
+    }
+  }
+
+  private createRunToolSlot(toolId: RunToolId, cost: number, activate: () => void): RunToolSlotView {
+    const view = RUN_TOOL_VIEW[toolId];
+    const button = this.add
+      .rectangle(0, 0, RUN_TOOL_SLOT_SIZE, RUN_TOOL_SLOT_SIZE, 0x102d1c, 0.94)
+      .setDepth(16)
+      .setStrokeStyle(2, view.color, 0.74)
+      .setInteractive({ useHandCursor: true })
+      .setVisible(false);
+    button.on("pointerdown", activate);
+    button.on("pointerover", () => this.previewRunTool(toolId));
+    button.on("pointerout", () => this.clearRunToolPreview(toolId));
+
+    const icon = this.add
+      .image(0, 0, view.iconKey)
+      .setDepth(17)
+      .setDisplaySize(RUN_TOOL_ICON_SIZE, RUN_TOOL_ICON_SIZE)
+      .setVisible(false);
+    const costBadge = this.add
+      .rectangle(0, 0, 44, 15, 0x06150d, 0.92)
+      .setDepth(18)
+      .setStrokeStyle(1, view.color, 0.52)
+      .setVisible(false);
+    const costText = this.add.text(0, 0, `${cost} RT`, {
+      align: "center",
+      color: "#f7ffd6",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "9px",
+      fontStyle: "bold",
+      stroke: "#07100c",
+      strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(19).setVisible(false);
+    const countBadge = this.add
+      .circle(0, 0, 10, 0x173822, 0.98)
+      .setDepth(20)
+      .setStrokeStyle(2, 0xeaff9b, 0.82)
+      .setVisible(false);
+    const countText = this.add.text(0, 0, "", {
+      align: "center",
+      color: "#eaff9b",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "10px",
+      fontStyle: "bold",
+      stroke: "#07100c",
+      strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(21).setVisible(false);
+
+    return { toolId, button, icon, costBadge, costText, countBadge, countText, available: false, usable: false, count: 0 };
+  }
+
+  private syncRunToolSlotCapacity(): void {
+    this.runToolSlotCapacity = BASE_RUN_TOOL_SLOT_CAPACITY + getPermanentUpgradeEffects(this.state).runToolSlotBonus;
+    this.equippedRunToolIds = RUN_TOOL_IDS.slice(0, this.runToolSlotCapacity);
+    this.runToolBarLayout = getRunToolBarLayout(this.equippedRunToolIds.length, this.scale.width, this.runToolPage);
+    this.runToolPage = this.runToolBarLayout.page;
+  }
+
   update(_time: number, delta: number): void {
     if (this.introActive) {
       this.refreshReadout();
@@ -1460,25 +1629,12 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.hpBarGlint.setPosition(this.hpBarFill.x, this.hpBarFill.y).setSize(18, 20);
     this.hpText.setPosition(hudLeft + 40, top + 98);
     this.runTouchText.setPosition(hudLeft + 40, top + 124);
-    const rootSalveButtonWidth = width < 720 ? COMPACT_ROOT_SALVE_BUTTON_WIDTH : ROOT_SALVE_BUTTON_WIDTH;
-    const dewPulseButtonWidth = width < 720 ? COMPACT_DEW_PULSE_BUTTON_WIDTH : DEW_PULSE_BUTTON_WIDTH;
-    const tinySprinklerButtonWidth = width < 720 ? COMPACT_TINY_SPRINKLER_BUTTON_WIDTH : TINY_SPRINKLER_BUTTON_WIDTH;
-    const rootSalveButtonX = hudRight - rootSalveButtonWidth / 2 - 36;
-    const dewPulseButtonX = rootSalveButtonX - rootSalveButtonWidth / 2 - RUN_TOOL_BUTTON_GAP - dewPulseButtonWidth / 2;
-    const tinySprinklerButtonX = dewPulseButtonX - dewPulseButtonWidth / 2 - RUN_TOOL_BUTTON_GAP - tinySprinklerButtonWidth / 2;
-    const runToolButtonY = top + 162;
-    this.dewPulseButton.setPosition(dewPulseButtonX, runToolButtonY).setSize(dewPulseButtonWidth, ROOT_SALVE_BUTTON_HEIGHT);
-    this.dewPulseText.setPosition(dewPulseButtonX, runToolButtonY);
-    this.rootSalveButton.setPosition(rootSalveButtonX, runToolButtonY).setSize(rootSalveButtonWidth, ROOT_SALVE_BUTTON_HEIGHT);
-    this.rootSalveText.setPosition(rootSalveButtonX, runToolButtonY);
-    this.tinySprinklerButton.setPosition(tinySprinklerButtonX, runToolButtonY).setSize(tinySprinklerButtonWidth, ROOT_SALVE_BUTTON_HEIGHT);
-    this.tinySprinklerText.setPosition(tinySprinklerButtonX, runToolButtonY);
     const optionsButtonX = hudRight - OPTIONS_BUTTON_WIDTH / 2 - 18;
     const optionsButtonY = top + 22;
     this.optionsButton.setPosition(optionsButtonX, optionsButtonY).setSize(OPTIONS_BUTTON_WIDTH, OPTIONS_BUTTON_HEIGHT);
     this.optionsButtonText.setPosition(optionsButtonX, optionsButtonY);
-    this.scourgeBarFill.setPosition(centerX - 82, top + 210);
-    this.scourgeText.setPosition(hudLeft + 40, top + 198);
+    this.scourgeBarFill.setPosition(centerX - 82, top + 172);
+    this.scourgeText.setPosition(hudLeft + 40, top + 160);
     const promptY = height - 96;
     this.promptText.setWordWrapWidth(Math.min(580, width - 52));
     this.promptText.setPosition(centerX, promptY);
@@ -1486,7 +1642,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const sidePanelVisible = width >= 1040 && height >= 650;
     const compactPanelsVisible = !sidePanelVisible && width >= COMPACT_PANEL_MIN_WIDTH && height >= COMPACT_PANEL_MIN_HEIGHT;
     const compactPanelsStacked = compactPanelsVisible && width < COMPACT_STACK_MAX_WIDTH && height >= COMPACT_STACK_MIN_HEIGHT;
-    const fieldAreaTop = top + (compactPanelsVisible ? (compactPanelsStacked ? 408 : 326) : 252);
+    const activeFieldTopOffset = this.introActive ? 252 : 236;
+    const fieldAreaTop = top + (compactPanelsVisible ? (compactPanelsStacked ? 408 : 326) : activeFieldTopOffset);
     const fieldAreaBottom = promptY - 52;
     const availableFieldHeight = Math.max(230, fieldAreaBottom - fieldAreaTop);
     const maxGridSize = this.getMaxGridSize();
@@ -1507,6 +1664,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.oneTileMasteryText
       .setPosition(this.fieldCenterX, this.fieldCenterY + tileSize / 2 + 14)
       .setWordWrapWidth(gridSize + 54);
+    this.layoutRunToolBar(width, height, centerX, this.fieldCenterY, gridSize, promptY);
     const introPanelVisible = this.introActive && this.state.phase === "active" && !compactPanelsVisible;
     const introPanelWidth = Math.min(INTRO_PANEL_BASE_WIDTH, width - 48);
     const introPanelHeight = compact ? 76 : INTRO_PANEL_BASE_HEIGHT;
@@ -1650,7 +1808,12 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       button.hoverRing.setPosition(x, y).setRadius(nodeSize * 0.78);
       button.frame.setPosition(x, y).setDisplaySize(nodeSize, nodeSize);
       button.icon.setPosition(x, y).setDisplaySize(nodeSize * 0.28, nodeSize * 0.28);
-      button.title.setFontSize(16).setPosition(x, y + nodeSize * 0.76);
+      button.title
+        .setFontSize(16)
+        .setPosition(
+          x + (view.labelOffsetX ?? 0),
+          y + (view.labelOffsetY ?? nodeSize * 0.76),
+        );
       button.title.setWordWrapWidth(nodeSize + 68);
       button.branch.setFontSize(10).setPosition(x, y + nodeSize * 1);
       button.branch.setAlpha(0);
@@ -1867,6 +2030,75 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       node.woundHalo.setPosition(x, y).setRadius(Math.max(14, tileSize * 0.18));
       node.woundShard.setPosition(x, y - visualSize * 0.2).setSize(Math.max(5, visualSize * 0.06), Math.max(18, visualSize * 0.22));
     });
+  }
+
+  private layoutRunToolBar(
+    width: number,
+    height: number,
+    fieldCenterX: number,
+    fieldCenterY: number,
+    gridSize: number,
+    promptY: number,
+  ): void {
+    this.runToolBarLayout = getRunToolBarLayout(this.equippedRunToolIds.length, width, this.runToolPage);
+    this.runToolPage = this.runToolBarLayout.page;
+    const barWidth = this.runToolBarLayout.width;
+    const barHeight = this.runToolBarLayout.height;
+    const preferredX = fieldCenterX + gridSize / 2 + barWidth / 2 + 26;
+    const barX = Phaser.Math.Clamp(preferredX, barWidth / 2 + 12, width - barWidth / 2 - 12);
+    const minY = barHeight / 2 + 12;
+    const maxY = Math.max(minY, Math.min(height - barHeight / 2 - 12, promptY - barHeight / 2 - 12));
+    const barY = Phaser.Math.Clamp(fieldCenterY, minY, maxY);
+    this.runToolBar.setPosition(barX, barY).setSize(barWidth, barHeight);
+
+    RUN_TOOL_IDS.forEach((toolId) => {
+      const slot = this.runToolSlots[toolId];
+      const catalogIndex = this.equippedRunToolIds.indexOf(toolId);
+      const position = this.runToolBarLayout.slotPositions.find((candidate) => candidate.catalogIndex === catalogIndex);
+      if (!position) {
+        this.applyRunToolSlotVisibility(slot);
+        return;
+      }
+      const slotX = barX + position.x;
+      const slotY = barY + position.y;
+      slot.button.setPosition(slotX, slotY).setSize(RUN_TOOL_SLOT_SIZE, RUN_TOOL_SLOT_SIZE);
+      slot.icon.setPosition(slotX, slotY - 6).setDisplaySize(RUN_TOOL_ICON_SIZE, RUN_TOOL_ICON_SIZE);
+      slot.costBadge.setPosition(slotX, slotY + RUN_TOOL_SLOT_SIZE / 2 - 9);
+      slot.costText.setPosition(slotX, slotY + RUN_TOOL_SLOT_SIZE / 2 - 9);
+      slot.countBadge.setPosition(slotX + RUN_TOOL_SLOT_SIZE / 2 - 7, slotY - RUN_TOOL_SLOT_SIZE / 2 + 7);
+      slot.countText.setPosition(slot.countBadge.x, slot.countBadge.y);
+      this.applyRunToolSlotVisibility(slot);
+    });
+    const navigationY = barY + this.runToolBarLayout.navigationY;
+    this.runToolPreviousPageButton.setPosition(barX - 30, navigationY);
+    this.runToolPreviousPageText.setPosition(barX - 30, navigationY);
+    this.runToolPageText.setPosition(barX, navigationY).setText(`${this.runToolPage + 1}/${this.runToolBarLayout.pageCount}`);
+    this.runToolNextPageButton.setPosition(barX + 30, navigationY);
+    this.runToolNextPageText.setPosition(barX + 30, navigationY);
+    this.layoutRunToolTooltip();
+  }
+
+  private layoutRunToolTooltip(): void {
+    if (!this.hoveredRunToolId) {
+      return;
+    }
+
+    const slot = this.runToolSlots[this.hoveredRunToolId];
+    const width = this.scale.width;
+    const height = this.scale.height;
+    const rightX = slot.button.x + RUN_TOOL_SLOT_SIZE / 2 + 12 + RUN_TOOL_TOOLTIP_WIDTH / 2;
+    const leftX = slot.button.x - RUN_TOOL_SLOT_SIZE / 2 - 12 - RUN_TOOL_TOOLTIP_WIDTH / 2;
+    const tooltipX = rightX + RUN_TOOL_TOOLTIP_WIDTH / 2 <= width - 12 ? rightX : Math.max(RUN_TOOL_TOOLTIP_WIDTH / 2 + 12, leftX);
+    const tooltipY = Phaser.Math.Clamp(
+      slot.button.y,
+      RUN_TOOL_TOOLTIP_HEIGHT / 2 + 12,
+      height - RUN_TOOL_TOOLTIP_HEIGHT / 2 - 12,
+    );
+    const tooltipLeft = tooltipX - RUN_TOOL_TOOLTIP_WIDTH / 2;
+    const tooltipTop = tooltipY - RUN_TOOL_TOOLTIP_HEIGHT / 2;
+    this.runToolTooltipFrame.setPosition(tooltipX, tooltipY);
+    this.runToolTooltipTitle.setPosition(tooltipLeft + 12, tooltipTop + 9);
+    this.runToolTooltipBody.setPosition(tooltipLeft + 12, tooltipTop + 32);
   }
 
   private layoutOptionsPanel(width: number, height: number, centerX: number): void {
@@ -2111,7 +2343,12 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       return;
     }
 
-    if (this.isPointerOverDewPulseButton(pointer) || this.isPointerOverRootSalveButton(pointer) || this.isPointerOverTinySprinklerButton(pointer)) {
+    if (
+      this.isPointerOverDewPulseButton(pointer) ||
+      this.isPointerOverRootSalveButton(pointer) ||
+      this.isPointerOverTinySprinklerButton(pointer) ||
+      this.isPointerOverRunToolPageButton(pointer)
+    ) {
       return;
     }
 
@@ -2298,9 +2535,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const activeObjectiveId = getActiveFirstRunObjective(this.objectiveState, this.state)?.definition.id;
     const tileMastery = getFirstRunOneTileMastery(this.objectiveState);
     const dewPulseUsable = this.isDewPulseUsable();
-    this.refreshDewPulseButton(compact);
-    this.refreshRootSalveButton(woundedCount, compact);
-    this.refreshTinySprinklerButton(compact);
+    this.refreshDewPulseButton();
+    this.refreshRootSalveButton(woundedCount);
+    this.refreshTinySprinklerButton();
+    this.refreshRunToolBarVisibility();
     this.updateSensiMessage(this.getSensiMessage(woundedCount, compactPanelCopy));
     this.refreshFeedRows();
     const lastStandPrompt = this.hasLastStand()
@@ -2433,7 +2671,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private updatePlayerPanel(compact: boolean): void {
-    const ownedMemory = this.formatOwnedMemory();
+    const ownedMemoryCount = MEMORY_UPGRADE_IDS.filter((upgradeId) => hasPermanentUpgrade(this.state, upgradeId)).length;
+    const ownedMemory = ownedMemoryCount > 0 ? `${ownedMemoryCount} remembered` : "none";
     const phaseText = this.state.phase === "dormant" ? "Dormant heir" : this.introActive ? "Field heir" : "Manual caretaker";
     this.sensiTitle.setText("Grass Toucher");
     this.sensiTitle.setColor("#ffefb0");
@@ -2524,8 +2763,30 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         node.woundShard.setAngle(-12);
       }
     });
+    this.animateRunToolBar(seconds);
     this.animateMemoryGrove(seconds);
     this.animateSensi(seconds);
+  }
+
+  private animateRunToolBar(seconds: number): void {
+    if (!this.runToolBar.visible) {
+      return;
+    }
+
+    this.runToolBar.setAlpha(0.92 + Math.sin(seconds * 1.8) * 0.025);
+    for (const toolId of RUN_TOOL_IDS) {
+      const slot = this.runToolSlots[toolId];
+      if (!slot.button.visible) {
+        continue;
+      }
+      const hovered = this.hoveredRunToolId === toolId;
+      slot.icon
+        .setPosition(slot.button.x, slot.button.y - 6 + (hovered ? Math.sin(seconds * 5.2) * 2 : 0))
+        .setAngle(hovered ? Math.sin(seconds * 4.4) * 3 : 0);
+      if (slot.countBadge.visible) {
+        slot.countBadge.setScale(1 + Math.sin(seconds * 3.8) * 0.06);
+      }
+    }
   }
 
   private animateMemoryGrove(seconds: number): void {
@@ -2745,6 +3006,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private resetRunToolFeedbackState(): void {
     this.lastRunToolKind = "none";
     this.lastRunToolAt = 0;
+    this.hoveredRunToolId = null;
+    this.setRunToolTooltipVisible(false);
     this.dewPulseWasUsable = false;
     this.lastDewPulseReadyAt = 0;
     this.tinySprinklerElapsed = 0;
@@ -2869,17 +3132,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.publishBrowserDebugState();
   }
 
-  private refreshDewPulseButton(compact: boolean): void {
+  private refreshDewPulseButton(): void {
     const visible = this.shouldShowDewPulseButton();
     const usable = this.isDewPulseUsable();
-    const label = compact ? `Dew ${DEW_PULSE_RUN_TOUCH_COST}` : `Dew Pulse ${DEW_PULSE_RUN_TOUCH_COST} RT`;
-    this.dewPulseButton.setVisible(visible);
-    this.dewPulseText.setVisible(visible);
-    this.dewPulseText.setText(label);
-    this.dewPulseText.setColor(usable ? "#d9fbff" : "#9e9a84");
-    this.dewPulseButton
-      .setFillStyle(usable ? 0x164554 : 0x223026, usable ? 0.94 : 0.62)
-      .setStrokeStyle(2, usable ? 0xbff4ff : 0x6f6a52, usable ? 0.86 : 0.45);
+    this.setRunToolSlotState("dewPulse", visible, usable);
     if (usable && !this.dewPulseWasUsable) {
       this.dewPulseWasUsable = true;
       this.lastDewPulseReadyAt = Math.round(this.time.now);
@@ -2913,9 +3169,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private playDewPulseReady(): void {
     this.addFeedEntry("Dew Pulse ready", "spend RT to buy time", "DP", "#bff4ff");
     this.saySensi("Dew Pulse ready.\nSpend Run Touches to buy time.", "approval", 3600);
-    this.tweens.killTweensOf([this.dewPulseButton, this.dewPulseText]);
+    const icon = this.runToolSlots.dewPulse.icon;
+    this.tweens.killTweensOf([this.dewPulseButton, icon]);
     this.tweens.add({
-      targets: [this.dewPulseButton, this.dewPulseText],
+      targets: [this.dewPulseButton, icon],
       duration: 150,
       ease: "Quad.easeOut",
       scaleX: 1.06,
@@ -2923,7 +3180,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       yoyo: true,
       onComplete: () => {
         this.dewPulseButton.setScale(1);
-        this.dewPulseText.setScale(1);
+        icon.setScale(1);
       },
     });
   }
@@ -2951,18 +3208,11 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     });
   }
 
-  private refreshRootSalveButton(woundedCount: number, compact: boolean): void {
+  private refreshRootSalveButton(woundedCount: number): void {
     const visible = this.shouldShowRootSalveButton(woundedCount);
     const affordable = this.state.economy.runTouches >= ROOT_SALVE_RUN_TOUCH_COST;
     const usable = visible && woundedCount > 0 && affordable;
-    const label = compact ? `Salve ${ROOT_SALVE_RUN_TOUCH_COST}` : `Root Salve ${ROOT_SALVE_RUN_TOUCH_COST} RT`;
-    this.rootSalveButton.setVisible(visible);
-    this.rootSalveText.setVisible(visible);
-    this.rootSalveText.setText(label);
-    this.rootSalveText.setColor(usable ? "#ffefb0" : "#9e9a84");
-    this.rootSalveButton
-      .setFillStyle(usable ? 0x1c5232 : 0x223026, usable ? 0.94 : 0.62)
-      .setStrokeStyle(2, usable ? 0xd7a64e : 0x6f6a52, usable ? 0.86 : 0.45);
+    this.setRunToolSlotState("rootSalve", visible, usable);
   }
 
   private shouldShowRootSalveButton(woundedCount = getWoundedRootCount(this.state)): boolean {
@@ -3006,20 +3256,13 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.publishBrowserDebugState();
   }
 
-  private refreshTinySprinklerButton(compact: boolean): void {
+  private refreshTinySprinklerButton(): void {
     const licensed = hasPermanentUpgrade(this.state, "tinySprinkler");
     const visible = this.shouldShowTinySprinklerButton(licensed);
     const affordable = this.state.economy.runTouches >= TINY_SPRINKLER_RUN_TOUCH_COST;
     const count = this.state.automation.tinySprinklers;
     const usable = visible && affordable;
-    const label = compact ? `Spr ${TINY_SPRINKLER_RUN_TOUCH_COST}${count > 0 ? ` x${count}` : ""}` : `Sprinkler ${TINY_SPRINKLER_RUN_TOUCH_COST} RT${count > 0 ? ` x${count}` : ""}`;
-    this.tinySprinklerButton.setVisible(visible);
-    this.tinySprinklerText.setVisible(visible);
-    this.tinySprinklerText.setText(label);
-    this.tinySprinklerText.setColor(usable ? "#d9fbff" : "#9e9a84");
-    this.tinySprinklerButton
-      .setFillStyle(usable ? 0x164554 : 0x223026, usable ? 0.94 : 0.62)
-      .setStrokeStyle(2, usable ? 0x8fdfff : 0x6f6a52, usable ? 0.86 : 0.45);
+    this.setRunToolSlotState("tinySprinkler", visible, usable, count);
   }
 
   private shouldShowTinySprinklerButton(licensed = hasPermanentUpgrade(this.state, "tinySprinkler")): boolean {
@@ -3035,9 +3278,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private pulseTinySprinklerButton(): void {
-    this.tweens.killTweensOf([this.tinySprinklerButton, this.tinySprinklerText]);
+    const icon = this.runToolSlots.tinySprinkler.icon;
+    this.tweens.killTweensOf([this.tinySprinklerButton, icon]);
     this.tweens.add({
-      targets: [this.tinySprinklerButton, this.tinySprinklerText],
+      targets: [this.tinySprinklerButton, icon],
       duration: 150,
       ease: "Quad.easeOut",
       scaleX: 1.06,
@@ -3045,9 +3289,152 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       yoyo: true,
       onComplete: () => {
         this.tinySprinklerButton.setScale(1);
-        this.tinySprinklerText.setScale(1);
+        icon.setScale(1);
       },
     });
+  }
+
+  private setRunToolSlotState(toolId: RunToolId, visible: boolean, usable: boolean, count = 0): void {
+    const slot = this.runToolSlots[toolId];
+    const view = RUN_TOOL_VIEW[toolId];
+    slot.available = visible;
+    slot.usable = usable;
+    slot.count = count;
+    slot.button
+      .setFillStyle(usable ? 0x16452c : 0x17231b, usable ? 0.96 : 0.74)
+      .setStrokeStyle(2, usable ? view.color : 0x6f6a52, usable ? 0.92 : 0.46);
+    slot.icon
+      .setAlpha(usable ? 1 : 0.46)
+      .setTint(usable ? 0xffffff : 0x829083);
+    slot.costBadge
+      .setFillStyle(usable ? 0x06150d : 0x111914, usable ? 0.94 : 0.84)
+      .setStrokeStyle(1, usable ? view.color : 0x6f6a52, usable ? 0.62 : 0.36);
+    slot.costText.setColor(usable ? "#f7ffd6" : "#9e9a84");
+    slot.countText.setText(count > 0 ? `${count}` : "");
+    this.applyRunToolSlotVisibility(slot);
+  }
+
+  private applyRunToolSlotVisibility(slot: RunToolSlotView): void {
+    const catalogIndex = this.equippedRunToolIds.indexOf(slot.toolId);
+    const firstPageIndex = this.runToolBarLayout.page * this.runToolBarLayout.pageCapacity;
+    const onCurrentPage =
+      catalogIndex >= 0 &&
+      catalogIndex >= firstPageIndex &&
+      catalogIndex < firstPageIndex + this.runToolBarLayout.pageCapacity;
+    const visible = slot.available && onCurrentPage;
+    slot.button.setVisible(visible);
+    slot.icon.setVisible(visible);
+    slot.costBadge.setVisible(visible);
+    slot.costText.setVisible(visible);
+    const showCount = visible && slot.toolId === "tinySprinkler" && slot.count > 0;
+    slot.countBadge.setVisible(showCount);
+    slot.countText.setVisible(showCount);
+  }
+
+  private refreshRunToolBarVisibility(): void {
+    for (const toolId of RUN_TOOL_IDS) {
+      this.applyRunToolSlotVisibility(this.runToolSlots[toolId]);
+    }
+    const visible = RUN_TOOL_IDS.some((toolId) => this.runToolSlots[toolId].available);
+    this.runToolBar.setVisible(visible);
+    const navigationVisible = visible && this.runToolBarLayout.pageCount > 1;
+    const canGoPrevious = this.runToolPage > 0;
+    const canGoNext = this.runToolPage < this.runToolBarLayout.pageCount - 1;
+    this.runToolPreviousPageButton
+      .setVisible(navigationVisible)
+      .setFillStyle(canGoPrevious ? 0x173822 : 0x17231b, canGoPrevious ? 0.96 : 0.72)
+      .setStrokeStyle(1, canGoPrevious ? 0xd7a64e : 0x6f6a52, canGoPrevious ? 0.76 : 0.36);
+    this.runToolPreviousPageText.setVisible(navigationVisible).setColor(canGoPrevious ? "#f7ffd6" : "#777f76");
+    this.runToolNextPageButton
+      .setVisible(navigationVisible)
+      .setFillStyle(canGoNext ? 0x173822 : 0x17231b, canGoNext ? 0.96 : 0.72)
+      .setStrokeStyle(1, canGoNext ? 0xd7a64e : 0x6f6a52, canGoNext ? 0.76 : 0.36);
+    this.runToolNextPageText.setVisible(navigationVisible).setColor(canGoNext ? "#f7ffd6" : "#777f76");
+    this.runToolPageText.setVisible(navigationVisible);
+    if (!visible || (this.hoveredRunToolId && !this.runToolSlots[this.hoveredRunToolId].button.visible)) {
+      this.hoveredRunToolId = null;
+      this.setRunToolTooltipVisible(false);
+      return;
+    }
+    this.refreshRunToolTooltip();
+  }
+
+  private changeRunToolPage(delta: number): void {
+    const nextLayout = getRunToolBarLayout(this.equippedRunToolIds.length, this.scale.width, this.runToolPage + delta);
+    if (nextLayout.page === this.runToolPage) {
+      return;
+    }
+    this.runToolPage = nextLayout.page;
+    this.hoveredRunToolId = null;
+    this.setRunToolTooltipVisible(false);
+    this.layout();
+    this.refreshReadout();
+    this.publishBrowserDebugState();
+  }
+
+  private previewRunTool(toolId: RunToolId): void {
+    if (!this.runToolSlots[toolId].button.visible) {
+      return;
+    }
+    this.hoveredRunToolId = toolId;
+    this.refreshRunToolTooltip();
+  }
+
+  private clearRunToolPreview(toolId: RunToolId): void {
+    if (this.hoveredRunToolId !== toolId) {
+      return;
+    }
+    this.hoveredRunToolId = null;
+    this.setRunToolTooltipVisible(false);
+  }
+
+  private refreshRunToolTooltip(): void {
+    const toolId = this.hoveredRunToolId;
+    if (!toolId || !this.runToolSlots[toolId].button.visible) {
+      this.setRunToolTooltipVisible(false);
+      return;
+    }
+
+    const view = RUN_TOOL_VIEW[toolId];
+    const status = this.getRunToolStatus(toolId);
+    const count = toolId === "tinySprinkler" ? this.state.automation.tinySprinklers : 0;
+    const description =
+      toolId === "tinySprinkler"
+        ? `${view.description} Each pulse restores ${this.state.automation.tinySprinklerHealingPerUnit} HP.`
+        : view.description;
+    this.runToolTooltipFrame.setStrokeStyle(2, view.color, 0.82);
+    this.runToolTooltipTitle
+      .setText(count > 0 ? `${view.name} x${count}` : view.name)
+      .setColor(`#${view.color.toString(16).padStart(6, "0")}`);
+    this.runToolTooltipBody.setText(`${description}\n${status}`);
+    this.layoutRunToolTooltip();
+    this.setRunToolTooltipVisible(true);
+  }
+
+  private getRunToolStatus(toolId: RunToolId): string {
+    const runTouches = this.state.economy.runTouches;
+    const cost =
+      toolId === "dewPulse"
+        ? DEW_PULSE_RUN_TOUCH_COST
+        : toolId === "rootSalve"
+          ? ROOT_SALVE_RUN_TOUCH_COST
+          : TINY_SPRINKLER_RUN_TOUCH_COST;
+    if (runTouches < cost) {
+      return `Need ${cost - runTouches} more RT.`;
+    }
+    if (toolId === "dewPulse" && this.state.ancientGrass.currentHp >= this.state.ancientGrass.maxHp) {
+      return "Ancient HP is already full.";
+    }
+    if (toolId === "rootSalve" && getWoundedRootCount(this.state) <= 0) {
+      return "No open wound to seal.";
+    }
+    return `Ready: spend ${cost} RT.`;
+  }
+
+  private setRunToolTooltipVisible(visible: boolean): void {
+    this.runToolTooltipFrame.setVisible(visible);
+    this.runToolTooltipTitle.setVisible(visible);
+    this.runToolTooltipBody.setVisible(visible);
   }
 
   private isPointerOverRootSalveButton(pointer: Phaser.Input.Pointer): boolean {
@@ -3060,6 +3447,13 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
   private isPointerOverTinySprinklerButton(pointer: Phaser.Input.Pointer): boolean {
     return this.tinySprinklerButton.visible && this.tinySprinklerButton.getBounds().contains(pointer.x, pointer.y);
+  }
+
+  private isPointerOverRunToolPageButton(pointer: Phaser.Input.Pointer): boolean {
+    return (
+      (this.runToolPreviousPageButton.visible && this.runToolPreviousPageButton.getBounds().contains(pointer.x, pointer.y)) ||
+      (this.runToolNextPageButton.visible && this.runToolNextPageButton.getBounds().contains(pointer.x, pointer.y))
+    );
   }
 
   private isPointerOverOptionsButton(pointer: Phaser.Input.Pointer): boolean {
@@ -4274,6 +4668,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.sfx.play("upgrade");
     const impact = this.formatMemoryUpgradeImpact(upgradeId);
     this.lastMemoryPurchaseHint = `${result.upgrade.name} remembered: ${impact}.`;
+    this.syncRunToolSlotCapacity();
     this.addFeedEntry("Memory bought", impact, "GT", "#eaff9b");
     this.saySensi(`${result.upgrade.name}.\n${impact}.`, "approval", 4200);
     this.savePermanentMemory();
@@ -4300,6 +4695,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
     this.startPrototypeAudio();
     this.state = createNextRunFromDormancy(this.state, this.getRunOptions());
+    this.syncRunToolSlotCapacity();
     this.objectiveState = createFirstRunObjectiveState();
     this.introActive = false;
     this.lastMemoryPurchaseHint = "";
@@ -4371,6 +4767,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const permanentUpgrades = [...this.state.permanentUpgrades];
     const permanentGrassTouches = this.state.economy.permanentGrassTouches;
     this.state = this.createPrototypeRunState(permanentUpgrades, permanentGrassTouches);
+    this.syncRunToolSlotCapacity();
     this.objectiveState = createFirstRunObjectiveState();
     this.introActive = false;
     this.lastMemoryPurchaseHint = "";
@@ -4716,6 +5113,17 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       memoryTreeView: this.getBrowserDebugMemoryTreeView(),
       nextRunButton: this.getBrowserDebugNextRunButton(),
       runToolButtons: this.getBrowserDebugRunToolButtons(),
+      runToolBarVisible: this.runToolBar.visible,
+      runToolSlotCapacity: this.runToolSlotCapacity,
+      equippedRunToolIds: this.equippedRunToolIds,
+      runToolBarView: this.getBrowserDebugRunToolBarView(),
+      runToolBarPage: this.runToolPage,
+      runToolBarPageCount: this.runToolBarLayout.pageCount,
+      runToolBarPageCapacity: this.runToolBarLayout.pageCapacity,
+      runToolBarColumns: this.runToolBarLayout.columns,
+      runToolBarRows: this.runToolBarLayout.rows,
+      hoveredRunToolId: this.hoveredRunToolId,
+      runToolTooltipVisible: this.runToolTooltipFrame.visible,
       options: this.getBrowserDebugOptionsState(),
       playtest: this.getBrowserDebugPlaytestState(),
       introActive: this.introActive,
@@ -4787,45 +5195,46 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private getBrowserDebugRunToolButtons(): BrowserDebugRunToolButton[] {
-    const missingHp = this.state.ancientGrass.maxHp - this.state.ancientGrass.currentHp;
-    const dewBounds = this.dewPulseButton.getBounds();
-    const salveBounds = this.rootSalveButton.getBounds();
-    const sprinklerBounds = this.tinySprinklerButton.getBounds();
-    const woundedCount = getWoundedRootCount(this.state);
-    const active = this.state.phase === "active" && !this.introActive;
-    const sprinklerLicensed = hasPermanentUpgrade(this.state, "tinySprinkler");
-    return [
-      {
-        toolId: "dewPulse",
-        x: Math.round(dewBounds.centerX),
-        y: Math.round(dewBounds.centerY),
-        width: Math.round(dewBounds.width),
-        height: Math.round(dewBounds.height),
-        visible: this.dewPulseButton.visible,
-        usable: active && missingHp > 0 && this.state.economy.runTouches >= DEW_PULSE_RUN_TOUCH_COST,
-        affordable: this.state.economy.runTouches >= DEW_PULSE_RUN_TOUCH_COST,
-      },
-      {
-        toolId: "rootSalve",
-        x: Math.round(salveBounds.centerX),
-        y: Math.round(salveBounds.centerY),
-        width: Math.round(salveBounds.width),
-        height: Math.round(salveBounds.height),
-        visible: this.rootSalveButton.visible,
-        usable: active && woundedCount > 0 && this.state.economy.runTouches >= ROOT_SALVE_RUN_TOUCH_COST,
-        affordable: this.state.economy.runTouches >= ROOT_SALVE_RUN_TOUCH_COST,
-      },
-      {
-        toolId: "tinySprinkler",
-        x: Math.round(sprinklerBounds.centerX),
-        y: Math.round(sprinklerBounds.centerY),
-        width: Math.round(sprinklerBounds.width),
-        height: Math.round(sprinklerBounds.height),
-        visible: this.tinySprinklerButton.visible,
-        usable: active && sprinklerLicensed && this.state.economy.runTouches >= TINY_SPRINKLER_RUN_TOUCH_COST,
-        affordable: this.state.economy.runTouches >= TINY_SPRINKLER_RUN_TOUCH_COST,
-      },
-    ];
+    return RUN_TOOL_IDS.map((toolId) => {
+      const slot = this.runToolSlots[toolId];
+      const bounds = slot.button.getBounds();
+      const cost = this.getRunToolCost(toolId);
+      return {
+        toolId,
+        x: Math.round(bounds.centerX),
+        y: Math.round(bounds.centerY),
+        width: Math.round(bounds.width),
+        height: Math.round(bounds.height),
+        cost,
+        count: slot.count,
+        visible: slot.button.visible,
+        usable: slot.usable,
+        affordable: this.state.economy.runTouches >= cost,
+      };
+    });
+  }
+
+  private getBrowserDebugRunToolBarView(): BrowserDebugRunToolBarView {
+    const visible = this.runToolBar.visible && this.runToolBarLayout.pageCount > 1;
+    return {
+      slotCapacity: this.runToolSlotCapacity,
+      equippedCount: this.equippedRunToolIds.length,
+      page: this.runToolPage,
+      pageCount: this.runToolBarLayout.pageCount,
+      pageCapacity: this.runToolBarLayout.pageCapacity,
+      columns: this.runToolBarLayout.columns,
+      rows: this.runToolBarLayout.rows,
+      previousButton: this.getBrowserDebugButtonBounds(
+        this.runToolPreviousPageButton,
+        visible && this.runToolPage > 0,
+        visible && this.runToolPage > 0,
+      ),
+      nextButton: this.getBrowserDebugButtonBounds(
+        this.runToolNextPageButton,
+        visible && this.runToolPage < this.runToolBarLayout.pageCount - 1,
+        visible && this.runToolPage < this.runToolBarLayout.pageCount - 1,
+      ),
+    };
   }
 
   private getBrowserDebugOptionsState(): BrowserDebugOptionsState {

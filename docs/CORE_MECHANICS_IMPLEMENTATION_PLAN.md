@@ -161,12 +161,13 @@ Acceptance:
 - Scourge pressure has visible warning/wound/collapse beats without changing drain, wound timing, wound selection, rewards, dormancy math, or root hitboxes.
 - Dew Pulse provides a first recast in-run tool: spend 22 Run Touches to heal Ancient HP immediately for 10 HP without minting replacement Run Touches.
 - The old run feed is hidden from the main play layout while retained as internal event history.
-- Run-tool buttons live on a dedicated HUD row and must not overlap objective, HP, Run Touch, or Scourge text.
-- Run-tool buttons should be paced into the run instead of appearing at the start: Dew Pulse after enough RT is earned, Root Salve when a wound exists, and Tiny Sprinkler after license plus enough RT or owned sprinkler count.
+- Run tools live in a separate icon-led Field Kit dock beside the playfield, not in the status HUD. Slots use stable dimensions, art, RT cost/count badges, and hover/focus details without overlapping objective, HP, currency, Scourge, or field text.
+- The Field Kit is rendered from a shared tool catalog, uses responsive one/two-column layouts, and pages automatically when the equipped roster exceeds a page. The player starts with three equipped slots; the 30 GT Field Satchel Memory requires Tiny Sprinkler and adds three more.
+- Field Kit tools should be paced into the run instead of appearing at the start: Dew Pulse after enough RT is earned, Root Salve when a wound exists, and Tiny Sprinkler after license plus enough RT or owned sprinkler count.
 - HP zero presents a full-screen Memory Grove game-over/meta screen instead of a small gameplay overlay.
 - The game-over/meta screen is a hard run-ending state: active run timers, wound pressure, and Tiny Sprinkler automation stop once dormancy begins.
 - The dormancy report is split into explicit run-over copy, a permanent GT reward line, conversion summary stats, lost Run Touches, and a visible next-run action hint.
-- The meta screen separates run summary from a larger old-style hex-node Memory Skill Tree, shows a selected-memory detail panel, includes ten functional memory nodes, gives post-purchase next-run feedback, and restarts only through the explicit `Begin Next Run` button.
+- The meta screen separates run summary from a larger old-style hex-node Memory Skill Tree, shows a selected-memory detail panel, includes eleven functional memory nodes, gives post-purchase next-run feedback, and restarts only through the explicit `Begin Next Run` button.
 - The Memory Skill Tree is a masked, scalable viewport with bounded 60%-180% zoom, pointer-anchored wheel zoom, explicit minus/reset/plus controls, and drag-pan above 100%. Future skills can extend the catalog without turning the whole Grove into a tiny fixed diagram.
 - Memory node identity, branch presentation, icon, copy, and normalized position come from one shared catalog rendered in a fixed 720x450 logical world. Overview nodes show only icon and name; hover/focus moves the full explanation and enlarged animated icon into the detail presentation.
 - The first second tier has real run effects: faster manual recovery, lower base drain, stronger sprinkler pulses, lower wound pressure, and a stronger Last Stand revival. Save version 1 remains compatible because the persistent schema already stores normalized upgrade ids.
@@ -187,8 +188,9 @@ Tests:
 - Permanent values persist.
 - Re-entering dormancy does not double-award the same run.
 - Redesign memory snapshots normalize bad/old data and reject incompatible save versions.
-- Permanent-memory tests cover all ten upgrade ids, prerequisite gates, save round-tripping, and each second-tier run effect.
+- Permanent-memory tests cover all eleven upgrade ids, prerequisite gates, save round-tripping, Field Satchel capacity, and each second-tier run effect.
 - Memory catalog tests require presentation data for every permanent upgrade and reject unrelated orthogonal connector crossings.
+- Field Kit catalog/layout tests require unique tool ids and icons, valid descriptive metadata, stable desktop and narrow slot geometry, clamped pages, and correct future overflow behavior.
 - First-run objectives advance in order from first healing through four one-tile care upgrades, 2x2 and 3x3 root-network expansion, first wound triage, a three-wound `Hold the Line` pressure lesson, dormancy, and memory purchase.
 - Each run's field expansion follows the new objective sequence: remain at 1 active root through `Soft Loam`, `Dew Veins`, and `Root Heart`; open 2x2 with `Ancient Crown` at 36 run-local care RT; open 3x3 at 50 care RT; then open 5x5 after `Hold the Line`.
 - One-tile mastery grants real manual-healing and recovery benefits for the current run. Dormancy resets mastery and field size to 1x1, while permanent GT and purchased Memory upgrades carry forward. The isolated tile uses reduced Scourge drain until the first expansion without slowing elapsed time or pressure growth.
@@ -203,7 +205,8 @@ Tests:
 - Browser smoke verifies healing feedback: the first real root touch reports `lastHealingFeedbackKind: root`, and a wounded-root heal reports `lastHealingFeedbackKind: wound`.
 - Browser smoke verifies Scourge pressure feedback: after opening the 3x3 wound lesson in fast dormancy, `lastWoundPressureWarningAt` fires before or at `lastScourgePressureWaveAt`, the wound-open event reports `lastScourgeEvent: wound-open`, and HP zero reports `lastScourgeEvent: dormancy-collapse` with `lastDormancyCollapseAt > 0`.
 - Browser smoke verifies Dew Pulse: after earning 22 RT, the `dewPulse` run-tool button reports usable, the prompt/advisor cue mentions Dew Pulse, `lastDewPulseReadyAt` is set, clicking it spends exactly 22 RT, heals HP, keeps total Run Touches earned unchanged, and reports `lastRunToolKind: dewPulse`.
-- Browser smoke verifies the UI/meta correction: Lucid audio starts without warn/error logs, `feedPanelVisible` is false, run-tool buttons share a separated tool row, HP collapse reports `runEnded`, `metaScreenVisible`, `summaryVisible`, a non-empty dormancy reward/report, memory buttons are visible, random screen clicks do not restart the run, and clicking `Begin Next Run` starts the next run.
+- Browser smoke verifies the UI/meta correction: Lucid audio starts without warn/error logs, `feedPanelVisible` is false, tools occupy a separated Field Kit dock, HP collapse reports `runEnded`, `metaScreenVisible`, `summaryVisible`, a non-empty dormancy reward/report, memory buttons are visible, random screen clicks do not restart the run, and clicking `Begin Next Run` starts the next run.
+- Browser smoke verifies the Field Kit progression and actions: Field Satchel changes equipped capacity from three to six, the live rail reports a two-column layout at 1280x720, Dew Pulse spends exactly 22 RT, Tiny Sprinkler spends exactly 16 RT and increments its count, and keyboard focus keeps accessible DOM text visually transparent while preserving a focus outline.
 - Browser smoke verifies the DOM agent layer without canvas coordinate clicks: `grassAgentDom` reports `ready`, `redesign-readable-state` exposes the active phase/objective, real root buttons wake and heal roots, the Dew Pulse DOM button spends exactly 22 RT and reports `lastRunToolKind: dewPulse`, and the `Begin Next Run` DOM button restarts from the meta screen.
 - Browser smoke verifies the DOM dormancy report: `redesign-dormancy-report` appears on the meta screen and mirrors the game-over reward/report/action text for agents that cannot inspect canvas text.
 - Browser smoke verifies Memory Tree navigation: DOM zoom controls report 60%-180% state, wheel zoom remains anchored around the pointer, drag-pan is bounded, reset returns to 100% with zero pan, and clipped node controls never extend beyond the tree viewport.
@@ -226,6 +229,7 @@ Gameplay:
   - Soft Touch: manual healing bonus.
   - Deeper Roots: max HP bonus.
   - Tiny Sprinkler License: implemented as the first automation unlock.
+  - Field Satchel: add three equipped Field Kit slots after Tiny Sprinkler.
   - Scourge Sense: early wound forecast.
   - Last Stand: one automatic revive per run.
 - Buying nodes spends permanent Grass Touches.

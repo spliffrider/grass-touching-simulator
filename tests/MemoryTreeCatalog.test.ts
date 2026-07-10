@@ -77,7 +77,7 @@ describe("MemoryTreeCatalog", () => {
       expect(view.x).toBeLessThan(1);
       expect(view.y).toBeGreaterThan(0);
       expect(view.y).toBeLessThan(1);
-      expect(view.iconPath).toMatch(/^\/assets\/ui\/skills\/.+\.png$/);
+      expect(view.iconPath).toMatch(/^\/assets\/ui\/(skills|items)\/.+\.png$/);
     }
   });
 

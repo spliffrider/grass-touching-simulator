@@ -1,4 +1,5 @@
 import { PERMANENT_UPGRADE_DEFINITIONS, type PermanentUpgradeId } from "./RunSpineSystem";
+import { RUN_TOOL_IDS, RUN_TOOL_VIEW, type RunToolId } from "./RunToolCatalog";
 
 export interface RedesignDomRootNode {
   rootId: number;
@@ -42,11 +43,13 @@ export interface RedesignDomNextRunButton {
 }
 
 export interface RedesignDomRunToolButton {
-  toolId: "dewPulse" | "rootSalve" | "tinySprinkler";
+  toolId: RunToolId;
   x: number;
   y: number;
   width: number;
   height: number;
+  cost: number;
+  count: number;
   visible: boolean;
   usable: boolean;
   affordable: boolean;
@@ -78,6 +81,18 @@ export interface RedesignDomMemoryTreeView {
   zoomOutButton: RedesignDomButtonBounds;
   resetButton: RedesignDomButtonBounds;
   zoomInButton: RedesignDomButtonBounds;
+}
+
+export interface RedesignDomRunToolBarView {
+  slotCapacity: number;
+  equippedCount: number;
+  page: number;
+  pageCount: number;
+  pageCapacity: number;
+  columns: number;
+  rows: number;
+  previousButton: RedesignDomButtonBounds;
+  nextButton: RedesignDomButtonBounds;
 }
 
 export interface RedesignDomSliderBounds {
@@ -148,6 +163,7 @@ export interface RedesignDomSnapshot {
   memoryTreeView: RedesignDomMemoryTreeView;
   nextRunButton: RedesignDomNextRunButton;
   runToolButtons: RedesignDomRunToolButton[];
+  runToolBarView: RedesignDomRunToolBarView;
   options: RedesignDomOptionsState;
   playtest: RedesignDomPlaytestState;
 }
@@ -157,6 +173,10 @@ interface RedesignDomActions {
   useDewPulse(): void;
   useRootSalve(): void;
   useTinySprinkler(): void;
+  previewRunTool(toolId: RunToolId): void;
+  clearRunToolPreview(toolId: RunToolId): void;
+  previousRunToolPage(): void;
+  nextRunToolPage(): void;
   previewMemory(upgradeId: PermanentUpgradeId): void;
   clearMemoryPreview(upgradeId: PermanentUpgradeId): void;
   purchaseMemory(upgradeId: PermanentUpgradeId): void;
@@ -177,12 +197,6 @@ interface RedesignDomActions {
   resetMemory(): void;
 }
 
-const RUN_TOOL_LABELS: Record<RedesignDomRunToolButton["toolId"], string> = {
-  dewPulse: "Dew Pulse",
-  rootSalve: "Root Salve",
-  tinySprinkler: "Tiny Sprinkler",
-};
-
 export class RedesignDomBridge {
   private readonly layer: HTMLElement;
   private readonly readable: HTMLElement;
@@ -191,6 +205,8 @@ export class RedesignDomBridge {
   private readonly memoryButtons = new Map<PermanentUpgradeId, HTMLButtonElement>();
   private readonly lockedNodeButtons = new Map<string, HTMLButtonElement>();
   private readonly runToolButtons: Record<RedesignDomRunToolButton["toolId"], HTMLButtonElement>;
+  private readonly runToolPreviousPageButton: HTMLButtonElement;
+  private readonly runToolNextPageButton: HTMLButtonElement;
   private readonly nextRunButton: HTMLButtonElement;
   private readonly memoryTreeZoomOutButton: HTMLButtonElement;
   private readonly memoryTreeZoomResetButton: HTMLButtonElement;
@@ -234,6 +250,22 @@ export class RedesignDomBridge {
       rootSalve: this.createButton("redesign-root-salve-button", "Root Salve", () => this.actions.useRootSalve()),
       tinySprinkler: this.createButton("redesign-tiny-sprinkler-button", "Tiny Sprinkler", () => this.actions.useTinySprinkler()),
     };
+    for (const toolId of RUN_TOOL_IDS) {
+      const button = this.runToolButtons[toolId];
+      button.classList.add("grass-agent-run-tool-button");
+      const preview = () => this.actions.previewRunTool(toolId);
+      const clearPreview = () => this.actions.clearRunToolPreview(toolId);
+      button.addEventListener("pointerenter", preview);
+      button.addEventListener("mouseover", preview);
+      button.addEventListener("focus", preview);
+      button.addEventListener("pointerleave", clearPreview);
+      button.addEventListener("mouseout", clearPreview);
+      button.addEventListener("blur", clearPreview);
+    }
+    this.runToolPreviousPageButton = this.createButton("redesign-run-tool-previous-page", "Previous tool page", () => this.actions.previousRunToolPage());
+    this.runToolPreviousPageButton.classList.add("grass-agent-run-tool-page-button");
+    this.runToolNextPageButton = this.createButton("redesign-run-tool-next-page", "Next tool page", () => this.actions.nextRunToolPage());
+    this.runToolNextPageButton.classList.add("grass-agent-run-tool-page-button");
     this.nextRunButton = this.createButton("redesign-begin-next-run-button", "Begin Next Run", () => this.actions.beginNextRun());
     this.nextRunButton.classList.add("grass-agent-meta-action");
     this.memoryTreeZoomOutButton = this.createButton("redesign-memory-tree-zoom-out", "Zoom out", () => this.actions.zoomMemoryTreeOut());
@@ -291,6 +323,7 @@ export class RedesignDomBridge {
     this.renderDormancyReport(snapshot);
     this.renderRootButtons(snapshot);
     this.renderRunToolButtons(snapshot);
+    this.renderRunToolBarView(snapshot);
     this.renderMemoryButtons(snapshot);
     this.renderLockedNodes(snapshot);
     this.renderMemoryTreeView(snapshot);
@@ -399,6 +432,7 @@ export class RedesignDomBridge {
       `Run Touches: ${snapshot.runTouches}`,
       `Total Run Touches earned: ${snapshot.totalRunTouchesEarned}`,
       `Permanent GT: ${snapshot.permanentGrassTouches}`,
+      `Field kit: ${snapshot.runToolBarView.equippedCount} / ${snapshot.runToolBarView.slotCapacity} slots equipped`,
       `Tiny Sprinklers: ${snapshot.tinySprinklers}`,
       `Scourge Sense: ${snapshot.scourgeSenseOwned ? "owned" : "locked"}`,
       `Last Stand: ${snapshot.lastStandOwned ? snapshot.lastStandAvailable ? "armed" : snapshot.lastStandUsed ? "spent" : "owned" : "locked"}`,
@@ -471,14 +505,39 @@ export class RedesignDomBridge {
   private renderRunToolButtons(snapshot: RedesignDomSnapshot): void {
     for (const tool of snapshot.runToolButtons) {
       const button = this.runToolButtons[tool.toolId];
-      const label = RUN_TOOL_LABELS[tool.toolId];
-      button.textContent = `${label}${tool.affordable ? "" : " unavailable"}`;
-      button.setAttribute("aria-label", label);
+      const label = RUN_TOOL_VIEW[tool.toolId].name;
+      const count = tool.count > 0 ? `, ${tool.count} installed` : "";
+      button.textContent = `${label}, ${tool.cost} RT${count}${tool.usable ? ", ready" : ", unavailable"}`;
+      button.setAttribute("aria-label", `${label}, costs ${tool.cost} Run Touches${count}`);
       button.dataset.affordable = String(tool.affordable);
       button.dataset.usable = String(tool.usable);
       button.disabled = !tool.usable;
       this.positionButton(button, tool.x, tool.y, tool.width, tool.height, tool.visible);
     }
+  }
+
+  private renderRunToolBarView(snapshot: RedesignDomSnapshot): void {
+    const view = snapshot.runToolBarView;
+    this.runToolPreviousPageButton.textContent = `Previous tool page, ${view.page + 1} of ${view.pageCount}`;
+    this.runToolPreviousPageButton.disabled = !view.previousButton.enabled;
+    this.positionButton(
+      this.runToolPreviousPageButton,
+      view.previousButton.x,
+      view.previousButton.y,
+      view.previousButton.width,
+      view.previousButton.height,
+      view.previousButton.visible,
+    );
+    this.runToolNextPageButton.textContent = `Next tool page, ${view.page + 1} of ${view.pageCount}`;
+    this.runToolNextPageButton.disabled = !view.nextButton.enabled;
+    this.positionButton(
+      this.runToolNextPageButton,
+      view.nextButton.x,
+      view.nextButton.y,
+      view.nextButton.width,
+      view.nextButton.height,
+      view.nextButton.visible,
+    );
   }
 
   private renderMemoryButtons(snapshot: RedesignDomSnapshot): void {
