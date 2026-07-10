@@ -136,6 +136,7 @@ export interface RedesignDomSnapshot {
   totalRunTouchesEarned: number;
   permanentGrassTouches: number;
   permanentUpgrades: PermanentUpgradeId[];
+  scourgePressure: number;
   tinySprinklers: number;
   scourgeSenseOwned: boolean;
   scourgeSenseTargetRootId: number | null;
@@ -170,9 +171,7 @@ export interface RedesignDomSnapshot {
 
 interface RedesignDomActions {
   touchRoot(rootId: number): void;
-  useDewPulse(): void;
-  useRootSalve(): void;
-  useTinySprinkler(): void;
+  activateRunTool(toolId: RunToolId): void;
   previewRunTool(toolId: RunToolId): void;
   clearRunToolPreview(toolId: RunToolId): void;
   previousRunToolPage(): void;
@@ -245,11 +244,12 @@ export class RedesignDomBridge {
     this.dormancyReport.setAttribute("aria-live", "polite");
     this.layer.append(this.dormancyReport);
 
-    this.runToolButtons = {
-      dewPulse: this.createButton("redesign-dew-pulse-button", "Dew Pulse", () => this.actions.useDewPulse()),
-      rootSalve: this.createButton("redesign-root-salve-button", "Root Salve", () => this.actions.useRootSalve()),
-      tinySprinkler: this.createButton("redesign-tiny-sprinkler-button", "Tiny Sprinkler", () => this.actions.useTinySprinkler()),
-    };
+    this.runToolButtons = Object.fromEntries(
+      RUN_TOOL_IDS.map((toolId) => {
+        const view = RUN_TOOL_VIEW[toolId];
+        return [toolId, this.createButton(view.domTestId, view.name, () => this.actions.activateRunTool(toolId))];
+      }),
+    ) as Record<RunToolId, HTMLButtonElement>;
     for (const toolId of RUN_TOOL_IDS) {
       const button = this.runToolButtons[toolId];
       button.classList.add("grass-agent-run-tool-button");
@@ -432,6 +432,7 @@ export class RedesignDomBridge {
       `Run Touches: ${snapshot.runTouches}`,
       `Total Run Touches earned: ${snapshot.totalRunTouchesEarned}`,
       `Permanent GT: ${snapshot.permanentGrassTouches}`,
+      `Scourge pressure: ${snapshot.scourgePressure.toFixed(2)}`,
       `Field kit: ${snapshot.runToolBarView.equippedCount} / ${snapshot.runToolBarView.slotCapacity} slots equipped`,
       `Tiny Sprinklers: ${snapshot.tinySprinklers}`,
       `Scourge Sense: ${snapshot.scourgeSenseOwned ? "owned" : "locked"}`,

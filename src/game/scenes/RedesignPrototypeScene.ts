@@ -6,6 +6,7 @@ import {
   writeStoredMusicVolume,
   writeStoredSfxVolume,
 } from "../data/audio-settings";
+import { REDESIGN_ALPHA_LABEL } from "../data/build-info";
 import {
   createFirstRunObjectiveState,
   getActiveFirstRunObjective,
@@ -31,6 +32,7 @@ import {
   type MemoryTreeViewport,
 } from "../redesign/MemoryTreeViewport";
 import {
+  getEquippedRunToolIds,
   RUN_TOOL_IDS,
   RUN_TOOL_VIEW,
   type RunToolId,
@@ -66,11 +68,14 @@ import {
   normalizePermanentMemorySnapshot,
   openRootWound,
   PERMANENT_UPGRADE_DEFINITIONS,
+  POCKET_SUNSHINE_MIN_PRESSURE,
+  POCKET_SUNSHINE_RUN_TOUCH_COST,
   purchasePermanentUpgrade,
   ROOT_SALVE_RUN_TOUCH_COST,
   TINY_SPRINKLER_RUN_TOUCH_COST,
   touchAncientGrassRoot,
   useDewPulse,
+  usePocketSunshine,
   useRootSalve,
   type DormancySummary,
   type PermanentMemorySnapshot,
@@ -363,6 +368,7 @@ const SENSI_MOOD_TITLE_COLORS: Record<SensiMood, string> = {
 
 export class RedesignPrototypeScene extends Phaser.Scene {
   private readonly routeParams = new URLSearchParams(window.location.search);
+  private readonly publicAlphaMode = this.routeParams.has("alpha");
   private readonly playtestMode = this.routeParams.has("playtest");
   private readonly fastDormancy = this.routeParams.has("fastDormancy");
   private readonly loadedMemory = this.loadPermanentMemory();
@@ -435,6 +441,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private feedTitle!: Phaser.GameObjects.Text;
   private feedRows: Phaser.GameObjects.Text[] = [];
   private titleText!: Phaser.GameObjects.Text;
+  private alphaBuildText!: Phaser.GameObjects.Text;
   private hpText!: Phaser.GameObjects.Text;
   private runTouchText!: Phaser.GameObjects.Text;
   private scourgeText!: Phaser.GameObjects.Text;
@@ -447,7 +454,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private runToolBar!: Phaser.GameObjects.NineSlice;
   private runToolSlots!: Record<RunToolId, RunToolSlotView>;
   private runToolSlotCapacity = BASE_RUN_TOOL_SLOT_CAPACITY + getPermanentUpgradeEffects(this.state).runToolSlotBonus;
-  private equippedRunToolIds: readonly RunToolId[] = RUN_TOOL_IDS.slice(0, this.runToolSlotCapacity);
+  private equippedRunToolIds: readonly RunToolId[] = getEquippedRunToolIds(this.runToolSlotCapacity);
   private runToolPage = 0;
   private runToolBarLayout: RunToolBarLayout = getRunToolBarLayout(this.equippedRunToolIds.length, 1280);
   private runToolPreviousPageButton!: Phaser.GameObjects.Rectangle;
@@ -539,8 +546,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private lastMissBarkAt = -Infinity;
   private lastHealingFeedbackKind: "none" | "root" | "wound" | "salve" | "dewPulse" | "sprinkler" = "none";
   private lastHealingFeedbackAt = 0;
-  private lastRunToolKind: "none" | "dewPulse" | "rootSalve" | "tinySprinkler" = "none";
+  private lastRunToolKind: "none" | RunToolId = "none";
   private lastRunToolAt = 0;
+  private lastPocketSunshinePressureReduced = 0;
   private lastTinySprinklerPulseAt = 0;
   private lastTinySprinklerRootId: number | null = null;
   private dewPulseWasUsable = false;
@@ -567,6 +575,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
   private get tinySprinklerButton(): Phaser.GameObjects.Rectangle {
     return this.runToolSlots.tinySprinkler.button;
+  }
+
+  private get pocketSunshineButton(): Phaser.GameObjects.Rectangle {
+    return this.runToolSlots.pocketSunshine.button;
   }
 
   preload(): void {
@@ -620,7 +632,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       .setAlpha(0.92);
     this.rootAura = this.add.circle(0, 0, 130, 0x9dff77, 0.05).setDepth(2.5).setStrokeStyle(2, 0xd7ff9b, 0.18);
     this.touchHintRing = this.add.circle(0, 0, 150, 0xeaff9b, 0.02).setDepth(7).setStrokeStyle(3, 0xeaff9b, 0.34);
-    this.touchHintText = this.add.text(0, 0, "TOUCH ROOTS", {
+    this.touchHintText = this.add.text(0, 0, "TOUCH GRASS", {
       color: "#f1ffd4",
       fontFamily: "Arial, sans-serif",
       fontSize: "14px",
@@ -1031,6 +1043,14 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       stroke: "#12341f",
       strokeThickness: 5,
     }).setDepth(3);
+    this.alphaBuildText = this.add.text(0, 0, REDESIGN_ALPHA_LABEL, {
+      color: "#d7e8bf",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "9px",
+      fontStyle: "bold",
+      stroke: "#07100c",
+      strokeThickness: 2,
+    }).setOrigin(1, 0.5).setDepth(5).setVisible(false);
 
     this.hpBarBack = this.add.rectangle(0, 0, 520, 24, 0x14271a, 0.96).setOrigin(0, 0.5).setDepth(3);
     this.hpBarFill = this.add.rectangle(0, 0, 520, 24, 0x8bdc69).setOrigin(0, 0.5).setDepth(4);
@@ -1150,9 +1170,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.sharpenPersistentText();
     this.domBridge = new RedesignDomBridge({
       touchRoot: (rootId) => this.handleRootDomClick(rootId),
-      useDewPulse: () => this.handleDewPulseClick(),
-      useRootSalve: () => this.handleRootSalveClick(),
-      useTinySprinkler: () => this.handleTinySprinklerClick(),
+      activateRunTool: (toolId) => this.activateRunTool(toolId),
       previewRunTool: (toolId) => this.previewRunTool(toolId),
       clearRunToolPreview: (toolId) => this.clearRunToolPreview(toolId),
       previousRunToolPage: () => this.changeRunToolPage(-1),
@@ -1423,6 +1441,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         return ROOT_SALVE_RUN_TOUCH_COST;
       case "tinySprinkler":
         return TINY_SPRINKLER_RUN_TOUCH_COST;
+      case "pocketSunshine":
+        return POCKET_SUNSHINE_RUN_TOUCH_COST;
     }
   }
 
@@ -1436,6 +1456,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         return;
       case "tinySprinkler":
         this.handleTinySprinklerClick();
+        return;
+      case "pocketSunshine":
+        this.handlePocketSunshineClick();
     }
   }
 
@@ -1490,7 +1513,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
   private syncRunToolSlotCapacity(): void {
     this.runToolSlotCapacity = BASE_RUN_TOOL_SLOT_CAPACITY + getPermanentUpgradeEffects(this.state).runToolSlotBonus;
-    this.equippedRunToolIds = RUN_TOOL_IDS.slice(0, this.runToolSlotCapacity);
+    this.equippedRunToolIds = getEquippedRunToolIds(this.runToolSlotCapacity);
     this.runToolBarLayout = getRunToolBarLayout(this.equippedRunToolIds.length, this.scale.width, this.runToolPage);
     this.runToolPage = this.runToolBarLayout.page;
   }
@@ -1633,6 +1656,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const optionsButtonY = top + 22;
     this.optionsButton.setPosition(optionsButtonX, optionsButtonY).setSize(OPTIONS_BUTTON_WIDTH, OPTIONS_BUTTON_HEIGHT);
     this.optionsButtonText.setPosition(optionsButtonX, optionsButtonY);
+    this.alphaBuildText
+      .setVisible(this.publicAlphaMode && width >= 900 && !this.summaryPanel.visible)
+      .setPosition(optionsButtonX - OPTIONS_BUTTON_WIDTH / 2 - 12, optionsButtonY);
     this.scourgeBarFill.setPosition(centerX - 82, top + 172);
     this.scourgeText.setPosition(hudLeft + 40, top + 160);
     const promptY = height - 96;
@@ -1642,7 +1668,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const sidePanelVisible = width >= 1040 && height >= 650;
     const compactPanelsVisible = !sidePanelVisible && width >= COMPACT_PANEL_MIN_WIDTH && height >= COMPACT_PANEL_MIN_HEIGHT;
     const compactPanelsStacked = compactPanelsVisible && width < COMPACT_STACK_MAX_WIDTH && height >= COMPACT_STACK_MIN_HEIGHT;
-    const activeFieldTopOffset = this.introActive ? 252 : 236;
+    const introCalloutVisible = this.introActive && this.state.phase === "active" && !(sidePanelVisible || compactPanelsVisible);
+    this.promptText.setVisible(!this.introActive);
+    const activeFieldTopOffset = introCalloutVisible ? 252 : 236;
     const fieldAreaTop = top + (compactPanelsVisible ? (compactPanelsStacked ? 408 : 326) : activeFieldTopOffset);
     const fieldAreaBottom = promptY - 52;
     const availableFieldHeight = Math.max(230, fieldAreaBottom - fieldAreaTop);
@@ -1665,7 +1693,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       .setPosition(this.fieldCenterX, this.fieldCenterY + tileSize / 2 + 14)
       .setWordWrapWidth(gridSize + 54);
     this.layoutRunToolBar(width, height, centerX, this.fieldCenterY, gridSize, promptY);
-    const introPanelVisible = this.introActive && this.state.phase === "active" && !compactPanelsVisible;
+    const introPanelVisible = introCalloutVisible;
     const introPanelWidth = Math.min(INTRO_PANEL_BASE_WIDTH, width - 48);
     const introPanelHeight = compact ? 76 : INTRO_PANEL_BASE_HEIGHT;
     const introPanelTop = Math.max(top + HUD_PANEL_BASE_HEIGHT + 8, fieldAreaTop - introPanelHeight - 4);
@@ -1697,7 +1725,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.summaryPanel.setPosition(centerX, height / 2);
     this.summaryTitle.setText("Memory Grove").setFontSize(width < 720 ? 27 : 36).setPosition(centerX, summaryTop + 42);
     this.summarySubtitle
-      .setText("Game Over: dormancy claimed the Ancient Grass. Spend memory, then begin the next run.")
+      .setText(this.getDormancySubtitle())
       .setFontSize(width < 720 ? 12 : 14)
       .setPosition(centerX, summaryTop + 76);
     this.summarySubtitle.setWordWrapWidth(summaryWidth - (compactReport ? 110 : 80));
@@ -2344,9 +2372,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     }
 
     if (
-      this.isPointerOverDewPulseButton(pointer) ||
-      this.isPointerOverRootSalveButton(pointer) ||
-      this.isPointerOverTinySprinklerButton(pointer) ||
+      this.isPointerOverRunToolButton(pointer) ||
       this.isPointerOverRunToolPageButton(pointer)
     ) {
       return;
@@ -2442,6 +2468,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.playHealingFeedback(nearest, result.effectiveHealing, result.healedWound ? "wound" : "root");
     this.floatText(touchX, touchY, text, result.effectiveHealing > 0 ? "#e5ff9a" : "#9ac8ff");
     this.syncFirstRunObjectives();
+    if (firstTouch) {
+      this.layout();
+    }
     this.refreshReadout();
     this.publishBrowserDebugState();
   }
@@ -2538,6 +2567,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.refreshDewPulseButton();
     this.refreshRootSalveButton(woundedCount);
     this.refreshTinySprinklerButton();
+    this.refreshPocketSunshineButton();
     this.refreshRunToolBarVisibility();
     this.updateSensiMessage(this.getSensiMessage(woundedCount, compactPanelCopy));
     this.refreshFeedRows();
@@ -3006,6 +3036,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private resetRunToolFeedbackState(): void {
     this.lastRunToolKind = "none";
     this.lastRunToolAt = 0;
+    this.lastPocketSunshinePressureReduced = 0;
     this.hoveredRunToolId = null;
     this.setRunToolTooltipVisible(false);
     this.dewPulseWasUsable = false;
@@ -3294,6 +3325,116 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     });
   }
 
+  private handlePocketSunshineClick(): void {
+    this.startPrototypeAudio();
+    const result = usePocketSunshine(this.state);
+    if (!result.used) {
+      this.sfx.play("blocked");
+      const reasonText =
+        result.reason === "field-satchel-missing"
+          ? "need Field Satchel"
+          : result.reason === "not-enough-run-touches"
+            ? `need ${POCKET_SUNSHINE_RUN_TOUCH_COST} RT`
+            : result.reason === "pressure-low"
+              ? "pressure already calm"
+              : "dormant";
+      this.floatText(this.pocketSunshineButton.x, this.pocketSunshineButton.y - 20, reasonText, "#ffb1c7");
+      this.saySensi(
+        result.reason === "pressure-low"
+          ? "Save the sunshine.\nThe Scourge is already sulking quietly."
+          : result.reason === "not-enough-run-touches"
+            ? "Bottled daylight still costs Run Touches."
+            : "No sunshine paperwork during dormancy.",
+        "idle",
+        3000,
+      );
+      this.publishBrowserDebugState();
+      return;
+    }
+
+    this.lastRunToolKind = "pocketSunshine";
+    this.lastRunToolAt = Math.round(this.time.now);
+    this.lastPocketSunshinePressureReduced = Math.round(result.pressureReduced * 100) / 100;
+    this.sfx.play("milestone");
+    this.addFeedEntry("Pocket Sunshine", `pressure -${result.pressureReduced.toFixed(2)}`, "PS", "#ffd86b");
+    this.saySensi("Pocket Sunshine.\nApparently the Scourge hates weather.", "approval", 3600);
+    this.floatText(
+      this.pocketSunshineButton.x,
+      this.pocketSunshineButton.y - 20,
+      `-${result.spent} RT  pressure -${result.pressureReduced.toFixed(2)}`,
+      "#ffd86b",
+    );
+    this.playPocketSunshine();
+    this.refreshReadout();
+    this.publishBrowserDebugState();
+  }
+
+  private refreshPocketSunshineButton(): void {
+    const visible = this.shouldShowPocketSunshineButton();
+    const usable =
+      visible &&
+      this.state.economy.runTouches >= POCKET_SUNSHINE_RUN_TOUCH_COST &&
+      this.state.scourge.pressure >= POCKET_SUNSHINE_MIN_PRESSURE;
+    this.setRunToolSlotState("pocketSunshine", visible, usable);
+  }
+
+  private shouldShowPocketSunshineButton(): boolean {
+    return (
+      this.state.phase === "active" &&
+      !this.introActive &&
+      this.activeRootCount > 1 &&
+      hasPermanentUpgrade(this.state, "fieldSatchel") &&
+      (this.state.economy.runTouches >= POCKET_SUNSHINE_RUN_TOUCH_COST ||
+        this.state.economy.totalRunTouchesEarned >= POCKET_SUNSHINE_RUN_TOUCH_COST ||
+        this.lastRunToolKind === "pocketSunshine")
+    );
+  }
+
+  private playPocketSunshine(): void {
+    const radius = Math.max(96, this.fieldTouchRadius * 0.78);
+    const ring = this.add
+      .circle(this.fieldCenterX, this.fieldCenterY, Math.max(18, this.fieldTouchRadius * 0.12), 0xffd86b, 0.14)
+      .setDepth(13)
+      .setStrokeStyle(4, 0xffefb0, 0.86);
+    this.tweens.add({
+      targets: ring,
+      alpha: 0,
+      duration: 720,
+      ease: "Sine.easeOut",
+      radius,
+      onComplete: () => ring.destroy(),
+    });
+    this.tweens.add({
+      targets: this.scourgeBarFill,
+      alpha: 0.34,
+      duration: 150,
+      ease: "Quad.easeOut",
+      yoyo: true,
+      onComplete: () => this.scourgeBarFill.setAlpha(1),
+    });
+    for (let index = 0; index < 10; index += 1) {
+      const angle = (Math.PI * 2 * index) / 10 + Phaser.Math.FloatBetween(-0.16, 0.16);
+      const fleck = this.add
+        .image(this.fieldCenterX, this.fieldCenterY, index % 2 === 0 ? "effect-magic-spore" : "effect-pollen-fleck")
+        .setDepth(14)
+        .setTint(index % 2 === 0 ? 0xffd86b : 0xffefb0)
+        .setAlpha(0.94)
+        .setScale(Phaser.Math.FloatBetween(1.2, 2));
+      this.tweens.add({
+        targets: fleck,
+        alpha: 0,
+        duration: Phaser.Math.Between(520, 780),
+        ease: "Sine.easeOut",
+        scaleX: 0.35,
+        scaleY: 0.35,
+        x: this.fieldCenterX + Math.cos(angle) * Phaser.Math.FloatBetween(radius * 0.42, radius * 0.78),
+        y: this.fieldCenterY + Math.sin(angle) * Phaser.Math.FloatBetween(radius * 0.28, radius * 0.6) - 18,
+        onComplete: () => fleck.destroy(),
+      });
+    }
+    this.cameras.main.shake(130, 0.0011);
+  }
+
   private setRunToolSlotState(toolId: RunToolId, visible: boolean, usable: boolean, count = 0): void {
     const slot = this.runToolSlots[toolId];
     const view = RUN_TOOL_VIEW[toolId];
@@ -3413,12 +3554,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
   private getRunToolStatus(toolId: RunToolId): string {
     const runTouches = this.state.economy.runTouches;
-    const cost =
-      toolId === "dewPulse"
-        ? DEW_PULSE_RUN_TOUCH_COST
-        : toolId === "rootSalve"
-          ? ROOT_SALVE_RUN_TOUCH_COST
-          : TINY_SPRINKLER_RUN_TOUCH_COST;
+    const cost = this.getRunToolCost(toolId);
     if (runTouches < cost) {
       return `Need ${cost - runTouches} more RT.`;
     }
@@ -3427,6 +3563,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     }
     if (toolId === "rootSalve" && getWoundedRootCount(this.state) <= 0) {
       return "No open wound to seal.";
+    }
+    if (toolId === "pocketSunshine" && this.state.scourge.pressure < POCKET_SUNSHINE_MIN_PRESSURE) {
+      return "Scourge pressure is already calm.";
     }
     return `Ready: spend ${cost} RT.`;
   }
@@ -3437,16 +3576,11 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.runToolTooltipBody.setVisible(visible);
   }
 
-  private isPointerOverRootSalveButton(pointer: Phaser.Input.Pointer): boolean {
-    return this.rootSalveButton.visible && this.rootSalveButton.getBounds().contains(pointer.x, pointer.y);
-  }
-
-  private isPointerOverDewPulseButton(pointer: Phaser.Input.Pointer): boolean {
-    return this.dewPulseButton.visible && this.dewPulseButton.getBounds().contains(pointer.x, pointer.y);
-  }
-
-  private isPointerOverTinySprinklerButton(pointer: Phaser.Input.Pointer): boolean {
-    return this.tinySprinklerButton.visible && this.tinySprinklerButton.getBounds().contains(pointer.x, pointer.y);
+  private isPointerOverRunToolButton(pointer: Phaser.Input.Pointer): boolean {
+    return RUN_TOOL_IDS.some((toolId) => {
+      const button = this.runToolSlots[toolId].button;
+      return button.visible && button.getBounds().contains(pointer.x, pointer.y);
+    });
   }
 
   private isPointerOverRunToolPageButton(pointer: Phaser.Input.Pointer): boolean {
@@ -4166,7 +4300,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const summary = getDormancySummary(this.state);
     const compact = this.isCompactDormancyReport();
     this.summaryTitle.setText("Memory Grove");
-    this.summarySubtitle.setText("Game Over: dormancy claimed the Ancient Grass. Spend memory, then begin the next run.");
+    this.summarySubtitle.setText(this.getDormancySubtitle());
     this.summaryBody.setText(
       compact
         ? "Run over. Healing became GT; unspent RT is gone."
@@ -4229,7 +4363,35 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       return compact ? `${this.lastMemoryPurchaseHint} Next run ready.` : `${this.lastMemoryPurchaseHint} Begin Next Run when ready.`;
     }
 
+    if (!this.canPurchaseAnyMemory()) {
+      const allOwned = MEMORY_UPGRADE_IDS.every((upgradeId) => hasPermanentUpgrade(this.state, upgradeId));
+      if (allOwned) {
+        return compact ? "All current memories owned. Begin next run." : "Every current memory is remembered. Begin Next Run when ready.";
+      }
+      const banked = this.state.economy.permanentGrassTouches;
+      return compact
+        ? `${banked} GT banked. Grow it next run.`
+        : `${banked} GT banked. No memory is affordable yet; begin the next run and grow the bank.`;
+    }
+
     return compact ? "Spend GT, then begin next run." : "Spend GT in the skill tree, then use Begin Next Run.";
+  }
+
+  private getDormancySubtitle(): string {
+    return this.canPurchaseAnyMemory()
+      ? "Game Over: dormancy claimed the Ancient Grass. Spend memory, then begin the next run."
+      : "Game Over: dormancy claimed the Ancient Grass. The Grove keeps your GT for the next attempt.";
+  }
+
+  private canPurchaseAnyMemory(): boolean {
+    return MEMORY_UPGRADE_IDS.some((upgradeId) => {
+      const upgrade = PERMANENT_UPGRADE_DEFINITIONS[upgradeId];
+      return (
+        !hasPermanentUpgrade(this.state, upgradeId) &&
+        getMissingPermanentUpgradePrerequisites(this.state, upgradeId).length === 0 &&
+        this.state.economy.permanentGrassTouches >= upgrade.cost
+      );
+    });
   }
 
   private applyMemoryTreeViewTransform(syncInteractiveBounds = true): void {
@@ -5055,6 +5217,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       totalRunTouchesEarned: this.state.economy.totalRunTouchesEarned,
       permanentGrassTouches: this.state.economy.permanentGrassTouches,
       permanentUpgrades: this.state.permanentUpgrades,
+      scourgePressure: Math.round(this.state.scourge.pressure * 100) / 100,
       tinySprinklers: this.state.automation.tinySprinklers,
       scourgeSenseOwned: this.hasScourgeSense(),
       scourgeSenseTargetRootId: this.scourgeSenseTargetRootId,
@@ -5089,6 +5252,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       lastHealingFeedbackAt: this.lastHealingFeedbackAt,
       lastRunToolKind: this.lastRunToolKind,
       lastRunToolAt: this.lastRunToolAt,
+      lastPocketSunshinePressureReduced: this.lastPocketSunshinePressureReduced,
       lastTinySprinklerPulseAt: this.lastTinySprinklerPulseAt,
       lastTinySprinklerRootId: this.lastTinySprinklerRootId,
       lastDewPulseReadyAt: this.lastDewPulseReadyAt,

@@ -152,6 +152,7 @@ Acceptance:
 
 - Fresh runs can show an authored inherited-field intro before Scourge drain begins.
 - Fresh intro smoke confirms the Sensi callout is visible, empty canvas clicks do not advance the intro, and a real root click hides the callout while waking the run.
+- Wide and compact first-run presentation avoids duplicate guidance: advisor-capable layouts suppress the center intro card and visual bottom prompt until the first touch, while tiny layouts without the advisor retain the callout.
 - Prototype HUD keeps the player portrait/status separate from Sensi's advisor dialogue.
 - Compact HUD smoke confirms player/advisor identity stays separated at medium and tall-phone widths, with the advisor panel replacing the separate intro callout on compact layouts.
 - Field expansion has a visible wake beat that uses existing root, ring, and spore/fleck art without changing objective or reward rules.
@@ -163,10 +164,12 @@ Acceptance:
 - The old run feed is hidden from the main play layout while retained as internal event history.
 - Run tools live in a separate icon-led Field Kit dock beside the playfield, not in the status HUD. Slots use stable dimensions, art, RT cost/count badges, and hover/focus details without overlapping objective, HP, currency, Scourge, or field text.
 - The Field Kit is rendered from a shared tool catalog, uses responsive one/two-column layouts, and pages automatically when the equipped roster exceeds a page. The player starts with three equipped slots; the 30 GT Field Satchel Memory requires Tiny Sprinkler and adds three more.
+- Field Satchel equips the fourth tool, Pocket Sunshine: spend 28 RT at 1.20+ Scourge pressure to reduce accumulated pressure by 0.35 without healing HP or adding dormancy payout.
 - Field Kit tools should be paced into the run instead of appearing at the start: Dew Pulse after enough RT is earned, Root Salve when a wound exists, and Tiny Sprinkler after license plus enough RT or owned sprinkler count.
 - HP zero presents a full-screen Memory Grove game-over/meta screen instead of a small gameplay overlay.
 - The game-over/meta screen is a hard run-ending state: active run timers, wound pressure, and Tiny Sprinkler automation stop once dormancy begins.
 - The dormancy report is split into explicit run-over copy, a permanent GT reward line, conversion summary stats, lost Run Touches, and a visible next-run action hint.
+- Dormancy guidance detects whether any unlocked, unowned Memory is affordable. Low-GT runs say that GT is banked and allow an immediate next run instead of falsely requiring a purchase.
 - The meta screen separates run summary from a larger old-style hex-node Memory Skill Tree, shows a selected-memory detail panel, includes eleven functional memory nodes, gives post-purchase next-run feedback, and restarts only through the explicit `Begin Next Run` button.
 - The Memory Skill Tree is a masked, scalable viewport with bounded 60%-180% zoom, pointer-anchored wheel zoom, explicit minus/reset/plus controls, and drag-pan above 100%. Future skills can extend the catalog without turning the whole Grove into a tiny fixed diagram.
 - Memory node identity, branch presentation, icon, copy, and normalized position come from one shared catalog rendered in a fixed 720x450 logical world. Overview nodes show only icon and name; hover/focus moves the full explanation and enlarged animated icon into the detail presentation.
@@ -174,6 +177,7 @@ Acceptance:
 - Compact Memory Grove layouts keep tree node labels and hitboxes separated, move full skill information into the selected-memory panel, and preserve a large unobstructed next-run action.
 - `Begin Next Run` is visually dominant and gently animated while keeping a stable interactive area.
 - The redesign route uses the Lucid track asset converted from `docs/lucid.aif` to `public/assets/music/lucid-field-theme.wav`.
+- `?alpha` launches the redesign as an honest public alpha without playtest controls and carries a dated Alpha Test browser/HUD identity.
 - HP zero reliably enters dormancy once.
 - Dormancy payout uses effective healing, not unspent Run Touches. Current prototype tuning converts 5 effective HP into 1 permanent GT.
 - Spending Run Touches later will not reduce permanent payout.
@@ -207,6 +211,7 @@ Tests:
 - Browser smoke verifies Dew Pulse: after earning 22 RT, the `dewPulse` run-tool button reports usable, the prompt/advisor cue mentions Dew Pulse, `lastDewPulseReadyAt` is set, clicking it spends exactly 22 RT, heals HP, keeps total Run Touches earned unchanged, and reports `lastRunToolKind: dewPulse`.
 - Browser smoke verifies the UI/meta correction: Lucid audio starts without warn/error logs, `feedPanelVisible` is false, tools occupy a separated Field Kit dock, HP collapse reports `runEnded`, `metaScreenVisible`, `summaryVisible`, a non-empty dormancy reward/report, memory buttons are visible, random screen clicks do not restart the run, and clicking `Begin Next Run` starts the next run.
 - Browser smoke verifies the Field Kit progression and actions: Field Satchel changes equipped capacity from three to six, the live rail reports a two-column layout at 1280x720, Dew Pulse spends exactly 22 RT, Tiny Sprinkler spends exactly 16 RT and increments its count, and keyboard focus keeps accessible DOM text visually transparent while preserving a focus outline.
+- Browser smoke verifies Pocket Sunshine through `redesign-pocket-sunshine-button`: Field Satchel equips the fourth tool, the slot becomes usable at 38 RT and sufficient pressure, activation spends exactly 28 RT, reports `lastRunToolKind: pocketSunshine`, and the pure run-spine result reduces pressure by exactly 0.35 without healing or payout.
 - Browser smoke verifies the DOM agent layer without canvas coordinate clicks: `grassAgentDom` reports `ready`, `redesign-readable-state` exposes the active phase/objective, real root buttons wake and heal roots, the Dew Pulse DOM button spends exactly 22 RT and reports `lastRunToolKind: dewPulse`, and the `Begin Next Run` DOM button restarts from the meta screen.
 - Browser smoke verifies the DOM dormancy report: `redesign-dormancy-report` appears on the meta screen and mirrors the game-over reward/report/action text for agents that cannot inspect canvas text.
 - Browser smoke verifies Memory Tree navigation: DOM zoom controls report 60%-180% state, wheel zoom remains anchored around the pointer, drag-pan is bounded, reset returns to 100% with zero pan, and clipped node controls never extend beyond the tree viewport.
@@ -215,6 +220,7 @@ Tests:
 - Browser smoke verifies the Tiny Sprinkler recast: a fast run earns enough GT, `redesign-memory-tinySprinkler` purchases the permanent license, the next run exposes `redesign-tiny-sprinkler-button`, buying it spends 16 RT and sets `tinySprinklers: 1`, an automated pulse fires, and the pulse increases RT/effective healing through real missing-HP restoration.
 - Browser smoke verifies the Scourge Sense recast: a fast run earns enough GT, `redesign-memory-scourgeSense` purchases the permanent forecast node, the next run reports `scourgeSenseOwned`, wound pressure reaches the early Scourge Sense threshold, `scourgeSenseTargetRootId` and per-root `scourgeSenseMarkerVisible` appear before wound-open, and the forecast root becomes wounded.
 - Browser smoke verifies Last Stand: a fast run earns enough GT, `redesign-memory-lastStand` purchases the permanent revive node, the next run reports `lastStandOwned` and `lastStandAvailable`, the first HP-zero event fires `lastStandTriggeredAt` while the phase remains active, and the second HP-zero event reaches real dormancy.
+- Public-alpha smoke verifies `?alpha` has no playtest controls, uses the Alpha Test browser title/build mark, suppresses redundant wide-layout intro surfaces, transitions cleanly after the first real root touch, preserves exact music/SFX slider values, reaches a hard Memory Grove game-over, gives affordability-aware guidance, and begins another one-tile run without requiring a purchase.
 
 ## Milestone 3: Minimal Meta Skill Tree
 

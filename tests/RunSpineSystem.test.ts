@@ -18,10 +18,12 @@ import {
   openRootWound,
   purchasePermanentUpgrade,
   normalizePermanentMemorySnapshot,
+  POCKET_SUNSHINE_RUN_TOUCH_COST,
   spendRunTouches,
   touchAncientGrass,
   touchAncientGrassRoot,
   useDewPulse,
+  usePocketSunshine,
   useRootSalve,
 } from "../src/game/redesign/RunSpineSystem";
 
@@ -329,6 +331,49 @@ describe("RunSpineSystem", () => {
     expect(result.used).toBe(true);
     expect(state.economy.runTouches).toBe(8);
     expect(getDormancyGrassTouches(state)).toBe(8);
+  });
+
+  it("requires Field Satchel, enough RT, and meaningful pressure before using Pocket Sunshine", () => {
+    const noSatchel = createRunSpineState({ pressure: 1.8 });
+    noSatchel.economy.runTouches = POCKET_SUNSHINE_RUN_TOUCH_COST;
+    expect(usePocketSunshine(noSatchel).reason).toBe("field-satchel-missing");
+
+    const tooPoor = createRunSpineState({
+      pressure: 1.8,
+      permanentUpgrades: ["fieldSatchel"],
+    });
+    tooPoor.economy.runTouches = POCKET_SUNSHINE_RUN_TOUCH_COST - 1;
+    expect(usePocketSunshine(tooPoor).reason).toBe("not-enough-run-touches");
+
+    const calm = createRunSpineState({
+      pressure: 1.19,
+      permanentUpgrades: ["fieldSatchel"],
+    });
+    calm.economy.runTouches = POCKET_SUNSHINE_RUN_TOUCH_COST;
+    expect(usePocketSunshine(calm).reason).toBe("pressure-low");
+    expect(calm.economy.runTouches).toBe(POCKET_SUNSHINE_RUN_TOUCH_COST);
+  });
+
+  it("spends RT to push Scourge pressure back without healing or minting payout", () => {
+    const state = createRunSpineState({
+      currentHp: 70,
+      maxHp: 100,
+      pressure: 1.8,
+      permanentUpgrades: ["fieldSatchel"],
+    });
+    state.economy.runTouches = 40;
+
+    const result = usePocketSunshine(state);
+
+    expect(result.used).toBe(true);
+    expect(result.spent).toBe(28);
+    expect(result.remainingRunTouches).toBe(12);
+    expect(result.pressureReduced).toBeCloseTo(0.35);
+    expect(result.currentPressure).toBeCloseTo(1.45);
+    expect(state.scourge.pressure).toBeCloseTo(1.45);
+    expect(state.ancientGrass.currentHp).toBe(70);
+    expect(state.ancientGrass.effectiveHealingThisRun).toBe(0);
+    expect(getDormancyGrassTouches(state)).toBe(0);
   });
 
   it("requires the Tiny Sprinkler license and Run Touches before buying automation", () => {

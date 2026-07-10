@@ -44,9 +44,14 @@ syncViewportCss(initialViewport);
 const bootStartedAt = performance.now();
 document.documentElement.dataset.grassBootStarted = `${Math.round(bootStartedAt)}`;
 const routeParams = new URLSearchParams(window.location.search);
-const useRedesignPrototype = routeParams.has("redesign") || routeParams.has("newRun");
+const publicAlphaRoute = routeParams.has("alpha");
+const useRedesignPrototype = publicAlphaRoute || routeParams.has("redesign") || routeParams.has("newRun");
 if (useRedesignPrototype) {
   document.documentElement.classList.add("grass-redesign-route");
+}
+if (publicAlphaRoute) {
+  document.documentElement.classList.add("grass-public-alpha-route");
+  document.title = "Grass Touching Simulator: Ancient Grass Alpha Test";
 }
 
 let appReadyMarked = false;

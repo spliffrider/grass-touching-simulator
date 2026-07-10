@@ -135,6 +135,17 @@ export interface UseDewPulseResult {
   overheal: number;
 }
 
+export interface UsePocketSunshineResult {
+  used: boolean;
+  reason?: "dormant" | "field-satchel-missing" | "not-enough-run-touches" | "pressure-low";
+  cost: number;
+  spent: number;
+  remainingRunTouches: number;
+  previousPressure: number;
+  currentPressure: number;
+  pressureReduced: number;
+}
+
 export interface BuyTinySprinklerResult {
   bought: boolean;
   reason?: "dormant" | "license-missing" | "not-enough-run-touches";
@@ -213,6 +224,9 @@ export const DEW_PULSE_RUN_TOUCH_COST = 22;
 export const DEW_PULSE_HEALING = 10;
 export const TINY_SPRINKLER_RUN_TOUCH_COST = 16;
 export const TINY_SPRINKLER_HEALING = 2;
+export const POCKET_SUNSHINE_RUN_TOUCH_COST = 28;
+export const POCKET_SUNSHINE_PRESSURE_REDUCTION = 0.35;
+export const POCKET_SUNSHINE_MIN_PRESSURE = 1.2;
 export const LAST_STAND_REVIVE_HP_RATIO = 0.35;
 export const FAST_TOUCH_RECOVERY_DURATION_MULTIPLIER = 0.8;
 export const ANCIENT_RESILIENCE_DRAIN_MULTIPLIER = 0.88;
@@ -573,6 +587,65 @@ export function useDewPulse(state: RunSpineState): UseDewPulseResult {
     healing: DEW_PULSE_HEALING,
     effectiveHealing,
     overheal,
+  };
+}
+
+export function usePocketSunshine(state: RunSpineState): UsePocketSunshineResult {
+  const previousPressure = state.scourge.pressure;
+  const baseResult = {
+    cost: POCKET_SUNSHINE_RUN_TOUCH_COST,
+    spent: 0,
+    remainingRunTouches: state.economy.runTouches,
+    previousPressure,
+    currentPressure: previousPressure,
+    pressureReduced: 0,
+  };
+
+  if (state.phase !== "active") {
+    return {
+      ...baseResult,
+      used: false,
+      reason: "dormant",
+    };
+  }
+
+  if (!hasPermanentUpgrade(state, "fieldSatchel")) {
+    return {
+      ...baseResult,
+      used: false,
+      reason: "field-satchel-missing",
+    };
+  }
+
+  if (state.economy.runTouches < POCKET_SUNSHINE_RUN_TOUCH_COST) {
+    return {
+      ...baseResult,
+      used: false,
+      reason: "not-enough-run-touches",
+    };
+  }
+
+  if (previousPressure < POCKET_SUNSHINE_MIN_PRESSURE) {
+    return {
+      ...baseResult,
+      used: false,
+      reason: "pressure-low",
+    };
+  }
+
+  const currentPressure = Math.max(1, previousPressure - POCKET_SUNSHINE_PRESSURE_REDUCTION);
+  const pressureReduced = previousPressure - currentPressure;
+  state.economy.runTouches -= POCKET_SUNSHINE_RUN_TOUCH_COST;
+  state.scourge.pressure = currentPressure;
+
+  return {
+    cost: POCKET_SUNSHINE_RUN_TOUCH_COST,
+    used: true,
+    spent: POCKET_SUNSHINE_RUN_TOUCH_COST,
+    remainingRunTouches: state.economy.runTouches,
+    previousPressure,
+    currentPressure,
+    pressureReduced,
   };
 }
 

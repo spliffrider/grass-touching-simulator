@@ -1,0 +1,69 @@
+{
+  "date": "2026-07-10",
+  "topic": "Pocket Sunshine and public alpha preparation",
+  "currentUserGoal": "Add a few high-impact redesign slices, complete a focused polish run, and get an honest alpha build in front of eager Discord playtesters quickly.",
+  "workCompleted": [
+    "Added Pocket Sunshine as the fourth Field Kit tool and the first immediate payoff for Field Satchel capacity.",
+    "Pocket Sunshine costs 28 RT, requires Field Satchel and at least 1.20 Scourge pressure, reduces accumulated pressure by a flat 0.35, and does not heal HP or add dormancy payout.",
+    "Added the existing pocket-sunshine item art, a gold field-wide activation burst, pressure-bar response, Sensi acknowledgement, event history entry, tooltip copy, and stable DOM control.",
+    "Made DOM Field Kit button creation catalog-driven, including stable per-tool test ids, so later tools no longer need hardcoded bridge fields and actions.",
+    "Added a tested equipped-tool helper proving base capacity equips the first three tools while Field Satchel capacity equips Pocket Sunshine as tool four.",
+    "Added exact Scourge pressure to the agent-readable state and exact Pocket Sunshine pressure reduction to browser debug state.",
+    "Added the friend-facing ?alpha route. It launches the redesign without developer controls, sets an Ancient Grass Alpha Test browser title, and displays a dated ALPHA TEST mark on the active HUD.",
+    "Reduced opening instruction duplication: advisor-capable layouts suppress the center Sensi card and visual bottom prompt until the first touch, while tiny layouts without those panels retain the callout.",
+    "Changed the first tile cue from TOUCH ROOTS to TOUCH GRASS and relaid out the field immediately after the first valid touch.",
+    "Made Memory Grove subtitle/footer guidance affordability-aware so low-GT runs bank progress and invite another run instead of falsely requiring a purchase.",
+    "Updated durable redesign and implementation-plan documentation for Pocket Sunshine, public alpha identity, first-run guidance, and low-GT Grove behavior."
+  ],
+  "filesChanged": [
+    "src/game/data/build-info.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/redesign/RunSpineSystem.ts",
+    "src/game/redesign/RunToolCatalog.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "src/main.ts",
+    "tests/RunSpineSystem.test.ts",
+    "tests/RunToolCatalog.test.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-10_PUBLIC_ALPHA_PREP.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "Final npm run check passed: ESLint, 53 Vitest tests across six files, TypeScript, and the Vite production build.",
+    "Pure run-spine tests verify Pocket Sunshine rejects missing Satchel, insufficient RT, and low pressure; valid use spends 28 RT, reduces pressure by exactly 0.35, and leaves HP and payout untouched.",
+    "Catalog coverage verifies unique DOM ids and that three base slots exclude Pocket Sunshine while six Satchel slots equip it.",
+    "Desktop browser smoke at 1280x720 purchased Soft Touch, Tiny Sprinkler, and Field Satchel through real DOM controls, began another run, earned 38 RT, and exposed Pocket Sunshine as the fourth equipped tool.",
+    "Pocket Sunshine browser activation spent 38 to 10 RT, reported lastRunToolKind pocketSunshine, preserved the active phase, and displayed the gold pressure-relief presentation and tooltip.",
+    "Public-alpha opening smoke verified the Alpha Test browser title/build mark, no playtest controls, visible advisor, suppressed duplicate center card, suppressed visual bottom prompt, and a clean first-touch transition to the Soft Loam objective.",
+    "Public-alpha full-loop smoke reached hard dormancy and the full-screen Memory Grove, verified zero-GT bank guidance, and began a new one-tile run without a purchase.",
+    "Options smoke set music to 31% and SFX to 67% through real range controls, played the SFX preview, and closed the overlay successfully."
+  ],
+  "currentGitStatus": [
+    "Expected after this handoff commit: clean worktree on codex/gameplay-update, five commits ahead of origin/codex/gameplay-update."
+  ],
+  "knownIssues": [
+    "Pocket Sunshine cost, pressure threshold, and flat reduction are first-pass tuning and need natural-run feedback.",
+    "The current browser surface is fixed at 1280x720, so a fresh 390x844 public-alpha screenshot remains outstanding; the one-column Field Kit layout is still covered by unit tests and earlier compact redesign smoke.",
+    "The shareable alpha remains a query route at /?alpha while the production root still launches the obsolete game.",
+    "The current Open Graph preview still represents the old game, so Discord link unfurls should be updated before a broad public announcement even though a direct alpha link is functional.",
+    "Redesign persistence still stores permanent memory only; refreshing during an active run starts a fresh run. This is acceptable for a small alpha but must be stated or fixed before treating the build as stable.",
+    "The public alpha has not yet been deployed from this checkpoint."
+  ],
+  "nextRecommendedSteps": [
+    "Let the user test /?alpha locally and tune Pocket Sunshine plus first-run pacing from real play rather than accelerated harness feedback.",
+    "Run a fresh narrow-phone screenshot when a resizable browser surface is available and fix any Field Kit or Grove collisions before sharing widely.",
+    "Commit and push this checkpoint, then create a Vercel preview deployment and share its /?alpha URL with the first Discord testers.",
+    "Replace or route the alpha Open Graph card so Discord previews show Ancient Grass/Scourge rather than the obsolete game.",
+    "Choose whether active-run persistence is required for the first public alpha cohort or can be a clearly documented follow-up."
+  ],
+  "doNotRevert": [
+    "Call this an alpha, not a beta.",
+    "Keep Pocket Sunshine as pressure management rather than another direct-healing tool.",
+    "Keep Pocket Sunshine behind Field Satchel capacity and keep base capacity at three.",
+    "Keep Field Kit DOM controls catalog-driven through each tool's stable domTestId.",
+    "Do not restore duplicate center/bottom instructions when the advisor panel is already visible.",
+    "Do not require a Memory purchase before Begin Next Run; low GT must remain bankable.",
+    "Keep internal ?redesign&playtest controls out of the public ?alpha route."
+  ]
+}
