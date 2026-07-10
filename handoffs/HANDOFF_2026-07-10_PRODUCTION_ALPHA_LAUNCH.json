@@ -1,0 +1,79 @@
+{
+  "date": "2026-07-10",
+  "topic": "Ancient Grass redesign promoted to master and production",
+  "currentUserGoal": "Move the approved redesign branch onto the repository default branch and make the Ancient Grass alpha publicly playable on the live domain.",
+  "release": {
+    "defaultBranch": "master",
+    "gameCodeCommit": "1ddd9fe",
+    "gameCodeCommitMessage": "Make Ancient Grass alpha the default",
+    "promotedBranch": "codex/gameplay-update",
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "legacyFallback": "https://grasstouchingsimulator.com/?legacy"
+  },
+  "workCompleted": [
+    "Added a pure route resolver and made the bare production URL launch the public Ancient Grass alpha.",
+    "Kept ?alpha as a stable public alias and kept ?redesign / ?newRun as internal redesign routes with public-alpha controls disabled.",
+    "Preserved the previous game behind ?legacy.",
+    "Kept existing legacy ?perf, ?perfHarness, ?stress, ?hazardHarness, ?fieldShape, and ?mobileTest routes selecting the previous game automatically.",
+    "Added focused tests for default, alpha, developer, legacy, harness, and conflicting route parameters.",
+    "Fast-forwarded master from 29f83ac to 1ddd9fe and pushed it to origin/master.",
+    "Deployed the linked Sensitech Vercel project to production and confirmed all production aliases.",
+    "Left the live alpha open in the in-app browser for the user's next playtest."
+  ],
+  "filesChanged": [
+    "src/game/routing/GameRoute.ts",
+    "src/main.ts",
+    "tests/GameRoute.test.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-10_PRODUCTION_ALPHA_LAUNCH.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "Focused GameRoute tests passed: 13 tests.",
+    "Final npm run check passed before promotion: ESLint, 68 Vitest tests across seven files, TypeScript, and the Vite production build.",
+    "Local bare-route browser smoke reported the Ancient Grass Alpha Test title, redesign/public-alpha classes, no public playtest controls, and a ready agent-readable root control.",
+    "Local ?legacy smoke reported the old Grass Touching Simulator title, a legacy canvas, and no redesign/public-alpha classes.",
+    "Production deployment inspection reported Ready.",
+    "The custom domain returned HTTP 200 after aliasing.",
+    "Live bare-route browser smoke reached grassAgentDom ready, reported Playtest off, exposed only public controls, and logged no browser errors.",
+    "Live ?legacy browser smoke loaded the previous game and logged no browser errors."
+  ],
+  "deployment": {
+    "provider": "Vercel",
+    "scope": "sensitech",
+    "project": "grass-touching-simulator",
+    "target": "production",
+    "deploymentId": "dpl_AGyNTopquKP6CEd6bW3hnbcHraAc",
+    "deploymentUrl": "https://grass-touching-simulator-g1htq7lhc-sensitech.vercel.app",
+    "inspectorUrl": "https://vercel.com/sensitech/grass-touching-simulator/AGyNTopquKP6CEd6bW3hnbcHraAc",
+    "status": "Ready",
+    "successfulCommand": "npx vercel deploy --prod --yes --force --archive=tgz",
+    "notes": "Two ordinary source uploads reached Vercel but failed at the remote file-list/build handoff with a generic service error. The authenticated archive upload bypassed that failure and deployed successfully."
+  },
+  "currentGitStatus": [
+    "Expected after committing and pushing this release handoff: clean master aligned with origin/master.",
+    "The production game code is commit 1ddd9fe; the later handoff-only commit does not change the deployed application bundle."
+  ],
+  "knownIssues": [
+    "Redesign persistence still stores permanent memory only; refreshing during an active run starts a fresh run.",
+    "A fresh narrow-phone production screenshot remains outstanding even though responsive Field Kit placement has pure tests.",
+    "The Open Graph preview still represents the previous game and should be replaced before a wider Discord announcement.",
+    "The successful Vercel archive was 82.3 MB because deployment ignores have not yet been tuned for large docs/artifacts; add a careful .vercelignore before routine releases.",
+    "Normal Vercel source deployment hit a transient remote service error twice. Use the archive command above if the same failure recurs."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user and first Discord cohort play the live root naturally and collect only alpha-blocking feedback first.",
+    "Add an Ancient Grass/Scourge Open Graph image and metadata before broad link sharing.",
+    "Test one narrow phone viewport against production, especially the left Field Kit rail and Memory Grove.",
+    "Decide whether active-run persistence is required for the next alpha checkpoint.",
+    "Add a conservative .vercelignore that excludes docs artifacts and machine-local output without excluding runtime public assets."
+  ],
+  "doNotRevert": [
+    "Keep the redesign alpha as the bare production route and continue calling it alpha, not beta.",
+    "Keep ?legacy as the explicit previous-game fallback.",
+    "Keep legacy performance/stress harness query routes selecting the previous game until equivalent redesign harnesses exist.",
+    "Keep internal redesign playtest controls out of the public root and ?alpha alias.",
+    "Keep the left vertical numbered Field Kit and 1-7 keyboard controls from the preceding release slice."
+  ]
+}
