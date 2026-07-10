@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { resolveGameRoute } from "./game/routing/GameRoute";
 import { GameScene } from "./game/scenes/GameScene";
 import { RedesignPrototypeScene } from "./game/scenes/RedesignPrototypeScene";
 import { TitleScene } from "./game/scenes/TitleScene";
@@ -43,9 +44,7 @@ function syncViewportCss(viewport: ViewportSize): void {
 syncViewportCss(initialViewport);
 const bootStartedAt = performance.now();
 document.documentElement.dataset.grassBootStarted = `${Math.round(bootStartedAt)}`;
-const routeParams = new URLSearchParams(window.location.search);
-const publicAlphaRoute = routeParams.has("alpha");
-const useRedesignPrototype = publicAlphaRoute || routeParams.has("redesign") || routeParams.has("newRun");
+const { publicAlphaRoute, useRedesignPrototype } = resolveGameRoute(window.location.search);
 if (useRedesignPrototype) {
   document.documentElement.classList.add("grass-redesign-route");
 }

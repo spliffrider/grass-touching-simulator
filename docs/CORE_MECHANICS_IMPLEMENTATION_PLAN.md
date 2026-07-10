@@ -178,7 +178,7 @@ Acceptance:
 - Compact Memory Grove layouts keep tree node labels and hitboxes separated, move full skill information into the selected-memory panel, and preserve a large unobstructed next-run action.
 - `Begin Next Run` is visually dominant and gently animated while keeping a stable interactive area.
 - The redesign route uses the Lucid track asset converted from `docs/lucid.aif` to `public/assets/music/lucid-field-theme.wav`.
-- `?alpha` launches the redesign as an honest public alpha without playtest controls and carries a dated Alpha Test browser/HUD identity.
+- The bare production URL launches the redesign as an honest public alpha without playtest controls and carries a dated Alpha Test browser/HUD identity. `?alpha` remains an alias, `?legacy` preserves the previous game, and existing legacy performance/stress harness query routes retain their old routing.
 - HP zero reliably enters dormancy once.
 - Dormancy payout uses effective healing, not unspent Run Touches. Current prototype tuning converts 5 effective HP into 1 permanent GT.
 - Spending Run Touches later will not reduce permanent payout.
@@ -222,7 +222,7 @@ Tests:
 - Browser smoke verifies the Tiny Sprinkler recast: a fast run earns enough GT, `redesign-memory-tinySprinkler` purchases the permanent license, the next run exposes `redesign-tiny-sprinkler-button`, buying it spends 16 RT and sets `tinySprinklers: 1`, an automated pulse fires, and the pulse increases RT/effective healing through real missing-HP restoration.
 - Browser smoke verifies the Scourge Sense recast: a fast run earns enough GT, `redesign-memory-scourgeSense` purchases the permanent forecast node, the next run reports `scourgeSenseOwned`, wound pressure reaches the early Scourge Sense threshold, `scourgeSenseTargetRootId` and per-root `scourgeSenseMarkerVisible` appear before wound-open, and the forecast root becomes wounded.
 - Browser smoke verifies Last Stand: a fast run earns enough GT, `redesign-memory-lastStand` purchases the permanent revive node, the next run reports `lastStandOwned` and `lastStandAvailable`, the first HP-zero event fires `lastStandTriggeredAt` while the phase remains active, and the second HP-zero event reaches real dormancy.
-- Public-alpha smoke verifies `?alpha` has no playtest controls, uses the Alpha Test browser title/build mark, suppresses redundant wide-layout intro surfaces, transitions cleanly after the first real root touch, preserves exact music/SFX slider values, reaches a hard Memory Grove game-over, gives affordability-aware guidance, and begins another one-tile run without requiring a purchase.
+- Public-alpha smoke verifies the bare route and `?alpha` alias have no playtest controls, use the Alpha Test browser title/build mark, suppress redundant wide-layout intro surfaces, transition cleanly after the first real root touch, preserve exact music/SFX slider values, reach a hard Memory Grove game-over, give affordability-aware guidance, and begin another one-tile run without requiring a purchase. Route tests also preserve the explicit `?legacy` fallback and existing legacy performance/stress harness links.
 
 ## Milestone 3: Minimal Meta Skill Tree
 
