@@ -6,66 +6,54 @@ import {
   MEMORY_TREE_WORLD_WIDTH,
   MEMORY_UPGRADE_IDS,
   MEMORY_UPGRADE_VIEW,
+  getMemoryTreeConnectorPath,
+  getMemoryTreeNodePoint,
 } from "../src/game/redesign/MemoryTreeCatalog";
 import {
   PERMANENT_UPGRADE_DEFINITIONS,
-  type PermanentUpgradeId,
 } from "../src/game/redesign/RunSpineSystem";
 
-type Point = readonly [number, number];
+type Point = { x: number; y: number };
 type Segment = readonly [Point, Point];
 
-function getNodePoint(upgradeId: PermanentUpgradeId): Point {
-  const view = MEMORY_UPGRADE_VIEW[upgradeId];
-  return [view.x * MEMORY_TREE_WORLD_WIDTH, view.y * MEMORY_TREE_WORLD_HEIGHT];
+function orientation(first: Point, second: Point, third: Point): number {
+  return (second.x - first.x) * (third.y - first.y) - (second.y - first.y) * (third.x - first.x);
 }
 
-function getConnectorSegments(sourceId: PermanentUpgradeId, targetId: PermanentUpgradeId): Segment[] {
-  const [startX, startY] = getNodePoint(sourceId);
-  const [endX, endY] = getNodePoint(targetId);
-  const dx = endX - startX;
-  const dy = endY - startY;
-  const distance = Math.max(1, Math.hypot(dx, dy));
-  const trim = MEMORY_TREE_NODE_SIZE * 0.42;
-  const fromX = startX + (dx / distance) * trim;
-  const fromY = startY + (dy / distance) * trim;
-  const toX = endX - (dx / distance) * trim;
-  const toY = endY - (dy / distance) * trim;
-  const midX = fromX + dx * 0.52;
-  return [
-    [[fromX, fromY], [midX, fromY]],
-    [[midX, fromY], [midX, toY]],
-    [[midX, toY], [toX, toY]],
-  ];
-}
-
-function rangesOverlapInside(a1: number, a2: number, b1: number, b2: number): boolean {
-  return Math.max(Math.min(a1, a2), Math.min(b1, b2)) < Math.min(Math.max(a1, a2), Math.max(b1, b2)) - 0.001;
-}
-
-function segmentsCrossInside(first: Segment, second: Segment): boolean {
-  const [[firstStartX, firstStartY], [firstEndX, firstEndY]] = first;
-  const [[secondStartX, secondStartY], [secondEndX, secondEndY]] = second;
-  const firstHorizontal = Math.abs(firstStartY - firstEndY) < 0.001;
-  const secondHorizontal = Math.abs(secondStartY - secondEndY) < 0.001;
-
-  if (firstHorizontal && secondHorizontal) {
-    return Math.abs(firstStartY - secondStartY) < 0.001 && rangesOverlapInside(firstStartX, firstEndX, secondStartX, secondEndX);
-  }
-  if (!firstHorizontal && !secondHorizontal) {
-    return Math.abs(firstStartX - secondStartX) < 0.001 && rangesOverlapInside(firstStartY, firstEndY, secondStartY, secondEndY);
-  }
-
-  const horizontal = firstHorizontal ? first : second;
-  const vertical = firstHorizontal ? second : first;
-  const [[horizontalStartX, horizontalY], [horizontalEndX]] = horizontal;
-  const [[verticalX, verticalStartY], [, verticalEndY]] = vertical;
+function pointTouchesSegment(point: Point, [start, end]: Segment): boolean {
   return (
-    verticalX > Math.min(horizontalStartX, horizontalEndX) + 0.001 &&
-    verticalX < Math.max(horizontalStartX, horizontalEndX) - 0.001 &&
-    horizontalY > Math.min(verticalStartY, verticalEndY) + 0.001 &&
-    horizontalY < Math.max(verticalStartY, verticalEndY) - 0.001
+    Math.abs(orientation(start, end, point)) < 0.001 &&
+    point.x >= Math.min(start.x, end.x) - 0.001 &&
+    point.x <= Math.max(start.x, end.x) + 0.001 &&
+    point.y >= Math.min(start.y, end.y) - 0.001 &&
+    point.y <= Math.max(start.y, end.y) + 0.001
   );
+}
+
+function segmentsCrossInside([firstStart, firstEnd]: Segment, [secondStart, secondEnd]: Segment): boolean {
+  const firstSideA = orientation(firstStart, firstEnd, secondStart);
+  const firstSideB = orientation(firstStart, firstEnd, secondEnd);
+  const secondSideA = orientation(secondStart, secondEnd, firstStart);
+  const secondSideB = orientation(secondStart, secondEnd, firstEnd);
+  if (firstSideA * firstSideB < -0.001 && secondSideA * secondSideB < -0.001) {
+    return true;
+  }
+  return (
+    pointTouchesSegment(secondStart, [firstStart, firstEnd]) ||
+    pointTouchesSegment(secondEnd, [firstStart, firstEnd]) ||
+    pointTouchesSegment(firstStart, [secondStart, secondEnd]) ||
+    pointTouchesSegment(firstEnd, [secondStart, secondEnd])
+  );
+}
+
+function distanceToSegment(point: Point, [start, end]: Segment): number {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const projection = lengthSquared === 0
+    ? 0
+    : Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
+  return Math.hypot(point.x - (start.x + dx * projection), point.y - (start.y + dy * projection));
 }
 
 describe("MemoryTreeCatalog", () => {
@@ -100,10 +88,9 @@ describe("MemoryTreeCatalog", () => {
           continue;
         }
 
-        const crosses = getConnectorSegments(first.sourceId, first.targetId).some((firstSegment) =>
-          getConnectorSegments(second.sourceId, second.targetId).some((secondSegment) =>
-            segmentsCrossInside(firstSegment, secondSegment),
-          ),
+        const crosses = segmentsCrossInside(
+          getMemoryTreeConnectorPath(first.sourceId, first.targetId),
+          getMemoryTreeConnectorPath(second.sourceId, second.targetId),
         );
         if (crosses) {
           crossings.push(`${first.sourceId}->${first.targetId} x ${second.sourceId}->${second.targetId}`);
@@ -112,5 +99,30 @@ describe("MemoryTreeCatalog", () => {
     }
 
     expect(crossings).toEqual([]);
+  });
+
+  it("keeps connectors out of unrelated skill nodes", () => {
+    const collisions: string[] = [];
+    for (const targetId of MEMORY_UPGRADE_IDS) {
+      for (const sourceId of PERMANENT_UPGRADE_DEFINITIONS[targetId].prerequisiteIds) {
+        const connector = getMemoryTreeConnectorPath(sourceId, targetId);
+        for (const nodeId of MEMORY_UPGRADE_IDS) {
+          if (nodeId === sourceId || nodeId === targetId) {
+            continue;
+          }
+          if (distanceToSegment(getMemoryTreeNodePoint(nodeId), connector) < MEMORY_TREE_NODE_SIZE * 0.62) {
+            collisions.push(`${sourceId}->${targetId} through ${nodeId}`);
+          }
+        }
+      }
+    }
+
+    expect(collisions).toEqual([]);
+  });
+
+  it("starts from a central memory and leaves room for a larger web", () => {
+    expect(MEMORY_UPGRADE_VIEW.softTouch).toMatchObject({ x: 0.5, y: 0.5 });
+    expect(MEMORY_TREE_WORLD_WIDTH).toBeGreaterThanOrEqual(1000);
+    expect(MEMORY_TREE_WORLD_HEIGHT).toBeGreaterThanOrEqual(650);
   });
 });

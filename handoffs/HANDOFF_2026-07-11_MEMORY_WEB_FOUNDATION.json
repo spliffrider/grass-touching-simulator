@@ -1,0 +1,57 @@
+{
+  "date": "2026-07-11",
+  "topic": "Memory Web foundation and sprinkler icon cleanup",
+  "currentUserGoal": "Remove the Tiny Sprinkler's strange grass halo and recast the Memory Grove as the clean, non-crossing beginning of a very large future skill web.",
+  "workCompleted": [
+    "Cropped the inherited Tiny Sprinkler equipment sprite in Phaser so the row shows the brass sprinkler without its baked-in grass patch.",
+    "Scaled the cropped sprinkler cutout to match the visual weight of the other equipment icons on desktop and phone.",
+    "Expanded the Memory Tree world from 720x450 to 1040x680 and reduced overview node size from 76 to 64.",
+    "Moved Soft Touch to the center and arranged Touch, Vitality, Scourge, Automation, and Resolve as distinct outward directions.",
+    "Replaced orthogonal elbow connectors with direct, node-trimmed web links.",
+    "Centralized node and connector geometry in MemoryTreeCatalog so rendering and tests use the same paths.",
+    "Added regression tests that reject unrelated connector crossings, touching or overlapping links, and links passing through unrelated nodes.",
+    "Added a layout contract that preserves a central origin and a world large enough for continued outward expansion."
+  ],
+  "filesChanged": [
+    "src/game/redesign/FieldEquipmentCatalog.ts",
+    "src/game/redesign/MemoryTreeCatalog.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/MemoryTreeCatalog.test.ts",
+    "handoffs/HANDOFF_2026-07-11_MEMORY_WEB_FOUNDATION.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 78 Vitest tests across nine files, TypeScript, and the Vite production build.",
+    "The final strengthened MemoryTreeCatalog test passed after adding overlap and touching detection.",
+    "Desktop browser smoke confirmed a clean central constellation with uncrossed links and a properly sized sprinkler cutout.",
+    "Phone browser smoke confirmed the full web overview, zoom controls, and separate selected-skill detail card remain usable.",
+    "Browser console inspection found no errors or warnings."
+  ],
+  "release": {
+    "branch": "codex/field-equipment-recast",
+    "status": "Local checkpoint only; not pushed, merged, or deployed."
+  },
+  "currentGitStatus": [
+    "Expected after checkpoint commit: clean codex/field-equipment-recast branch.",
+    "The preceding field-equipment recast is commit f710611."
+  ],
+  "knownIssues": [
+    "The current web contains only eleven memories; the expanded canvas is foundation for future branches, not the finished large tree.",
+    "At phone overview scale, node labels are intentionally small; players use zoom and the separate detail card for inspection.",
+    "Branch identity is currently communicated by color and direction. Dedicated branch hubs, rings, and many additional memories remain future work.",
+    "The sprinkler source PNG still contains grass; the active equipment presentation removes it non-destructively with a texture crop."
+  ],
+  "nextRecommendedSteps": [
+    "Design the next memory tier as several small branch clusters around the five established directions.",
+    "Give each branch a major circular keystone node and several smaller satellite upgrades to build the desired web silhouette.",
+    "Add an optional branch legend or subtle branch-colored background arcs once the node count justifies it.",
+    "Playtest the current equipment economy before merging this feature branch."
+  ],
+  "doNotRevert": [
+    "Keep Soft Touch as the central origin of the Memory Web.",
+    "Keep connector geometry shared between the catalog, renderer, and tests.",
+    "Keep the no-crossing and no-node-intersection test guarantees as the web grows.",
+    "Keep overview icons compact and use zoom plus the detail card for readable skill information.",
+    "Keep the Tiny Sprinkler equipment row free of the baked-in grass halo."
+  ]
+}

@@ -22,6 +22,8 @@ import {
   MEMORY_TREE_WORLD_WIDTH,
   MEMORY_UPGRADE_IDS,
   MEMORY_UPGRADE_VIEW,
+  getMemoryTreeConnectorPath,
+  getMemoryTreeNodePoint,
 } from "../redesign/MemoryTreeCatalog";
 import {
   clampMemoryTreePan,
@@ -1356,6 +1358,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
           }
         });
         const icon = this.add.image(0, 0, equipment.iconKey).setDepth(11);
+        if (equipment.iconCrop) {
+          icon.setCrop(equipment.iconCrop.x, equipment.iconCrop.y, equipment.iconCrop.width, equipment.iconCrop.height);
+        }
         const name = this.add.text(0, 0, equipment.shortName, {
           color: "#edf8cf",
           fontFamily: "Arial, sans-serif",
@@ -1992,8 +1997,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.applyMemoryTreeViewTransform();
     this.memoryUpgradeButtons.forEach((button) => {
       const view = MEMORY_UPGRADE_VIEW[button.upgradeId];
-      const x = MEMORY_TREE_WORLD_WIDTH * (view.x - 0.5);
-      const y = MEMORY_TREE_WORLD_HEIGHT * (view.y - 0.5);
+      const { x, y } = getMemoryTreeNodePoint(button.upgradeId);
       button.nodeSize = nodeSize;
       button.background
         .setPosition(x, y + nodeSize * 0.28)
@@ -2249,11 +2253,14 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
     FIELD_EQUIPMENT_IDS.forEach((equipmentId, index) => {
       const row = this.fieldEquipmentRows[equipmentId];
+      const croppedIconScale = FIELD_EQUIPMENT[equipmentId].iconCrop ? 1.65 : 1;
       if (sideRail) {
         const rowX = panelX;
         const rowY = panelTop + 84 + index * 48;
         row.background.setPosition(rowX, rowY).setSize(panelWidth - 32, 42);
-        row.icon.setPosition(panelLeft + 38, rowY).setDisplaySize(34, 34);
+        row.icon
+          .setPosition(panelLeft + 38, rowY)
+          .setDisplaySize(34 * croppedIconScale, 34 * croppedIconScale);
         row.name.setFontSize(12).setPosition(panelLeft + 64, rowY - 14).setOrigin(0, 0);
         row.status.setFontSize(10).setPosition(panelLeft + 64, rowY + 4).setOrigin(0, 0);
       } else {
@@ -2265,7 +2272,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         const cardX = panelLeft + 16 + cardWidth / 2 + column * (cardWidth + cardGap);
         const cardY = panelTop + 72 + rowIndex * 43;
         row.background.setPosition(cardX, cardY).setSize(cardWidth, 38);
-        row.icon.setPosition(cardX - cardWidth * 0.36, cardY).setDisplaySize(27, 27);
+        row.icon
+          .setPosition(cardX - cardWidth * 0.36, cardY)
+          .setDisplaySize(27 * croppedIconScale, 27 * croppedIconScale);
         row.name.setFontSize(10).setPosition(cardX - cardWidth * 0.08, cardY - 13).setOrigin(0.5, 0);
         row.status.setFontSize(9).setPosition(cardX - cardWidth * 0.08, cardY + 4).setOrigin(0.5, 0);
       }
@@ -4844,8 +4853,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       const meta = MEMORY_UPGRADE_VIEW[button.upgradeId];
       const upgrade = PERMANENT_UPGRADE_DEFINITIONS[button.upgradeId];
       for (const sourceId of upgrade.prerequisiteIds) {
-        const source = nodes.get(sourceId);
-        if (!source) {
+        if (!nodes.has(sourceId)) {
           continue;
         }
 
@@ -4857,55 +4865,39 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         const active = targetOwned && sourceOwned;
         const color = selected ? 0xf4df6a : active ? 0x8bdc69 : affordable ? meta.color : 0x6f9473;
         const alpha = selected ? 0.58 : active ? 0.46 : affordable ? 0.34 : 0.16;
-        this.drawMemoryConnector(source.frame.x, source.frame.y, button.frame.x, button.frame.y, color, alpha, selected, nodeSize);
+        this.drawMemoryConnector(sourceId, button.upgradeId, color, alpha, selected, nodeSize);
       }
     }
   }
 
   private drawMemoryConnector(
-    startX: number,
-    startY: number,
-    endX: number,
-    endY: number,
+    sourceId: PermanentUpgradeId,
+    targetId: PermanentUpgradeId,
     color: number,
     alpha: number,
     selected: boolean,
     nodeSize: number,
   ): void {
-    const dx = endX - startX;
-    const dy = endY - startY;
-    const distance = Math.max(1, Math.hypot(dx, dy));
-    const trim = nodeSize * 0.42;
-    const fromX = startX + (dx / distance) * trim;
-    const fromY = startY + (dy / distance) * trim;
-    const toX = endX - (dx / distance) * trim;
-    const toY = endY - (dy / distance) * trim;
-    const midX = fromX + dx * 0.52;
+    const [from, to] = getMemoryTreeConnectorPath(sourceId, targetId, nodeSize);
 
     if (selected) {
       this.skillTreeLines.lineStyle(8, color, alpha * 0.16);
       this.skillTreeLines.beginPath();
-      this.skillTreeLines.moveTo(fromX, fromY);
-      this.skillTreeLines.lineTo(midX, fromY);
-      this.skillTreeLines.lineTo(midX, toY);
-      this.skillTreeLines.lineTo(toX, toY);
+      this.skillTreeLines.moveTo(from.x, from.y);
+      this.skillTreeLines.lineTo(to.x, to.y);
       this.skillTreeLines.strokePath();
     }
 
     this.skillTreeLines.lineStyle(4, 0x06190f, 0.36);
     this.skillTreeLines.beginPath();
-    this.skillTreeLines.moveTo(fromX, fromY);
-    this.skillTreeLines.lineTo(midX, fromY);
-    this.skillTreeLines.lineTo(midX, toY);
-    this.skillTreeLines.lineTo(toX, toY);
+    this.skillTreeLines.moveTo(from.x, from.y);
+    this.skillTreeLines.lineTo(to.x, to.y);
     this.skillTreeLines.strokePath();
 
     this.skillTreeLines.lineStyle(selected ? 3 : 2, color, alpha);
     this.skillTreeLines.beginPath();
-    this.skillTreeLines.moveTo(fromX, fromY);
-    this.skillTreeLines.lineTo(midX, fromY);
-    this.skillTreeLines.lineTo(midX, toY);
-    this.skillTreeLines.lineTo(toX, toY);
+    this.skillTreeLines.moveTo(from.x, from.y);
+    this.skillTreeLines.lineTo(to.x, to.y);
     this.skillTreeLines.strokePath();
   }
 

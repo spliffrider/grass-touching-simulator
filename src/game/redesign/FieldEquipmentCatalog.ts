@@ -14,6 +14,7 @@ export interface FieldEquipmentDefinition {
   description: string;
   iconKey: string;
   iconPath: string;
+  iconCrop?: { x: number; y: number; width: number; height: number };
   baseCost: number;
   costGrowth: number;
   pulseIntervalMs: number;
@@ -43,6 +44,7 @@ export const FIELD_EQUIPMENT: Record<FieldEquipmentId, FieldEquipmentDefinition>
     description: "A brass helper that mists the Ancient Grass at a steady rhythm.",
     iconKey: "equipment-tiny-sprinkler",
     iconPath: "/assets/world/tiny-sprinkler.png",
+    iconCrop: { x: 15, y: 9, width: 34, height: 36 },
     baseCost: 16,
     costGrowth: 1.32,
     pulseIntervalMs: 2_400,
