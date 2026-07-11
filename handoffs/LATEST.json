@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-10",
-  "latestHandoff": "HANDOFF_2026-07-10_PRODUCTION_ALPHA_LAUNCH.json",
+  "updatedAt": "2026-07-11",
+  "latestHandoff": "HANDOFF_2026-07-11_PHONE_ALPHA_HARDENING.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

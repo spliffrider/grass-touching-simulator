@@ -1,0 +1,67 @@
+{
+  "date": "2026-07-11",
+  "topic": "Production phone audit and first alpha hotfix",
+  "currentUserGoal": "Resume work from the newly launched alpha and harden the first production experience before wider Discord testing.",
+  "workCompleted": [
+    "Audited the production alpha at a 390x844 phone viewport from a fresh production save.",
+    "Confirmed and fixed the compact Ancient Grass status panel overlapping the stacked Grass Toucher identity panel.",
+    "Added a shorter 174px compact HUD treatment and moved the compact Scourge row upward so all status content remains inside its frame.",
+    "Paused active-run simulation while Options is open, preventing HP drain, wound-pressure progress, automation timing, and hidden Game Over transitions during audio adjustment.",
+    "Made every dormancy-summary path dismiss Options before showing Memory Grove.",
+    "Audited the phone Memory Grove and confirmed its report, zoomable tree, detail panel, and Begin Next Run action remain usable at 390x844.",
+    "Updated the durable redesign specification and implementation acceptance notes.",
+    "Committed, pushed, and deployed the hotfix to production."
+  ],
+  "filesChanged": [
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-11_PHONE_ALPHA_HARDENING.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "Initial 390x844 production screenshot reproduced the status/player overlap and showed that HP could reach zero behind the open Options modal.",
+    "Final npm run check passed: ESLint, 68 Vitest tests across seven files, TypeScript, and the Vite production build.",
+    "Patched 390x844 localhost screenshot showed a clear gap between the compact status, player, and advisor panels with the Scourge row inside the HUD frame.",
+    "Options pause smoke held Ancient HP exactly at 69.66989088682563 for 2500ms, then published the same value after closing.",
+    "Internal forced-dormancy smoke opened Options, forced Game Over, and reported Options visible false with Memory Grove active.",
+    "Phone Memory Grove screenshot showed the full run report, Memory Tree controls, selected-memory details, guidance, and Begin Next Run action without overlap.",
+    "Browser console error check returned no errors.",
+    "Vercel production inspection reported Ready and the custom domain returned HTTP 200 with /assets/index-D-rnI6LC.js, matching the local production build."
+  ],
+  "release": {
+    "branch": "master",
+    "gameCodeCommit": "2ba333c",
+    "gameCodeCommitMessage": "Harden compact alpha layout",
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "deploymentId": "dpl_3xhmnz6XdJwXZdDMHHmwM55rdMkd",
+    "deploymentUrl": "https://grass-touching-simulator-1t8s335a5-sensitech.vercel.app",
+    "status": "Ready",
+    "productionBundle": "/assets/index-D-rnI6LC.js"
+  },
+  "currentGitStatus": [
+    "Expected after committing and pushing this handoff: clean master aligned with origin/master.",
+    "The production game-code deployment is commit 2ba333c; the later handoff-only commit does not alter the application bundle."
+  ],
+  "knownIssues": [
+    "Active-run state still does not persist across refresh; only permanent GT and remembered upgrades are saved.",
+    "The phone Field Kit non-overlap is covered by pure placement tests, but a production screenshot after the first multi-root expansion is still outstanding.",
+    "The Open Graph preview still represents the previous game and should be replaced before broad Discord sharing.",
+    "Vercel deployment ignores are not tuned yet, so manual archive deployments remain unnecessarily large.",
+    "At widths below 360px the minimum HUD width is still 360px; the supported first phone audit was 390px."
+  ],
+  "nextRecommendedSteps": [
+    "Let the user and first Discord testers play the live hotfix naturally and collect only reproducible alpha blockers.",
+    "Replace the Open Graph preview with an Ancient Grass/Scourge alpha card before broad link sharing.",
+    "Capture a 390px multi-root Field Kit screenshot after natural first-run expansion.",
+    "Decide whether active-run persistence is required for the next alpha checkpoint.",
+    "Add a conservative .vercelignore for docs artifacts and machine-local output."
+  ],
+  "doNotRevert": [
+    "Keep Options as a true pause for active-run simulation.",
+    "Keep Options automatically dismissed before Memory Grove appears.",
+    "Keep the compact HUD shorter than the full desktop HUD when compact identity/advisor panels are visible.",
+    "Keep the redesign alpha on the production root and the previous game behind ?legacy.",
+    "Keep the left vertical numbered Field Kit and 1-7 keyboard controls."
+  ]
+}
