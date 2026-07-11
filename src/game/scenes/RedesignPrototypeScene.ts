@@ -313,6 +313,7 @@ const SCOURGE_SENSE_WARNING_RATIO = 0.42;
 const MAX_OPEN_WOUNDS = 7;
 const HUD_PANEL_BASE_WIDTH = 640;
 const HUD_PANEL_BASE_HEIGHT = 196;
+const COMPACT_HUD_PANEL_HEIGHT = 174;
 const FIELD_PANEL_BASE_WIDTH = 520;
 const FIELD_PANEL_BASE_HEIGHT = 520;
 const SUMMARY_PANEL_BASE_WIDTH = 760;
@@ -1585,6 +1586,11 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    if (this.optionsOpen) {
+      this.animateScene(this.time.now);
+      return;
+    }
+
     if (this.introActive) {
       this.refreshReadout();
       this.animateScene(this.time.now);
@@ -1695,6 +1701,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const centerX = width / 2;
     const top = Math.max(24, height * 0.07);
     const compact = width < 720;
+    const sidePanelVisible = width >= 1040 && height >= 650;
+    const compactPanelsVisible = !sidePanelVisible && width >= COMPACT_PANEL_MIN_WIDTH && height >= COMPACT_PANEL_MIN_HEIGHT;
+    const compactPanelsStacked = compactPanelsVisible && width < COMPACT_STACK_MAX_WIDTH && height >= COMPACT_STACK_MIN_HEIGHT;
+    const hudPanelHeight = compactPanelsVisible ? COMPACT_HUD_PANEL_HEIGHT : HUD_PANEL_BASE_HEIGHT;
 
     const coverScale = Math.max(width / this.background.width, height / this.background.height);
     this.background.setPosition(centerX, height / 2).setScale(coverScale);
@@ -1703,8 +1713,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
     const panelWidth = Math.min(HUD_PANEL_BASE_WIDTH, Math.max(360, width - 42));
     const panelScaleX = panelWidth / HUD_PANEL_BASE_WIDTH;
-    this.hudPanel.setScale(panelScaleX, 1);
-    this.hudPanel.setPosition(centerX, top + HUD_PANEL_BASE_HEIGHT / 2);
+    this.hudPanel.setScale(panelScaleX, hudPanelHeight / HUD_PANEL_BASE_HEIGHT);
+    this.hudPanel.setPosition(centerX, top + hudPanelHeight / 2);
     const hudLeft = centerX - panelWidth / 2;
     const hudRight = centerX + panelWidth / 2;
     this.titleText.setText(width < 600 ? "Ancient Grass" : "Ancient Grass: Scourge");
@@ -1725,15 +1735,12 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.alphaBuildText
       .setVisible(this.publicAlphaMode && width >= 900 && !this.summaryPanel.visible)
       .setPosition(optionsButtonX - OPTIONS_BUTTON_WIDTH / 2 - 12, optionsButtonY);
-    this.scourgeBarFill.setPosition(centerX - 82, top + 172);
-    this.scourgeText.setPosition(hudLeft + 40, top + 160);
+    this.scourgeBarFill.setPosition(centerX - 82, top + (compactPanelsVisible ? 150 : 172));
+    this.scourgeText.setPosition(hudLeft + 40, top + (compactPanelsVisible ? 138 : 160));
     const promptY = height - 96;
     this.promptText.setWordWrapWidth(Math.min(580, width - 52));
     this.promptText.setPosition(centerX, promptY);
 
-    const sidePanelVisible = width >= 1040 && height >= 650;
-    const compactPanelsVisible = !sidePanelVisible && width >= COMPACT_PANEL_MIN_WIDTH && height >= COMPACT_PANEL_MIN_HEIGHT;
-    const compactPanelsStacked = compactPanelsVisible && width < COMPACT_STACK_MAX_WIDTH && height >= COMPACT_STACK_MIN_HEIGHT;
     const introCalloutVisible = this.introActive && this.state.phase === "active" && !(sidePanelVisible || compactPanelsVisible);
     this.promptText.setVisible(!this.introActive);
     const activeFieldTopOffset = introCalloutVisible ? 252 : 236;
@@ -1781,7 +1788,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const introPanelVisible = introCalloutVisible;
     const introPanelWidth = Math.min(INTRO_PANEL_BASE_WIDTH, width - 48);
     const introPanelHeight = compact ? 76 : INTRO_PANEL_BASE_HEIGHT;
-    const introPanelTop = Math.max(top + HUD_PANEL_BASE_HEIGHT + 8, fieldAreaTop - introPanelHeight - 4);
+    const introPanelTop = Math.max(top + hudPanelHeight + 8, fieldAreaTop - introPanelHeight - 4);
     const introPanelY = introPanelTop + introPanelHeight / 2;
     this.introPanel
       .setVisible(introPanelVisible)
@@ -4333,6 +4340,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private showDormancySummary(): void {
+    if (this.optionsOpen) {
+      this.closeOptions();
+    }
     this.refreshDormancyReport();
     this.setDormancySummaryVisible(true);
     this.transitionPrototypeMusic("grove");
