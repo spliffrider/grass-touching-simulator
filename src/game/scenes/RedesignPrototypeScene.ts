@@ -33,6 +33,7 @@ import {
   zoomMemoryTreeAtPoint,
   type MemoryTreeViewport,
 } from "../redesign/MemoryTreeViewport";
+import { createRootMotionProfile, type RootMotionProfile } from "../redesign/RootMotionProfile";
 import {
   FIELD_EQUIPMENT,
   FIELD_EQUIPMENT_IDS,
@@ -113,7 +114,7 @@ interface RootNodeView {
   homeX: number;
   homeY: number;
   visualSize: number;
-  phase: number;
+  motion: RootMotionProfile;
   rootId: number;
   recoveringUntil: number;
   lastTouchAt: number;
@@ -277,6 +278,7 @@ interface MemoryUpgradeButtonView {
   title: Phaser.GameObjects.Text;
   branch: Phaser.GameObjects.Text;
   detail: Phaser.GameObjects.Text;
+  rankPips: Phaser.GameObjects.Arc[];
   nodeSize: number;
 }
 
@@ -321,6 +323,8 @@ interface FieldEquipmentRowView {
   icon: Phaser.GameObjects.Image;
   name: Phaser.GameObjects.Text;
   status: Phaser.GameObjects.Text;
+  unlocked: boolean;
+  affordable: boolean;
 }
 
 type PrototypeMusicMode = "field" | "grove";
@@ -960,6 +964,13 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         stroke: "#07100c",
         strokeThickness: 3,
       }).setOrigin(0.5).setDepth(33).setVisible(false);
+      const rankPips = Array.from({ length: getPermanentUpgradeMaxRank(upgradeId) > 1 ? getPermanentUpgradeMaxRank(upgradeId) : 0 }, () =>
+        this.add
+          .circle(0, 0, 3, 0x11261a, 0.92)
+          .setDepth(32.6)
+          .setStrokeStyle(1, view.color, 0.5)
+          .setVisible(false),
+      );
       background.on("pointerover", () => {
         this.previewMemoryUpgrade(upgradeId);
       });
@@ -970,8 +981,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         this.previewMemoryUpgrade(upgradeId);
         this.handleMemoryUpgradeClick(upgradeId);
       });
-      this.memoryTreeContent.add([glow, hoverRing, frame, icon, title, branch, detail, background]);
-      this.memoryUpgradeButtons.push({ upgradeId, background, glow, hoverRing, frame, icon, title, branch, detail, nodeSize: 72 });
+      this.memoryTreeContent.add([glow, hoverRing, frame, icon, ...rankPips, title, branch, detail, background]);
+      this.memoryUpgradeButtons.push({ upgradeId, background, glow, hoverRing, frame, icon, title, branch, detail, rankPips, nodeSize: 72 });
     }
     for (const node of LOCKED_META_NODES) {
       const background = this.add
@@ -1385,7 +1396,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
           stroke: "#07100c",
           strokeThickness: 3,
         }).setDepth(11);
-        return [equipmentId, { equipmentId, background, icon, name, status }];
+        return [equipmentId, { equipmentId, background, icon, name, status, unlocked: false, affordable: false }];
       }),
     ) as Record<FieldEquipmentId, FieldEquipmentRowView>;
   }
@@ -1778,7 +1789,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         homeX: 0,
         homeY: 0,
         visualSize: 72,
-        phase: index * 0.58,
+        motion: createRootMotionProfile(index),
         rootId: index,
         recoveringUntil: -Infinity,
         lastTouchAt: -Infinity,
@@ -1829,7 +1840,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.alphaBuildText
       .setVisible(this.publicAlphaMode && width >= 900 && !this.summaryPanel.visible)
       .setPosition(optionsButtonX - OPTIONS_BUTTON_WIDTH / 2 - 12, optionsButtonY);
-    this.scourgeBarFill.setPosition(centerX - 82, top + (compactPanelsVisible ? 150 : 172));
+    this.scourgeBarFill.setPosition(hudLeft + 40, top + (compactPanelsVisible ? 166 : 184));
     this.scourgeText.setPosition(hudLeft + 40, top + (compactPanelsVisible ? 138 : 160));
     const promptY = height - 96;
     this.promptText.setWordWrapWidth(Math.min(580, width - 52));
@@ -2015,6 +2026,14 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       button.hoverRing.setPosition(x, y).setRadius(nodeSize * 0.78);
       button.frame.setPosition(x, y).setDisplaySize(nodeSize, nodeSize);
       button.icon.setPosition(x, y).setDisplaySize(nodeSize * 0.28, nodeSize * 0.28);
+      button.rankPips.forEach((pip, index) => {
+        const progress = button.rankPips.length <= 1 ? 0.5 : index / (button.rankPips.length - 1);
+        const angle = Math.PI + progress * Math.PI;
+        const radius = nodeSize * 0.72;
+        pip
+          .setPosition(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius)
+          .setRadius(Math.max(2.2, nodeSize * 0.047));
+      });
       button.title
         .setFontSize(16)
         .setPosition(
@@ -2741,15 +2760,16 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const compactPanelCopy = this.scale.width < 1040;
     this.updatePlayerPanel(compactPanelCopy);
     this.scourgeBarFill.width = Math.min(360, 120 + this.state.scourge.pressure * 36);
-    const senseTargetText = this.scourgeSenseTargetRootId === null ? "" : `   root ${this.scourgeSenseTargetRootId + 1} next`;
+    const senseTargetText = this.scourgeSenseTargetRootId === null ? "" : ` | root ${this.scourgeSenseTargetRootId + 1} next`;
+    const phaseLabel = this.state.phase.toUpperCase();
     this.scourgeText.setText(
       this.introActive
         ? compact
           ? "Scourge dormant   touch to begin"
           : "Scourge dormant   touch the Ancient Grass to begin"
         : compact
-          ? `Scourge x${this.state.scourge.pressure.toFixed(2)}   ${this.state.phase}${senseTargetText}`
-          : `Scourge pressure x${this.state.scourge.pressure.toFixed(2)}   phase ${this.state.phase}${senseTargetText}`,
+          ? `Scourge x${this.state.scourge.pressure.toFixed(2)} | ${phaseLabel}${senseTargetText}`
+          : `Scourge pressure x${this.state.scourge.pressure.toFixed(2)} | ${phaseLabel}${senseTargetText}`,
     );
     const woundedCount = getWoundedRootCount(this.state);
     const activeObjectiveId = getActiveFirstRunObjective(this.objectiveState, this.state)?.definition.id;
@@ -2825,7 +2845,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         return;
       }
 
-      const wave = Math.sin(this.time.now / 420 + index * 0.72) * 0.18 + 0.82;
+      const wave = Math.sin((this.time.now / 1000) * node.motion.breathSpeed + node.motion.phase) * 0.18 + 0.82;
       const wounded = isRootWounded(this.state, node.rootId);
       const woundVisible = this.state.phase === "active" && wounded;
       const recoveryRatio = this.getRootRecoveryRatio(node);
@@ -2917,12 +2937,24 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         return;
       }
 
-      const breath = this.state.phase === "active" ? 1 + Math.sin(seconds * 2.2 + node.phase) * 0.022 * hpRatio : 0.96;
-      const sway = Math.sin(seconds * 1.35 + node.phase) * 1.4 * hpRatio;
+      const motion = node.motion;
+      const breathWave =
+        Math.sin(seconds * motion.breathSpeed + motion.phase) +
+        Math.sin(seconds * motion.breathSpeed * 0.43 + motion.phase * 1.73) * 0.3;
+      const breath = this.state.phase === "active"
+        ? 1 + breathWave * motion.breathAmount * hpRatio
+        : 0.96;
+      const swayWave =
+        Math.sin(seconds * motion.swaySpeed + motion.phase) +
+        Math.sin(seconds * motion.swaySpeed * 0.52 + motion.phase * 2.11) * 0.28;
+      const sway = swayWave * motion.swayAmount * hpRatio;
+      const bobWave =
+        Math.cos(seconds * motion.bobSpeed + motion.phase) +
+        Math.sin(seconds * motion.bobSpeed * 0.47 + motion.phase * 1.37) * 0.22;
       const wounded = isRootWounded(this.state, node.rootId);
       const recoveryRatio = this.getRootRecoveryRatio(node);
       const recoveryScale = wounded ? 1 : 0.88 + recoveryRatio * 0.12;
-      const pressureJitter = Math.sin(seconds * (wounded ? 16 : 9.5) + node.phase * 3) * Math.max(0, pressure - 1) * (wounded ? 0.62 : 0.22);
+      const pressureJitter = Math.sin(seconds * (wounded ? 16 : 9.5) + motion.phase * 3) * Math.max(0, pressure - 1) * (wounded ? 0.62 : 0.22);
       const touchProgress = Phaser.Math.Clamp((now - node.touchImpactAt) / ROOT_TOUCH_IMPACT_MS, 0, 1);
       const touchWave =
         touchProgress < 1
@@ -2933,44 +2965,47 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       node.grass
         .setPosition(
           node.homeX + sway + pressureJitter,
-          node.homeY + Math.cos(seconds * 1.7 + node.phase) * 0.9 * hpRatio + touchPress * node.visualSize * 0.035,
+          node.homeY + bobWave * motion.bobAmount * hpRatio + touchPress * node.visualSize * 0.035,
         )
-        .setAngle(Math.sin(seconds * 1.1 + node.phase) * 0.9 * hpRatio + node.touchImpactDirection * touchWave * 3.8)
+        .setAngle(
+          Math.sin(seconds * motion.tiltSpeed + motion.phase) * motion.tiltAmount * hpRatio +
+          node.touchImpactDirection * touchWave * 3.8,
+        )
         .setDisplaySize(
           node.visualSize * 0.92 * breath * recoveryScale * masteryScale * (1 + touchWave * 0.13),
           node.visualSize * 0.92 * breath * recoveryScale * masteryScale * (1 - touchWave * 0.18),
         );
       node.spark
         .setPosition(
-          node.homeX + node.visualSize * 0.2 + Math.sin(seconds * 1.8 + node.phase) * 3,
-          node.homeY - node.visualSize * 0.2 + Math.cos(seconds * 1.5 + node.phase) * 3 - touchPress * node.visualSize * 0.05,
+          node.homeX + node.visualSize * 0.2 + Math.sin(seconds * motion.sparkSpeedX + motion.phase) * 3,
+          node.homeY - node.visualSize * 0.2 + Math.cos(seconds * motion.sparkSpeedY + motion.phase) * 3 - touchPress * node.visualSize * 0.05,
         )
-        .setAngle(now * 0.025 + node.phase * 20);
+        .setAngle(now * 0.025 + motion.phase * 20);
       node.pulse
         .setPosition(node.homeX + sway * 0.4, node.homeY)
         .setScale(
           (wounded ? 1.25 : 1) +
-            Math.sin(seconds * (wounded ? 4.6 : 2.4) + node.phase) * (wounded ? 0.22 : 0.12) +
+            Math.sin(seconds * (wounded ? 4.6 : 2.4) + motion.phase) * (wounded ? 0.22 : 0.12) +
             touchPress * 0.62,
         );
       if (!wounded && recoveryRatio < 1) {
-        const recoveryBeat = 0.9 + recoveryRatio * 0.2 + Math.sin(seconds * 4.2 + node.phase) * 0.04;
+        const recoveryBeat = 0.9 + recoveryRatio * 0.2 + Math.sin(seconds * 4.2 + motion.phase) * 0.04;
         node.recoveryHalo.setPosition(node.homeX + sway * 0.25, node.homeY).setScale(recoveryBeat);
       } else {
         node.recoveryHalo.setScale(1);
       }
       if (this.isScourgeSenseMarkerVisible(node)) {
-        const senseBeat = 1 + Math.sin(seconds * 4.8 + node.phase) * 0.12;
+        const senseBeat = 1 + Math.sin(seconds * 4.8 + motion.phase) * 0.12;
         node.senseHalo.setPosition(node.homeX + pressureJitter * 0.2, node.homeY).setScale(senseBeat);
       } else {
         node.senseHalo.setScale(1);
       }
       if (wounded) {
-        const woundBeat = 1 + Math.sin(seconds * 5.2 + node.phase) * 0.16;
+        const woundBeat = 1 + Math.sin(seconds * 5.2 + motion.phase) * 0.16;
         node.woundHalo.setPosition(node.homeX + pressureJitter * 0.35, node.homeY).setScale(woundBeat);
         node.woundShard
-          .setPosition(node.homeX + pressureJitter * 0.5, node.homeY - node.visualSize * 0.23 + Math.sin(seconds * 5.8 + node.phase) * 2)
-          .setAngle(-12 + Math.sin(seconds * 4.2 + node.phase) * 6);
+          .setPosition(node.homeX + pressureJitter * 0.5, node.homeY - node.visualSize * 0.23 + Math.sin(seconds * 5.8 + motion.phase) * 2)
+          .setAngle(-12 + Math.sin(seconds * 4.2 + motion.phase) * 6);
       } else {
         node.woundHalo.setScale(1);
         node.woundShard.setAngle(-12);
@@ -3788,8 +3823,13 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       const pulse = Math.sin(seconds * (2.2 + index * 0.08) + index * 0.9);
       if (owned > 0) {
         row.background.setAlpha(0.9 + pulse * 0.04);
+        row.status.setAlpha(0.9 + pulse * 0.08);
+      } else if (row.affordable) {
+        row.background.setAlpha(0.92 + pulse * 0.045);
+        row.status.setAlpha(0.78 + pulse * 0.18);
       } else {
         row.background.setAlpha(1);
+        row.status.setAlpha(1);
       }
     });
   }
@@ -3805,6 +3845,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       const owned = this.state.automation.equipment[equipmentId];
       const cost = getFieldEquipmentCost(equipmentId, owned, effects.equipmentCostMultiplier);
       const affordable = unlocked && this.state.economy.runTouches >= cost;
+      row.unlocked = unlocked;
+      row.affordable = affordable;
       const hovered = this.hoveredEquipmentId === equipmentId;
       const accent = FIELD_EQUIPMENT[equipmentId].projectileTint;
       row.background
@@ -3830,25 +3872,104 @@ export class RedesignPrototypeScene extends Phaser.Scene {
           ? `Need ${Math.max(0, result.cost - this.state.economy.runTouches)} RT`
           : "Run ended";
       this.floatText(row.background.x, row.background.y - 18, message, "#ffb1c7");
+      this.playFieldEquipmentBlocked(equipmentId);
       this.refreshFieldEquipmentPanel();
       return;
     }
 
     this.sfx.play("upgrade");
     this.floatText(row.background.x, row.background.y - 18, `-${result.spent} RT  x${result.owned}`, "#eaff9b");
-    this.tweens.add({
-      targets: row.icon,
-      scaleX: 1.2,
-      scaleY: 1.2,
-      angle: 6,
-      duration: 130,
-      yoyo: true,
-      ease: "Quad.easeOut",
-      onComplete: () => row.icon.setAngle(0),
-    });
+    this.playFieldEquipmentPurchase(equipmentId);
     this.addFeedEntry("Equipment bought", `${FIELD_EQUIPMENT[equipmentId].name} x${result.owned}`, "EQ", "#bff4ff");
     this.refreshReadout();
     this.publishBrowserDebugState();
+  }
+
+  private playFieldEquipmentPurchase(equipmentId: FieldEquipmentId): void {
+    const row = this.fieldEquipmentRows[equipmentId];
+    const tint = FIELD_EQUIPMENT[equipmentId].projectileTint;
+    const flash = this.add
+      .rectangle(row.background.x, row.background.y, row.background.width, row.background.height, tint, 0.22)
+      .setDepth(11.5)
+      .setStrokeStyle(2, tint, 0.9);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      scaleX: 1.035,
+      scaleY: 1.12,
+      duration: 440,
+      ease: "Cubic.easeOut",
+      onComplete: () => flash.destroy(),
+    });
+
+    const installRing = this.add
+      .circle(row.icon.x, row.icon.y, 7, tint, 0.22)
+      .setDepth(13)
+      .setStrokeStyle(2, 0xf7ffd6, 0.9)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({
+      targets: installRing,
+      alpha: 0,
+      radius: Math.max(24, row.background.height * 0.7),
+      duration: 460,
+      ease: "Sine.easeOut",
+      onComplete: () => installRing.destroy(),
+    });
+
+    const baseScaleX = row.icon.scaleX;
+    const baseScaleY = row.icon.scaleY;
+    this.tweens.killTweensOf(row.icon);
+    row.icon.setAngle(-6);
+    this.tweens.add({
+      targets: row.icon,
+      angle: 7,
+      scaleX: baseScaleX * 1.24,
+      scaleY: baseScaleY * 1.24,
+      duration: 150,
+      yoyo: true,
+      ease: "Back.easeOut",
+      onComplete: () => row.icon.setAngle(0).setScale(baseScaleX, baseScaleY),
+    });
+
+    const resourceX = this.runTouchText.x + Math.min(90, this.runTouchText.width * 0.55);
+    const resourceY = this.runTouchText.y + 10;
+    for (let index = 0; index < 4; index += 1) {
+      const mote = this.add
+        .image(resourceX + index * 5, resourceY, index % 2 === 0 ? "effect-magic-spore" : "effect-pollen-fleck")
+        .setDepth(18)
+        .setTint(tint)
+        .setAlpha(0.96 - index * 0.08)
+        .setScale(Phaser.Math.FloatBetween(1.35, 1.9))
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: mote,
+        x: row.icon.x + Phaser.Math.FloatBetween(-5, 5),
+        y: row.icon.y + Phaser.Math.FloatBetween(-4, 4),
+        alpha: 0.08,
+        scaleX: 0.38,
+        scaleY: 0.38,
+        delay: index * 38,
+        duration: 460 + index * 34,
+        ease: "Sine.easeInOut",
+        onComplete: () => mote.destroy(),
+      });
+    }
+  }
+
+  private playFieldEquipmentBlocked(equipmentId: FieldEquipmentId): void {
+    const row = this.fieldEquipmentRows[equipmentId];
+    const rejection = this.add
+      .rectangle(row.background.x, row.background.y, row.background.width, row.background.height, 0xff6b9a, 0.13)
+      .setDepth(12)
+      .setStrokeStyle(2, 0xff9fba, 0.9);
+    this.tweens.add({
+      targets: rejection,
+      alpha: 0,
+      scaleX: 1.02,
+      duration: 260,
+      ease: "Quad.easeOut",
+      onComplete: () => rejection.destroy(),
+    });
   }
 
   private updateFieldEquipment(delta: number): void {
@@ -4549,6 +4670,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       button.hoverRing.setVisible(visible && this.hoveredMemoryUpgradeId === button.upgradeId);
       button.frame.setVisible(visible);
       button.icon.setVisible(visible);
+      button.rankPips.forEach((pip) => pip.setVisible(visible));
       button.title.setVisible(visible);
       button.branch.setVisible(visible);
       button.detail.setVisible(visible);
@@ -5037,6 +5159,13 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       button.glow
         .setFillStyle(meta.color, selected ? 0.24 : affordable ? 0.18 : owned ? 0.16 : 0.05)
         .setStrokeStyle(selected ? 3 : 2, selected ? 0xf4df6a : meta.color, selected ? 0.82 : affordable ? 0.48 : 0.18);
+      button.rankPips.forEach((pip, index) => {
+        const filled = index < rank;
+        pip
+          .setFillStyle(filled ? meta.color : 0x11261a, filled ? 0.96 : 0.88)
+          .setStrokeStyle(filled ? 2 : 1, filled ? 0xf7ffd6 : meta.color, filled ? 0.76 : 0.34)
+          .setAlpha(complete || selected || affordable ? 1 : 0.68);
+      });
       button.title.setColor(complete ? "#eaff9b" : affordable || selected || owned ? "#ffefb0" : "#b8aa82");
       button.branch.setText("").setColor(owned || affordable || selected ? "#dff6ca" : "#85927d");
       button.detail.setColor(complete ? "#eaff9b" : affordable || owned ? "#dff6ca" : "#aaa790");
@@ -5079,8 +5208,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
     const result = purchasePermanentUpgrade(this.state, upgradeId);
     const button = this.memoryUpgradeButtons.find((candidate) => candidate.upgradeId === upgradeId);
-    const x = button?.background.x ?? this.scale.width / 2;
-    const y = button?.background.y ?? this.scale.height / 2;
+    const buttonBounds = button?.background.getBounds();
+    const x = buttonBounds?.centerX ?? this.scale.width / 2;
+    const y = buttonBounds?.centerY ?? this.scale.height / 2;
 
     if (!result.purchased) {
       this.sfx.play("blocked");
@@ -5096,6 +5226,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
           ? `That memory has no roots yet.\nRemember ${missingNames} first.`
           : "Not enough memory yet.\nSuffer usefully, then return.";
       this.floatText(x, y - 18, message, alreadyOwned ? "#eaff9b" : "#ffb1c7");
+      if (button) {
+        this.playMemoryPurchaseBlocked(button);
+      }
       this.saySensi(sensiLine, "dormant", 3400);
       this.refreshMemoryUpgradeButtons();
       return;
@@ -5113,16 +5246,95 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.refreshDormancyReport();
     this.refreshMemoryUpgradeButtons();
     if (button) {
+      this.playMemoryPurchaseCelebration(button, result.rank, result.maxRank);
+    }
+  }
+
+  private playMemoryPurchaseCelebration(
+    button: MemoryUpgradeButtonView,
+    rank: number,
+    maxRank: number,
+  ): void {
+    const meta = MEMORY_UPGRADE_VIEW[button.upgradeId];
+    const complete = rank >= maxRank;
+    const ring = this.add
+      .circle(button.frame.x, button.frame.y, button.nodeSize * 0.38, meta.color, 0.12)
+      .setDepth(32.8)
+      .setStrokeStyle(complete ? 4 : 3, complete ? 0xffef78 : 0xf7ffd6, 0.94)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.memoryTreeContent.add(ring);
+    this.tweens.add({
+      targets: ring,
+      alpha: 0,
+      radius: button.nodeSize * (complete ? 1.12 : 0.9),
+      duration: complete ? 720 : 520,
+      ease: "Cubic.easeOut",
+      onComplete: () => ring.destroy(),
+    });
+
+    const fleckCount = complete ? 10 : 6;
+    for (let index = 0; index < fleckCount; index += 1) {
+      const angle = (Math.PI * 2 * index) / fleckCount - Math.PI / 2;
+      const distance = button.nodeSize * (complete ? 0.92 : 0.68);
+      const fleck = this.add
+        .image(
+          button.frame.x,
+          button.frame.y,
+          index % 2 === 0 ? "effect-magic-spore" : "effect-pollen-fleck",
+        )
+        .setDepth(32.9)
+        .setTint(complete && index % 3 === 0 ? 0xffef78 : meta.color)
+        .setAlpha(0.94)
+        .setScale(complete ? 1.6 : 1.25)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this.memoryTreeContent.add(fleck);
       this.tweens.add({
-        targets: [button.frame, button.glow],
-        alpha: 1,
-        duration: 140,
-        ease: "Quad.easeOut",
-        scaleX: 1.08,
-        scaleY: 1.08,
-        yoyo: true,
+        targets: fleck,
+        x: button.frame.x + Math.cos(angle) * distance,
+        y: button.frame.y + Math.sin(angle) * distance,
+        alpha: 0,
+        angle: index % 2 === 0 ? 90 : -90,
+        scaleX: 0.35,
+        scaleY: 0.35,
+        delay: index * 18,
+        duration: complete ? 620 : 460,
+        ease: "Sine.easeOut",
+        onComplete: () => fleck.destroy(),
       });
     }
+
+    const purchasedPip = button.rankPips[rank - 1];
+    if (purchasedPip) {
+      const baseScaleX = purchasedPip.scaleX;
+      const baseScaleY = purchasedPip.scaleY;
+      this.tweens.killTweensOf(purchasedPip);
+      this.tweens.add({
+        targets: purchasedPip,
+        scaleX: baseScaleX * 2.25,
+        scaleY: baseScaleY * 2.25,
+        duration: 170,
+        yoyo: true,
+        ease: "Back.easeOut",
+        onComplete: () => purchasedPip.setScale(baseScaleX, baseScaleY),
+      });
+    }
+  }
+
+  private playMemoryPurchaseBlocked(button: MemoryUpgradeButtonView): void {
+    const ring = this.add
+      .circle(button.frame.x, button.frame.y, button.nodeSize * 0.4, 0xff6b9a, 0.08)
+      .setDepth(32.8)
+      .setStrokeStyle(3, 0xff9fba, 0.88);
+    this.memoryTreeContent.add(ring);
+    this.tweens.add({
+      targets: ring,
+      alpha: 0,
+      scaleX: 1.3,
+      scaleY: 0.82,
+      duration: 280,
+      ease: "Quad.easeOut",
+      onComplete: () => ring.destroy(),
+    });
   }
 
   private startNextRunFromMeta(): void {

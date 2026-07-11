@@ -1,0 +1,63 @@
+{
+  "date": "2026-07-11",
+  "topic": "Visual polish, organic field motion, and progression feedback",
+  "currentUserGoal": "Make the redesign look polished and run well, remove visual bugs, desynchronize grass animation, and make equipment and Memory choices feel animated and satisfying.",
+  "workCompleted": [
+    "Added deterministic per-root motion profiles with unique phase, breath, sway, bob, tilt, and spark speeds.",
+    "Added a low-amplitude second harmonic to grass breath, sway, and bob so neighboring roots no longer look like offset copies of one sine wave.",
+    "Kept all root motion values precomputed and allocation-free during frame updates.",
+    "Fixed the Scourge HUD label that visually collapsed into phaseactive by adding an explicit separator and uppercase phase label.",
+    "Moved the Scourge pressure bar below its label on desktop and compact HUDs to remove text/bar overlap.",
+    "Added subtle affordability breathing to equipment rows without animating locked rows.",
+    "Added equipment install feedback: RT motes travel from the HUD, the row flashes, the icon snaps, and a tinted install ring expands from the helper.",
+    "Added a restrained red rejection flash for blocked equipment purchases.",
+    "Added persistent upper-arc rank pips to multi-rank Memory nodes.",
+    "Added Memory purchase rings, branch-colored flecks, rank-pip activation, and a stronger completion variant.",
+    "Added a restrained rejection pulse for blocked Memory purchases.",
+    "Fixed Memory purchase float text to use transformed screen bounds, so feedback appears over the correct node after tree zooming or panning.",
+    "Verified the 1x1 and 2x2 active fields, equipment shop, desktop Grove, compact phone HUD, and compact phone Grove."
+  ],
+  "filesChanged": [
+    "src/game/redesign/RootMotionProfile.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/RootMotionProfile.test.ts",
+    "handoffs/HANDOFF_2026-07-11_VISUAL_POLISH_MOTION_FEEDBACK.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 81 Vitest tests across ten files, TypeScript, and the Vite production build.",
+    "Root-motion tests confirm profiles are deterministic, differ between neighboring roots, and remain within restrained animation bounds.",
+    "A real desktop run reached the 2x2 field at 38 earned RT and showed varied textures, clean HUD spacing, and stable active-field composition.",
+    "A real equipment purchase spent 15 RT, advanced Tiny Sprinkler to x1, and raised its next price to 20 RT.",
+    "A real Memory purchase advanced Soft Touch to 3/10 and updated its pips, card, next effect, and next cost.",
+    "Desktop and phone browser consoles contained no errors or warnings.",
+    "The required 1,200-tile performance harness completed every phase with zero frame spikes, zero layout passes, zero queued redraws, and a final 129 fps / 8 ms max-frame sample."
+  ],
+  "release": {
+    "branch": "codex/field-equipment-recast",
+    "status": "Local checkpoint only; not pushed, merged, or deployed."
+  },
+  "currentGitStatus": [
+    "Expected after checkpoint commit: clean codex/field-equipment-recast branch.",
+    "The preceding ranked-memory foundation is commit 126cbe5."
+  ],
+  "knownIssues": [
+    "The repository performance harness exercises the large legacy field path; the redesign-specific visual pass was verified through real 1x1 and 2x2 browser runs plus allocation-free code review.",
+    "The playtest utility overlay covers bottom content at 390px; it is only present under ?playtest and is absent from the normal game.",
+    "The local in-app browser playtest save is now Soft Touch 3/10 with 33 GT because real Memory purchase feedback was verified.",
+    "Rank pips are intentionally compact at whole-web overview scale and become clearer when the tree is zoomed."
+  ],
+  "nextRecommendedSteps": [
+    "Run a normal-speed hands-on playtest with audio enabled and tune effect intensity by feel rather than adding more effects immediately.",
+    "Add a small redesign-only frame-time sample to the browser debug state if the active field grows beyond 25 roots.",
+    "Polish equipment-specific idle personalities once helper mechanics become distinct instead of giving every helper the same motion language.",
+    "Continue the Memory Web with additional ranked nodes and branch keystones."
+  ],
+  "doNotRevert": [
+    "Keep root motion deterministic and allocation-free inside animateScene.",
+    "Keep the Scourge pressure bar physically separate from its text label.",
+    "Keep locked equipment visually quiet and reserve breathing emphasis for affordable choices.",
+    "Keep Memory purchase feedback inside the masked tree container while float text uses transformed screen coordinates.",
+    "Keep persistent rank pips tied to each node's maxRank rather than hard-coding Soft Touch."
+  ]
+}
