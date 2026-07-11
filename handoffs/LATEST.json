@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-11",
-  "latestHandoff": "HANDOFF_2026-07-11_SOCIAL_PREVIEW_ALPHA.json",
+  "latestHandoff": "HANDOFF_2026-07-11_FIELD_EQUIPMENT_RECAST.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

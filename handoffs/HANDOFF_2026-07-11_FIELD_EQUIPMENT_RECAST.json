@@ -1,0 +1,64 @@
+{
+  "date": "2026-07-11",
+  "topic": "Field equipment recast and toolbar removal",
+  "currentUserGoal": "Replace the run toolbar and Sensi advisor with a field-equipment window that shows unlocked helpers, owned counts, and current-run RT purchases, while restoring varied grass tiles and lively equipment feedback.",
+  "workCompleted": [
+    "Removed the visible run toolbar and keyboard tool controls from the active redesign layout.",
+    "Removed the Sensi Advisor panel from the active run layout.",
+    "Added a responsive Field Equipment window beside the field, with a desktop single-column rail and compact phone grid.",
+    "Added seven inherited helper types: Tiny Sprinkler, Field Mouse, Bee Hive, Earthworm, Chicken, Sheep, and Meadow Rabbit.",
+    "Added unlock requirements, owned counts, escalating current-run RT prices, and Field Satchel equipment discounts.",
+    "Made equipment ownership reset each run while permanent Memory unlocks remain persistent.",
+    "Added independent passive healing pulses, icon activation animation, water-drop projectiles to the HP bar, HP glints, SFX, and RT rewards from effective healing.",
+    "Distributed grass textures across both rows and columns instead of repeating one texture per column.",
+    "Extended the DOM bridge with agent-readable equipment state and purchase buttons.",
+    "Added focused catalog and run-system regression coverage.",
+    "Verified the complete buy-and-pulse loop in the browser on desktop and verified the responsive phone composition."
+  ],
+  "filesChanged": [
+    "src/game/redesign/FieldEquipmentCatalog.ts",
+    "src/game/redesign/MemoryTreeCatalog.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/redesign/RunSpineSystem.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/FieldEquipmentCatalog.test.ts",
+    "tests/RunSpineSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-11_FIELD_EQUIPMENT_RECAST.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 76 Vitest tests across nine files, TypeScript, and the Vite production build.",
+    "Desktop browser smoke at 1280x800 confirmed the Field Equipment rail, player panel, and field do not overlap.",
+    "Phone browser smoke at 390x844 confirmed the compact equipment shelf and field remain readable without portrait leakage.",
+    "Interaction smoke bought a Tiny Sprinkler for discounted current-run RT, incremented ownership, raised the next price, and observed its passive pulse heal and award RT."
+  ],
+  "release": {
+    "branch": "codex/field-equipment-recast",
+    "status": "Local checkpoint only; not pushed or deployed in this slice."
+  },
+  "currentGitStatus": [
+    "Expected after checkpoint commit: clean codex/field-equipment-recast branch with the equipment recast committed locally.",
+    "No push, merge, Mac handoff, or production deployment was requested."
+  ],
+  "knownIssues": [
+    "Legacy Dew Pulse, Root Salve, Pocket Sunshine, and toolbar compatibility code still exists internally but is hidden and unreachable through the active player interface.",
+    "The seven equipment helpers currently share the same core passive-healing role with different costs, cadence, and strength; richer identities and synergies remain future design work.",
+    "Equipment purchases are intentionally run-local and disappear at Game Over.",
+    "The phone playtest utility overlay can cover lower content under ?playtest; it is not present in the normal public game."
+  ],
+  "nextRecommendedSteps": [
+    "Playtest equipment pacing over several complete runs and tune unlock thresholds, prices, pulse cadence, and healing strength.",
+    "Give each helper a distinctive mechanical identity beyond passive healing, such as wound targeting, burst cadence, discounts, or combo behavior.",
+    "Add richer purchase and unlock presentation, including stronger locked-state previews and helper-specific animation frames.",
+    "Remove the hidden legacy run-tool implementation once compatibility consumers have been migrated.",
+    "Run a focused alpha polish pass before merging and deploying."
+  ],
+  "doNotRevert": [
+    "Keep the active run free of the old toolbar and Sensi Advisor panel.",
+    "Keep field-equipment purchases tied to current-run RT rather than permanent GT.",
+    "Keep all inherited helper categories represented in the equipment catalog.",
+    "Keep the equipment panel beside the field rather than overlaid on top of it.",
+    "Keep the DOM bridge controls for agent and automated browser access.",
+    "Keep grass texture selection varied across rows and columns."
+  ]
+}

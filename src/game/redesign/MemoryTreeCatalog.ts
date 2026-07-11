@@ -108,9 +108,9 @@ export const MEMORY_UPGRADE_VIEW: Record<PermanentUpgradeId, MemoryUpgradePresen
     y: 0.91,
     labelOffsetX: -72,
     labelOffsetY: 0,
-    impact: "future runs can equip 3 more field-kit tools",
-    flavor: "A practical satchel remembers where everything belongs. Future runs can carry six equipped tools instead of three.",
-    shortEffect: "Kit slots +3",
+    impact: "future field equipment costs 10% less Run Touches",
+    flavor: "A practical satchel remembers every spare part. Equipment bought during future runs costs 10% less RT.",
+    shortEffect: "Equipment -10% RT",
   },
   scourgeSense: {
     branch: "Scourge",

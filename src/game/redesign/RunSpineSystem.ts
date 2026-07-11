@@ -1,3 +1,12 @@
+import {
+  createEmptyFieldEquipmentCounts,
+  FIELD_EQUIPMENT,
+  getFieldEquipmentCost,
+  isFieldEquipmentUnlocked,
+  type FieldEquipmentCounts,
+  type FieldEquipmentId,
+} from "./FieldEquipmentCatalog";
+
 export type RunPhase = "active" | "dormant";
 export type PermanentUpgradeId =
   | "softTouch"
@@ -47,6 +56,7 @@ export interface RootWoundState {
 }
 
 export interface AutomationState {
+  equipment: FieldEquipmentCounts;
   tinySprinklers: number;
   tinySprinklerHealingPerUnit: number;
 }
@@ -146,18 +156,21 @@ export interface UsePocketSunshineResult {
   pressureReduced: number;
 }
 
-export interface BuyTinySprinklerResult {
+export interface BuyFieldEquipmentResult {
   bought: boolean;
-  reason?: "dormant" | "license-missing" | "not-enough-run-touches";
+  reason?: "dormant" | "locked" | "license-missing" | "not-enough-run-touches";
+  equipmentId: FieldEquipmentId;
   cost: number;
   spent: number;
   remainingRunTouches: number;
+  owned: number;
   tinySprinklers: number;
 }
 
-export interface ApplyTinySprinklerPulseResult {
+export interface ApplyFieldEquipmentPulseResult {
   applied: boolean;
-  reason?: "dormant" | "no-sprinklers" | "no-missing-hp";
+  reason?: "dormant" | "none-owned" | "no-missing-hp";
+  equipmentId: FieldEquipmentId;
   previousHp: number;
   currentHp: number;
   healing: number;
@@ -182,6 +195,7 @@ export interface PermanentUpgradeEffects {
   baseScourgeDrainMultiplier: number;
   woundPressureMultiplier: number;
   tinySprinklerHealingBonus: number;
+  equipmentCostMultiplier: number;
   runToolSlotBonus: number;
   scourgeSense: boolean;
   lastStand: boolean;
@@ -231,8 +245,9 @@ export const LAST_STAND_REVIVE_HP_RATIO = 0.35;
 export const FAST_TOUCH_RECOVERY_DURATION_MULTIPLIER = 0.8;
 export const ANCIENT_RESILIENCE_DRAIN_MULTIPLIER = 0.88;
 export const SPRINKLER_TUNING_HEALING_BONUS = 1;
+export const FIELD_SATCHEL_COST_MULTIPLIER = 0.9;
 export const BASE_RUN_TOOL_SLOT_CAPACITY = 3;
-export const FIELD_SATCHEL_SLOT_BONUS = 3;
+export const FIELD_SATCHEL_SLOT_BONUS = 0;
 export const DISTRIBUTED_ROOTS_WOUND_PRESSURE_MULTIPLIER = 0.75;
 export const EMERGENCY_PHOTOSYNTHESIS_REVIVE_HP_RATIO = 0.55;
 export const PERMANENT_MEMORY_SAVE_VERSION = 1;
@@ -283,7 +298,7 @@ export const PERMANENT_UPGRADE_DEFINITIONS: Record<PermanentUpgradeId, Permanent
     id: "fieldSatchel",
     name: "Field Satchel",
     cost: 30,
-    description: "+3 equipped field-kit slots",
+    description: "Field equipment costs 10% less RT",
     prerequisiteIds: ["tinySprinkler"],
   },
   scourgeSense: {
@@ -353,6 +368,7 @@ export function createRunSpineState(options: RunSpineOptions = {}): RunSpineStat
       totalWoundsHealed: 0,
     },
     automation: {
+      equipment: createEmptyFieldEquipmentCounts(),
       tinySprinklers: 0,
       tinySprinklerHealingPerUnit: TINY_SPRINKLER_HEALING + upgradeEffects.tinySprinklerHealingBonus,
     },
@@ -649,12 +665,16 @@ export function usePocketSunshine(state: RunSpineState): UsePocketSunshineResult
   };
 }
 
-export function buyTinySprinkler(state: RunSpineState): BuyTinySprinklerResult {
+export function buyFieldEquipment(state: RunSpineState, equipmentId: FieldEquipmentId): BuyFieldEquipmentResult {
+  const owned = state.automation.equipment[equipmentId];
+  const cost = getFieldEquipmentCost(equipmentId, owned, getPermanentUpgradeEffects(state).equipmentCostMultiplier);
   const baseResult = {
-    cost: TINY_SPRINKLER_RUN_TOUCH_COST,
+    equipmentId,
+    cost,
     spent: 0,
     remainingRunTouches: state.economy.runTouches,
-    tinySprinklers: state.automation.tinySprinklers,
+    owned,
+    tinySprinklers: state.automation.equipment.tinySprinkler,
   };
 
   if (state.phase !== "active") {
@@ -665,15 +685,15 @@ export function buyTinySprinkler(state: RunSpineState): BuyTinySprinklerResult {
     };
   }
 
-  if (!hasPermanentUpgrade(state, "tinySprinkler")) {
+  if (!isFieldEquipmentUnlocked(equipmentId, state.permanentUpgrades)) {
     return {
       ...baseResult,
       bought: false,
-      reason: "license-missing",
+      reason: "locked",
     };
   }
 
-  if (state.economy.runTouches < TINY_SPRINKLER_RUN_TOUCH_COST) {
+  if (state.economy.runTouches < cost) {
     return {
       ...baseResult,
       bought: false,
@@ -681,20 +701,34 @@ export function buyTinySprinkler(state: RunSpineState): BuyTinySprinklerResult {
     };
   }
 
-  state.economy.runTouches -= TINY_SPRINKLER_RUN_TOUCH_COST;
-  state.automation.tinySprinklers += 1;
+  state.economy.runTouches -= cost;
+  state.automation.equipment[equipmentId] += 1;
+  if (equipmentId === "tinySprinkler") {
+    state.automation.tinySprinklers = state.automation.equipment.tinySprinkler;
+  }
   return {
-    cost: TINY_SPRINKLER_RUN_TOUCH_COST,
+    equipmentId,
+    cost,
     bought: true,
-    spent: TINY_SPRINKLER_RUN_TOUCH_COST,
+    spent: cost,
     remainingRunTouches: state.economy.runTouches,
-    tinySprinklers: state.automation.tinySprinklers,
+    owned: state.automation.equipment[equipmentId],
+    tinySprinklers: state.automation.equipment.tinySprinkler,
   };
 }
 
-export function applyTinySprinklerPulse(state: RunSpineState, rootId?: number): ApplyTinySprinklerPulseResult {
+export function buyTinySprinkler(state: RunSpineState): BuyFieldEquipmentResult {
+  return buyFieldEquipment(state, "tinySprinkler");
+}
+
+export function applyFieldEquipmentPulse(
+  state: RunSpineState,
+  equipmentId: FieldEquipmentId,
+  rootId?: number,
+): ApplyFieldEquipmentPulseResult {
   const previousHp = state.ancientGrass.currentHp;
   const baseResult = {
+    equipmentId,
     previousHp,
     currentHp: previousHp,
     healing: 0,
@@ -712,11 +746,12 @@ export function applyTinySprinklerPulse(state: RunSpineState, rootId?: number): 
     };
   }
 
-  if (state.automation.tinySprinklers <= 0) {
+  const owned = state.automation.equipment[equipmentId];
+  if (owned <= 0) {
     return {
       ...baseResult,
       applied: false,
-      reason: "no-sprinklers",
+      reason: "none-owned",
     };
   }
 
@@ -729,7 +764,8 @@ export function applyTinySprinklerPulse(state: RunSpineState, rootId?: number): 
     };
   }
 
-  const healing = state.automation.tinySprinklerHealingPerUnit * state.automation.tinySprinklers;
+  const sprinklerBonus = equipmentId === "tinySprinkler" ? getPermanentUpgradeEffects(state).tinySprinklerHealingBonus : 0;
+  const healing = (FIELD_EQUIPMENT[equipmentId].healingPerUnit + sprinklerBonus) * owned;
   const healedWound = rootId !== undefined && clearRootWound(state, rootId);
   const effectiveHealing = Math.min(missingHp, healing);
   const overheal = Math.max(0, healing - effectiveHealing);
@@ -743,6 +779,7 @@ export function applyTinySprinklerPulse(state: RunSpineState, rootId?: number): 
 
   return {
     applied: true,
+    equipmentId,
     previousHp,
     currentHp: state.ancientGrass.currentHp,
     healing,
@@ -751,6 +788,10 @@ export function applyTinySprinklerPulse(state: RunSpineState, rootId?: number): 
     runTouchesGained,
     healedWound,
   };
+}
+
+export function applyTinySprinklerPulse(state: RunSpineState, rootId?: number): ApplyFieldEquipmentPulseResult {
+  return applyFieldEquipmentPulse(state, "tinySprinkler", rootId);
 }
 
 export function purchasePermanentUpgrade(state: RunSpineState, upgradeId: PermanentUpgradeId): PurchasePermanentUpgradeResult {
@@ -811,7 +852,8 @@ export function getPermanentUpgradeEffects(upgradesOrState: PermanentUpgradeId[]
     baseScourgeDrainMultiplier: upgradeIds.includes("ancientResilience") ? ANCIENT_RESILIENCE_DRAIN_MULTIPLIER : 1,
     woundPressureMultiplier: upgradeIds.includes("distributedRoots") ? DISTRIBUTED_ROOTS_WOUND_PRESSURE_MULTIPLIER : 1,
     tinySprinklerHealingBonus: upgradeIds.includes("sprinklerTuning") ? SPRINKLER_TUNING_HEALING_BONUS : 0,
-    runToolSlotBonus: upgradeIds.includes("fieldSatchel") ? FIELD_SATCHEL_SLOT_BONUS : 0,
+    equipmentCostMultiplier: upgradeIds.includes("fieldSatchel") ? FIELD_SATCHEL_COST_MULTIPLIER : 1,
+    runToolSlotBonus: 0,
     scourgeSense: upgradeIds.includes("scourgeSense"),
     lastStand: upgradeIds.includes("lastStand"),
     lastStandReviveHpRatio: upgradeIds.includes("emergencyPhotosynthesis")

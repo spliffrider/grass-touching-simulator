@@ -32,15 +32,22 @@ import {
   type MemoryTreeViewport,
 } from "../redesign/MemoryTreeViewport";
 import {
+  FIELD_EQUIPMENT,
+  FIELD_EQUIPMENT_IDS,
+  getFieldEquipmentCost,
+  getFieldEquipmentLockReason,
+  getFieldTextureIndex,
+  isFieldEquipmentUnlocked,
+  type FieldEquipmentId,
+} from "../redesign/FieldEquipmentCatalog";
+import {
   getEquippedRunToolIds,
   RUN_TOOL_IDS,
   RUN_TOOL_VIEW,
   type RunToolId,
 } from "../redesign/RunToolCatalog";
 import {
-  getLeftRunToolRailPlacement,
   getRunToolBarLayout,
-  getRunToolHotkeyIndex,
   RUN_TOOL_SLOT_SIZE,
   type RunToolBarLayout,
 } from "../redesign/RunToolBarLayout";
@@ -48,9 +55,10 @@ import { RedesignDomBridge } from "../redesign/RedesignDomBridge";
 import { AudioSystem } from "../systems/AudioSystem";
 import type { GrassTierId, TileTrait } from "../types/game-state";
 import {
-  applyTinySprinklerPulse,
+  applyFieldEquipmentPulse,
   advanceRun,
   BASE_RUN_TOOL_SLOT_CAPACITY,
+  buyFieldEquipment,
   buyTinySprinkler,
   createNextRunFromDormancy,
   createPermanentMemorySnapshot,
@@ -282,6 +290,28 @@ interface RunToolSlotView {
   count: number;
 }
 
+interface BrowserDebugFieldEquipmentButton {
+  equipmentId: FieldEquipmentId;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visible: boolean;
+  unlocked: boolean;
+  affordable: boolean;
+  owned: number;
+  cost: number;
+  lockReason: string;
+}
+
+interface FieldEquipmentRowView {
+  equipmentId: FieldEquipmentId;
+  background: Phaser.GameObjects.Rectangle;
+  icon: Phaser.GameObjects.Image;
+  name: Phaser.GameObjects.Text;
+  status: Phaser.GameObjects.Text;
+}
+
 type PrototypeMusicMode = "field" | "grove";
 type PrototypeMusicTrack = Phaser.Sound.BaseSound & {
   readonly volume: number;
@@ -316,6 +346,10 @@ const HUD_PANEL_BASE_HEIGHT = 196;
 const COMPACT_HUD_PANEL_HEIGHT = 174;
 const FIELD_PANEL_BASE_WIDTH = 520;
 const FIELD_PANEL_BASE_HEIGHT = 520;
+const FIELD_EQUIPMENT_PANEL_WIDTH = 270;
+const FIELD_EQUIPMENT_PANEL_HEIGHT = 438;
+const FIELD_EQUIPMENT_PANEL_GAP = 16;
+const COMPACT_EQUIPMENT_PANEL_HEIGHT = 240;
 const SUMMARY_PANEL_BASE_WIDTH = 760;
 const SUMMARY_PANEL_BASE_HEIGHT = 500;
 const INTRO_PANEL_BASE_WIDTH = 520;
@@ -323,10 +357,7 @@ const INTRO_PANEL_BASE_HEIGHT = 92;
 const RUN_TOOL_ICON_SIZE = 34;
 const RUN_TOOL_TOOLTIP_WIDTH = 244;
 const RUN_TOOL_TOOLTIP_HEIGHT = 88;
-const RUN_TOOL_RAIL_GAP = 16;
 const FIELD_PANEL_HORIZONTAL_PADDING = 78;
-const TINY_SPRINKLER_PULSE_INTERVAL_MS = 2400;
-const FAST_TINY_SPRINKLER_PULSE_INTERVAL_MS = 900;
 const OPTIONS_BUTTON_WIDTH = 78;
 const OPTIONS_BUTTON_HEIGHT = 26;
 const OPTIONS_PANEL_BASE_WIDTH = 420;
@@ -342,7 +373,6 @@ const PLAYER_PANEL_HEIGHT = 148;
 const ADVISOR_PANEL_BASE_HEIGHT = 108;
 const PLAYER_PORTRAIT_SIZE = 66;
 const COMPACT_PLAYER_PANEL_HEIGHT = 92;
-const COMPACT_ADVISOR_PANEL_HEIGHT = 92;
 const COMPACT_PANEL_GAP = 12;
 const COMPACT_PANEL_MIN_WIDTH = 360;
 const COMPACT_PANEL_MIN_HEIGHT = 620;
@@ -463,6 +493,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private hpBarFill!: Phaser.GameObjects.Rectangle;
   private hpBarGlint!: Phaser.GameObjects.Rectangle;
   private scourgeBarFill!: Phaser.GameObjects.Rectangle;
+  private fieldEquipmentPanel!: Phaser.GameObjects.NineSlice;
+  private fieldEquipmentTitle!: Phaser.GameObjects.Text;
+  private fieldEquipmentSubtitle!: Phaser.GameObjects.Text;
+  private fieldEquipmentRows!: Record<FieldEquipmentId, FieldEquipmentRowView>;
   private runToolBar!: Phaser.GameObjects.NineSlice;
   private runToolSlots!: Record<RunToolId, RunToolSlotView>;
   private runToolSlotCapacity = BASE_RUN_TOOL_SLOT_CAPACITY + getPermanentUpgradeEffects(this.state).runToolSlotBonus;
@@ -514,7 +548,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   private scourgeSenseTargetRootId: number | null = null;
   private lastScourgeSenseWarningAt = 0;
   private lastScourgeSenseTargetRootId: number | null = null;
-  private tinySprinklerElapsed = 0;
+  private equipmentPulseElapsed = Object.fromEntries(FIELD_EQUIPMENT_IDS.map((id) => [id, 0])) as Record<FieldEquipmentId, number>;
+  private hoveredEquipmentId: FieldEquipmentId | null = null;
   private optionsOpen = false;
   private draggingOptionsVolume: "music" | "sfx" | null = null;
   private musicVolume = readStoredMusicVolume();
@@ -608,6 +643,10 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       const view = RUN_TOOL_VIEW[toolId];
       this.load.image(view.iconKey, view.iconPath);
     }
+    for (const equipmentId of FIELD_EQUIPMENT_IDS) {
+      const equipment = FIELD_EQUIPMENT[equipmentId];
+      this.load.image(equipment.iconKey, equipment.iconPath);
+    }
     this.load.image("player-pixel-portrait", "/assets/ui/characters/player-field-heir.png");
     this.load.image("tile-dirt", "/assets/tiles/tile-dirt.png");
     this.load.image("grass-normal", "/assets/tiles/grass-normal.png");
@@ -618,6 +657,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.load.image("grass-fleck", "/assets/tiles/grass-fleck.png");
     this.load.image("effect-magic-spore", "/assets/effects/magic-spore.png");
     this.load.image("effect-pollen-fleck", "/assets/effects/pollen-fleck.png");
+    this.load.image("effect-water-drop", "/assets/effects/water-drop.png");
     this.load.audio("redesign-lucid-theme", "/assets/music/lucid-field-theme.wav");
     this.load.audio("redesign-grove-theme", "/assets/music/epic_menu_theme_mellow.wav");
   }
@@ -1092,6 +1132,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       strokeThickness: 3,
       wordWrap: { width: 520 },
     }).setDepth(5);
+    this.createFieldEquipmentPanel();
     this.runToolSlots = Object.fromEntries(
       RUN_TOOL_IDS.map((toolId) => [
         toolId,
@@ -1187,6 +1228,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       clearRunToolPreview: (toolId) => this.clearRunToolPreview(toolId),
       previousRunToolPage: () => this.changeRunToolPage(-1),
       nextRunToolPage: () => this.changeRunToolPage(1),
+      buyFieldEquipment: (equipmentId) => this.buyFieldEquipment(equipmentId),
       previewMemory: (upgradeId) => this.previewMemoryUpgrade(upgradeId),
       clearMemoryPreview: (upgradeId) => this.clearMemoryUpgradePreview(upgradeId),
       purchaseMemory: (upgradeId) => this.handleMemoryUpgradeClick(upgradeId),
@@ -1225,9 +1267,6 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.input.on("pointerup", this.stopMemoryTreePan, this);
     this.input.on("pointerupoutside", this.stopMemoryTreePan, this);
     this.input.on("wheel", this.handleMemoryTreeWheel, this);
-    this.input.keyboard?.on("keydown", this.handleRunToolHotkey, this);
-    this.events.once("shutdown", () => this.input.keyboard?.off("keydown", this.handleRunToolHotkey, this));
-    this.events.once("destroy", () => this.input.keyboard?.off("keydown", this.handleRunToolHotkey, this));
     this.scale.on("resize", this.layout, this);
     this.layout();
     this.refreshReadout();
@@ -1271,6 +1310,70 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         child.setResolution(UI_TEXT_RESOLUTION);
       }
     });
+  }
+
+  private createFieldEquipmentPanel(): void {
+    this.fieldEquipmentPanel = this.add
+      .nineslice(0, 0, "panel-emerald", undefined, FIELD_EQUIPMENT_PANEL_WIDTH, FIELD_EQUIPMENT_PANEL_HEIGHT, 18, 18, 18, 18)
+      .setDepth(9)
+      .setAlpha(0.94);
+    this.fieldEquipmentTitle = this.add.text(0, 0, "Field Equipment", {
+      color: "#ffefb0",
+      fontFamily: "Georgia, serif",
+      fontSize: "20px",
+      fontStyle: "bold",
+      stroke: "#07100c",
+      strokeThickness: 4,
+    }).setDepth(10);
+    this.fieldEquipmentSubtitle = this.add.text(0, 0, "Buy helpers with this run's RT", {
+      color: "#bff4ff",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "11px",
+      stroke: "#07100c",
+      strokeThickness: 3,
+    }).setDepth(10);
+    this.fieldEquipmentRows = Object.fromEntries(
+      FIELD_EQUIPMENT_IDS.map((equipmentId) => {
+        const equipment = FIELD_EQUIPMENT[equipmentId];
+        const background = this.add
+          .rectangle(0, 0, 228, 46, 0x0b2516, 0.82)
+          .setDepth(10)
+          .setStrokeStyle(1, 0x63835d, 0.6)
+          .setInteractive({ useHandCursor: true });
+        background.on(
+          "pointerdown",
+          (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
+            event.stopPropagation();
+            this.buyFieldEquipment(equipmentId);
+          },
+        );
+        background.on("pointerover", () => {
+          this.hoveredEquipmentId = equipmentId;
+        });
+        background.on("pointerout", () => {
+          if (this.hoveredEquipmentId === equipmentId) {
+            this.hoveredEquipmentId = null;
+          }
+        });
+        const icon = this.add.image(0, 0, equipment.iconKey).setDepth(11);
+        const name = this.add.text(0, 0, equipment.shortName, {
+          color: "#edf8cf",
+          fontFamily: "Arial, sans-serif",
+          fontSize: "12px",
+          fontStyle: "bold",
+          stroke: "#07100c",
+          strokeThickness: 3,
+        }).setDepth(11);
+        const status = this.add.text(0, 0, "", {
+          color: "#bff4ff",
+          fontFamily: "Arial, sans-serif",
+          fontSize: "10px",
+          stroke: "#07100c",
+          strokeThickness: 3,
+        }).setDepth(11);
+        return [equipmentId, { equipmentId, background, icon, name, status }];
+      }),
+    ) as Record<FieldEquipmentId, FieldEquipmentRowView>;
   }
 
   private createOptionsButton(): void {
@@ -1477,31 +1580,6 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     }
   }
 
-  private handleRunToolHotkey(event: KeyboardEvent): void {
-    if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || this.optionsOpen) {
-      return;
-    }
-
-    const target = event.target;
-    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
-      return;
-    }
-
-    const hotkeyIndex = getRunToolHotkeyIndex(event.key);
-    if (hotkeyIndex === undefined) {
-      return;
-    }
-
-    const catalogIndex = this.runToolPage * this.runToolBarLayout.pageCapacity + hotkeyIndex;
-    const toolId = this.equippedRunToolIds[catalogIndex];
-    if (!toolId || !this.runToolSlots[toolId].button.visible) {
-      return;
-    }
-
-    event.preventDefault();
-    this.activateRunTool(toolId);
-  }
-
   private createRunToolSlot(toolId: RunToolId, cost: number, activate: () => void): RunToolSlotView {
     const view = RUN_TOOL_VIEW[toolId];
     const button = this.add
@@ -1628,11 +1706,13 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         this.scourgeDamageAccum = 0;
         this.scourgePulseElapsed = 0;
       }
-      this.updateTinySprinklers(delta);
+      this.updateFieldEquipment(delta);
     } else {
       this.scourgeDamageAccum = 0;
       this.scourgePulseElapsed = 0;
-      this.tinySprinklerElapsed = 0;
+      FIELD_EQUIPMENT_IDS.forEach((equipmentId) => {
+        this.equipmentPulseElapsed[equipmentId] = 0;
+      });
       this.woundPressureWarned = false;
     }
     if (tick.lastStandTriggered) {
@@ -1744,17 +1824,18 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const introCalloutVisible = this.introActive && this.state.phase === "active" && !(sidePanelVisible || compactPanelsVisible);
     this.promptText.setVisible(!this.introActive);
     const activeFieldTopOffset = introCalloutVisible ? 252 : 236;
-    const fieldAreaTop = top + (compactPanelsVisible ? (compactPanelsStacked ? 408 : 326) : activeFieldTopOffset);
+    const equipmentSideRail = width >= 760 && height >= 600;
+    const fieldAreaTop = equipmentSideRail
+      ? top + (compactPanelsVisible ? 326 : activeFieldTopOffset)
+      : top + hudPanelHeight + COMPACT_EQUIPMENT_PANEL_HEIGHT + 44;
     const fieldAreaBottom = promptY - 52;
     const availableFieldHeight = Math.max(230, fieldAreaBottom - fieldAreaTop);
     const maxGridSize = this.getMaxGridSize();
     const minGridSize = Math.min(maxGridSize, this.activeGridSize * 84 + 64);
-    const reserveRunToolRail = this.activeRootCount > 1;
-    const plannedRunToolLayout = getRunToolBarLayout(this.equippedRunToolIds.length, width, this.runToolPage);
-    const runToolRailReserve = reserveRunToolRail ? plannedRunToolLayout.width + RUN_TOOL_RAIL_GAP : 0;
+    const equipmentRailReserve = equipmentSideRail ? FIELD_EQUIPMENT_PANEL_WIDTH + FIELD_EQUIPMENT_PANEL_GAP : 0;
     const horizontalGridLimit = Math.max(
       150,
-      width - 24 - FIELD_PANEL_HORIZONTAL_PADDING - runToolRailReserve,
+      width - 24 - FIELD_PANEL_HORIZONTAL_PADDING - equipmentRailReserve,
     );
     const gridSize = Math.min(
       maxGridSize,
@@ -1762,14 +1843,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       Math.max(minGridSize, Math.min(width * 0.58, availableFieldHeight)),
     );
     const tileSize = gridSize / this.activeGridSize;
-    const fieldPanelWidth = gridSize + FIELD_PANEL_HORIZONTAL_PADDING;
-    const railPlacement = getLeftRunToolRailPlacement(
-      width,
-      fieldPanelWidth,
-      plannedRunToolLayout.width,
-      reserveRunToolRail ? RUN_TOOL_RAIL_GAP : 0,
-    );
-    const fieldLayoutCenterX = reserveRunToolRail ? railPlacement.fieldCenterX : centerX;
+    const fieldLayoutCenterX = equipmentSideRail ? centerX + equipmentRailReserve / 2 : centerX;
     const startX = fieldLayoutCenterX - gridSize / 2 + tileSize / 2;
     const startY = fieldAreaTop + Math.max(0, availableFieldHeight - gridSize) / 2 + tileSize / 2;
     this.fieldCenterX = fieldLayoutCenterX;
@@ -1784,7 +1858,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.oneTileMasteryText
       .setPosition(this.fieldCenterX, this.fieldCenterY + tileSize / 2 + 14)
       .setWordWrapWidth(gridSize + 54);
-    this.layoutRunToolBar(width, height, fieldLayoutCenterX, this.fieldCenterY, gridSize, promptY);
+    this.layoutFieldEquipmentPanel(equipmentSideRail, centerX, top, hudPanelHeight, fieldLayoutCenterX, gridSize, availableFieldHeight);
     const introPanelVisible = introCalloutVisible;
     const introPanelWidth = Math.min(INTRO_PANEL_BASE_WIDTH, width - 48);
     const introPanelHeight = compact ? 76 : INTRO_PANEL_BASE_HEIGHT;
@@ -2025,8 +2099,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.optionsButtonText.setVisible(!compactMetaOptionsHidden);
 
     const sideX = Math.max(150, centerX - panelWidth / 2 - SIDE_PANEL_BASE_WIDTH / 2 - 18);
-    const playerPanelVisible = sidePanelVisible || compactPanelsVisible;
-    const advisorPanelVisible = sidePanelVisible || compactPanelsVisible;
+    const playerPanelVisible = sidePanelVisible || (compactPanelsVisible && width >= 520);
+    const advisorPanelVisible = false;
     this.sensiPanel.setVisible(playerPanelVisible);
     this.sensiPortraitFrame.setVisible(playerPanelVisible);
     this.sensiPortrait.setVisible(playerPanelVisible);
@@ -2058,14 +2132,6 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       this.sensiBody.setLineSpacing(4);
       this.sensiBody.setPosition(sensiLeft + 88, top + 58);
       this.sensiBody.setWordWrapWidth(SIDE_PANEL_BASE_WIDTH - 118);
-      this.advisorPanel.setScale(1);
-      this.advisorPanel.setPosition(sideX, top + 214);
-      this.advisorTitle.setFontSize(17);
-      this.advisorTitle.setPosition(sensiLeft, top + 168);
-      this.advisorBody.setFontSize(13);
-      this.advisorBody.setLineSpacing(3);
-      this.advisorBody.setPosition(sensiLeft, top + 194);
-      this.advisorBody.setWordWrapWidth(SIDE_PANEL_BASE_WIDTH - 36);
       this.feedPanel.setPosition(sideX, top + 372);
       this.feedTitle.setPosition(sideX - SIDE_PANEL_BASE_WIDTH / 2 + 18, top + 306);
       this.feedRows.forEach((row, index) => {
@@ -2077,11 +2143,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         ? Math.min(520, width - 44)
         : Math.min(250, (width - 52 - COMPACT_PANEL_GAP) / 2);
       const compactPlayerX = compactPanelsStacked ? centerX : centerX - compactPanelWidth / 2 - COMPACT_PANEL_GAP / 2;
-      const compactAdvisorX = compactPanelsStacked ? centerX : centerX + compactPanelWidth / 2 + COMPACT_PANEL_GAP / 2;
       const compactPlayerY = top + (compactPanelsStacked ? 220 : 230);
-      const compactAdvisorY = compactPanelsStacked ? compactPlayerY + COMPACT_PLAYER_PANEL_HEIGHT + COMPACT_PANEL_GAP : compactPlayerY;
       const playerLeft = compactPlayerX - compactPanelWidth / 2 + 14;
-      const advisorLeft = compactAdvisorX - compactPanelWidth / 2 + 14;
       const showCompactPortrait = compactPanelsStacked || compactPanelWidth >= 210;
       const playerTextLeft = showCompactPortrait ? playerLeft + 62 : playerLeft + 2;
       const compactPlayerTitleSize = compactPanelWidth < 190 ? 14 : compactPanelsStacked ? 18 : 16;
@@ -2106,15 +2169,14 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       this.sensiBody.setPosition(playerTextLeft, compactPlayerY - 7);
       this.sensiBody.setWordWrapWidth(Math.max(96, compactPanelWidth - (showCompactPortrait ? 78 : 28)));
 
-      this.advisorPanel.setScale(compactPanelWidth / SIDE_PANEL_BASE_WIDTH, COMPACT_ADVISOR_PANEL_HEIGHT / ADVISOR_PANEL_BASE_HEIGHT);
-      this.advisorPanel.setAlpha(0.9);
-      this.advisorPanel.setPosition(compactAdvisorX, compactAdvisorY);
-      this.advisorTitle.setFontSize(compactPanelWidth < 190 ? 14 : 16);
-      this.advisorTitle.setPosition(advisorLeft, compactAdvisorY - 30);
-      this.advisorBody.setFontSize(compactBodySize);
-      this.advisorBody.setLineSpacing(compactPanelsStacked ? 2 : 1);
-      this.advisorBody.setPosition(advisorLeft, compactAdvisorY - 8);
-      this.advisorBody.setWordWrapWidth(Math.max(110, compactPanelWidth - 28));
+    }
+    if (!playerPanelVisible) {
+      this.sensiPanel.setVisible(false);
+      this.sensiPortraitFrame.setVisible(false);
+      this.sensiPortrait.setVisible(false);
+      this.sensiGlint.setVisible(false);
+      this.sensiTitle.setVisible(false);
+      this.sensiBody.setVisible(false);
     }
 
     this.rootNodes.forEach((node, index) => {
@@ -2135,6 +2197,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
       const col = index % this.activeGridSize;
       const row = Math.floor(index / this.activeGridSize);
+      if (this.activeGridSize > 1) {
+        node.grass.setTexture(GRASS_TEXTURES[getFieldTextureIndex(index, this.activeGridSize, GRASS_TEXTURES.length)]);
+      }
       const x = startX + col * tileSize;
       const y = startY + row * tileSize;
       const visualSize = tileSize - 8;
@@ -2152,54 +2217,64 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     });
   }
 
-  private layoutRunToolBar(
-    width: number,
-    height: number,
+  private layoutFieldEquipmentPanel(
+    sideRail: boolean,
+    centerX: number,
+    top: number,
+    hudPanelHeight: number,
     fieldCenterX: number,
-    fieldCenterY: number,
     gridSize: number,
-    promptY: number,
+    availableFieldHeight: number,
   ): void {
-    this.runToolBarLayout = getRunToolBarLayout(this.equippedRunToolIds.length, width, this.runToolPage);
-    this.runToolPage = this.runToolBarLayout.page;
-    const barWidth = this.runToolBarLayout.width;
-    const barHeight = this.runToolBarLayout.height;
+    const visible = this.state.phase === "active" && !this.summaryPanel.visible;
+    const panelWidth = sideRail ? FIELD_EQUIPMENT_PANEL_WIDTH : Math.min(370, this.scale.width - 28);
+    const panelHeight = sideRail ? Math.min(FIELD_EQUIPMENT_PANEL_HEIGHT, Math.max(360, availableFieldHeight + 76)) : COMPACT_EQUIPMENT_PANEL_HEIGHT;
     const fieldPanelLeft = fieldCenterX - (gridSize + FIELD_PANEL_HORIZONTAL_PADDING) / 2;
-    const preferredX = fieldPanelLeft - RUN_TOOL_RAIL_GAP - barWidth / 2;
-    const barX = Phaser.Math.Clamp(preferredX, barWidth / 2 + 12, width - barWidth / 2 - 12);
-    const minY = barHeight / 2 + 12;
-    const maxY = Math.max(minY, Math.min(height - barHeight / 2 - 12, promptY - barHeight / 2 - 12));
-    const barY = Phaser.Math.Clamp(fieldCenterY, minY, maxY);
-    this.runToolBar.setPosition(barX, barY).setSize(barWidth, barHeight);
+    const panelX = sideRail ? fieldPanelLeft - FIELD_EQUIPMENT_PANEL_GAP - panelWidth / 2 : centerX;
+    const panelY = sideRail ? this.fieldCenterY : top + hudPanelHeight + panelHeight / 2 + 12;
+    const panelLeft = panelX - panelWidth / 2;
+    const panelTop = panelY - panelHeight / 2;
+    this.fieldEquipmentPanel
+      .setVisible(visible)
+      .setPosition(panelX, panelY)
+      .setScale(panelWidth / FIELD_EQUIPMENT_PANEL_WIDTH, panelHeight / FIELD_EQUIPMENT_PANEL_HEIGHT);
+    this.fieldEquipmentTitle
+      .setVisible(visible)
+      .setFontSize(sideRail ? 20 : 16)
+      .setPosition(panelLeft + (sideRail ? 20 : 16), panelTop + (sideRail ? 18 : 12));
+    this.fieldEquipmentSubtitle
+      .setVisible(visible)
+      .setFontSize(sideRail ? 11 : 9)
+      .setPosition(panelLeft + (sideRail ? 20 : 16), panelTop + (sideRail ? 46 : 34));
 
-    RUN_TOOL_IDS.forEach((toolId) => {
-      const slot = this.runToolSlots[toolId];
-      const catalogIndex = this.equippedRunToolIds.indexOf(toolId);
-      const position = this.runToolBarLayout.slotPositions.find((candidate) => candidate.catalogIndex === catalogIndex);
-      if (!position) {
-        this.applyRunToolSlotVisibility(slot);
-        return;
+    FIELD_EQUIPMENT_IDS.forEach((equipmentId, index) => {
+      const row = this.fieldEquipmentRows[equipmentId];
+      if (sideRail) {
+        const rowX = panelX;
+        const rowY = panelTop + 84 + index * 48;
+        row.background.setPosition(rowX, rowY).setSize(panelWidth - 32, 42);
+        row.icon.setPosition(panelLeft + 38, rowY).setDisplaySize(34, 34);
+        row.name.setFontSize(12).setPosition(panelLeft + 64, rowY - 14).setOrigin(0, 0);
+        row.status.setFontSize(10).setPosition(panelLeft + 64, rowY + 4).setOrigin(0, 0);
+      } else {
+        const columns = 2;
+        const column = index % columns;
+        const rowIndex = Math.floor(index / columns);
+        const cardGap = 6;
+        const cardWidth = (panelWidth - 32 - cardGap * (columns - 1)) / columns;
+        const cardX = panelLeft + 16 + cardWidth / 2 + column * (cardWidth + cardGap);
+        const cardY = panelTop + 72 + rowIndex * 43;
+        row.background.setPosition(cardX, cardY).setSize(cardWidth, 38);
+        row.icon.setPosition(cardX - cardWidth * 0.36, cardY).setDisplaySize(27, 27);
+        row.name.setFontSize(10).setPosition(cardX - cardWidth * 0.08, cardY - 13).setOrigin(0.5, 0);
+        row.status.setFontSize(9).setPosition(cardX - cardWidth * 0.08, cardY + 4).setOrigin(0.5, 0);
       }
-      const slotX = barX + position.x;
-      const slotY = barY + position.y;
-      slot.button.setPosition(slotX, slotY).setSize(RUN_TOOL_SLOT_SIZE, RUN_TOOL_SLOT_SIZE);
-      slot.icon.setPosition(slotX, slotY - 6).setDisplaySize(RUN_TOOL_ICON_SIZE, RUN_TOOL_ICON_SIZE);
-      slot.costBadge.setPosition(slotX, slotY + RUN_TOOL_SLOT_SIZE / 2 - 9);
-      slot.costText.setPosition(slotX, slotY + RUN_TOOL_SLOT_SIZE / 2 - 9);
-      slot.countBadge.setPosition(slotX + RUN_TOOL_SLOT_SIZE / 2 - 7, slotY - RUN_TOOL_SLOT_SIZE / 2 + 7);
-      slot.countText.setPosition(slot.countBadge.x, slot.countBadge.y);
-      const hotkey = position.catalogIndex - this.runToolBarLayout.page * this.runToolBarLayout.pageCapacity + 1;
-      slot.hotkeyBadge.setPosition(slotX - RUN_TOOL_SLOT_SIZE / 2 + 8, slotY - RUN_TOOL_SLOT_SIZE / 2 + 8);
-      slot.hotkeyText.setPosition(slot.hotkeyBadge.x, slot.hotkeyBadge.y).setText(`${hotkey}`);
-      this.applyRunToolSlotVisibility(slot);
+      row.background.setVisible(visible);
+      row.icon.setVisible(visible);
+      row.name.setVisible(visible);
+      row.status.setVisible(visible);
     });
-    const navigationY = barY + this.runToolBarLayout.navigationY;
-    this.runToolPreviousPageButton.setPosition(barX - 30, navigationY);
-    this.runToolPreviousPageText.setPosition(barX - 30, navigationY);
-    this.runToolPageText.setPosition(barX, navigationY).setText(`${this.runToolPage + 1}/${this.runToolBarLayout.pageCount}`);
-    this.runToolNextPageButton.setPosition(barX + 30, navigationY);
-    this.runToolNextPageText.setPosition(barX + 30, navigationY);
-    this.layoutRunToolTooltip();
+    this.refreshFieldEquipmentPanel();
   }
 
   private layoutRunToolTooltip(): void {
@@ -2661,12 +2736,12 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const woundedCount = getWoundedRootCount(this.state);
     const activeObjectiveId = getActiveFirstRunObjective(this.objectiveState, this.state)?.definition.id;
     const tileMastery = getFirstRunOneTileMastery(this.objectiveState);
-    const dewPulseUsable = this.isDewPulseUsable();
     this.refreshDewPulseButton();
     this.refreshRootSalveButton(woundedCount);
     this.refreshTinySprinklerButton();
     this.refreshPocketSunshineButton();
     this.refreshRunToolBarVisibility();
+    this.refreshFieldEquipmentPanel();
     this.updateSensiMessage(this.getSensiMessage(woundedCount, compactPanelCopy));
     this.refreshFeedRows();
     const lastStandPrompt = this.hasLastStand()
@@ -2695,12 +2770,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
           : woundedCount > 0
           ? activeObjectiveId === "completeDormancy"
             ? compact
-              ? dewPulseUsable
-                ? `Pressure remains. Dew Pulse can buy time.`
-                : `Pressure remains: ${woundedCount} wounds.`
-              : dewPulseUsable
-                ? `Pressure remains. Heal pink roots when useful; Dew Pulse can buy time.`
-                : `Pressure remains. Heal pink roots when useful; reaching dormancy keeps the memory.`
+              ? `Pressure remains: ${woundedCount} wounds.`
+              : `Pressure remains. Heal pink roots when useful; reaching dormancy keeps the memory.`
             : compact
               ? `Heal wounded roots: ${woundedCount} open.`
               : `Sensi points at the sick roots. Heal wounds first: ${woundedCount} open.`
@@ -2708,13 +2779,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
             ? compact
               ? `${tileMastery.name} ${tileMastery.rank}/${tileMastery.maxRank}. Keep tending it.`
               : `Tend the one Ancient tile. Each care milestone upgrades it before the field is allowed to spread.`
-          : dewPulseUsable
-            ? compact
-              ? "Dew Pulse ready. Spend RT to buy time."
-              : "Dew Pulse is ready. Spend RT to buy time before the Scourge presses harder."
-            : compact
-              ? "The roots shimmer. The Scourge presses in."
-              : "Sensi watches the roots shimmer. The Scourge presses in. Real healing becomes memory."
+          : compact
+            ? "The roots shimmer. Spend RT on field equipment."
+            : "The roots shimmer. Buy field equipment with this run's RT while the Scourge presses in."
         : compact
           ? "Dormancy settles. The memory remains."
           : "Dormancy settles over the field. The memory remains.",
@@ -2771,7 +2838,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
   private updateIntroCard(): void {
     const compact = this.scale.width < 720;
-    this.introTitle.setText("Sensi, field advisor");
+    this.introTitle.setText("Inherited Field");
     this.introBody.setText(
       compact
         ? "Your uncle left one Ancient Grass tile.\nIt is already losing HP. Touch the tile."
@@ -2891,30 +2958,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
         node.woundShard.setAngle(-12);
       }
     });
-    this.animateRunToolBar(seconds);
+    this.animateFieldEquipment(seconds);
     this.animateMemoryGrove(seconds);
     this.animateSensi(seconds);
-  }
-
-  private animateRunToolBar(seconds: number): void {
-    if (!this.runToolBar.visible) {
-      return;
-    }
-
-    this.runToolBar.setAlpha(0.92 + Math.sin(seconds * 1.8) * 0.025);
-    for (const toolId of RUN_TOOL_IDS) {
-      const slot = this.runToolSlots[toolId];
-      if (!slot.button.visible) {
-        continue;
-      }
-      const hovered = this.hoveredRunToolId === toolId;
-      slot.icon
-        .setPosition(slot.button.x, slot.button.y - 6 + (hovered ? Math.sin(seconds * 5.2) * 2 : 0))
-        .setAngle(hovered ? Math.sin(seconds * 4.4) * 3 : 0);
-      if (slot.countBadge.visible) {
-        slot.countBadge.setScale(1 + Math.sin(seconds * 3.8) * 0.06);
-      }
-    }
   }
 
   private animateMemoryGrove(seconds: number): void {
@@ -3149,7 +3195,9 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.setRunToolTooltipVisible(false);
     this.dewPulseWasUsable = false;
     this.lastDewPulseReadyAt = 0;
-    this.tinySprinklerElapsed = 0;
+    FIELD_EQUIPMENT_IDS.forEach((equipmentId) => {
+      this.equipmentPulseElapsed[equipmentId] = 0;
+    });
     this.lastTinySprinklerPulseAt = 0;
     this.lastTinySprinklerRootId = null;
   }
@@ -3386,7 +3434,6 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     this.lastRunToolKind = "tinySprinkler";
     this.lastRunToolAt = Math.round(this.time.now);
     this.sfx.play("upgrade");
-    this.tinySprinklerElapsed = 0;
     this.addFeedEntry("Tiny Sprinkler", `x${result.tinySprinklers} installed`, "SP", "#bff4ff");
     this.saySensi(`Tiny Sprinkler x${result.tinySprinklers}.\nThe field has a little helper now.`, "approval", 3600);
     this.floatText(this.tinySprinklerButton.x, this.tinySprinklerButton.y - 20, `-${result.spent} RT`, "#bff4ff");
@@ -3584,11 +3631,19 @@ export class RedesignPrototypeScene extends Phaser.Scene {
 
   private refreshRunToolBarVisibility(): void {
     for (const toolId of RUN_TOOL_IDS) {
-      this.applyRunToolSlotVisibility(this.runToolSlots[toolId]);
+      const slot = this.runToolSlots[toolId];
+      slot.button.setVisible(false);
+      slot.icon.setVisible(false);
+      slot.costBadge.setVisible(false);
+      slot.costText.setVisible(false);
+      slot.countBadge.setVisible(false);
+      slot.countText.setVisible(false);
+      slot.hotkeyBadge.setVisible(false);
+      slot.hotkeyText.setVisible(false);
     }
-    const visible = RUN_TOOL_IDS.some((toolId) => this.runToolSlots[toolId].available);
-    this.runToolBar.setVisible(visible);
-    const navigationVisible = visible && this.runToolBarLayout.pageCount > 1;
+    const visible = false;
+    this.runToolBar.setVisible(false);
+    const navigationVisible = false;
     const canGoPrevious = this.runToolPage > 0;
     const canGoNext = this.runToolPage < this.runToolBarLayout.pageCount - 1;
     this.runToolPreviousPageButton
@@ -3704,73 +3759,158 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     return this.optionsButton.visible && this.optionsButton.getBounds().contains(pointer.x, pointer.y);
   }
 
-  private updateTinySprinklers(delta: number): void {
-    if (this.state.phase !== "active" || this.introActive || this.state.automation.tinySprinklers <= 0) {
+  private animateFieldEquipment(seconds: number): void {
+    if (!this.fieldEquipmentPanel.visible) {
       return;
     }
-
-    this.tinySprinklerElapsed += delta;
-    const intervalMs = this.fastDormancy ? FAST_TINY_SPRINKLER_PULSE_INTERVAL_MS : TINY_SPRINKLER_PULSE_INTERVAL_MS;
-    if (this.tinySprinklerElapsed < intervalMs) {
-      return;
-    }
-
-    this.tinySprinklerElapsed = 0;
-    this.applyTinySprinklerPulse();
+    this.fieldEquipmentPanel.setAlpha(0.93 + Math.sin(seconds * 1.35) * 0.015);
+    FIELD_EQUIPMENT_IDS.forEach((equipmentId, index) => {
+      const row = this.fieldEquipmentRows[equipmentId];
+      const owned = this.state.automation.equipment[equipmentId];
+      const pulse = Math.sin(seconds * (2.2 + index * 0.08) + index * 0.9);
+      if (owned > 0) {
+        row.background.setAlpha(0.9 + pulse * 0.04);
+      } else {
+        row.background.setAlpha(1);
+      }
+    });
   }
 
-  private applyTinySprinklerPulse(): void {
+  private refreshFieldEquipmentPanel(): void {
+    if (!this.fieldEquipmentRows) {
+      return;
+    }
+    const effects = getPermanentUpgradeEffects(this.state);
+    for (const equipmentId of FIELD_EQUIPMENT_IDS) {
+      const row = this.fieldEquipmentRows[equipmentId];
+      const unlocked = isFieldEquipmentUnlocked(equipmentId, this.state.permanentUpgrades);
+      const owned = this.state.automation.equipment[equipmentId];
+      const cost = getFieldEquipmentCost(equipmentId, owned, effects.equipmentCostMultiplier);
+      const affordable = unlocked && this.state.economy.runTouches >= cost;
+      const hovered = this.hoveredEquipmentId === equipmentId;
+      const accent = FIELD_EQUIPMENT[equipmentId].projectileTint;
+      row.background
+        .setFillStyle(unlocked ? (hovered ? 0x173d25 : 0x0b2516) : 0x101b14, unlocked ? 0.9 : 0.72)
+        .setStrokeStyle(hovered ? 2 : 1, unlocked ? accent : 0x586057, hovered ? 0.9 : 0.52);
+      row.icon.setAlpha(unlocked ? 1 : 0.3).setTint(unlocked ? 0xffffff : 0x718071);
+      row.name.setColor(unlocked ? "#edf8cf" : "#7f8b7d");
+      row.status
+        .setColor(unlocked ? (affordable ? "#eaff9b" : "#ffb1c7") : "#9a9f96")
+        .setText(unlocked ? `x${owned}  Buy ${cost} RT` : getFieldEquipmentLockReason(equipmentId, this.state.permanentUpgrades));
+    }
+  }
+
+  private buyFieldEquipment(equipmentId: FieldEquipmentId): void {
+    this.startPrototypeAudio();
+    const row = this.fieldEquipmentRows[equipmentId];
+    const result = buyFieldEquipment(this.state, equipmentId);
+    if (!result.bought) {
+      this.sfx.play("blocked");
+      const message = result.reason === "locked"
+        ? getFieldEquipmentLockReason(equipmentId, this.state.permanentUpgrades)
+        : result.reason === "not-enough-run-touches"
+          ? `Need ${Math.max(0, result.cost - this.state.economy.runTouches)} RT`
+          : "Run ended";
+      this.floatText(row.background.x, row.background.y - 18, message, "#ffb1c7");
+      this.refreshFieldEquipmentPanel();
+      return;
+    }
+
+    this.sfx.play("upgrade");
+    this.floatText(row.background.x, row.background.y - 18, `-${result.spent} RT  x${result.owned}`, "#eaff9b");
+    this.tweens.add({
+      targets: row.icon,
+      scaleX: 1.2,
+      scaleY: 1.2,
+      angle: 6,
+      duration: 130,
+      yoyo: true,
+      ease: "Quad.easeOut",
+      onComplete: () => row.icon.setAngle(0),
+    });
+    this.addFeedEntry("Equipment bought", `${FIELD_EQUIPMENT[equipmentId].name} x${result.owned}`, "EQ", "#bff4ff");
+    this.refreshReadout();
+    this.publishBrowserDebugState();
+  }
+
+  private updateFieldEquipment(delta: number): void {
+    if (this.state.phase !== "active" || this.introActive) {
+      return;
+    }
+
+    for (const equipmentId of FIELD_EQUIPMENT_IDS) {
+      const owned = this.state.automation.equipment[equipmentId];
+      if (owned <= 0) {
+        this.equipmentPulseElapsed[equipmentId] = 0;
+        continue;
+      }
+      const equipment = FIELD_EQUIPMENT[equipmentId];
+      const interval = this.fastDormancy ? Math.max(620, equipment.pulseIntervalMs * 0.4) : equipment.pulseIntervalMs;
+      this.equipmentPulseElapsed[equipmentId] += delta;
+      if (this.equipmentPulseElapsed[equipmentId] < interval) {
+        continue;
+      }
+      this.equipmentPulseElapsed[equipmentId] %= interval;
+      this.applyFieldEquipmentPulse(equipmentId);
+    }
+  }
+
+  private applyFieldEquipmentPulse(equipmentId: FieldEquipmentId): void {
     const target = this.getTinySprinklerTarget();
-    const result = applyTinySprinklerPulse(this.state, target?.rootId);
-    if (!result.applied || !target) {
+    const result = applyFieldEquipmentPulse(this.state, equipmentId, target?.rootId);
+    if (!result.applied) {
       this.publishBrowserDebugState();
       return;
     }
-
-    this.lastTinySprinklerPulseAt = Math.round(this.time.now);
-    this.lastTinySprinklerRootId = target.rootId;
-    if (result.healedWound) {
-      this.addFeedEntry("Sprinkler triage", `root ${target.rootId + 1} misted shut`, "SP", "#bff4ff");
+    if (result.healedWound && target) {
       this.playWoundSeal(target);
     }
-    this.playTinySprinklerPulse(target, result.effectiveHealing);
+    this.playFieldEquipmentPulse(equipmentId, result.effectiveHealing);
     this.syncFirstRunObjectives();
     this.refreshReadout();
     this.publishBrowserDebugState();
   }
 
+  private playFieldEquipmentPulse(equipmentId: FieldEquipmentId, effectiveHealing: number): void {
+    const row = this.fieldEquipmentRows[equipmentId];
+    const equipment = FIELD_EQUIPMENT[equipmentId];
+    const drop = this.add
+      .image(row.icon.x, row.icon.y, "effect-water-drop")
+      .setDepth(24)
+      .setTint(equipment.projectileTint)
+      .setDisplaySize(16, 20)
+      .setAlpha(0.95);
+    this.tweens.add({
+      targets: drop,
+      x: this.hpBarFill.x + Math.max(18, this.hpBarFill.width - 12),
+      y: this.hpBarFill.y,
+      angle: 180,
+      scaleX: 1.35,
+      scaleY: 1.35,
+      duration: 560,
+      ease: "Sine.easeInOut",
+      onComplete: () => {
+        drop.destroy();
+        this.hpBarGlint.setPosition(this.hpBarFill.x + Math.max(4, this.hpBarFill.width - 8), this.hpBarFill.y).setAlpha(0.72);
+        this.tweens.add({ targets: this.hpBarGlint, alpha: 0, duration: 220, ease: "Quad.easeOut" });
+      },
+    });
+    this.tweens.add({
+      targets: row.icon,
+      y: row.icon.y - 4,
+      angle: equipmentId === "earthworm" ? -6 : 5,
+      duration: 150,
+      yoyo: true,
+      ease: "Quad.easeOut",
+      onComplete: () => row.icon.setAngle(0),
+    });
+    this.sfx.play("regrow");
+    this.floatText(row.background.x, row.background.y - 16, `+${effectiveHealing.toFixed(1)} HP`, "#bff4ff");
+  }
+
   private getTinySprinklerTarget(): RootNodeView | undefined {
     const activeRoots = this.getActiveRootNodes();
     return activeRoots.find((node) => isRootWounded(this.state, node.rootId)) ?? activeRoots[Math.floor(this.time.now / 997) % activeRoots.length];
-  }
-
-  private playTinySprinklerPulse(node: RootNodeView, effectiveHealing: number): void {
-    this.lastHealingFeedbackKind = "sprinkler";
-    this.lastHealingFeedbackAt = Math.round(this.time.now);
-    this.floatText(
-      node.homeX,
-      node.homeY - node.visualSize * 0.35,
-      effectiveHealing > 0 ? `sprinkle +${effectiveHealing.toFixed(0)}` : "sprinkle",
-      effectiveHealing > 0 ? "#bff4ff" : "#9ac8ff",
-    );
-    this.emitTouchBurst(node.homeX, node.homeY, effectiveHealing > 0);
-    this.playHealingFeedback(node, effectiveHealing, "sprinkler");
-    const drop = this.add.circle(node.homeX, node.homeY - node.visualSize * 0.34, Math.max(4, node.visualSize * 0.05), 0xbff4ff, 0.78).setDepth(12);
-    this.tweens.add({
-      targets: drop,
-      y: node.homeY + node.visualSize * 0.24,
-      alpha: 0,
-      duration: 420,
-      ease: "Quad.easeIn",
-      onComplete: () => drop.destroy(),
-    });
-    this.tweens.add({
-      targets: node.recoveryHalo,
-      alpha: 0.8,
-      duration: 160,
-      ease: "Quad.easeOut",
-      yoyo: true,
-    });
   }
 
   private openOptions(): void {
@@ -3994,7 +4134,8 @@ export class RedesignPrototypeScene extends Phaser.Scene {
   }
 
   private getRootAudioProfile(node: RootNodeView): { tier: GrassTierId; trait: TileTrait } {
-    return GRASS_TEXTURE_AUDIO[GRASS_TEXTURES[node.rootId % GRASS_TEXTURES.length]];
+    const textureKey = node.grass.texture.key as RedesignGrassTextureKey;
+    return GRASS_TEXTURE_AUDIO[textureKey] ?? GRASS_TEXTURE_AUDIO["grass-normal"];
   }
 
   private playRootTouch(node: RootNodeView, proximity: number, effective: boolean): void {
@@ -5394,6 +5535,7 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       runToolSlotCapacity: this.runToolSlotCapacity,
       equippedRunToolIds: this.equippedRunToolIds,
       runToolBarView: this.getBrowserDebugRunToolBarView(),
+      fieldEquipmentButtons: this.getBrowserDebugFieldEquipmentButtons(),
       runToolBarPage: this.runToolPage,
       runToolBarPageCount: this.runToolBarLayout.pageCount,
       runToolBarPageCapacity: this.runToolBarLayout.pageCapacity,
@@ -5469,6 +5611,30 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       height: Math.round(bounds.height),
       visible: this.nextRunButton.visible,
     };
+  }
+
+  private getBrowserDebugFieldEquipmentButtons(): BrowserDebugFieldEquipmentButton[] {
+    const effects = getPermanentUpgradeEffects(this.state);
+    return FIELD_EQUIPMENT_IDS.map((equipmentId) => {
+      const row = this.fieldEquipmentRows[equipmentId];
+      const bounds = row.background.getBounds();
+      const owned = this.state.automation.equipment[equipmentId];
+      const unlocked = isFieldEquipmentUnlocked(equipmentId, this.state.permanentUpgrades);
+      const cost = getFieldEquipmentCost(equipmentId, owned, effects.equipmentCostMultiplier);
+      return {
+        equipmentId,
+        x: Math.round(bounds.centerX),
+        y: Math.round(bounds.centerY),
+        width: Math.round(bounds.width),
+        height: Math.round(bounds.height),
+        visible: row.background.visible,
+        unlocked,
+        affordable: unlocked && this.state.economy.runTouches >= cost,
+        owned,
+        cost,
+        lockReason: getFieldEquipmentLockReason(equipmentId, this.state.permanentUpgrades),
+      };
+    });
   }
 
   private getBrowserDebugRunToolButtons(): BrowserDebugRunToolButton[] {

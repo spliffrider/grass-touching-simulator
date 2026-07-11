@@ -1,5 +1,6 @@
 import { PERMANENT_UPGRADE_DEFINITIONS, type PermanentUpgradeId } from "./RunSpineSystem";
 import { RUN_TOOL_IDS, RUN_TOOL_VIEW, type RunToolId } from "./RunToolCatalog";
+import { FIELD_EQUIPMENT, FIELD_EQUIPMENT_IDS, type FieldEquipmentId } from "./FieldEquipmentCatalog";
 
 export interface RedesignDomRootNode {
   rootId: number;
@@ -54,6 +55,20 @@ export interface RedesignDomRunToolButton {
   visible: boolean;
   usable: boolean;
   affordable: boolean;
+}
+
+export interface RedesignDomFieldEquipmentButton {
+  equipmentId: FieldEquipmentId;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visible: boolean;
+  unlocked: boolean;
+  affordable: boolean;
+  owned: number;
+  cost: number;
+  lockReason: string;
 }
 
 export interface RedesignDomButtonBounds {
@@ -170,6 +185,7 @@ export interface RedesignDomSnapshot {
   nextRunButton: RedesignDomNextRunButton;
   runToolButtons: RedesignDomRunToolButton[];
   runToolBarView: RedesignDomRunToolBarView;
+  fieldEquipmentButtons: RedesignDomFieldEquipmentButton[];
   options: RedesignDomOptionsState;
   playtest: RedesignDomPlaytestState;
 }
@@ -181,6 +197,7 @@ interface RedesignDomActions {
   clearRunToolPreview(toolId: RunToolId): void;
   previousRunToolPage(): void;
   nextRunToolPage(): void;
+  buyFieldEquipment(equipmentId: FieldEquipmentId): void;
   previewMemory(upgradeId: PermanentUpgradeId): void;
   clearMemoryPreview(upgradeId: PermanentUpgradeId): void;
   purchaseMemory(upgradeId: PermanentUpgradeId): void;
@@ -211,6 +228,7 @@ export class RedesignDomBridge {
   private readonly runToolButtons: Record<RedesignDomRunToolButton["toolId"], HTMLButtonElement>;
   private readonly runToolPreviousPageButton: HTMLButtonElement;
   private readonly runToolNextPageButton: HTMLButtonElement;
+  private readonly fieldEquipmentButtons: Record<FieldEquipmentId, HTMLButtonElement>;
   private readonly nextRunButton: HTMLButtonElement;
   private readonly memoryTreeZoomOutButton: HTMLButtonElement;
   private readonly memoryTreeZoomResetButton: HTMLButtonElement;
@@ -271,6 +289,16 @@ export class RedesignDomBridge {
     this.runToolPreviousPageButton.classList.add("grass-agent-run-tool-page-button");
     this.runToolNextPageButton = this.createButton("redesign-run-tool-next-page", "Next tool page", () => this.actions.nextRunToolPage());
     this.runToolNextPageButton.classList.add("grass-agent-run-tool-page-button");
+    this.fieldEquipmentButtons = Object.fromEntries(
+      FIELD_EQUIPMENT_IDS.map((equipmentId) => [
+        equipmentId,
+        this.createButton(
+          `redesign-field-equipment-${equipmentId}`,
+          `Buy ${FIELD_EQUIPMENT[equipmentId].name}`,
+          () => this.actions.buyFieldEquipment(equipmentId),
+        ),
+      ]),
+    ) as Record<FieldEquipmentId, HTMLButtonElement>;
     this.nextRunButton = this.createButton("redesign-begin-next-run-button", "Begin Next Run", () => this.actions.beginNextRun());
     this.nextRunButton.classList.add("grass-agent-meta-action");
     this.memoryTreeZoomOutButton = this.createButton("redesign-memory-tree-zoom-out", "Zoom out", () => this.actions.zoomMemoryTreeOut());
@@ -329,6 +357,7 @@ export class RedesignDomBridge {
     this.renderRootButtons(snapshot);
     this.renderRunToolButtons(snapshot);
     this.renderRunToolBarView(snapshot);
+    this.renderFieldEquipment(snapshot);
     this.renderMemoryButtons(snapshot);
     this.renderLockedNodes(snapshot);
     this.renderMemoryTreeView(snapshot);
@@ -438,8 +467,7 @@ export class RedesignDomBridge {
       `Total Run Touches earned: ${snapshot.totalRunTouchesEarned}`,
       `Permanent GT: ${snapshot.permanentGrassTouches}`,
       `Scourge pressure: ${snapshot.scourgePressure.toFixed(2)}`,
-      `Field kit: ${snapshot.runToolBarView.equippedCount} / ${snapshot.runToolBarView.slotCapacity} slots equipped`,
-      `Tiny Sprinklers: ${snapshot.tinySprinklers}`,
+      `Field equipment: ${snapshot.fieldEquipmentButtons.map((equipment) => `${FIELD_EQUIPMENT[equipment.equipmentId].shortName} x${equipment.owned}${equipment.unlocked ? "" : " locked"}`).join(", ")}`,
       `Scourge Sense: ${snapshot.scourgeSenseOwned ? "owned" : "locked"}`,
       `Last Stand: ${snapshot.lastStandOwned ? snapshot.lastStandAvailable ? "armed" : snapshot.lastStandUsed ? "spent" : "owned" : "locked"}`,
       `Last Stand triggered at: ${snapshot.lastStandTriggeredAt}`,
@@ -447,7 +475,6 @@ export class RedesignDomBridge {
       `Scourge Sense target: ${snapshot.scourgeSenseTargetRootId === null ? "none" : `root ${snapshot.scourgeSenseTargetRootId + 1}`}`,
       `Scourge Sense warning visible: ${snapshot.scourgeSenseWarningVisible}`,
       `Player: ${snapshot.playerPanelTitle} - ${snapshot.playerPanelBody.replace(/\n/g, " ")}`,
-      `Advisor: ${snapshot.advisorPanelBody.replace(/\n/g, " ")}`,
       `Meta screen visible: ${snapshot.metaScreenVisible}`,
       `Run ended: ${snapshot.runEnded}`,
       `Dormancy reward: ${snapshot.dormancyRewardLine}`,
@@ -552,6 +579,24 @@ export class RedesignDomBridge {
       view.nextButton.height,
       view.nextButton.visible,
     );
+  }
+
+  private renderFieldEquipment(snapshot: RedesignDomSnapshot): void {
+    for (const equipment of snapshot.fieldEquipmentButtons) {
+      const button = this.fieldEquipmentButtons[equipment.equipmentId];
+      const name = FIELD_EQUIPMENT[equipment.equipmentId].name;
+      const status = equipment.unlocked
+        ? `${equipment.owned} owned, costs ${equipment.cost} Run Touches`
+        : equipment.lockReason;
+      button.textContent = `Buy ${name}: ${status}`;
+      button.setAttribute("aria-label", `${name}, ${status}`);
+      button.dataset.unlocked = String(equipment.unlocked);
+      button.dataset.affordable = String(equipment.affordable);
+      button.dataset.owned = String(equipment.owned);
+      button.dataset.cost = String(equipment.cost);
+      button.disabled = !equipment.unlocked || !equipment.affordable || !equipment.visible;
+      this.positionButton(button, equipment.x, equipment.y, equipment.width, equipment.height, equipment.visible);
+    }
   }
 
   private renderMemoryButtons(snapshot: RedesignDomSnapshot): void {

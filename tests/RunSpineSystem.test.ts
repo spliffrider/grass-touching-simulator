@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  applyTinySprinklerPulse,
+  applyFieldEquipmentPulse,
   advanceRun,
-  buyTinySprinkler,
+  buyFieldEquipment,
   createNextRunFromDormancy,
   createPermanentMemorySnapshot,
   createRunSpineState,
@@ -380,11 +380,11 @@ describe("RunSpineSystem", () => {
     const unlicensed = createRunSpineState({ currentHp: 80, maxHp: 100 });
     unlicensed.economy.runTouches = 40;
 
-    const missingLicense = buyTinySprinkler(unlicensed);
+    const missingLicense = buyFieldEquipment(unlicensed, "tinySprinkler");
 
     expect(missingLicense.bought).toBe(false);
-    expect(missingLicense.reason).toBe("license-missing");
-    expect(unlicensed.automation.tinySprinklers).toBe(0);
+    expect(missingLicense.reason).toBe("locked");
+    expect(unlicensed.automation.equipment.tinySprinkler).toBe(0);
 
     const licensed = createRunSpineState({
       currentHp: 80,
@@ -393,11 +393,11 @@ describe("RunSpineSystem", () => {
     });
     licensed.economy.runTouches = 15;
 
-    const tooPoor = buyTinySprinkler(licensed);
+    const tooPoor = buyFieldEquipment(licensed, "tinySprinkler");
 
     expect(tooPoor.bought).toBe(false);
     expect(tooPoor.reason).toBe("not-enough-run-touches");
-    expect(licensed.automation.tinySprinklers).toBe(0);
+    expect(licensed.automation.equipment.tinySprinkler).toBe(0);
   });
 
   it("buys Tiny Sprinkler automation for the current run only", () => {
@@ -408,15 +408,15 @@ describe("RunSpineSystem", () => {
     });
     state.economy.runTouches = 20;
 
-    const bought = buyTinySprinkler(state);
+    const bought = buyFieldEquipment(state, "tinySprinkler");
     const nextRun = createNextRunFromDormancy(state, { currentHp: 80 });
 
     expect(bought.bought).toBe(true);
     expect(bought.spent).toBe(16);
     expect(bought.remainingRunTouches).toBe(4);
-    expect(bought.tinySprinklers).toBe(1);
-    expect(state.automation.tinySprinklers).toBe(1);
-    expect(nextRun.automation.tinySprinklers).toBe(0);
+    expect(bought.owned).toBe(1);
+    expect(state.automation.equipment.tinySprinkler).toBe(1);
+    expect(nextRun.automation.equipment.tinySprinkler).toBe(0);
     expect(hasPermanentUpgrade(nextRun, "tinySprinkler")).toBe(true);
   });
 
@@ -427,10 +427,10 @@ describe("RunSpineSystem", () => {
       permanentUpgrades: ["tinySprinkler"],
     });
     state.economy.runTouches = 20;
-    buyTinySprinkler(state);
+    buyFieldEquipment(state, "tinySprinkler");
     openRootWound(state, 25, 4);
 
-    const result = applyTinySprinklerPulse(state, 4);
+    const result = applyFieldEquipmentPulse(state, "tinySprinkler", 4);
 
     expect(result.applied).toBe(true);
     expect(result.effectiveHealing).toBe(2);
@@ -450,9 +450,9 @@ describe("RunSpineSystem", () => {
       permanentUpgrades: ["tinySprinkler", "sprinklerTuning"],
     });
     state.economy.runTouches = 20;
-    buyTinySprinkler(state);
+    buyFieldEquipment(state, "tinySprinkler");
 
-    const result = applyTinySprinklerPulse(state);
+    const result = applyFieldEquipmentPulse(state, "tinySprinkler");
 
     expect(result.applied).toBe(true);
     expect(result.healing).toBe(3);
@@ -468,15 +468,46 @@ describe("RunSpineSystem", () => {
       permanentUpgrades: ["tinySprinkler"],
     });
     state.economy.runTouches = 20;
-    buyTinySprinkler(state);
+    buyFieldEquipment(state, "tinySprinkler");
 
-    const result = applyTinySprinklerPulse(state);
+    const result = applyFieldEquipmentPulse(state, "tinySprinkler");
 
     expect(result.applied).toBe(false);
     expect(result.reason).toBe("no-missing-hp");
     expect(state.economy.runTouches).toBe(4);
     expect(state.economy.totalRunTouchesEarned).toBe(0);
     expect(getDormancyGrassTouches(state)).toBe(0);
+  });
+
+  it("buys later equipment with current-run RT after enough memories are owned", () => {
+    const state = createRunSpineState({
+      currentHp: 80,
+      maxHp: 100,
+      permanentUpgrades: ["softTouch", "deeperRoots", "tinySprinkler"],
+    });
+    state.economy.runTouches = 40;
+
+    const result = buyFieldEquipment(state, "beeHive");
+
+    expect(result.bought).toBe(true);
+    expect(result.spent).toBe(30);
+    expect(result.remainingRunTouches).toBe(10);
+    expect(state.automation.equipment.beeHive).toBe(1);
+  });
+
+  it("applies Field Satchel's equipment discount to run purchases", () => {
+    const state = createRunSpineState({
+      currentHp: 80,
+      maxHp: 100,
+      permanentUpgrades: ["tinySprinkler", "fieldSatchel"],
+    });
+    state.economy.runTouches = 15;
+
+    const result = buyFieldEquipment(state, "tinySprinkler");
+
+    expect(result.bought).toBe(true);
+    expect(result.cost).toBe(15);
+    expect(result.remainingRunTouches).toBe(0);
   });
 
   it("spends banked permanent Grass Touches on a permanent upgrade once", () => {
@@ -536,6 +567,7 @@ describe("RunSpineSystem", () => {
       baseScourgeDrainMultiplier: 1,
       woundPressureMultiplier: 1,
       tinySprinklerHealingBonus: 0,
+      equipmentCostMultiplier: 1,
       runToolSlotBonus: 0,
       scourgeSense: false,
       lastStand: false,
@@ -563,7 +595,8 @@ describe("RunSpineSystem", () => {
       baseScourgeDrainMultiplier: 0.88,
       woundPressureMultiplier: 0.75,
       tinySprinklerHealingBonus: 1,
-      runToolSlotBonus: 3,
+      equipmentCostMultiplier: 0.9,
+      runToolSlotBonus: 0,
       scourgeSense: false,
       lastStand: false,
       lastStandReviveHpRatio: 0.55,
