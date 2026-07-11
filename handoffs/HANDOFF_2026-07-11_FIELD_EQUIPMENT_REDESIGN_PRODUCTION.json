@@ -1,0 +1,49 @@
+{
+  "date": "2026-07-11",
+  "topic": "Field equipment redesign promoted to production and synchronized",
+  "currentUserGoal": "Push the completed redesign slices to master, make them live in production, and synchronize the Mac mini.",
+  "workCompleted": [
+    "Fast-forwarded master through the four field-equipment redesign commits ending at 9258ca1.",
+    "Pushed master to GitHub and confirmed the resulting Vercel production deployment reached Ready status.",
+    "Verified the custom production domain serves the new one-tile opening, field equipment controls, ranked Memory Web, and visual-polish build.",
+    "Confirmed the production browser console contains no warnings or errors.",
+    "Confirmed the Mac mini's previous dbc2963 production-alpha HEAD is an ancestor of the current desktop master and therefore old, not divergent work."
+  ],
+  "filesChanged": [
+    "handoffs/HANDOFF_2026-07-11_FIELD_EQUIPMENT_REDESIGN_PRODUCTION.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed on master: ESLint, 81 Vitest tests across ten files, TypeScript, and the Vite production build.",
+    "Vercel deployment dpl_7k2A26uvmiz4i7sZSiV35M4AmUht reported Ready in the production environment.",
+    "https://grasstouchingsimulator.com resolved to the new deployment and exposed the redesign DOM interface.",
+    "Production smoke test found the Memory Web and field-equipment redesign active with no browser errors or warnings."
+  ],
+  "release": {
+    "branch": "master",
+    "featureHead": "9258ca1",
+    "deploymentId": "dpl_7k2A26uvmiz4i7sZSiV35M4AmUht",
+    "productionUrl": "https://grasstouchingsimulator.com",
+    "status": "Live in production; final handoff commit and Mac pull/build are the remaining release bookkeeping."
+  },
+  "currentGitStatus": [
+    "master contains the complete redesign stack through 9258ca1.",
+    "This handoff and LATEST.json should be committed, pushed, and pulled onto the Mac mini before ending the session."
+  ],
+  "knownIssues": [
+    "The active run continues while unattended and can reach Memory Grove during a long inspection; this is expected gameplay behavior.",
+    "The redesign still has a small initial Memory Web and equipment roster that are intended to expand in later slices.",
+    "The playtest utility overlay remains development-only and is absent from the normal production route."
+  ],
+  "nextRecommendedSteps": [
+    "Run a fresh normal-speed production playtest with audio enabled and collect Discord tester feedback.",
+    "Expand the Memory Web with additional ranked branches while preserving non-crossing connectors.",
+    "Give unlocked equipment more distinct mechanics and animation identities as their systems mature."
+  ],
+  "doNotRevert": [
+    "Keep the one-tile opening and milestone-gated field growth.",
+    "Keep field equipment purchases in the left-side equipment window rather than restoring the old toolbar.",
+    "Keep ranked memories, compact overview icons, hover details, and zoomable Memory Web navigation.",
+    "Keep deterministic allocation-free root motion and the separated Scourge label/bar layout."
+  ]
+}
