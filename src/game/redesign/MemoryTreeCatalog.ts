@@ -45,9 +45,9 @@ export const MEMORY_UPGRADE_VIEW: Record<PermanentUpgradeId, MemoryUpgradePresen
     iconPath: "/assets/ui/skills/softer-grass.png",
     x: 0.5,
     y: 0.5,
-    impact: "future runs heal roots 25% harder",
-    flavor: "Your hands learn where the roots are tender. Future manual touches restore 25% more missing HP.",
-    shortEffect: "Manual +25%",
+    impact: "future runs build stronger manual root healing",
+    flavor: "Your hands learn where the roots are tender. Each remembered rank makes future manual touches substantially stronger.",
+    shortEffect: "Ranked manual healing",
   },
   fastTouch: {
     branch: "Touch",

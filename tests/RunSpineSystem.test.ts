@@ -11,9 +11,13 @@ import {
   getDormancyGrassTouches,
   getDormancySummary,
   getMissingPermanentUpgradePrerequisites,
+  getPermanentUpgradeCost,
   getPermanentUpgradeEffects,
+  getPermanentUpgradeRank,
+  getSoftTouchHealingBonus,
   getWoundedRootCount,
   hasPermanentUpgrade,
+  isPermanentUpgradeComplete,
   isRootWounded,
   openRootWound,
   purchasePermanentUpgrade,
@@ -510,18 +514,35 @@ describe("RunSpineSystem", () => {
     expect(result.remainingRunTouches).toBe(0);
   });
 
-  it("spends banked permanent Grass Touches on a permanent upgrade once", () => {
-    const state = createRunSpineState({ currentHp: 0, permanentGrassTouches: 14 });
+  it("buys escalating Soft Touch ranks and applies the triangular healing curve", () => {
+    const state = createRunSpineState({ currentHp: 0, permanentGrassTouches: 40 });
 
-    const bought = purchasePermanentUpgrade(state, "softTouch");
-    const duplicate = purchasePermanentUpgrade(state, "softTouch");
+    const firstRank = purchasePermanentUpgrade(state, "softTouch");
+    const secondRank = purchasePermanentUpgrade(state, "softTouch");
 
-    expect(bought.purchased).toBe(true);
-    expect(bought.remainingGrassTouches).toBe(2);
+    expect(firstRank).toMatchObject({ purchased: true, cost: 12, previousRank: 0, rank: 1, maxRank: 10 });
+    expect(secondRank).toMatchObject({ purchased: true, cost: 18, previousRank: 1, rank: 2, maxRank: 10 });
     expect(hasPermanentUpgrade(state, "softTouch")).toBe(true);
-    expect(duplicate.purchased).toBe(false);
-    expect(duplicate.reason).toBe("already-owned");
-    expect(state.economy.permanentGrassTouches).toBe(2);
+    expect(getPermanentUpgradeRank(state, "softTouch")).toBe(2);
+    expect(getSoftTouchHealingBonus(1)).toBeCloseTo(0.1);
+    expect(getSoftTouchHealingBonus(2)).toBeCloseTo(0.3);
+    expect(getPermanentUpgradeEffects(state).manualHealingMultiplier).toBeCloseTo(1.3);
+    expect(getPermanentUpgradeCost(state, "softTouch")).toBe(24);
+    expect(state.economy.permanentGrassTouches).toBe(10);
+  });
+
+  it("caps Soft Touch at ten ranks", () => {
+    const state = createRunSpineState({ currentHp: 0, permanentGrassTouches: 500 });
+
+    for (let rank = 1; rank <= 10; rank += 1) {
+      expect(purchasePermanentUpgrade(state, "softTouch")).toMatchObject({ purchased: true, rank });
+    }
+    const capped = purchasePermanentUpgrade(state, "softTouch");
+
+    expect(capped).toMatchObject({ purchased: false, reason: "max-rank", rank: 10, maxRank: 10 });
+    expect(isPermanentUpgradeComplete(state, "softTouch")).toBe(true);
+    expect(getPermanentUpgradeEffects(state).manualHealingMultiplier).toBeCloseTo(6.5);
+    expect(state.economy.permanentGrassTouches).toBe(110);
   });
 
   it("requires connected memories before buying deeper permanent upgrades", () => {
@@ -554,14 +575,15 @@ describe("RunSpineSystem", () => {
   });
 
   it("carries permanent upgrade effects into the next run", () => {
-    const state = createRunSpineState({ currentHp: 0, permanentGrassTouches: 40 });
+    const state = createRunSpineState({ currentHp: 0, permanentGrassTouches: 60 });
 
+    purchasePermanentUpgrade(state, "softTouch");
     purchasePermanentUpgrade(state, "softTouch");
     purchasePermanentUpgrade(state, "deeperRoots");
     const nextRun = createNextRunFromDormancy(state, { currentHp: 125 });
 
     expect(getPermanentUpgradeEffects(nextRun)).toEqual({
-      manualHealingMultiplier: 1.25,
+      manualHealingMultiplier: 1.3,
       manualRecoveryDurationMultiplier: 1,
       maxHpBonus: 25,
       baseScourgeDrainMultiplier: 1,
@@ -575,7 +597,8 @@ describe("RunSpineSystem", () => {
     });
     expect(nextRun.ancientGrass.maxHp).toBe(125);
     expect(nextRun.ancientGrass.currentHp).toBe(125);
-    expect(nextRun.economy.permanentGrassTouches).toBe(10);
+    expect(getPermanentUpgradeRank(nextRun, "softTouch")).toBe(2);
+    expect(nextRun.economy.permanentGrassTouches).toBe(12);
   });
 
   it("reports the full second-tier effect set without mutating run state", () => {
@@ -636,6 +659,19 @@ describe("RunSpineSystem", () => {
         "sprinklerTuning",
         "tinySprinkler",
       ],
+      permanentUpgradeRanks: {
+        ancientResilience: 1,
+        deeperRoots: 1,
+        distributedRoots: 1,
+        emergencyPhotosynthesis: 1,
+        fastTouch: 1,
+        fieldSatchel: 1,
+        lastStand: 1,
+        scourgeSense: 1,
+        softTouch: 1,
+        sprinklerTuning: 1,
+        tinySprinkler: 1,
+      },
       savedAt: 42,
     });
   });
@@ -652,7 +688,19 @@ describe("RunSpineSystem", () => {
       saveVersion: 1,
       permanentGrassTouches: 12,
       permanentUpgrades: ["deeperRoots", "lastStand", "scourgeSense", "softTouch"],
+      permanentUpgradeRanks: { deeperRoots: 1, lastStand: 1, scourgeSense: 1, softTouch: 1 },
       savedAt: 99,
+    });
+
+    expect(normalizePermanentMemorySnapshot({
+      saveVersion: 1,
+      permanentGrassTouches: 5,
+      permanentUpgrades: ["softTouch"],
+      permanentUpgradeRanks: { softTouch: 99, bogus: 4 },
+      savedAt: 10,
+    })).toMatchObject({
+      permanentUpgrades: ["softTouch"],
+      permanentUpgradeRanks: { softTouch: 10 },
     });
     expect(normalizePermanentMemorySnapshot({ saveVersion: 0, permanentGrassTouches: 999 })).toBeUndefined();
     expect(normalizePermanentMemorySnapshot(null)).toBeUndefined();

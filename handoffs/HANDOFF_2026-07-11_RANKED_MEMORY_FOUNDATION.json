@@ -1,0 +1,61 @@
+{
+  "date": "2026-07-11",
+  "topic": "Ranked permanent memories foundation",
+  "currentUserGoal": "Allow some Memory Grove skills to have multiple upgrade levels, beginning with a ten-rank grass-touching strength memory whose first ranks grant +10% and +30% manual healing.",
+  "workCompleted": [
+    "Added generic maxRank and rankCostIncrease fields to permanent memory definitions.",
+    "Added persistent per-memory rank state while preserving the existing owned-memory list for unlock and prerequisite logic.",
+    "Made old version-1 boolean memory saves migrate each owned memory to rank one automatically.",
+    "Added rank-aware purchase results, dynamic costs, max-rank handling, completion checks, and next-run persistence.",
+    "Made Soft Touch a ten-rank memory with costs 12, 18, 24, 30, 36, 42, 48, 54, 60, and 66 GT.",
+    "Implemented the requested triangular healing curve: ranks 1-10 grant +10%, +30%, +60%, +100%, +150%, +210%, +280%, +360%, +450%, and +550% manual healing.",
+    "Kept downstream branch unlocks dependent on owning rank one rather than completing all ten ranks.",
+    "Updated desktop and compact Memory Grove cards with current rank, max rank, current effect, next effect, dynamic cost, and completion state.",
+    "Updated the agent-readable DOM controls with rank, maxRank, cost, affordability, and completion information.",
+    "Updated dormancy summaries and browser debug state to expose ranked memory progress.",
+    "Fixed compact-card text overlap by using a concise current/next/cost presentation on phones."
+  ],
+  "filesChanged": [
+    "src/game/redesign/MemoryTreeCatalog.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/redesign/RunSpineSystem.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/RunSpineSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-11_RANKED_MEMORY_FOUNDATION.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 79 Vitest tests across nine files, TypeScript, and the Vite production build.",
+    "Tests cover rank-one and rank-two effects, escalating costs, the ten-rank cap, next-run persistence, save serialization, legacy-save migration, and rank clamping.",
+    "Desktop browser smoke showed Soft Touch 1/10 with Next: Manual +30% and Cost: 18 GT from the existing legacy save.",
+    "A real browser purchase advanced Soft Touch to 2/10, spent 18 GT, exposed the next 24 GT cost, and persisted rank two into the next active run.",
+    "Phone browser smoke confirmed the compact Current, Rank, Next, and Cost blocks no longer overlap."
+  ],
+  "release": {
+    "branch": "codex/field-equipment-recast",
+    "status": "Local checkpoint only; not pushed, merged, or deployed."
+  },
+  "currentGitStatus": [
+    "Expected after checkpoint commit: clean codex/field-equipment-recast branch.",
+    "The prior Memory Web foundation is commit 7295529."
+  ],
+  "knownIssues": [
+    "Only Soft Touch uses multiple ranks so far; all other memories remain one-time unlocks until their curves are deliberately designed.",
+    "The +550% rank-ten effect is intentionally the direct continuation of the requested +10%, +30% triangular curve and will need balance playtesting.",
+    "The local in-app browser playtest save is now Soft Touch 2/10 with 31 GT because the real purchase path was verified.",
+    "Equipment unlock counts still count distinct memories, not total ranks, by design."
+  ],
+  "nextRecommendedSteps": [
+    "Playtest several runs at Soft Touch ranks one through four before committing to the late-rank +550% ceiling.",
+    "Choose the next ranked foundation memories, likely Deeper Roots and Fast Touch, and define their own non-identical curves.",
+    "Add visual pips or a radial rank ring around ranked nodes once several tree nodes support levels.",
+    "Decide whether later ranks require branch milestones in addition to GT costs."
+  ],
+  "doNotRevert": [
+    "Keep old boolean saves migrating to rank one without changing the save-version gate.",
+    "Keep rank one sufficient for prerequisite and equipment unlock checks.",
+    "Keep ranked completion separate from ordinary ownership.",
+    "Keep dynamic rank information exposed through the DOM bridge for agent testing.",
+    "Keep compact phone copy purpose-built rather than squeezing the full desktop lore paragraph into the card."
+  ]
+}

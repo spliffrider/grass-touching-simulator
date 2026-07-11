@@ -1,4 +1,8 @@
-import { PERMANENT_UPGRADE_DEFINITIONS, type PermanentUpgradeId } from "./RunSpineSystem";
+import {
+  PERMANENT_UPGRADE_DEFINITIONS,
+  type PermanentUpgradeId,
+  type PermanentUpgradeRanks,
+} from "./RunSpineSystem";
 import { RUN_TOOL_IDS, RUN_TOOL_VIEW, type RunToolId } from "./RunToolCatalog";
 import { FIELD_EQUIPMENT, FIELD_EQUIPMENT_IDS, type FieldEquipmentId } from "./FieldEquipmentCatalog";
 
@@ -24,6 +28,9 @@ export interface RedesignDomMemoryButton {
   unlocked: boolean;
   affordable: boolean;
   owned: boolean;
+  rank: number;
+  maxRank: number;
+  cost: number;
 }
 
 export interface RedesignDomLockedMetaNode {
@@ -156,6 +163,7 @@ export interface RedesignDomSnapshot {
   totalRunTouchesEarned: number;
   permanentGrassTouches: number;
   permanentUpgrades: PermanentUpgradeId[];
+  permanentUpgradeRanks: PermanentUpgradeRanks;
   scourgePressure: number;
   tinySprinklers: number;
   scourgeSenseOwned: boolean;
@@ -611,20 +619,24 @@ export class RedesignDomBridge {
     for (const memoryButton of snapshot.memoryUpgradeButtons) {
       const button = this.getMemoryButton(memoryButton.upgradeId);
       const label = PERMANENT_UPGRADE_DEFINITIONS[memoryButton.upgradeId].name;
-      const status = memoryButton.owned
-        ? "owned"
+      const complete = memoryButton.rank >= memoryButton.maxRank;
+      const status = complete
+        ? memoryButton.maxRank > 1 ? `${memoryButton.rank}/${memoryButton.maxRank} complete` : "owned"
         : !memoryButton.unlocked
           ? "path locked"
           : memoryButton.affordable
-            ? "affordable"
-            : "not enough GT";
+            ? `${memoryButton.maxRank > 1 ? `${memoryButton.rank}/${memoryButton.maxRank}, ` : ""}costs ${memoryButton.cost} GT, affordable`
+            : `${memoryButton.maxRank > 1 ? `${memoryButton.rank}/${memoryButton.maxRank}, ` : ""}costs ${memoryButton.cost} GT, not enough GT`;
       button.textContent = `${label} ${status}`;
       button.setAttribute("aria-label", `${label} memory node`);
       button.dataset.unlocked = String(memoryButton.unlocked);
       button.dataset.affordable = String(memoryButton.affordable);
       button.dataset.owned = String(memoryButton.owned);
+      button.dataset.rank = String(memoryButton.rank);
+      button.dataset.maxRank = String(memoryButton.maxRank);
+      button.dataset.cost = String(memoryButton.cost);
       button.disabled = !memoryButton.visible;
-      button.setAttribute("aria-disabled", String(memoryButton.owned || !memoryButton.affordable));
+      button.setAttribute("aria-disabled", String(complete || !memoryButton.affordable));
       this.positionButton(button, memoryButton.x, memoryButton.y, memoryButton.width, memoryButton.height, memoryButton.visible && snapshot.metaScreenVisible);
     }
   }

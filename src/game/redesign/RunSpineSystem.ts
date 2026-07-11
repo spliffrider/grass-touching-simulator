@@ -25,9 +25,13 @@ export interface PermanentUpgradeDefinition {
   id: PermanentUpgradeId;
   name: string;
   cost: number;
+  maxRank?: number;
+  rankCostIncrease?: number;
   description: string;
   prerequisiteIds: PermanentUpgradeId[];
 }
+
+export type PermanentUpgradeRanks = Partial<Record<PermanentUpgradeId, number>>;
 
 export interface AncientGrassVitals {
   currentHp: number;
@@ -76,6 +80,7 @@ export interface RunSpineState {
   automation: AutomationState;
   revivals: RevivalState;
   permanentUpgrades: PermanentUpgradeId[];
+  permanentUpgradeRanks: PermanentUpgradeRanks;
 }
 
 export interface RunSpineOptions {
@@ -86,6 +91,7 @@ export interface RunSpineOptions {
   pressureGrowthPerSecond?: number;
   permanentGrassTouches?: number;
   permanentUpgrades?: PermanentUpgradeId[];
+  permanentUpgradeRanks?: PermanentUpgradeRanks;
 }
 
 export interface RunTickResult {
@@ -183,8 +189,12 @@ export interface ApplyFieldEquipmentPulseResult {
 export interface PurchasePermanentUpgradeResult {
   upgrade: PermanentUpgradeDefinition;
   purchased: boolean;
-  reason?: "already-owned" | "prerequisites-missing" | "not-enough-grass-touches";
+  reason?: "already-owned" | "max-rank" | "prerequisites-missing" | "not-enough-grass-touches";
   missingPrerequisiteIds?: PermanentUpgradeId[];
+  cost: number;
+  previousRank: number;
+  rank: number;
+  maxRank: number;
   remainingGrassTouches: number;
 }
 
@@ -206,6 +216,7 @@ export interface PermanentMemorySnapshot {
   saveVersion: number;
   permanentGrassTouches: number;
   permanentUpgrades: PermanentUpgradeId[];
+  permanentUpgradeRanks: PermanentUpgradeRanks;
   savedAt: number;
 }
 
@@ -243,6 +254,7 @@ export const POCKET_SUNSHINE_PRESSURE_REDUCTION = 0.35;
 export const POCKET_SUNSHINE_MIN_PRESSURE = 1.2;
 export const LAST_STAND_REVIVE_HP_RATIO = 0.35;
 export const FAST_TOUCH_RECOVERY_DURATION_MULTIPLIER = 0.8;
+export const SOFT_TOUCH_RANK_BONUS_STEP = 0.1;
 export const ANCIENT_RESILIENCE_DRAIN_MULTIPLIER = 0.88;
 export const SPRINKLER_TUNING_HEALING_BONUS = 1;
 export const FIELD_SATCHEL_COST_MULTIPLIER = 0.9;
@@ -256,7 +268,9 @@ export const PERMANENT_UPGRADE_DEFINITIONS: Record<PermanentUpgradeId, Permanent
     id: "softTouch",
     name: "Soft Touch",
     cost: 12,
-    description: "Manual root healing +25%",
+    maxRank: 10,
+    rankCostIncrease: 6,
+    description: "Manual root healing grows stronger each rank",
     prerequisiteIds: [],
   },
   fastTouch: {
@@ -332,8 +346,10 @@ export const PERMANENT_UPGRADE_DEFINITIONS: Record<PermanentUpgradeId, Permanent
 };
 
 export function createRunSpineState(options: RunSpineOptions = {}): RunSpineState {
-  const permanentUpgrades = normalizePermanentUpgrades(options.permanentUpgrades ?? []);
-  const upgradeEffects = getPermanentUpgradeEffects(permanentUpgrades);
+  const memory = normalizePermanentMemoryState(options.permanentUpgrades ?? [], options.permanentUpgradeRanks);
+  const permanentUpgrades = memory.permanentUpgrades;
+  const permanentUpgradeRanks = memory.permanentUpgradeRanks;
+  const upgradeEffects = getPermanentUpgradeEffectsFromMemory(permanentUpgrades, permanentUpgradeRanks);
   const maxHp = normalizePositiveNumber(options.maxHp, DEFAULT_ANCIENT_GRASS_MAX_HP) + upgradeEffects.maxHpBonus;
   const currentHp = clamp(normalizeNonNegativeNumber(options.currentHp, maxHp), 0, maxHp);
   const baseDrainPerSecond =
@@ -377,6 +393,7 @@ export function createRunSpineState(options: RunSpineOptions = {}): RunSpineStat
       lastStandReviveHpRatio: upgradeEffects.lastStandReviveHpRatio,
     },
     permanentUpgrades,
+    permanentUpgradeRanks,
   };
 }
 
@@ -796,11 +813,18 @@ export function applyTinySprinklerPulse(state: RunSpineState, rootId?: number): 
 
 export function purchasePermanentUpgrade(state: RunSpineState, upgradeId: PermanentUpgradeId): PurchasePermanentUpgradeResult {
   const upgrade = PERMANENT_UPGRADE_DEFINITIONS[upgradeId];
-  if (state.permanentUpgrades.includes(upgradeId)) {
+  const previousRank = getPermanentUpgradeRank(state, upgradeId);
+  const maxRank = getPermanentUpgradeMaxRank(upgradeId);
+  const cost = getPermanentUpgradeCost(state, upgradeId);
+  if (previousRank >= maxRank) {
     return {
       upgrade,
       purchased: false,
-      reason: "already-owned",
+      reason: maxRank > 1 ? "max-rank" : "already-owned",
+      cost,
+      previousRank,
+      rank: previousRank,
+      maxRank,
       remainingGrassTouches: state.economy.permanentGrassTouches,
     };
   }
@@ -812,24 +836,40 @@ export function purchasePermanentUpgrade(state: RunSpineState, upgradeId: Perman
       purchased: false,
       reason: "prerequisites-missing",
       missingPrerequisiteIds,
+      cost,
+      previousRank,
+      rank: previousRank,
+      maxRank,
       remainingGrassTouches: state.economy.permanentGrassTouches,
     };
   }
 
-  if (state.economy.permanentGrassTouches < upgrade.cost) {
+  if (state.economy.permanentGrassTouches < cost) {
     return {
       upgrade,
       purchased: false,
       reason: "not-enough-grass-touches",
+      cost,
+      previousRank,
+      rank: previousRank,
+      maxRank,
       remainingGrassTouches: state.economy.permanentGrassTouches,
     };
   }
 
-  state.economy.permanentGrassTouches -= upgrade.cost;
-  state.permanentUpgrades = [...state.permanentUpgrades, upgradeId].sort();
+  const rank = previousRank + 1;
+  state.economy.permanentGrassTouches -= cost;
+  state.permanentUpgradeRanks = { ...state.permanentUpgradeRanks, [upgradeId]: rank };
+  if (!state.permanentUpgrades.includes(upgradeId)) {
+    state.permanentUpgrades = [...state.permanentUpgrades, upgradeId].sort();
+  }
   return {
     upgrade,
     purchased: true,
+    cost,
+    previousRank,
+    rank,
+    maxRank,
     remainingGrassTouches: state.economy.permanentGrassTouches,
   };
 }
@@ -845,8 +885,17 @@ export function getMissingPermanentUpgradePrerequisites(
 
 export function getPermanentUpgradeEffects(upgradesOrState: PermanentUpgradeId[] | RunSpineState): PermanentUpgradeEffects {
   const upgradeIds = Array.isArray(upgradesOrState) ? upgradesOrState : upgradesOrState.permanentUpgrades;
+  const ranks = Array.isArray(upgradesOrState) ? undefined : upgradesOrState.permanentUpgradeRanks;
+  return getPermanentUpgradeEffectsFromMemory(upgradeIds, ranks);
+}
+
+function getPermanentUpgradeEffectsFromMemory(
+  upgradeIds: PermanentUpgradeId[],
+  ranks?: PermanentUpgradeRanks,
+): PermanentUpgradeEffects {
+  const softTouchRank = ranks?.softTouch ?? (upgradeIds.includes("softTouch") ? 1 : 0);
   return {
-    manualHealingMultiplier: upgradeIds.includes("softTouch") ? 1.25 : 1,
+    manualHealingMultiplier: 1 + getSoftTouchHealingBonus(softTouchRank),
     manualRecoveryDurationMultiplier: upgradeIds.includes("fastTouch") ? FAST_TOUCH_RECOVERY_DURATION_MULTIPLIER : 1,
     maxHpBonus: upgradeIds.includes("deeperRoots") ? 25 : 0,
     baseScourgeDrainMultiplier: upgradeIds.includes("ancientResilience") ? ANCIENT_RESILIENCE_DRAIN_MULTIPLIER : 1,
@@ -862,6 +911,29 @@ export function getPermanentUpgradeEffects(upgradesOrState: PermanentUpgradeId[]
   };
 }
 
+export function getPermanentUpgradeRank(state: RunSpineState, upgradeId: PermanentUpgradeId): number {
+  return state.permanentUpgradeRanks[upgradeId] ?? (state.permanentUpgrades.includes(upgradeId) ? 1 : 0);
+}
+
+export function getPermanentUpgradeMaxRank(upgradeId: PermanentUpgradeId): number {
+  return Math.max(1, Math.floor(PERMANENT_UPGRADE_DEFINITIONS[upgradeId].maxRank ?? 1));
+}
+
+export function getPermanentUpgradeCost(state: RunSpineState, upgradeId: PermanentUpgradeId): number {
+  const upgrade = PERMANENT_UPGRADE_DEFINITIONS[upgradeId];
+  const currentRank = getPermanentUpgradeRank(state, upgradeId);
+  return upgrade.cost + Math.max(0, Math.floor(upgrade.rankCostIncrease ?? 0)) * currentRank;
+}
+
+export function isPermanentUpgradeComplete(state: RunSpineState, upgradeId: PermanentUpgradeId): boolean {
+  return getPermanentUpgradeRank(state, upgradeId) >= getPermanentUpgradeMaxRank(upgradeId);
+}
+
+export function getSoftTouchHealingBonus(rank: number): number {
+  const normalizedRank = clamp(Math.floor(rank), 0, getPermanentUpgradeMaxRank("softTouch"));
+  return SOFT_TOUCH_RANK_BONUS_STEP * (normalizedRank * (normalizedRank + 1)) / 2;
+}
+
 export function hasPermanentUpgrade(state: RunSpineState, upgradeId: PermanentUpgradeId): boolean {
   return state.permanentUpgrades.includes(upgradeId);
 }
@@ -871,6 +943,10 @@ export function createPermanentMemorySnapshot(state: RunSpineState, savedAt: num
     saveVersion: PERMANENT_MEMORY_SAVE_VERSION,
     permanentGrassTouches: normalizeNonNegativeInteger(state.economy.permanentGrassTouches, 0),
     permanentUpgrades: normalizePermanentUpgrades(state.permanentUpgrades),
+    permanentUpgradeRanks: normalizePermanentMemoryState(
+      state.permanentUpgrades,
+      state.permanentUpgradeRanks,
+    ).permanentUpgradeRanks,
     savedAt: normalizeNonNegativeInteger(savedAt, 0),
   };
 }
@@ -881,10 +957,12 @@ export function normalizePermanentMemorySnapshot(value: unknown): PermanentMemor
   }
 
   const rawUpgrades = Array.isArray(value.permanentUpgrades) ? value.permanentUpgrades.filter(isPermanentUpgradeId) : [];
+  const memory = normalizePermanentMemoryState(rawUpgrades, value.permanentUpgradeRanks);
   return {
     saveVersion: PERMANENT_MEMORY_SAVE_VERSION,
     permanentGrassTouches: normalizeNonNegativeInteger(value.permanentGrassTouches, 0),
-    permanentUpgrades: normalizePermanentUpgrades(rawUpgrades),
+    permanentUpgrades: memory.permanentUpgrades,
+    permanentUpgradeRanks: memory.permanentUpgradeRanks,
     savedAt: normalizeNonNegativeInteger(value.savedAt, 0),
   };
 }
@@ -912,6 +990,7 @@ export function createNextRunFromDormancy(state: RunSpineState, options: RunSpin
     ...options,
     permanentGrassTouches: state.economy.permanentGrassTouches,
     permanentUpgrades: options.permanentUpgrades ?? state.permanentUpgrades,
+    permanentUpgradeRanks: options.permanentUpgradeRanks ?? state.permanentUpgradeRanks,
   });
 }
 
@@ -1030,6 +1109,32 @@ function normalizeNonNegativeInteger(value: unknown, fallback: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function normalizePermanentMemoryState(
+  upgrades: PermanentUpgradeId[],
+  ranksValue: unknown,
+): { permanentUpgrades: PermanentUpgradeId[]; permanentUpgradeRanks: PermanentUpgradeRanks } {
+  const legacyUpgrades = new Set(normalizePermanentUpgrades(upgrades));
+  const rawRanks = isRecord(ranksValue) ? ranksValue : {};
+  const permanentUpgradeRanks: PermanentUpgradeRanks = {};
+  const permanentUpgrades: PermanentUpgradeId[] = [];
+
+  for (const upgradeId of Object.keys(PERMANENT_UPGRADE_DEFINITIONS) as PermanentUpgradeId[]) {
+    const fallbackRank = legacyUpgrades.has(upgradeId) ? 1 : 0;
+    const rank = clamp(
+      normalizeNonNegativeInteger(rawRanks[upgradeId], fallbackRank),
+      0,
+      getPermanentUpgradeMaxRank(upgradeId),
+    );
+    if (rank <= 0) {
+      continue;
+    }
+    permanentUpgradeRanks[upgradeId] = rank;
+    permanentUpgrades.push(upgradeId);
+  }
+
+  return { permanentUpgrades: permanentUpgrades.sort(), permanentUpgradeRanks };
 }
 
 function normalizePermanentUpgrades(upgrades: PermanentUpgradeId[]): PermanentUpgradeId[] {
