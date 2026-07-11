@@ -180,6 +180,7 @@ Acceptance:
 - The redesign route uses the Lucid track asset converted from `docs/lucid.aif` to `public/assets/music/lucid-field-theme.wav`.
 - Options pauses active-run drain, wound pressure, and automation timing while open, and it cannot remain layered over a dormancy transition.
 - Compact status/player/advisor panels stack without overlapping each other's readable content.
+- Public Open Graph/Twitter metadata names the Ancient Grass alpha, describes the Scourge/Memory loop, and references a checked-in current-canon preview asset rather than legacy title art.
 - The bare production URL launches the redesign as an honest public alpha without playtest controls and carries a dated Alpha Test browser/HUD identity. `?alpha` remains an alias, `?legacy` preserves the previous game, and existing legacy performance/stress harness query routes retain their old routing.
 - HP zero reliably enters dormancy once.
 - Dormancy payout uses effective healing, not unspent Run Touches. Current prototype tuning converts 5 effective HP into 1 permanent GT.
