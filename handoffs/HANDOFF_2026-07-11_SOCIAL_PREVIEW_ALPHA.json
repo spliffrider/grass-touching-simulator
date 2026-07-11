@@ -1,0 +1,69 @@
+{
+  "date": "2026-07-11",
+  "topic": "Ancient Grass alpha social and Discord preview",
+  "currentUserGoal": "Complete another compact post-launch slice that makes shared links represent the new Ancient Grass game instead of the obsolete clicker.",
+  "workCompleted": [
+    "Replaced legacy seed/companion crawler copy with the Ancient Grass survival, Scourge, and Memory loop.",
+    "Changed the static browser/crawler title to Grass Touching Simulator: Ancient Grass Alpha.",
+    "Added canonical URL, Open Graph site name/locale, image MIME type, exact dimensions, and image alt text.",
+    "Updated Twitter metadata to the same current-canon title, description, image, and alt text.",
+    "Promoted the approved Scourge announcement poster into public/og-ancient-grass-alpha.png without overwriting the old rollback asset.",
+    "Versioned the public preview URL as og-ancient-grass-alpha.png?v=20260711 for image-cache invalidation.",
+    "Changed the loading-shell copy from Growing your field to Waking the Ancient Grass.",
+    "Added regression tests for current-canon copy, the versioned image URL, exact image dimensions, asset existence, and rejection of legacy seed/companion text.",
+    "Committed, pushed, and deployed the social-preview slice to production."
+  ],
+  "filesChanged": [
+    "index.html",
+    "public/og-ancient-grass-alpha.png",
+    "tests/SocialMetadata.test.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-11_SOCIAL_PREVIEW_ALPHA.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "SHA-256 confirmed the public preview asset exactly matches the approved docs poster master.",
+    "Final npm run check passed: ESLint, 70 Vitest tests across eight files, TypeScript, and the Vite production build.",
+    "Local raw-HTML smoke found the alpha title, Scourge copy, and versioned image URL.",
+    "Local image smoke returned HTTP 200, image/png, and 2632569 bytes.",
+    "Vercel production inspection reported Ready.",
+    "Production raw-HTML smoke found the alpha title, Scourge copy, and versioned image URL while confirming the legacy seed/companion description was absent.",
+    "Production image smoke returned HTTP 200, image/png, and 2632569 bytes."
+  ],
+  "release": {
+    "branch": "master",
+    "gameCodeCommit": "9c3051e",
+    "gameCodeCommitMessage": "Update Ancient Grass social preview",
+    "liveDomain": "https://grasstouchingsimulator.com",
+    "deploymentId": "dpl_FJLjzGFeHPnQwtos6cLoj98Pe1LQ",
+    "deploymentUrl": "https://grass-touching-simulator-6fpg7ul15-sensitech.vercel.app",
+    "status": "Ready",
+    "socialImageUrl": "https://grasstouchingsimulator.com/og-ancient-grass-alpha.png?v=20260711"
+  },
+  "currentGitStatus": [
+    "Expected after committing and pushing this handoff: clean master aligned with origin/master.",
+    "The production metadata deployment is commit 9c3051e; the later handoff-only commit does not alter the built site."
+  ],
+  "knownIssues": [
+    "Discord may retain the old page preview for the bare root URL. Share https://grasstouchingsimulator.com/?alpha=20260711 once when a fresh cache key is needed; it still launches the public alpha.",
+    "The approved poster says COMING SOON because it advertises the broader Scourge Update; the surrounding crawler copy explicitly says the public alpha is live.",
+    "The social image is square. Discord displays it well, while Twitter uses the square-friendly summary card rather than summary_large_image.",
+    "Active-run state still does not persist across refresh.",
+    "Manual Vercel archive uploads remain oversized until a conservative .vercelignore is added."
+  ],
+  "nextRecommendedSteps": [
+    "Share the cache-busted alpha URL with the first Discord testers and collect reproducible gameplay feedback.",
+    "Capture the 390px multi-root Field Kit after natural first-run expansion.",
+    "Decide whether active-run persistence is the next player-facing alpha requirement.",
+    "Add a conservative .vercelignore for docs artifacts and machine-local output.",
+    "Create a dedicated wide PLAY THE ALPHA social card later if the square Scourge announcement poster becomes limiting."
+  ],
+  "doNotRevert": [
+    "Keep crawler copy centered on Ancient Grass survival, the Scourge, and Memory progression.",
+    "Keep social-image URLs versioned when replacing preview art.",
+    "Keep the old og-image.png only as a rollback asset, not as active metadata.",
+    "Keep the redesign alpha on the production root and the previous game behind ?legacy.",
+    "Keep the compact Options pause and non-overlapping phone HUD from the preceding hotfix."
+  ]
+}
