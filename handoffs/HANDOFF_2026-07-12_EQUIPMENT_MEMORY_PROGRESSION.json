@@ -1,0 +1,69 @@
+{
+  "date": "2026-07-12",
+  "topic": "Equipment discovery, dedicated license Memories, and tier scaling",
+  "currentUserGoal": "Hide the equipment window until Tiny Sprinkler is remembered, reveal every later helper only through its own Memory, place those Memories sensibly from early to late in the web, and make higher-tier helpers substantially stronger.",
+  "workCompleted": [
+    "Made Tiny Sprinkler Memory the gate for the entire Field Equipment window.",
+    "Changed the run UI to show only equipment whose dedicated license Memory is owned; locked helpers leave no empty visual rows or DOM purchase buttons.",
+    "Added Field Mouse Routes, Bee Support, Earthworm Recovery, Chicken Patrol, Sheep Grazing Loop, and Meadow Rabbit Circuit as sequential permanent Memories.",
+    "Expanded the Memory Web from eleven to seventeen functional nodes in a 1600x1100 logical world.",
+    "Reworked node positions after browser testing found Chicken and Field Satchel hitboxes overlapping.",
+    "Added tests that reject unrelated connector crossings, connector-through-node collisions, and overlapping interactive Memory cards.",
+    "Made the equipment rail grow with unlocked rows and compress safely between the HUD and prompt on shorter desktop viewports.",
+    "Kept compact equipment presentation in two columns and verified the full roster at 390x844.",
+    "Changed the accessible readable state to report only remembered equipment instead of spoiling every locked helper.",
+    "Widened first-purchase costs from 16 RT to 360 RT and healing per pulse from 2 HP to 40 HP across the seven tiers."
+  ],
+  "filesChanged": [
+    "src/game/redesign/FieldEquipmentCatalog.ts",
+    "src/game/redesign/MemoryTreeCatalog.ts",
+    "src/game/redesign/RedesignDomBridge.ts",
+    "src/game/redesign/RunSpineSystem.ts",
+    "src/game/scenes/RedesignPrototypeScene.ts",
+    "tests/FieldEquipmentCatalog.test.ts",
+    "tests/MemoryTreeCatalog.test.ts",
+    "tests/RunSpineSystem.test.ts",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/CORE_MECHANICS_IMPLEMENTATION_PLAN.md",
+    "handoffs/HANDOFF_2026-07-12_EQUIPMENT_MEMORY_PROGRESSION.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 84 Vitest tests across ten files, TypeScript, and the Vite production build.",
+    "Fresh browser save showed no Field Equipment panel, no equipment purchase buttons, and readable state 'Field equipment: not remembered'.",
+    "Tiny Sprinkler purchase path revealed exactly one equipment row on the next run.",
+    "Sequential browser purchases unlocked Field Mouse, Bee Hive, Earthworm, Chicken, Sheep, and Meadow Rabbit in prerequisite order.",
+    "Browser click verification confirmed Chicken Patrol buys Chicken Patrol after node spacing was corrected.",
+    "The full seven-row rail stayed below the HUD and above the prompt at 1280x720; the 390x844 layout reflowed to two columns.",
+    "Desktop and phone browser logs contained no errors or warnings.",
+    "The legacy 1,200-tile harness was run because AGENTS.md still required it, but its result is intentionally excluded from redesign validation because that URL routes to the previous GameScene."
+  ],
+  "release": {
+    "branch": "codex/equipment-memory-progression",
+    "status": "Local verified checkpoint; not merged, pushed, or deployed."
+  },
+  "currentGitStatus": [
+    "Expected after checkpoint commit: clean codex/equipment-memory-progression branch.",
+    "Local Vite server is running at http://127.0.0.1:5173/?playtest."
+  ],
+  "knownIssues": [
+    "The late equipment prices and output curve are intentionally broad first-pass values and still need normal-speed economy playtesting.",
+    "High-tier equipment can over-heal the current small HP pool; later vitality scaling and differentiated helper mechanics should make those tiers more meaningful.",
+    "The playtest overlay covers bottom content on phone layouts; it remains development-only and is absent from production.",
+    "There is no repeatable redesign-specific performance harness yet; performance-sensitive redesign work must profile the redesign route directly."
+  ],
+  "nextRecommendedSteps": [
+    "Play a normal-speed fresh progression loop and tune license costs against real GT income.",
+    "Give each equipment family a distinct mechanic instead of relying only on healing amount and cadence.",
+    "Add vitality and field-growth nodes that support late equipment output and larger run economies.",
+    "Build a small redesign-specific performance harness before the field or helper simulation grows large enough to need numeric regression gates.",
+    "Merge and deploy only after hands-on alpha approval."
+  ],
+  "doNotRevert": [
+    "Keep the equipment window completely absent before Tiny Sprinkler Memory.",
+    "Keep locked helper rows hidden rather than disabled or silhouetted.",
+    "Keep one dedicated license Memory per equipment family and preserve early-to-late prerequisite order.",
+    "Keep interactive Memory cards non-overlapping in addition to preserving non-crossing connectors.",
+    "Keep the desktop rail constrained between the HUD and bottom prompt."
+  ]
+}

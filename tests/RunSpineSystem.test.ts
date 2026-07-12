@@ -483,19 +483,27 @@ describe("RunSpineSystem", () => {
     expect(getDormancyGrassTouches(state)).toBe(0);
   });
 
-  it("buys later equipment with current-run RT after enough memories are owned", () => {
-    const state = createRunSpineState({
+  it("buys later equipment only after its dedicated memory is owned", () => {
+    const locked = createRunSpineState({
       currentHp: 80,
       maxHp: 100,
       permanentUpgrades: ["softTouch", "deeperRoots", "tinySprinkler"],
     });
-    state.economy.runTouches = 40;
+    locked.economy.runTouches = 60;
+    expect(buyFieldEquipment(locked, "beeHive")).toMatchObject({ bought: false, reason: "locked" });
+
+    const state = createRunSpineState({
+      currentHp: 80,
+      maxHp: 100,
+      permanentUpgrades: ["tinySprinkler", "fieldMouse", "beeHive"],
+    });
+    state.economy.runTouches = 60;
 
     const result = buyFieldEquipment(state, "beeHive");
 
     expect(result.bought).toBe(true);
-    expect(result.spent).toBe(30);
-    expect(result.remainingRunTouches).toBe(10);
+    expect(result.spent).toBe(48);
+    expect(result.remainingRunTouches).toBe(12);
     expect(state.automation.equipment.beeHive).toBe(1);
   });
 

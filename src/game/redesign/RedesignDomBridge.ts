@@ -465,6 +465,9 @@ export class RedesignDomBridge {
   }
 
   private renderReadableState(snapshot: RedesignDomSnapshot): void {
+    const rememberedEquipment = snapshot.fieldEquipmentButtons
+      .filter((equipment) => equipment.unlocked)
+      .map((equipment) => `${FIELD_EQUIPMENT[equipment.equipmentId].shortName} x${equipment.owned}`);
     this.readable.textContent = [
       "Grass Touching Simulator redesign DOM interface",
       `Phase: ${snapshot.phase}`,
@@ -475,7 +478,7 @@ export class RedesignDomBridge {
       `Total Run Touches earned: ${snapshot.totalRunTouchesEarned}`,
       `Permanent GT: ${snapshot.permanentGrassTouches}`,
       `Scourge pressure: ${snapshot.scourgePressure.toFixed(2)}`,
-      `Field equipment: ${snapshot.fieldEquipmentButtons.map((equipment) => `${FIELD_EQUIPMENT[equipment.equipmentId].shortName} x${equipment.owned}${equipment.unlocked ? "" : " locked"}`).join(", ")}`,
+      `Field equipment: ${rememberedEquipment.length > 0 ? rememberedEquipment.join(", ") : "not remembered"}`,
       `Scourge Sense: ${snapshot.scourgeSenseOwned ? "owned" : "locked"}`,
       `Last Stand: ${snapshot.lastStandOwned ? snapshot.lastStandAvailable ? "armed" : snapshot.lastStandUsed ? "spent" : "owned" : "locked"}`,
       `Last Stand triggered at: ${snapshot.lastStandTriggeredAt}`,

@@ -14,6 +14,12 @@ export type PermanentUpgradeId =
   | "deeperRoots"
   | "ancientResilience"
   | "tinySprinkler"
+  | "fieldMouse"
+  | "beeHive"
+  | "earthworm"
+  | "chicken"
+  | "sheep"
+  | "meadowRabbit"
   | "sprinklerTuning"
   | "fieldSatchel"
   | "scourgeSense"
@@ -300,6 +306,48 @@ export const PERMANENT_UPGRADE_DEFINITIONS: Record<PermanentUpgradeId, Permanent
     cost: 24,
     description: "Unlocks run-bought sprinkler automation",
     prerequisiteIds: ["softTouch"],
+  },
+  fieldMouse: {
+    id: "fieldMouse",
+    name: "Field Mouse Routes",
+    cost: 28,
+    description: "Unlocks run-bought Field Mouse helpers",
+    prerequisiteIds: ["tinySprinkler"],
+  },
+  beeHive: {
+    id: "beeHive",
+    name: "Bee Support",
+    cost: 40,
+    description: "Unlocks run-bought Bee Hive shifts",
+    prerequisiteIds: ["fieldMouse"],
+  },
+  earthworm: {
+    id: "earthworm",
+    name: "Earthworm Recovery",
+    cost: 58,
+    description: "Unlocks run-bought Earthworm crews",
+    prerequisiteIds: ["beeHive"],
+  },
+  chicken: {
+    id: "chicken",
+    name: "Chicken Patrol",
+    cost: 82,
+    description: "Unlocks run-bought Chicken patrols",
+    prerequisiteIds: ["earthworm"],
+  },
+  sheep: {
+    id: "sheep",
+    name: "Sheep Grazing Loop",
+    cost: 118,
+    description: "Unlocks run-bought Sheep grazing loops",
+    prerequisiteIds: ["chicken"],
+  },
+  meadowRabbit: {
+    id: "meadowRabbit",
+    name: "Meadow Rabbit Circuit",
+    cost: 165,
+    description: "Unlocks run-bought Meadow Rabbit circuits",
+    prerequisiteIds: ["sheep"],
   },
   sprinklerTuning: {
     id: "sprinklerTuning",

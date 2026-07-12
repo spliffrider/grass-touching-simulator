@@ -162,18 +162,18 @@ Acceptance:
 - Scourge pressure has visible warning/wound/collapse beats without changing drain, wound timing, wound selection, rewards, dormancy math, or root hitboxes.
 - Dew Pulse provides a first recast in-run tool: spend 22 Run Touches to heal Ancient HP immediately for 10 HP without minting replacement Run Touches.
 - The old run feed is hidden from the main play layout while retained as internal event history.
-- Run tools live in a separate icon-led Field Kit rail to the left of the playfield, not in the status HUD. Slots use stable dimensions, art, number/RT/count badges, and hover/focus details without overlapping objective, HP, currency, Scourge, or the field frame.
-- The Field Kit is rendered from a shared tool catalog as one vertical line with seven slots per page and automatic overflow paging. Responsive placement reserves the rail width plus a fixed gap and constrains the board width on narrow screens. The player starts with three equipped slots; the 30 GT Field Satchel Memory requires Tiny Sprinkler and adds three more.
-- Number keys `1` through `7` activate the matching visible slot on the current page. Hotkey order remains stable across affordability/condition changes and is mirrored through badge text, debug state, DOM datasets, and `aria-keyshortcuts`.
-- Field Satchel equips the fourth tool, Pocket Sunshine: spend 28 RT at 1.20+ Scourge pressure to reduce accumulated pressure by 0.35 without healing HP or adding dormancy payout.
-- Field Kit tools should be paced into the run instead of appearing at the start: Dew Pulse after enough RT is earned, Root Salve as a disabled stable slot after expansion and usable when wounded, and Tiny Sprinkler after license plus enough RT or owned sprinkler count.
+- Fresh runs without Tiny Sprinkler Memory reserve no equipment-rail space and expose no equipment purchase controls.
+- Tiny Sprinkler Memory reveals the Field Equipment window with only the sprinkler row; Field Mouse, Bee Hive, Earthworm, Chicken, Sheep, and Meadow Rabbit rows appear only after their dedicated license Memories.
+- The Field Equipment window grows without blank locked rows, uses a height-aware desktop rail, and uses a compact two-column layout on phones. It must not overlap the HUD, prompt, field frame, or playtest-free production viewport.
+- Each unlocked helper can be bought repeatedly with current-run RT, resets at dormancy, and contributes only effective healing to RT and permanent payout.
+- First-purchase cost and output must widen substantially by tier. Current endpoints are 16 RT / 2 HP for Tiny Sprinkler and 360 RT / 40 HP for Meadow Rabbit, with distinct pulse intervals and escalating repeat-purchase growth.
 - HP zero presents a full-screen Memory Grove game-over/meta screen instead of a small gameplay overlay.
 - The game-over/meta screen is a hard run-ending state: active run timers, wound pressure, and Tiny Sprinkler automation stop once dormancy begins.
 - The dormancy report is split into explicit run-over copy, a permanent GT reward line, conversion summary stats, lost Run Touches, and a visible next-run action hint.
 - Dormancy guidance detects whether any unlocked, unowned Memory is affordable. Low-GT runs say that GT is banked and allow an immediate next run instead of falsely requiring a purchase.
-- The meta screen separates run summary from a larger old-style hex-node Memory Skill Tree, shows a selected-memory detail panel, includes eleven functional memory nodes, gives post-purchase next-run feedback, and restarts only through the explicit `Begin Next Run` button.
+- The meta screen separates run summary from a larger old-style hex-node Memory Skill Tree, shows a selected-memory detail panel, includes seventeen functional memory nodes, gives post-purchase next-run feedback, and restarts only through the explicit `Begin Next Run` button.
 - The Memory Skill Tree is a masked, scalable viewport with bounded 60%-180% zoom, pointer-anchored wheel zoom, explicit minus/reset/plus controls, and drag-pan above 100%. Future skills can extend the catalog without turning the whole Grove into a tiny fixed diagram.
-- Memory node identity, branch presentation, icon, copy, and normalized position come from one shared catalog rendered in a fixed 720x450 logical world. Overview nodes show only icon and name; hover/focus moves the full explanation and enlarged animated icon into the detail presentation.
+- Memory node identity, branch presentation, icon, copy, and normalized position come from one shared catalog rendered in a 1600x1100 logical world. Overview nodes show only icon and name; hover/focus moves the full explanation and enlarged animated icon into the detail presentation. Tests reject connector crossings, connector-through-node collisions, and overlapping interactive cards.
 - The first second tier has real run effects: faster manual recovery, lower base drain, stronger sprinkler pulses, lower wound pressure, and a stronger Last Stand revival. Save version 1 remains compatible because the persistent schema already stores normalized upgrade ids.
 - Compact Memory Grove layouts keep tree node labels and hitboxes separated, move full skill information into the selected-memory panel, and preserve a large unobstructed next-run action.
 - `Begin Next Run` is visually dominant and gently animated while keeping a stable interactive area.
@@ -240,6 +240,7 @@ Gameplay:
   - Soft Touch: manual healing bonus.
   - Deeper Roots: max HP bonus.
   - Tiny Sprinkler License: implemented as the first automation unlock.
+  - Field Mouse Routes, Bee Support, Earthworm Recovery, Chicken Patrol, Sheep Grazing Loop, and Meadow Rabbit Circuit: sequential equipment licenses from early to late Automation depth.
   - Field Satchel: add three equipped Field Kit slots after Tiny Sprinkler.
   - Scourge Sense: early wound forecast.
   - Last Stand: one automatic revive per run.
@@ -477,17 +478,8 @@ Verification:
 
 - `npm run check`
 - Browser smoke on desktop and mobile-sized viewport.
-- `http://127.0.0.1:5173/?perfHarness&tiles=1200`
-- Compare:
-  - `visibleTiles`
-  - `layoutPasses`
-  - `redraws`
-  - `redrawQueued`
-  - `maxFrameDeltaMs`
-  - `frameSpikes`
-  - `displayObjects`
-  - `activeTweens`
-  - `hotspots`
+- Exercise the changed redesign systems through `?redesign&playtest` and check browser warnings/errors plus DOM/debug state.
+- Profile the redesign route directly before making performance claims. The existing `?perfHarness&tiles=1200` route selects the legacy game and is not redesign validation.
 
 Acceptance:
 

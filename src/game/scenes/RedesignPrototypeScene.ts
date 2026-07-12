@@ -40,6 +40,8 @@ import {
   getFieldEquipmentCost,
   getFieldEquipmentLockReason,
   getFieldTextureIndex,
+  getUnlockedFieldEquipmentIds,
+  isFieldEquipmentPanelUnlocked,
   isFieldEquipmentUnlocked,
   type FieldEquipmentId,
 } from "../redesign/FieldEquipmentCatalog";
@@ -1849,10 +1851,18 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     const introCalloutVisible = this.introActive && this.state.phase === "active" && !(sidePanelVisible || compactPanelsVisible);
     this.promptText.setVisible(!this.introActive);
     const activeFieldTopOffset = introCalloutVisible ? 252 : 236;
-    const equipmentSideRail = width >= 760 && height >= 600;
+    const equipmentPanelUnlocked = isFieldEquipmentPanelUnlocked(this.state.permanentUpgrades);
+    const unlockedEquipmentCount = getUnlockedFieldEquipmentIds(this.state.permanentUpgrades).length;
+    const compactEquipmentPanelHeight = Math.min(
+      COMPACT_EQUIPMENT_PANEL_HEIGHT,
+      111 + Math.max(0, Math.ceil(unlockedEquipmentCount / 2) - 1) * 43,
+    );
+    const equipmentSideRail = equipmentPanelUnlocked && width >= 760 && height >= 600;
     const fieldAreaTop = equipmentSideRail
       ? top + (compactPanelsVisible ? 326 : activeFieldTopOffset)
-      : top + hudPanelHeight + COMPACT_EQUIPMENT_PANEL_HEIGHT + 44;
+      : equipmentPanelUnlocked
+        ? top + hudPanelHeight + compactEquipmentPanelHeight + 44
+        : top + hudPanelHeight + 32;
     const fieldAreaBottom = promptY - 52;
     const availableFieldHeight = Math.max(230, fieldAreaBottom - fieldAreaTop);
     const maxGridSize = this.getMaxGridSize();
@@ -2256,14 +2266,33 @@ export class RedesignPrototypeScene extends Phaser.Scene {
     hudPanelHeight: number,
     fieldCenterX: number,
     gridSize: number,
-    availableFieldHeight: number,
+    _availableFieldHeight: number,
   ): void {
-    const visible = this.state.phase === "active" && !this.summaryPanel.visible;
+    const visibleEquipmentIds = getUnlockedFieldEquipmentIds(this.state.permanentUpgrades);
+    const visible =
+      this.state.phase === "active" &&
+      !this.summaryPanel.visible &&
+      isFieldEquipmentPanelUnlocked(this.state.permanentUpgrades);
     const panelWidth = sideRail ? FIELD_EQUIPMENT_PANEL_WIDTH : Math.min(370, this.scale.width - 28);
-    const panelHeight = sideRail ? Math.min(FIELD_EQUIPMENT_PANEL_HEIGHT, Math.max(360, availableFieldHeight + 76)) : COMPACT_EQUIPMENT_PANEL_HEIGHT;
+    const desiredSidePanelHeight = Math.min(
+      FIELD_EQUIPMENT_PANEL_HEIGHT,
+      132 + Math.max(0, visibleEquipmentIds.length - 1) * 48,
+    );
+    const sidePanelTopLimit = top + hudPanelHeight + 14;
+    const sidePanelBottomLimit = this.promptText.y - 50;
+    const maximumSidePanelHeight = Math.max(148, sidePanelBottomLimit - sidePanelTopLimit);
+    const panelHeight = sideRail
+      ? Math.min(desiredSidePanelHeight, maximumSidePanelHeight)
+      : Math.min(COMPACT_EQUIPMENT_PANEL_HEIGHT, 111 + Math.max(0, Math.ceil(visibleEquipmentIds.length / 2) - 1) * 43);
     const fieldPanelLeft = fieldCenterX - (gridSize + FIELD_PANEL_HORIZONTAL_PADDING) / 2;
     const panelX = sideRail ? fieldPanelLeft - FIELD_EQUIPMENT_PANEL_GAP - panelWidth / 2 : centerX;
-    const panelY = sideRail ? this.fieldCenterY : top + hudPanelHeight + panelHeight / 2 + 12;
+    const panelY = sideRail
+      ? Phaser.Math.Clamp(
+        this.fieldCenterY,
+        sidePanelTopLimit + panelHeight / 2,
+        sidePanelBottomLimit - panelHeight / 2,
+      )
+      : top + hudPanelHeight + panelHeight / 2 + 12;
     const panelLeft = panelX - panelWidth / 2;
     const panelTop = panelY - panelHeight / 2;
     this.fieldEquipmentPanel
@@ -2279,18 +2308,38 @@ export class RedesignPrototypeScene extends Phaser.Scene {
       .setFontSize(sideRail ? 11 : 9)
       .setPosition(panelLeft + (sideRail ? 20 : 16), panelTop + (sideRail ? 46 : 34));
 
-    FIELD_EQUIPMENT_IDS.forEach((equipmentId, index) => {
+    FIELD_EQUIPMENT_IDS.forEach((equipmentId) => {
+      const row = this.fieldEquipmentRows[equipmentId];
+      row.background.setVisible(false);
+      row.icon.setVisible(false);
+      row.name.setVisible(false);
+      row.status.setVisible(false);
+    });
+
+    visibleEquipmentIds.forEach((equipmentId, index) => {
       const row = this.fieldEquipmentRows[equipmentId];
       const croppedIconScale = FIELD_EQUIPMENT[equipmentId].iconCrop ? 1.65 : 1;
       if (sideRail) {
+        const rowGap = visibleEquipmentIds.length <= 1
+          ? 0
+          : Math.min(48, (panelHeight - 100) / (visibleEquipmentIds.length - 1));
+        const denseRows = rowGap > 0 && rowGap < 44;
         const rowX = panelX;
-        const rowY = panelTop + 84 + index * 48;
-        row.background.setPosition(rowX, rowY).setSize(panelWidth - 32, 42);
+        const rowY = panelTop + 78 + index * rowGap;
+        row.background
+          .setPosition(rowX, rowY)
+          .setSize(panelWidth - 32, denseRows ? Math.max(28, rowGap - 4) : 42);
         row.icon
           .setPosition(panelLeft + 38, rowY)
-          .setDisplaySize(34 * croppedIconScale, 34 * croppedIconScale);
-        row.name.setFontSize(12).setPosition(panelLeft + 64, rowY - 14).setOrigin(0, 0);
-        row.status.setFontSize(10).setPosition(panelLeft + 64, rowY + 4).setOrigin(0, 0);
+          .setDisplaySize((denseRows ? 24 : 34) * croppedIconScale, (denseRows ? 24 : 34) * croppedIconScale);
+        row.name
+          .setFontSize(denseRows ? 10 : 12)
+          .setPosition(panelLeft + 64, rowY - (denseRows ? 11 : 14))
+          .setOrigin(0, 0);
+        row.status
+          .setFontSize(denseRows ? 8 : 10)
+          .setPosition(panelLeft + 64, rowY + (denseRows ? 2 : 4))
+          .setOrigin(0, 0);
       } else {
         const columns = 2;
         const column = index % columns;

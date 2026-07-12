@@ -158,11 +158,11 @@ Current prototype notes:
 - Effective healing now has a presentational root-to-HP read: a small mote travels from the healed root to the Ancient HP bar and the bar flashes briefly. This does not change healing amounts, Run Touch rewards, or HP math.
 - Dew Pulse is the first recast in-run tool: it spends 22 Run Touches to heal the shared Ancient HP immediately for 10 HP, contributes effective healing through the tuned dormancy conversion, and does not mint replacement Run Touches. It is a tactical buy-time button, not automation yet.
 - Dew Pulse now has first-pass discoverability cues: when it becomes usable, its field-kit slot pulses, the internal event history logs readiness, the bottom prompt calls out the spend, and Sensi briefly claims the advisor panel with a "buy time" line. Browser debug state reports `promptText`, `objectiveText`, and `lastDewPulseReadyAt` so smoke checks can verify the cue.
-- Run tools now live in an icon-led `Field Kit` rail on the left side of the playfield instead of a row of text buttons inside the status HUD. Stable square slots use existing item art, compact RT cost badges, owned-count badges, hover/focus detail cards, and real DOM controls over the canvas.
-- The Field Kit is catalog-driven and prepared for a larger item roster: it is always one vertical icon line, holds seven numbered slots per page, and adds automatic previous/next paging for future overflow. The field-plus-rail group reserves a fixed gap and shrinks the board when necessary, so the rail never overlaps the field frame at desktop or phone widths.
-- Visible slots show stable keyboard badges. Number keys `1` through `7` activate the corresponding slot on the current page; current ordering is `1` Dew Pulse, `2` Root Salve, `3` Tiny Sprinkler, and `4` Pocket Sunshine. Modifier chords, held-key repeats, hidden tools, Options, and text/range inputs do not trigger tools.
-- Players begin with three equipped Field Kit slots. The 30 GT `Field Satchel` Memory requires Tiny Sprinkler and adds three slots, raising capacity to six; the current three tools fit the base kit so this first capacity gate becomes meaningful as later tools arrive.
-- `Pocket Sunshine` is the first Field-Satchel-only tool and the fourth catalog entry. It costs 28 RT, requires at least 1.20 accumulated Scourge pressure, pushes pressure back by a flat 0.35, and restores no HP or permanent payout. This makes the slot upgrade immediately useful without adding another economy.
+- The old Field Kit toolbar is not part of the current run surface. Automation now lives in a dedicated `Field Equipment` window to the left of the field, where unlocked helpers show their run-owned count and next RT purchase cost.
+- Fresh players see no equipment window. Remembering the 24 GT `Tiny Sprinkler` Memory reveals the window with exactly one sprinkler row; every later helper remains completely hidden until its own permanent license Memory is purchased.
+- The equipment window grows with discovery. Wide layouts use a height-aware vertical rail that stays between the HUD and prompt, while compact layouts reflow unlocked helpers into two columns. Hidden helpers leave no blank rows or invisible DOM purchase controls.
+- Equipment bought with RT is run-local and resets at dormancy. `Field Satchel` remains a permanent efficiency sidegrade that reduces all run equipment prices by 10% rather than revealing equipment on its own.
+- The seven equipment families now have a deliberately widening first-purchase curve: Sprinkler 16 RT / 2 HP, Field Mouse 28 RT / 3.5 HP, Bee Hive 48 RT / 6 HP, Earthworm 80 RT / 10 HP, Chicken 130 RT / 16 HP, Sheep 220 RT / 26 HP, and Meadow Rabbit 360 RT / 40 HP. Pulse intervals also differ, making late equipment many times stronger in healing throughput instead of near-reskins of the first tier.
 - The status HUD is shorter now that tools have moved out of it, keeping objective, HP, currencies, and Scourge pressure in dedicated lanes while returning more vertical space to the playfield.
 - Run tools are now introduced only when they matter: Dew Pulse stays hidden until the player has earned enough RT to understand the spend, Root Salve keeps a stable disabled slot after the first field expansion and becomes usable when a wound exists, and Tiny Sprinkler appears only after its Memory license and enough RT or an owned run sprinkler.
 - The run HUD and Memory Grove keep the Options button out of title/subtitle lanes. The redesign route also renders Phaser text at higher text resolution and stops forcing the canvas through CSS pixelated scaling so UI text stays more readable.
@@ -173,12 +173,12 @@ Current prototype notes:
 - HP collapse now presents a real game-over/meta screen: the active run loop stops, the playfield is replaced by a full-screen `Memory Grove`, the run report calls out that the run is over, the reward line shows permanent GT gained, and the skill tree is the main available action before the next run.
 - The Game Over report now spells out the current conversion: useful healing becomes permanent GT at 1 GT per 5 effective HP, while unspent Run Touches are lost.
 - Memory Grove guidance is affordability-aware. If no unlocked Memory can be purchased, the subtitle and footer explicitly say the current GT is banked and invite another run instead of instructing the player to spend currency they do not have.
-- The meta screen now uses a full-screen Memory Grove layout inspired by the original skill tree: a run summary column, a larger old-style hex-node Memory Skill Tree, a selected-memory detail panel, eleven functional memory nodes across five prototype lanes, and an explicit `Begin Next Run` button. Random screen clicks no longer restart the run.
+- The meta screen now uses a full-screen Memory Grove layout inspired by the original skill tree: a run summary column, a larger old-style hex-node Memory Skill Tree, a selected-memory detail panel, seventeen functional memory nodes across five prototype lanes, and an explicit `Begin Next Run` button. Random screen clicks no longer restart the run.
 - Locked Memory Grove nodes show their true total cost plus the remaining shortfall (`Cost X GT` / `Short Y GT`) so an upgrade cannot look purchasable merely because the player has the shortfall amount.
 - Memory Grove node hover/focus updates the selected-memory detail panel, including through the transparent DOM agent controls layered above the canvas. Locked and owned memory nodes remain hoverable/focusable for info even when they are not purchasable.
 - The selected Memory Grove node also shows a small in-tree callout with name, cost/status, and owned/shortfall state so the tree itself carries OG-style hover feedback instead of relying only on the side detail panel.
 - The Memory Skill Tree now lives inside a masked navigation viewport. Players can zoom from 60% to 180% with `-`, percentage-reset, and `+` controls or the mouse wheel, then drag-pan the tree while zoomed in. Zoom-at-pointer preserves the inspected branch, and pan is clamped so the tree cannot be lost offscreen.
-- Memory definitions and presentation now live in a shared data-driven catalog rather than scene switches. The first expandable catalog uses a fixed 720x450 logical world, small icon-and-name overview nodes, enlarged hover/detail presentation, and eleven connected nodes without unrelated connector crossings.
+- Memory definitions and presentation now live in a shared data-driven catalog rather than scene switches. The expandable catalog uses a 1600x1100 logical world, small icon-and-name overview nodes, enlarged hover/detail presentation, and seventeen connected nodes without unrelated connector crossings, connector-through-node collisions, or overlapping interactive cards.
 - The first second-tier memories are functional: `Fast Touch` shortens manual-root recovery by 20%, `Ancient Resilience` reduces base Scourge drain by 12%, `Sprinkler Tuning` adds 1 HP per sprinkler pulse, `Distributed Roots` reduces open-wound pressure by 25%, and `Emergency Photosynthesis` raises Last Stand recovery from 35% to 55% max HP.
 - The tree navigation controls and clipped node hitboxes are mirrored into the DOM agent layer. Nodes outside the visible viewport cannot leave invisible interactive regions over the run report or detail panel.
 - Compact Memory Grove layouts use smaller name-only nodes and a reorganized selected-memory panel; costs, effects, and flavor remain readable in that panel instead of colliding inside the overview. This is the mobile basis for a much larger future Memory catalog.
@@ -459,6 +459,9 @@ Example nodes:
 - Field Mouse Routes: unlock mouse automation.
 - Bee Support: unlock bee wound support.
 - Earthworm Recovery: unlock collapse recovery support.
+- Chicken Patrol: unlock hybrid chicken support.
+- Sheep Grazing Loop: unlock heavy grazing support.
+- Meadow Rabbit Circuit: unlock late-tier rapid restoration.
 - Automation Calibration: increase touches/min from all automation.
 - Split Systems: improve support automation separately from production automation.
 
@@ -547,8 +550,9 @@ Recommended roster mapping:
 
 Rules:
 
-- Meta tree unlocks each automation family.
+- Meta tree unlocks each automation family through a dedicated sequential license path: Tiny Sprinkler, Field Mouse, Bee Hive, Earthworm, Chicken, Sheep, then Meadow Rabbit.
 - During each run, unlocked automation can be bought with Run Touches.
+- Locked automation stays absent from the run equipment window rather than appearing as disabled spoilers.
 - Bought automation resets at dormancy.
 - Automation can contribute effective healing if it restores missing HP.
 - Automation should not create permanent Grass Touches through overheal by default.
@@ -711,8 +715,8 @@ Performance constraints:
 - Preserve viewport culling and dirty-tile redraws.
 - Keep Scourge drain global and cheap.
 - Keep automation updates staggered.
-- Run `npm run build` after implementation changes.
-- Use `?perfHarness&tiles=1200` before merging performance-sensitive systems.
+- Run `npm run check` after implementation changes.
+- Profile performance-sensitive systems on the redesign route itself. The existing `?perfHarness&tiles=1200` route is retained for the legacy game and must not be cited as redesign evidence.
 
 ## Test Scenarios
 

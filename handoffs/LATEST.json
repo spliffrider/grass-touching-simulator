@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-11",
-  "latestHandoff": "HANDOFF_2026-07-11_FIELD_EQUIPMENT_REDESIGN_PRODUCTION.json",
+  "updatedAt": "2026-07-12",
+  "latestHandoff": "HANDOFF_2026-07-12_EQUIPMENT_MEMORY_PROGRESSION.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

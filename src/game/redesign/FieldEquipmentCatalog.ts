@@ -19,8 +19,8 @@ export interface FieldEquipmentDefinition {
   costGrowth: number;
   pulseIntervalMs: number;
   healingPerUnit: number;
-  requiredMemoryCount: number;
-  requiredMemoryId?: string;
+  requiredMemoryId: string;
+  requiredMemoryName: string;
   projectileTint: number;
 }
 
@@ -49,8 +49,8 @@ export const FIELD_EQUIPMENT: Record<FieldEquipmentId, FieldEquipmentDefinition>
     costGrowth: 1.32,
     pulseIntervalMs: 2_400,
     healingPerUnit: 2,
-    requiredMemoryCount: 1,
     requiredMemoryId: "tinySprinkler",
+    requiredMemoryName: "Tiny Sprinkler",
     projectileTint: 0x9eeaff,
   },
   fieldMouse: {
@@ -60,11 +60,12 @@ export const FIELD_EQUIPMENT: Record<FieldEquipmentId, FieldEquipmentDefinition>
     description: "A quick courier carrying dew between the roots.",
     iconKey: "equipment-field-mouse",
     iconPath: "/assets/world/field-mouse.png",
-    baseCost: 22,
-    costGrowth: 1.34,
-    pulseIntervalMs: 2_050,
-    healingPerUnit: 1.25,
-    requiredMemoryCount: 2,
+    baseCost: 28,
+    costGrowth: 1.35,
+    pulseIntervalMs: 2_200,
+    healingPerUnit: 3.5,
+    requiredMemoryId: "fieldMouse",
+    requiredMemoryName: "Field Mouse Routes",
     projectileTint: 0xc7f4ff,
   },
   beeHive: {
@@ -74,11 +75,12 @@ export const FIELD_EQUIPMENT: Record<FieldEquipmentId, FieldEquipmentDefinition>
     description: "A pollination shift that delivers a richer healing pulse.",
     iconKey: "equipment-bee-hive",
     iconPath: "/assets/world/bee-hive.png",
-    baseCost: 30,
-    costGrowth: 1.36,
-    pulseIntervalMs: 3_100,
-    healingPerUnit: 3,
-    requiredMemoryCount: 3,
+    baseCost: 48,
+    costGrowth: 1.38,
+    pulseIntervalMs: 3_000,
+    healingPerUnit: 6,
+    requiredMemoryId: "beeHive",
+    requiredMemoryName: "Bee Support",
     projectileTint: 0xffe46b,
   },
   earthworm: {
@@ -88,11 +90,12 @@ export const FIELD_EQUIPMENT: Record<FieldEquipmentId, FieldEquipmentDefinition>
     description: "Quiet underground work sends a deep restorative surge upward.",
     iconKey: "equipment-earthworm",
     iconPath: "/assets/world/earthworm.png",
-    baseCost: 40,
-    costGrowth: 1.38,
+    baseCost: 80,
+    costGrowth: 1.41,
     pulseIntervalMs: 3_800,
-    healingPerUnit: 4.5,
-    requiredMemoryCount: 4,
+    healingPerUnit: 10,
+    requiredMemoryId: "earthworm",
+    requiredMemoryName: "Earthworm Recovery",
     projectileTint: 0xc7ff92,
   },
   chicken: {
@@ -102,11 +105,12 @@ export const FIELD_EQUIPMENT: Record<FieldEquipmentId, FieldEquipmentDefinition>
     description: "A busy patrol pecks loose dew into the root network.",
     iconKey: "equipment-chicken",
     iconPath: "/assets/world/chicken.png",
-    baseCost: 52,
-    costGrowth: 1.4,
-    pulseIntervalMs: 3_350,
-    healingPerUnit: 4,
-    requiredMemoryCount: 5,
+    baseCost: 130,
+    costGrowth: 1.44,
+    pulseIntervalMs: 3_200,
+    healingPerUnit: 16,
+    requiredMemoryId: "chicken",
+    requiredMemoryName: "Chicken Patrol",
     projectileTint: 0xffc98c,
   },
   sheep: {
@@ -116,11 +120,12 @@ export const FIELD_EQUIPMENT: Record<FieldEquipmentId, FieldEquipmentDefinition>
     description: "Broad grazing gathers a slow, heavy reserve of life.",
     iconKey: "equipment-sheep",
     iconPath: "/assets/world/sheep.png",
-    baseCost: 66,
-    costGrowth: 1.42,
+    baseCost: 220,
+    costGrowth: 1.47,
     pulseIntervalMs: 4_800,
-    healingPerUnit: 7,
-    requiredMemoryCount: 7,
+    healingPerUnit: 26,
+    requiredMemoryId: "sheep",
+    requiredMemoryName: "Sheep Grazing Loop",
     projectileTint: 0xf1f7d0,
   },
   meadowRabbit: {
@@ -130,11 +135,12 @@ export const FIELD_EQUIPMENT: Record<FieldEquipmentId, FieldEquipmentDefinition>
     description: "A late-run circuit that keeps restorative motes in motion.",
     iconKey: "equipment-meadow-rabbit",
     iconPath: "/assets/world/meadow-rabbit.png",
-    baseCost: 82,
-    costGrowth: 1.44,
-    pulseIntervalMs: 2_750,
-    healingPerUnit: 4.5,
-    requiredMemoryCount: 9,
+    baseCost: 360,
+    costGrowth: 1.5,
+    pulseIntervalMs: 2_900,
+    healingPerUnit: 40,
+    requiredMemoryId: "meadowRabbit",
+    requiredMemoryName: "Meadow Rabbit Circuit",
     projectileTint: 0xffd6ec,
   },
 };
@@ -150,19 +156,22 @@ export function getFieldEquipmentCost(id: FieldEquipmentId, owned: number, costM
 
 export function isFieldEquipmentUnlocked(id: FieldEquipmentId, permanentUpgrades: readonly string[]): boolean {
   const equipment = FIELD_EQUIPMENT[id];
-  if (equipment.requiredMemoryId && !permanentUpgrades.includes(equipment.requiredMemoryId)) {
-    return false;
-  }
-  return permanentUpgrades.length >= equipment.requiredMemoryCount;
+  return permanentUpgrades.includes(equipment.requiredMemoryId);
 }
 
 export function getFieldEquipmentLockReason(id: FieldEquipmentId, permanentUpgrades: readonly string[]): string {
   const equipment = FIELD_EQUIPMENT[id];
-  if (equipment.requiredMemoryId && !permanentUpgrades.includes(equipment.requiredMemoryId)) {
-    return "Remember Tiny Sprinkler";
-  }
-  const missing = Math.max(0, equipment.requiredMemoryCount - permanentUpgrades.length);
-  return missing > 0 ? `Need ${missing} more ${missing === 1 ? "memory" : "memories"}` : "Unlocked";
+  return permanentUpgrades.includes(equipment.requiredMemoryId)
+    ? "Unlocked"
+    : `Remember ${equipment.requiredMemoryName}`;
+}
+
+export function isFieldEquipmentPanelUnlocked(permanentUpgrades: readonly string[]): boolean {
+  return isFieldEquipmentUnlocked("tinySprinkler", permanentUpgrades);
+}
+
+export function getUnlockedFieldEquipmentIds(permanentUpgrades: readonly string[]): FieldEquipmentId[] {
+  return FIELD_EQUIPMENT_IDS.filter((id) => isFieldEquipmentUnlocked(id, permanentUpgrades));
 }
 
 export function getFieldTextureIndex(rootId: number, gridSize: number, textureCount: number): number {

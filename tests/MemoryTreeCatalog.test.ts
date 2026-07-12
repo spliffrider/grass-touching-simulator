@@ -120,9 +120,35 @@ describe("MemoryTreeCatalog", () => {
     expect(collisions).toEqual([]);
   });
 
+  it("keeps interactive memory cards from overlapping", () => {
+    const overlaps: string[] = [];
+    for (let firstIndex = 0; firstIndex < MEMORY_UPGRADE_IDS.length; firstIndex += 1) {
+      const firstId = MEMORY_UPGRADE_IDS[firstIndex];
+      const first = getMemoryTreeNodePoint(firstId);
+      for (let secondIndex = firstIndex + 1; secondIndex < MEMORY_UPGRADE_IDS.length; secondIndex += 1) {
+        const secondId = MEMORY_UPGRADE_IDS[secondIndex];
+        const second = getMemoryTreeNodePoint(secondId);
+        if (Math.abs(first.x - second.x) < 150 && Math.abs(first.y - second.y) < 150) {
+          overlaps.push(`${firstId} x ${secondId}`);
+        }
+      }
+    }
+
+    expect(overlaps).toEqual([]);
+  });
+
   it("starts from a central memory and leaves room for a larger web", () => {
-    expect(MEMORY_UPGRADE_VIEW.softTouch).toMatchObject({ x: 0.5, y: 0.5 });
+    expect(MEMORY_UPGRADE_VIEW.softTouch).toMatchObject({ x: 0.5, y: 0.45 });
     expect(MEMORY_TREE_WORLD_WIDTH).toBeGreaterThanOrEqual(1000);
     expect(MEMORY_TREE_WORLD_HEIGHT).toBeGreaterThanOrEqual(650);
+  });
+
+  it("paces equipment licenses from early helpers to late helpers", () => {
+    expect(PERMANENT_UPGRADE_DEFINITIONS.fieldMouse).toMatchObject({ cost: 28, prerequisiteIds: ["tinySprinkler"] });
+    expect(PERMANENT_UPGRADE_DEFINITIONS.beeHive.prerequisiteIds).toEqual(["fieldMouse"]);
+    expect(PERMANENT_UPGRADE_DEFINITIONS.earthworm.prerequisiteIds).toEqual(["beeHive"]);
+    expect(PERMANENT_UPGRADE_DEFINITIONS.chicken.prerequisiteIds).toEqual(["earthworm"]);
+    expect(PERMANENT_UPGRADE_DEFINITIONS.sheep.prerequisiteIds).toEqual(["chicken"]);
+    expect(PERMANENT_UPGRADE_DEFINITIONS.meadowRabbit).toMatchObject({ cost: 165, prerequisiteIds: ["sheep"] });
   });
 });

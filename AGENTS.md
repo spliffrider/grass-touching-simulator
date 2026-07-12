@@ -4,7 +4,8 @@ Grass Touching Simulator is a Phaser 3 browser game. Performance is a first-clas
 
 ## Performance Rules
 
-- Profile before optimizing. Prefer `?perf`, `?stress&perf&tiles=1200`, and the repeatable harness at `?perfHarness&tiles=1200`.
+- Treat the redesign and legacy game as separate performance surfaces. Query parameters such as `?perf`, `?stress`, and `?perfHarness` intentionally route to the legacy `GameScene`; they do not measure the Ancient Grass redesign.
+- Profile before optimizing. For redesign work, measure the redesign route directly and add redesign-specific timing/debug instrumentation when numeric evidence is needed. Use `?perfHarness&tiles=1200` only for changes that actually touch the legacy game.
 - Treat every-frame and every-tick work as suspicious until measured: `update`, regrowth, automation systems, UI refresh, save serialization, big-number formatting, tile layout, render-texture work, tweens, particles, and object creation/destruction.
 - Do not refactor hot paths blindly. Add or use timing markers first, then make targeted changes.
 - Keep ordinary tap/regrow/automation updates from forcing board layout or common-layer redraws.
@@ -15,19 +16,24 @@ Grass Touching Simulator is a Phaser 3 browser game. Performance is a first-clas
 
 ## Required Checks For Performance-Sensitive Changes
 
-Run:
+For all game changes, run:
 
 ```sh
-npm run build
+npm run check
 ```
 
-For browser perf checks, use:
+For redesign changes, test the actual redesign route on relevant desktop and phone viewports:
 
 ```text
-http://127.0.0.1:5173/?perfHarness&tiles=1200
+http://127.0.0.1:5173/?redesign&playtest
 ```
 
-Read:
+- Exercise the changed active-run and Memory Grove states.
+- Check browser errors and warnings.
+- Inspect the redesign DOM/debug snapshot for object state and visibility regressions.
+- For performance claims, profile the redesign itself or add a repeatable redesign harness first. Do not cite the legacy 1,200-tile harness as redesign evidence.
+
+Only for legacy `GameScene` performance changes, use `?perfHarness&tiles=1200`, read:
 
 ```js
 document.documentElement.dataset.grassPerfHarness
@@ -48,7 +54,7 @@ Compare at least these fields across phases:
 ## Reference Docs
 
 - `docs/PERFORMANCE_NOTES.md`: performance postmortems and guardrails.
-- `docs/PERFORMANCE_HARNESS.md`: harness usage and exported metrics.
+- `docs/PERFORMANCE_HARNESS.md`: legacy `GameScene` harness usage and exported metrics.
 - `docs/PROJECT_MANUAL.md`: project architecture and feature workflow.
 - `docs/REMOTE_MAC_MINI_SETUP.md`: SSH/GitHub/Vercel setup for the always-on Mac mini.
 - `docs/DESKTOP_MAC_SYNC_WORKFLOW.md`: daily desktop-to-Mac handoff and resume workflow.

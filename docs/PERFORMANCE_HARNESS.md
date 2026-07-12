@@ -1,6 +1,10 @@
-# Performance Harness
+# Legacy Performance Harness
 
-Use the in-game harness to collect repeatable browser performance samples without manual clicking.
+This harness measures the previous incremental game's `GameScene`. The route resolver intentionally sends `?perfHarness`, `?perf`, and `?stress` URLs to the legacy game.
+
+Do not use its tile, redraw, frame, or object metrics as evidence that the Ancient Grass redesign performs well. Redesign performance work must profile the redesign route directly until a dedicated redesign harness is implemented.
+
+Use this harness only to collect repeatable browser performance samples for legacy-game maintenance without manual clicking.
 
 ## Run
 
