@@ -18,6 +18,10 @@ import {
 } from "../ecosystem/EcosystemCatalog";
 import { EcosystemDomBridge, type EcosystemDomActions } from "../ecosystem/EcosystemDomBridge";
 import {
+  createEcosystemHeroTileTextures,
+  ECOSYSTEM_HERO_TILE_TEXTURE_KEYS,
+} from "../ecosystem/EcosystemHeroTextures";
+import {
   ECOSYSTEM_MEMORY_EDGES,
   ECOSYSTEM_MEMORY_ICON_ASSETS,
   ECOSYSTEM_MEMORY_NODES,
@@ -376,8 +380,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const params = new URLSearchParams(window.location.search);
     this.playtest = params.has("playtest");
     this.showDebugPanel = params.has("debugPanel");
+    createEcosystemHeroTileTextures(this);
     const pixelTextures = new Set([
       ...Object.values(TILE_VARIANTS).flat(),
+      ...Object.values(ECOSYSTEM_HERO_TILE_TEXTURE_KEYS),
       ...HELPER_IDS.map((helperId) => `eco-helper-${helperId}`),
       "eco-player",
       "eco-effect-water",
@@ -1430,7 +1436,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         const stage = this.state.field.stages[tileIndex] as TileStage;
         const image = this.tilePool[poolIndex];
         const variants = TILE_VARIANTS[stage];
-        image.setTexture(variants[(tileIndex * 17 + stage * 3) % variants.length]);
+        image.setTexture(singlePlot
+          ? ECOSYSTEM_HERO_TILE_TEXTURE_KEYS[stage]
+          : variants[(tileIndex * 17 + stage * 3) % variants.length]);
         const screenX = this.projection.originX + (x + 0.5) * this.projection.cellSize;
         const screenY = this.projection.originY + (y + 0.5) * this.projection.cellSize;
         image.setPosition(screenX, screenY).setDisplaySize(visualSize, visualSize).setVisible(true).setAlpha(0.94);

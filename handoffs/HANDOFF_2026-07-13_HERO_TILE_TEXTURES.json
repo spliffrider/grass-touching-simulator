@@ -1,0 +1,56 @@
+{
+  "date": "2026-07-13",
+  "topic": "High-detail hero plot texture tier",
+  "currentUserGoal": "Raise the visual resolution of the giant one-tile field so its close-up presentation no longer magnifies a 58x58 texture into visibly oversized blocks.",
+  "workCompleted": [
+    "Measured the existing field atlas and confirmed every normal tile texture is only 58x58 pixels while the authored one-tile plot displays at up to 420x420.",
+    "Added eight deterministic 256x256 procedural pixel-art surfaces, one for every ecosystem TileStage from Dormant through Rooted.",
+    "Authored stage-specific high-detail soil, stubble, grass tufts, clover, dew, wet patches, wildflowers, pollen, roots, moss, and mushrooms instead of applying a blurred upscale.",
+    "Added layered ground cover and irregular multi-blade tufts so the higher-resolution meadow remains dense and organic rather than sparse or uniformly patterned.",
+    "Switched only the single-plot near view to the new hero texture tier; expanded fields retain the compact 58x58 variants, tile pooling, chunk summaries, and existing LOD behavior.",
+    "Kept the generated surfaces cached for the life of the ecosystem scene, with no per-frame canvas work and no texture creation proportional to logical tile count.",
+    "Added contract tests covering all eight unique texture keys, the 256px hero size, deterministic unique seeds, positive detail density, and valid stage palettes."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemHeroTextures.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemHeroTextures.test.ts",
+    "handoffs/HANDOFF_2026-07-13_HERO_TILE_TEXTURES.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 108 Vitest tests across 15 files, TypeScript, and the Vite production build.",
+    "Browser visual verification passed for the one-tile field at 1280x720 desktop and 390x844 phone viewports.",
+    "The Wildflower Patch was observed live with individually readable pink, yellow, white, and blue flowers instead of the former magnified 58px blocks.",
+    "The redesign-specific 32x32 check reported 1,024 logical tiles, mid LOD, 16 rendered chunk views, zero full-field scans, zero frame spikes, and a 23.62ms recorded maximum frame delta during the sample.",
+    "No browser errors or warnings were reported."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "debugUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Local isolated prototype checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "Expected after checkpoint commit: hero texture implementation, tests, and this handoff are committed on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173."
+  ],
+  "knownIssues": [
+    "The procedural hero textures are an alpha art pass and can still be replaced or supplemented by authored bitmap tiles later without changing the texture-tier architecture.",
+    "The compact expanded-field atlas remains 58x58 by design; it is appropriate at normal tile sizes but should not be reused for future fullscreen tile inspections.",
+    "The developer debug panel overlaps the lower phone field area only on the explicit debugPanel route; it remains hidden on the normal player route."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on compare all eight tile stages during a natural first run and flag any palette or density that feels noisier than the others.",
+    "Polish the first Tiny Sprinkler unlock and its visible action so the first automation payoff matches the upgraded field surface.",
+    "Keep future close-up inspection art on the hero tier while preserving compact pooled textures for large fields."
+  ],
+  "doNotRevert": [
+    "Keep high-detail hero textures restricted to the one-tile presentation path.",
+    "Keep expanded fields on compact atlas textures and bounded tile or chunk display pools.",
+    "Do not replace this with a smooth or blurry resize of the old 58x58 texture.",
+    "Do not generate or resize textures every frame or once per logical tile.",
+    "Do not use the legacy 1200-tile harness as redesign evidence."
+  ]
+}
