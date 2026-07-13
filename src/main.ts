@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { resolveGameRoute } from "./game/routing/GameRoute";
 import { GameScene } from "./game/scenes/GameScene";
+import { EcosystemPrototypeScene } from "./game/scenes/EcosystemPrototypeScene";
 import { RedesignPrototypeScene } from "./game/scenes/RedesignPrototypeScene";
 import { TitleScene } from "./game/scenes/TitleScene";
 import "./style.css";
@@ -44,9 +45,12 @@ function syncViewportCss(viewport: ViewportSize): void {
 syncViewportCss(initialViewport);
 const bootStartedAt = performance.now();
 document.documentElement.dataset.grassBootStarted = `${Math.round(bootStartedAt)}`;
-const { publicAlphaRoute, useRedesignPrototype } = resolveGameRoute(window.location.search);
-if (useRedesignPrototype) {
+const { publicAlphaRoute, useRedesignPrototype, useEcosystemPrototype } = resolveGameRoute(window.location.search);
+if (useRedesignPrototype || useEcosystemPrototype) {
   document.documentElement.classList.add("grass-redesign-route");
+}
+if (useEcosystemPrototype) {
+  document.title = "Grass Touching Simulator: Ecosystem Prototype";
 }
 if (publicAlphaRoute) {
   document.documentElement.classList.add("grass-public-alpha-route");
@@ -75,11 +79,15 @@ const config: Phaser.Types.Core.GameConfig = {
     height: initialViewport.height,
   },
   render: {
-    pixelArt: !useRedesignPrototype,
-    antialias: useRedesignPrototype,
-    roundPixels: !useRedesignPrototype,
+    pixelArt: !(useRedesignPrototype || useEcosystemPrototype),
+    antialias: useRedesignPrototype || useEcosystemPrototype,
+    roundPixels: !(useRedesignPrototype || useEcosystemPrototype),
   },
-  scene: useRedesignPrototype ? [RedesignPrototypeScene] : [TitleScene, GameScene],
+  scene: useEcosystemPrototype
+    ? [EcosystemPrototypeScene]
+    : useRedesignPrototype
+      ? [RedesignPrototypeScene]
+      : [TitleScene, GameScene],
 };
 
 const game = new Phaser.Game(config);

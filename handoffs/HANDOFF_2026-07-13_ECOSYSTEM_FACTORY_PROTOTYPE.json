@@ -1,0 +1,86 @@
+{
+  "date": "2026-07-13",
+  "topic": "Ecosystem Works production-chain prototype and 10,000-tile field architecture",
+  "currentUserGoal": "Replace the short-run Scourge prototype with a production-chain survival loop that grows from one tile into saved multi-session fields, supports a real 100x100 logical grid, and remains isolated behind ?redesign&ecosystemPrototype until it is fun.",
+  "workCompleted": [
+    "Created docs/ECOSYSTEM_FACTORY_DESIGN.md as the durable mechanics, save, rendering, progression, and performance contract.",
+    "Added a deterministic fixed-tick economy covering Dew, Moisture, Growth, Flowers, Pollinated Blooms, Seeds, Clippings, Compost, Humus, Root Energy, and buffered Care.",
+    "Implemented natural fallback recipes, storage backpressure without waste, rising Scourge demand, HP deficit damage, bottleneck reporting, RT income, and exact run summaries.",
+    "Added all eight helpers with distinct recipes, escalating run-local prices, alternate permanent modes, and five-second mode reconfiguration pauses.",
+    "Added permanent helper/mode unlocks, 10-rank throughput/storage/efficiency Memories, five starting-stock ranks, field-size Memories, Broad Palm, Many Hands, and Field Embrace.",
+    "Implemented run-local Cultivation ranks and the 1x1, 2x2, 3x3, 5x5, 8x8, 12x12, 20x20, 32x32, 50x50, 75x75, and 100x100 field ladder.",
+    "Implemented compact Uint8 tile state, Uint16 per-chunk stage counts, dirty chunks, sparse wound storage, bounded production-stage updates, and centered field expansion.",
+    "Implemented deduplicated touch batches with the approved Broad Palm radius/power curves, random Many Hands targets, Field Embrace chunk waves, and a 24-impact visual cap.",
+    "Added versioned permanent and active-field saves with compact base64 tile data, exact reload, periodic/purchase/page-hide writes, and deliberately zero offline advancement.",
+    "Built a polished Phaser field view with varied production-stage textures, randomized tile motion, pan/zoom, near/mid/far LOD, helper actors, pooled projectiles, touch waves, and a Living Ledger.",
+    "Built a dedicated full-screen Ecosystem Works graph with stocks, rates, blocked buffers, helper purchases, and mode switching at quarter simulation speed.",
+    "Built a separate full-screen Memory Nursery after Game Over with paged permanent nodes, non-crossing connectors, run summary, and an animated Begin Next Run action.",
+    "Built an Options overlay that completely pauses simulation and controls the existing music/SFX settings.",
+    "Added an actionable semantic DOM bridge with coordinate touching, helper/factory/Memory controls, readable stocks and chunk summaries, and bounded playtest controls.",
+    "Added isolated route handling and redesign-specific 32x32, 50x50, and 100x100 harness output without touching the public alpha or legacy GameScene."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemSave.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/ecosystem/EcosystemViewport.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "src/game/routing/GameRoute.ts",
+    "src/main.ts",
+    "src/style.css",
+    "tests/EcosystemSave.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "tests/EcosystemViewport.test.ts",
+    "tests/GameRoute.test.ts",
+    "handoffs/HANDOFF_2026-07-13_ECOSYSTEM_FACTORY_PROTOTYPE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 103 Vitest tests across 13 files, TypeScript, and the Vite production build.",
+    "Deterministic tests cover matching seeded simulations, storage pausing without input loss, nonnegative/capacity-bounded resources, mode cooldowns, touch deduplication, exact rank curves, cultivation-gated expansion, 10,000 real tile states, first-run 60-120 second pacing, second-run multi-minute pacing, quarter-speed Works, complete Options pause, exact save/resume, and viewport mapping.",
+    "Browser verification passed at 1280x720 and 390x844 for the active field, Living Ledger, Ecosystem Works, Options, and Memory Nursery.",
+    "Desktop 100x100 harness: 10,000 logical tiles, far LOD, 100 rendered chunk views, zero rendered tile views, zero full-field production scans, 6.95 ms latest frame delta, 7.92 ms maximum observed delta, and zero spikes in the measured pass.",
+    "Phone harness: 32x32 rendered 16 chunk views; 50x50 rendered 25; 100x100 rendered 100. All reported zero full-field production scans and no observed frame spikes; the final 100x100 phone pass reported about 6.95 ms latest and 11.81 ms maximum frame delta.",
+    "Agent DOM controls successfully started a next run and opened Options; elapsed simulation remained exactly 250 ms throughout a 450 ms browser wait while Options was open.",
+    "A semantic helper purchase produced Tiny Sprinkler x1, measurable Moisture/Care rates, a visible animated helper actor, and updated readable state.",
+    "The existing ?redesign&playtest scene still booted nonblank and unchanged after the isolated route was added.",
+    "git diff --check passed; only the repository's existing Windows line-ending notices were printed."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "status": "Isolated local prototype checkpoint. It is not merged into master or promoted to the public alpha."
+  },
+  "currentGitStatus": [
+    "Expected after checkpoint commit: clean codex/ecosystem-factory-prototype branch.",
+    "The local Vite server is running on http://127.0.0.1:5173.",
+    "The browser prototype save was reset to a fresh one-tile Run 1 after verification."
+  ],
+  "knownIssues": [
+    "The full production graph is implemented but its mature-run economy is first-pass tuning; hands-on progression beyond the deterministic first two duration bands is still required.",
+    "Later bespoke Scourge disruptions are not designed yet; current Scourge pressure is the continuous Care-demand curve only.",
+    "The playtest control panel intentionally overlaps lower UI on small screens; it is absent without the playtest parameter.",
+    "Near-field pan/zoom and touch math have unit coverage, while prolonged hands-on navigation at every field tier still needs player testing.",
+    "Helper actions reuse the existing small effect assets and synthesized SFX; unique late-tier animation/audio identities remain a later polish phase.",
+    "The Memory Nursery is a functional paged node network, not the eventual enormous free-pan Memory web. Its progression data is structured so that view can grow independently."
+  ],
+  "nextRecommendedSteps": [
+    "Play a fresh no-debug Run 1, unlock Tiny Sprinkler with the earned five GT, and continue through Runs 2-5 while recording where decisions or resources become dull.",
+    "Tune helper costs, Care output, capacity, and Scourge ramps from those hands-on timings rather than adding more systems immediately.",
+    "Add one meaningful Scourge disruption only after the base bottleneck decisions are proven readable and enjoyable.",
+    "Design the next Memory clusters and the eventual free-pan web around observed production choices, not filler ranks.",
+    "Promote or merge only after hands-on approval; the public alpha and legacy game remain deliberately untouched."
+  ],
+  "doNotRevert": [
+    "Keep the prototype isolated behind ?redesign&ecosystemPrototype with its own saves and harnesses.",
+    "Do not cite or run the legacy 1,200-tile harness as evidence for this redesign.",
+    "Keep all 10,000 tiles as real compact logical state without creating 10,000 Phaser or DOM objects.",
+    "Keep production fixed-tick and aggregate; do not scan the full field during ordinary production frames.",
+    "Keep closed-game time inert: no resources, damage, or elapsed-time simulation while the page is closed.",
+    "Keep output-full recipes paused without consuming input and preserve natural fallback conversions.",
+    "Keep Game Over as a separate Memory Nursery state and keep helper/equipment rows hidden until their permanent Memory is owned.",
+    "Keep manual touch batches deduplicated and visual effects capped independently from the number of logical impacts."
+  ]
+}

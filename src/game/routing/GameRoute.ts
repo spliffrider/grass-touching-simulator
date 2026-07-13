@@ -1,6 +1,7 @@
 export interface GameRouteMode {
   publicAlphaRoute: boolean;
   useRedesignPrototype: boolean;
+  useEcosystemPrototype: boolean;
 }
 
 const REDESIGN_DEVELOPER_PARAMS = ["redesign", "newRun"] as const;
@@ -13,12 +14,14 @@ function hasAnyParam(params: URLSearchParams, names: readonly string[]): boolean
 export function resolveGameRoute(search: string): GameRouteMode {
   const params = new URLSearchParams(search);
   const forceLegacy = params.has("legacy");
+  const useEcosystemPrototype = !forceLegacy && params.has("ecosystemPrototype");
   const explicitPublicAlpha = params.has("alpha");
   const developerRedesignRoute = hasAnyParam(params, REDESIGN_DEVELOPER_PARAMS);
   const legacyHarnessRoute = hasAnyParam(params, LEGACY_HARNESS_PARAMS);
-  const useRedesignPrototype = !forceLegacy && (explicitPublicAlpha || developerRedesignRoute || !legacyHarnessRoute);
+  const useRedesignPrototype = !useEcosystemPrototype && !forceLegacy && (explicitPublicAlpha || developerRedesignRoute || !legacyHarnessRoute);
 
   return {
+    useEcosystemPrototype,
     useRedesignPrototype,
     publicAlphaRoute: useRedesignPrototype && !developerRedesignRoute,
   };
