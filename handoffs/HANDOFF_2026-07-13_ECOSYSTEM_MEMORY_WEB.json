@@ -1,0 +1,63 @@
+{
+  "date": "2026-07-13",
+  "topic": "Scalable Ecosystem Memory Web",
+  "currentUserGoal": "Continue the ecosystem redesign with a real, expandable skill tree after the user correctly called the former Memory Nursery placeholder too basic and asked where the skill tree had gone.",
+  "workCompleted": [
+    "Replaced the paged rectangular Memory Nursery offers with a dedicated 3600x1500 Memory Web containing 53 permanent-progression nodes.",
+    "Mapped the complete current progression model into the web: eight helper unlocks, four ranked helper tracks per helper, eight alternate modes, ten field-size memories, Broad Palm, Many Hands, and Field Embrace.",
+    "Arranged helper clusters around a horizontal production chain and added verified non-crossing branch geometry that can be extended into a much larger web.",
+    "Added compact overview icons, ranked pips, locked, ready, remembered, and selected node frames, colored branch connectors, and culling outside the visible tree viewport.",
+    "Added a large inspector card that follows hover selection and shows an enlarged animated icon, branch, explanation, current rank effect, cost, GT shortfall, and prerequisite text.",
+    "Added fit-to-world view, 1x through 8x zoom, cursor-centered mouse-wheel zoom, plus/minus controls, keyboard zoom, drag panning, and responsive desktop and phone layouts.",
+    "Wired every node directly to the existing permanent economy functions so displayed ownership, affordability, costs, rank effects, and purchases derive from the saved progression state.",
+    "Removed all obsolete offer-page state and hardened node dragging so a pan beginning on a purchasable node cannot accidentally buy it.",
+    "Added graph-contract tests for unique nodes, valid prerequisites and world bounds, and zero unrelated straight-line connector crossings."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemMemoryTree.test.ts",
+    "handoffs/HANDOFF_2026-07-13_ECOSYSTEM_MEMORY_WEB.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 106 Vitest tests across 14 files, TypeScript, and the Vite production build.",
+    "Browser verification passed on the redesign route at 1280x720 desktop and 390x844 phone viewports.",
+    "A real Tiny Sprinkler node purchase deducted 5 GT, changed the node to remembered, illuminated its local branches, and updated the inspector.",
+    "Fit view, plus-button zoom, hover preview, enlarged-icon animation, drag panning, and Begin Next Run were exercised in the browser.",
+    "The active one-tile field still rendered correctly after leaving Memory Grove on phone.",
+    "No browser errors or warnings were reported during the final desktop and phone passes."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "debugUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Local isolated prototype checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "Expected after checkpoint commit: the Memory Web files and this handoff are committed on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md appeared as an unrelated untracked file during the session and must remain untouched and uncommitted unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173."
+  ],
+  "knownIssues": [
+    "This is an alpha structural and interaction pass, not the final Memory Grove art treatment.",
+    "Fit view intentionally makes all 53 nodes small enough to show the whole current web; players zoom for labels and use the inspector for readable detail.",
+    "The visible debugPanel overlay covers the bottom of the phone inspector because it is a developer-only route; the normal player route does not show that overlay.",
+    "The web currently represents the full implemented permanent model, but later recipes and systems will need new authored clusters and intermediary nodes.",
+    "Fresh-page loading starts a new active run when no active-field save exists, so browser testing the Game Over view after a reload requires the debug Force Game Over action or a natural failure."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test a real fresh run through Game Over and judge whether the Memory Web now feels like a rewarding destination rather than a placeholder menu.",
+    "Polish the first Tiny Sprinkler unlock and the transition back into Run 2 so the first remembered branch produces an immediate field payoff.",
+    "Add subtle grove ambience and cluster labels only after confirming the current zoom, pan, hover, and purchase ergonomics feel right.",
+    "Expand the web alongside new ecosystem recipes instead of inventing disconnected filler nodes before their gameplay exists."
+  ],
+  "doNotRevert": [
+    "Keep the Memory Web data-driven and derive node state from the same permanent economy functions used by semantic controls.",
+    "Keep connector geometry non-crossing and extend the graph with tests when adding clusters.",
+    "Keep overview icons compact and move readable explanations into the animated inspector card.",
+    "Keep fit, zoom, pan, viewport culling, and phone composition as the foundation for the eventual large web.",
+    "Do not restore the old paged Memory Nursery offer buttons.",
+    "Do not treat these alpha visuals as final art and do not use the legacy 1200-tile harness as redesign evidence."
+  ]
+}

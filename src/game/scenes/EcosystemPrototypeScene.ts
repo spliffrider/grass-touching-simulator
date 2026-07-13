@@ -18,6 +18,15 @@ import {
 } from "../ecosystem/EcosystemCatalog";
 import { EcosystemDomBridge, type EcosystemDomActions } from "../ecosystem/EcosystemDomBridge";
 import {
+  ECOSYSTEM_MEMORY_EDGES,
+  ECOSYSTEM_MEMORY_ICON_ASSETS,
+  ECOSYSTEM_MEMORY_NODES,
+  ECOSYSTEM_MEMORY_NODE_BY_ID,
+  ECOSYSTEM_MEMORY_WORLD_HEIGHT,
+  ECOSYSTEM_MEMORY_WORLD_WIDTH,
+  type EcosystemMemoryNodeDefinition,
+} from "../ecosystem/EcosystemMemoryTree";
+import {
   clearActiveField,
   loadActiveField,
   loadPermanentEcosystemState,
@@ -147,12 +156,36 @@ interface HelperActorView {
   phase: number;
 }
 
-interface MemoryOffer {
-  label: string;
-  detail: string;
+interface MemoryNodeRuntime {
+  rank: number;
+  maxRank: number;
   cost: number;
+  complete: boolean;
+  unlocked: boolean;
   affordable: boolean;
   action: () => boolean;
+  status: string;
+  effect: string;
+  requirement: string;
+}
+
+interface MemoryNodeView {
+  definition: EcosystemMemoryNodeDefinition;
+  container: Phaser.GameObjects.Container;
+  hitArea: Phaser.GameObjects.Rectangle;
+  glow: Phaser.GameObjects.Arc;
+  frame: Phaser.GameObjects.Image;
+  icon: Phaser.GameObjects.Image;
+  title: Phaser.GameObjects.Text;
+  status: Phaser.GameObjects.Text;
+  rankPips: Phaser.GameObjects.Arc[];
+}
+
+interface MemoryTreeDragState {
+  pointerId: number;
+  lastX: number;
+  lastY: number;
+  moved: boolean;
 }
 
 interface DragState {
@@ -172,8 +205,15 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private showDebugPanel = false;
   private worksOpen = false;
   private optionsOpen = false;
-  private memoryPage = 0;
-  private memoryOffers: MemoryOffer[] = [];
+  private memoryTreeZoom = 1;
+  private memoryTreePanX = 0;
+  private memoryTreePanY = 0;
+  private memoryTreeFitScale = 1;
+  private memoryTreeViewport: FieldViewportBounds = { x: 0, y: 0, width: 1, height: 1 };
+  private memoryTreeDragState: MemoryTreeDragState | null = null;
+  private memoryTreeClickSuppressed = false;
+  private selectedMemoryNodeId = "helper:tinySprinkler:unlock";
+  private hoveredMemoryNodeId: string | null = null;
   private dragState: DragState | null = null;
   private saveElapsedMs = 0;
   private uiElapsedMs = 0;
@@ -260,9 +300,22 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private memorySubtitle!: Phaser.GameObjects.Text;
   private memorySummary!: Phaser.GameObjects.Text;
   private memoryDetail!: Phaser.GameObjects.Text;
-  private memoryOfferButtons: SceneButton[] = [];
-  private memoryPreviousButton!: SceneButton;
-  private memoryNextButton!: SceneButton;
+  private memoryCurrencyText!: Phaser.GameObjects.Text;
+  private memoryTreeTitle!: Phaser.GameObjects.Text;
+  private memoryTreeWorld!: Phaser.GameObjects.Container;
+  private memoryTreeLines!: Phaser.GameObjects.Graphics;
+  private memoryTreeMaskShape!: Phaser.GameObjects.Graphics;
+  private memoryNodeViews = new Map<string, MemoryNodeView>();
+  private memoryDetailTitle!: Phaser.GameObjects.Text;
+  private memoryDetailBranch!: Phaser.GameObjects.Text;
+  private memoryDetailStatus!: Phaser.GameObjects.Text;
+  private memoryDetailIconGlow!: Phaser.GameObjects.Arc;
+  private memoryDetailIconFrame!: Phaser.GameObjects.Image;
+  private memoryDetailIcon!: Phaser.GameObjects.Image;
+  private memoryZoomOutButton!: SceneButton;
+  private memoryZoomResetButton!: SceneButton;
+  private memoryZoomInButton!: SceneButton;
+  private memoryOptionsButton!: SceneButton;
   private beginNextRunButton!: SceneButton;
 
   private optionsChrome!: Phaser.GameObjects.Graphics;
@@ -311,6 +364,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.load.image("eco-effect-spore", "/assets/effects/magic-spore.png");
     this.load.image("eco-effect-grass", "/assets/tiles/grass-fleck.png");
     this.load.image("eco-player", "/assets/ui/characters/player-field-heir.png");
+    this.load.image("memory-node-locked", "/assets/ui/skill-node-locked.png");
+    this.load.image("memory-node-available", "/assets/ui/skill-node-available.png");
+    this.load.image("memory-node-owned", "/assets/ui/skill-node-owned.png");
+    this.load.image("memory-node-selected", "/assets/ui/skill-node-selected.png");
+    for (const asset of ECOSYSTEM_MEMORY_ICON_ASSETS) this.load.image(asset.key, asset.path);
     this.load.audio("eco-music", "/assets/music/lucid-field-theme.wav");
   }
 
@@ -327,6 +385,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       "eco-effect-pollen",
       "eco-effect-spore",
       "eco-effect-grass",
+      "memory-node-locked",
+      "memory-node-available",
+      "memory-node-owned",
+      "memory-node-selected",
+      ...ECOSYSTEM_MEMORY_ICON_ASSETS.map((asset) => asset.key),
     ]);
     for (const key of pixelTextures) this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
     this.permanent = loadPermanentEcosystemState();
@@ -359,7 +422,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.createDomBridge();
     this.bindInput();
     this.layout(this.scale.width, this.scale.height);
-    this.refreshMemoryOffers();
+    this.refreshMemoryTree();
     this.refreshUi(true);
     this.renderField(true);
     this.syncViewVisibility();
@@ -391,11 +454,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.audio.play("dormancy");
       clearActiveField();
       savePermanentEcosystemState(this.permanent);
-      this.refreshMemoryOffers();
+      this.refreshMemoryTree();
       this.syncViewVisibility();
     }
 
     this.animateLivingField(this.time.now);
+    this.animateMemoryTree(this.time.now);
     this.uiElapsedMs += delta;
     this.fieldRedrawElapsedMs += delta;
     this.saveElapsedMs += delta;
@@ -584,18 +648,89 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private createMemoryView(): void {
     this.memoryChrome = this.add.graphics();
-    this.memoryTitle = this.createText("Memory Nursery", 34, "#fff3c2", "bold");
+    this.memoryTreeMaskShape = this.add.graphics().setVisible(false);
+    this.memoryTreeWorld = this.add.container();
+    this.memoryTreeLines = this.add.graphics();
+    this.memoryTreeWorld.add(this.memoryTreeLines);
+    this.memoryTreeWorld.setMask(this.memoryTreeMaskShape.createGeometryMask());
+    this.memoryTitle = this.createText("Memory Grove", 34, "#fff3c2", "bold");
     this.memorySubtitle = this.createText("The field is still. Spend Grass Touches on what the next run remembers.", 14, "#b8d9a4");
     this.memorySummary = this.createText("", 13, "#e3f3d6");
-    this.memoryDetail = this.createText("Choose a Memory node to inspect and remember it.", 13, "#fff3c2");
-    this.memoryRoot.add([this.memoryChrome, this.memoryTitle, this.memorySubtitle, this.memorySummary, this.memoryDetail]);
-    for (let index = 0; index < 8; index += 1) {
-      const button = this.createButton(this.memoryRoot, "", () => this.buyMemoryOffer(index), 0x1b4f2c);
-      button.bg.on("pointerover", () => this.previewMemoryOffer(index));
-      this.memoryOfferButtons.push(button);
+    this.memoryCurrencyText = this.createText("", 15, "#ffe889", "bold");
+    this.memoryTreeTitle = this.createText("Memory Web", 20, "#fff3c2", "bold");
+    this.memoryDetailTitle = this.createText("", 24, "#fff3c2", "bold");
+    this.memoryDetailBranch = this.createText("", 12, "#8de7ff", "bold");
+    this.memoryDetail = this.createText("", 13, "#e3f3d6");
+    this.memoryDetailStatus = this.createText("", 13, "#ffe889", "bold");
+    this.memoryDetailIconGlow = this.add.circle(0, 0, 70, 0x8de7ff, 0.1).setStrokeStyle(2, 0x8de7ff, 0.45);
+    this.memoryDetailIconFrame = this.add.image(0, 0, "memory-node-selected").setOrigin(0.5);
+    this.memoryDetailIcon = this.add.image(0, 0, "eco-player").setOrigin(0.5);
+    this.memoryRoot.add([
+      this.memoryChrome,
+      this.memoryTreeWorld,
+      this.memoryTitle,
+      this.memorySubtitle,
+      this.memorySummary,
+      this.memoryCurrencyText,
+      this.memoryTreeTitle,
+      this.memoryDetailIconGlow,
+      this.memoryDetailIconFrame,
+      this.memoryDetailIcon,
+      this.memoryDetailTitle,
+      this.memoryDetailBranch,
+      this.memoryDetail,
+      this.memoryDetailStatus,
+    ]);
+
+    for (const definition of ECOSYSTEM_MEMORY_NODES) {
+      const container = this.add.container(definition.x, definition.y);
+      const hitArea = this.add.rectangle(0, 8, 138, 144, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
+      const glow = this.add.circle(0, 0, 56, definition.color, 0.08).setStrokeStyle(2, definition.color, 0.34);
+      const frame = this.add.image(0, 0, "memory-node-locked").setOrigin(0.5).setDisplaySize(88, 88);
+      const icon = this.add.image(0, 0, definition.iconKey).setOrigin(0.5).setDisplaySize(46, 46);
+      icon.setData("baseScaleX", icon.scaleX).setData("baseScaleY", icon.scaleY);
+      const title = this.createText(definition.label, 14, "#fff3c2", "bold").setOrigin(0.5, 0).setPosition(0, 54).setAlign("center");
+      const status = this.createText("", 10, "#b8d9a4", "bold").setOrigin(0.5, 0).setPosition(0, 76).setAlign("center");
+      const maxRank = this.getMemoryNodeMaxRank(definition);
+      const rankPips: Phaser.GameObjects.Arc[] = [];
+      if (maxRank > 1) {
+        for (let rank = 0; rank < maxRank; rank += 1) {
+          const pip = this.add.circle((rank - (maxRank - 1) / 2) * 8, 48, 2.7, 0x11261a, 0.95).setStrokeStyle(1, definition.color, 0.45);
+          rankPips.push(pip);
+        }
+      }
+      container.add([hitArea, glow, frame, icon, ...rankPips, title, status]);
+      this.memoryTreeWorld.add(container);
+      this.memoryNodeViews.set(definition.id, { definition, container, hitArea, glow, frame, icon, title, status, rankPips });
+
+      hitArea.on("pointerover", () => this.previewMemoryNode(definition.id));
+      hitArea.on("pointerout", () => this.stopPreviewingMemoryNode(definition.id));
+      hitArea.on("pointerdown", () => {
+        this.tweens.killTweensOf(icon);
+        this.tweens.add({
+          targets: icon,
+          scaleX: Number(icon.getData("baseScaleX")) * 0.92,
+          scaleY: Number(icon.getData("baseScaleY")) * 0.92,
+          duration: 70,
+        });
+      });
+      hitArea.on("pointerup", () => {
+        this.tweens.killTweensOf(icon);
+        this.tweens.add({
+          targets: icon,
+          scaleX: Number(icon.getData("baseScaleX")) * 1.14,
+          scaleY: Number(icon.getData("baseScaleY")) * 1.14,
+          duration: 120,
+          yoyo: true,
+          ease: "Back.easeOut",
+        });
+        if (!this.memoryTreeClickSuppressed) this.buyMemoryNode(definition.id);
+      });
     }
-    this.memoryPreviousButton = this.createButton(this.memoryRoot, "Previous", () => this.changeMemoryPage(-1));
-    this.memoryNextButton = this.createButton(this.memoryRoot, "Next", () => this.changeMemoryPage(1));
+    this.memoryZoomOutButton = this.createButton(this.memoryRoot, "-", () => this.adjustMemoryTreeZoom(1 / 1.35));
+    this.memoryZoomResetButton = this.createButton(this.memoryRoot, "Fit", () => this.resetMemoryTreeView());
+    this.memoryZoomInButton = this.createButton(this.memoryRoot, "+", () => this.adjustMemoryTreeZoom(1.35));
+    this.memoryOptionsButton = this.createButton(this.memoryRoot, "Options", () => this.toggleOptions());
     this.beginNextRunButton = this.createButton(this.memoryRoot, "Begin Next Run", () => this.beginNextRun(), 0x397a3f);
   }
 
@@ -629,7 +764,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         this.state.runTouches += 250;
         this.state.resources.growth.amount = this.state.resources.growth.capacity;
         this.persistAll();
-        this.refreshMemoryOffers();
+        this.refreshMemoryTree();
       },
       forceGameOver: () => {
         forceGameOver(this.state, this.permanent);
@@ -654,7 +789,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           this.state.resources[resourceId].amount = this.state.resources[resourceId].capacity * 0.72;
         }
         this.layout(this.scale.width, this.scale.height);
-        this.refreshMemoryOffers();
+        this.refreshMemoryTree();
         this.persistAll();
       },
       resetPrototypeSave: () => this.resetPrototypeSave(),
@@ -663,12 +798,34 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private bindInput(): void {
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (this.state.active || this.optionsOpen || !this.pointInMemoryTree(pointer.x, pointer.y)) return;
+      this.audio.unlock();
+      this.memoryTreeClickSuppressed = false;
+      this.memoryTreeDragState = { pointerId: pointer.id, lastX: pointer.x, lastY: pointer.y, moved: false };
+    });
     this.fieldSurface.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (!this.state.active || this.worksOpen || this.optionsOpen) return;
       this.audio.unlock();
       this.dragState = { pointerId: pointer.id, lastX: pointer.x, lastY: pointer.y, moved: false };
     });
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      if (this.memoryTreeDragState && pointer.id === this.memoryTreeDragState.pointerId && pointer.isDown) {
+        const dx = pointer.x - this.memoryTreeDragState.lastX;
+        const dy = pointer.y - this.memoryTreeDragState.lastY;
+        if (Math.abs(dx) + Math.abs(dy) > 3) {
+          this.memoryTreeDragState.moved = true;
+          this.memoryTreeClickSuppressed = true;
+        }
+        if (this.memoryTreeDragState.moved) {
+          this.memoryTreePanX += dx;
+          this.memoryTreePanY += dy;
+          this.applyMemoryTreeViewTransform();
+        }
+        this.memoryTreeDragState.lastX = pointer.x;
+        this.memoryTreeDragState.lastY = pointer.y;
+        return;
+      }
       if (!this.dragState || pointer.id !== this.dragState.pointerId || !pointer.isDown) return;
       const dx = pointer.x - this.dragState.lastX;
       const dy = pointer.y - this.dragState.lastY;
@@ -681,6 +838,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.dragState.lastY = pointer.y;
     });
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+      if (this.memoryTreeDragState && pointer.id === this.memoryTreeDragState.pointerId) {
+        this.memoryTreeDragState = null;
+        this.time.delayedCall(0, () => {
+          this.memoryTreeClickSuppressed = false;
+        });
+        return;
+      }
       if (!this.dragState || pointer.id !== this.dragState.pointerId) return;
       const moved = this.dragState.moved;
       this.dragState = null;
@@ -690,14 +854,18 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       }
     });
     this.input.on("wheel", (pointer: Phaser.Input.Pointer, _objects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
+      if (!this.state.active && !this.optionsOpen && this.pointInMemoryTree(pointer.x, pointer.y)) {
+        this.adjustMemoryTreeZoom(deltaY > 0 ? 1 / 1.22 : 1.22, pointer.x, pointer.y);
+        return;
+      }
       if (!this.state.active || this.worksOpen || this.optionsOpen || this.state.field.stages.length === 1 || !this.pointInField(pointer.x, pointer.y)) return;
       const factor = deltaY > 0 ? 0.82 : 1.22;
       this.fieldView = zoomFieldAtPoint(this.fieldView, this.projection, pointer.x, pointer.y, factor);
       this.renderField(true);
     });
-    this.input.keyboard?.on("keydown-PLUS", () => this.adjustFieldZoom(1.28));
-    this.input.keyboard?.on("keydown-MINUS", () => this.adjustFieldZoom(0.78));
-    this.input.keyboard?.on("keydown-ZERO", () => this.resetFieldView());
+    this.input.keyboard?.on("keydown-PLUS", () => this.state.active ? this.adjustFieldZoom(1.28) : this.adjustMemoryTreeZoom(1.35));
+    this.input.keyboard?.on("keydown-MINUS", () => this.state.active ? this.adjustFieldZoom(0.78) : this.adjustMemoryTreeZoom(1 / 1.35));
+    this.input.keyboard?.on("keydown-ZERO", () => this.state.active ? this.resetFieldView() : this.resetMemoryTreeView());
   }
 
   private layout(width: number, height: number): void {
@@ -958,50 +1126,122 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private layoutMemory(width: number, height: number, mobile: boolean): void {
     this.memoryChrome.clear();
-    this.memoryChrome.fillStyle(0x071c11, 0.985).fillRect(0, 0, width, height);
-    this.memoryChrome.lineStyle(3, 0xd8b66a, 0.9).strokeRect(8, 8, width - 16, height - 16);
-    this.memoryTitle.setFontSize(mobile ? 27 : 36).setOrigin(0.5, 0).setPosition(width / 2, 18);
-    this.memorySubtitle.setFontSize(mobile ? 10 : 14).setOrigin(0.5, 0).setPosition(width / 2, mobile ? 54 : 62).setWordWrapWidth(width - 40).setAlign("center");
-    const summaryWidth = mobile ? width - 32 : Math.min(290, width * 0.25);
-    const summaryX = mobile ? 16 : 28;
-    const summaryY = mobile ? 86 : 106;
-    const summaryHeight = mobile ? 112 : height - 178;
-    this.drawPanel(this.memoryChrome, summaryX, summaryY, summaryWidth, summaryHeight, 0.82);
-    this.memorySummary.setFontSize(mobile ? 10 : 13).setPosition(summaryX + 14, summaryY + 12).setWordWrapWidth(summaryWidth - 28);
-    const offersX = mobile ? 16 : summaryX + summaryWidth + 18;
-    const offersY = mobile ? summaryY + summaryHeight + 12 : summaryY;
-    const offersWidth = mobile ? width - 32 : width - offersX - 28;
-    const offersHeight = mobile ? height - offersY - 112 : height - offersY - 86;
-    this.drawPanel(this.memoryChrome, offersX, offersY, offersWidth, offersHeight, 0.78);
-    const columns = 2;
-    const rows = 4;
-    const gap = mobile ? 7 : 12;
-    const detailHeight = mobile ? 42 : 62;
-    const buttonWidth = (offersWidth - 28 - gap) / columns;
-    const buttonHeight = Math.max(42, (offersHeight - 34 - detailHeight - gap * (rows - 1)) / rows);
-    for (let index = 0; index < this.memoryOfferButtons.length; index += 1) {
-      const column = index % columns;
-      const row = Math.floor(index / columns);
-      const x = offersX + 14 + column * (buttonWidth + gap);
-      const y = offersY + 14 + row * (buttonHeight + gap);
-      this.memoryOfferButtons[index].setPosition(x, y).setSize(buttonWidth, buttonHeight);
-      this.memoryOfferButtons[index].label.setFontSize(mobile ? 9 : 11).setWordWrapWidth(buttonWidth - 12);
+    this.memoryChrome.fillStyle(0x04130c, 0.975).fillRect(0, 0, width, height);
+    this.memoryChrome.lineStyle(3, 0xd8b66a, 0.92).strokeRect(8, 8, width - 16, height - 16);
+    this.memoryChrome.lineStyle(1, 0x77a65d, 0.28).strokeRect(14, 14, width - 28, height - 28);
+    const contentWidth = mobile ? width - 16 : Math.min(1760, width - 32);
+    const contentX = (width - contentWidth) / 2;
+    this.memoryTitle.setFontSize(mobile ? 25 : 38).setOrigin(0.5, 0).setPosition(width / 2, mobile ? 12 : 16);
+    this.memorySubtitle
+      .setFontSize(mobile ? 10 : 13)
+      .setOrigin(0.5, 0)
+      .setPosition(width / 2, mobile ? 45 : 60)
+      .setWordWrapWidth(mobile ? width - 126 : width - 360)
+      .setAlign("center");
+    this.memoryCurrencyText.setFontSize(mobile ? 11 : 15).setOrigin(0, 0).setPosition(contentX + 16, mobile ? 58 : 38);
+    this.memoryOptionsButton
+      .setPosition(contentX + contentWidth - (mobile ? 88 : 104), mobile ? 16 : 24)
+      .setSize(mobile ? 78 : 88, mobile ? 28 : 34);
+
+    let treePanelX: number;
+    let treePanelY: number;
+    let treePanelWidth: number;
+    let treePanelHeight: number;
+    let detailX: number;
+    let detailY: number;
+    let detailWidth: number;
+    let detailHeight: number;
+    if (mobile) {
+      treePanelX = 10;
+      treePanelY = 82;
+      treePanelWidth = width - 20;
+      treePanelHeight = Math.min(450, Math.max(330, height * 0.52));
+      detailX = 10;
+      detailY = treePanelY + treePanelHeight + 8;
+      detailWidth = width - 20;
+      detailHeight = Math.max(170, height - detailY - 76);
+      this.drawPanel(this.memoryChrome, treePanelX, treePanelY, treePanelWidth, treePanelHeight, 0.82);
+      this.drawPanel(this.memoryChrome, detailX, detailY, detailWidth, detailHeight, 0.9);
+      this.memorySummary.setVisible(false);
+    } else {
+      const mainY = 94;
+      const mainHeight = height - mainY - 86;
+      const gap = 14;
+      const summaryWidth = Phaser.Math.Clamp(contentWidth * 0.19, 230, 286);
+      detailWidth = Phaser.Math.Clamp(contentWidth * 0.21, 270, 324);
+      treePanelX = contentX + summaryWidth + gap;
+      treePanelY = mainY;
+      treePanelWidth = contentWidth - summaryWidth - detailWidth - gap * 2;
+      treePanelHeight = mainHeight;
+      detailX = treePanelX + treePanelWidth + gap;
+      detailY = mainY;
+      detailHeight = mainHeight;
+      this.drawPanel(this.memoryChrome, contentX, mainY, summaryWidth, mainHeight, 0.9);
+      this.drawPanel(this.memoryChrome, treePanelX, treePanelY, treePanelWidth, treePanelHeight, 0.78);
+      this.drawPanel(this.memoryChrome, detailX, detailY, detailWidth, detailHeight, 0.9);
+      this.memorySummary
+        .setVisible(true)
+        .setFontSize(12)
+        .setPosition(contentX + 18, mainY + 20)
+        .setWordWrapWidth(summaryWidth - 36);
     }
-    this.memoryDetail.setFontSize(mobile ? 10 : 12).setPosition(offersX + 16, offersY + offersHeight - detailHeight).setWordWrapWidth(offersWidth - 32);
-    this.memoryPreviousButton.setPosition(offersX, height - 64).setSize(mobile ? 72 : 100, 34);
-    this.memoryNextButton.setPosition(offersX + (mobile ? 78 : 108), height - 64).setSize(mobile ? 72 : 100, 34);
-    this.beginNextRunButton.setPosition(width - (mobile ? 174 : 264), height - 72).setSize(mobile ? 158 : 236, 46);
-    this.memoryChrome.lineStyle(2, 0xd8b66a, 0.34);
-    const spineX = offersX + offersWidth / 2;
-    const spineTop = this.memoryOfferButtons[0].container.y + this.memoryOfferButtons[0].height / 2;
-    const spineBottom = this.memoryOfferButtons[6].container.y + this.memoryOfferButtons[6].height / 2;
-    this.memoryChrome.lineBetween(spineX, spineTop, spineX, spineBottom);
-    for (let row = 0; row < 4; row += 1) {
-      const left = this.memoryOfferButtons[row * 2];
-      const right = this.memoryOfferButtons[row * 2 + 1];
-      const rowY = left.container.y + left.height / 2;
-      this.memoryChrome.lineBetween(left.container.x + left.width, rowY, right.container.x, rowY);
+
+    this.memoryTreeTitle
+      .setFontSize(mobile ? 16 : 21)
+      .setPosition(treePanelX + 18, treePanelY + (mobile ? 13 : 16));
+    const zoomY = treePanelY + (mobile ? 9 : 13);
+    const zoomInX = treePanelX + treePanelWidth - 40;
+    const zoomResetX = zoomInX - (mobile ? 48 : 58);
+    const zoomOutX = zoomResetX - (mobile ? 36 : 42);
+    this.memoryZoomOutButton.setPosition(zoomOutX, zoomY).setSize(mobile ? 30 : 34, mobile ? 26 : 30);
+    this.memoryZoomResetButton.setPosition(zoomResetX, zoomY).setSize(mobile ? 44 : 52, mobile ? 26 : 30);
+    this.memoryZoomInButton.setPosition(zoomInX, zoomY).setSize(mobile ? 30 : 34, mobile ? 26 : 30);
+    this.memoryTreeViewport = {
+      x: treePanelX + 10,
+      y: treePanelY + (mobile ? 48 : 58),
+      width: treePanelWidth - 20,
+      height: treePanelHeight - (mobile ? 58 : 70),
+    };
+    this.memoryTreeMaskShape.clear().fillStyle(0xffffff, 1).fillRect(
+      this.memoryTreeViewport.x,
+      this.memoryTreeViewport.y,
+      this.memoryTreeViewport.width,
+      this.memoryTreeViewport.height,
+    );
+    this.memoryTreeFitScale = Math.min(
+      this.memoryTreeViewport.width / ECOSYSTEM_MEMORY_WORLD_WIDTH,
+      this.memoryTreeViewport.height / ECOSYSTEM_MEMORY_WORLD_HEIGHT,
+    ) * 0.94;
+
+    if (mobile) {
+      const iconX = detailX + 58;
+      const iconY = detailY + 58;
+      this.memoryDetailIconGlow.setPosition(iconX, iconY).setRadius(43);
+      this.memoryDetailIconFrame.setPosition(iconX, iconY).setDisplaySize(76, 76);
+      this.memoryDetailIcon.setPosition(iconX, iconY).setDisplaySize(40, 40);
+      this.memoryDetailTitle.setFontSize(18).setPosition(detailX + 108, detailY + 18).setWordWrapWidth(detailWidth - 122);
+      this.memoryDetailBranch.setPosition(detailX + 108, detailY + 48).setWordWrapWidth(detailWidth - 122);
+      this.memoryDetail.setFontSize(10).setPosition(detailX + 18, detailY + 108).setWordWrapWidth(detailWidth - 36);
+      this.memoryDetailStatus.setFontSize(10).setPosition(detailX + 18, detailY + detailHeight - 42).setWordWrapWidth(detailWidth - 36);
+    } else {
+      const iconX = detailX + detailWidth / 2;
+      const iconY = detailY + 112;
+      this.memoryDetailIconGlow.setPosition(iconX, iconY).setRadius(66);
+      this.memoryDetailIconFrame.setPosition(iconX, iconY).setDisplaySize(112, 112);
+      this.memoryDetailIcon.setPosition(iconX, iconY).setDisplaySize(58, 58);
+      this.memoryDetailTitle.setFontSize(23).setPosition(detailX + 20, detailY + 194).setWordWrapWidth(detailWidth - 40);
+      this.memoryDetailBranch.setPosition(detailX + 20, detailY + 230).setWordWrapWidth(detailWidth - 40);
+      this.memoryDetail.setFontSize(12).setPosition(detailX + 20, detailY + 268).setWordWrapWidth(detailWidth - 40);
+      this.memoryDetailStatus.setFontSize(12).setPosition(detailX + 20, detailY + detailHeight - 76).setWordWrapWidth(detailWidth - 40);
     }
+    this.memoryDetailIcon
+      .setData("baseScaleX", this.memoryDetailIcon.scaleX)
+      .setData("baseScaleY", this.memoryDetailIcon.scaleY);
+
+    this.beginNextRunButton
+      .setPosition(width / 2 - (mobile ? 176 : 150), height - (mobile ? 64 : 70))
+      .setSize(mobile ? 352 : 300, mobile ? 50 : 52);
+    this.applyMemoryTreeViewTransform();
   }
 
   private layoutOptions(width: number, height: number, mobile: boolean): void {
@@ -1135,7 +1375,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           `Available GT: ${this.permanent.grassTouches.toFixed(0)}`,
         ].join("\n")
         : `Available GT: ${this.permanent.grassTouches.toFixed(0)}`);
-      this.updateMemoryOfferButtons();
+      if (force) this.refreshMemoryTree();
     }
     this.beginNextRunButton.container.setScale(1 + Math.sin(this.time.now * 0.004) * 0.018);
     this.domBridge?.update(this.state, this.permanent, this.worksOpen, this.optionsOpen);
@@ -1517,7 +1757,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     if (this.state.active) return;
     this.state = createNextEcosystemRun(this.permanent);
     this.lastGameOverState = false;
-    this.memoryPage = 0;
     this.fieldView = { centerX: 0.5, centerY: 0.5, zoom: 1 };
     this.audio.play("milestone");
     this.layout(this.scale.width, this.scale.height);
@@ -1532,158 +1771,395 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     if (action()) {
       this.audio.play("unlock");
       savePermanentEcosystemState(this.permanent);
-      this.refreshMemoryOffers();
       this.layout(this.scale.width, this.scale.height);
+      this.refreshMemoryTree();
       this.refreshUi(true);
     } else {
       this.audio.play("blocked");
     }
   }
 
-  private refreshMemoryOffers(): void {
-    const offers: MemoryOffer[] = [];
-    const nextHelper = HELPER_IDS.find((helperId) => {
-      if (this.permanent.unlockedHelpers[helperId]) return false;
+  private getMemoryNodeMaxRank(definition: EcosystemMemoryNodeDefinition): number {
+    if (definition.kind === "helperRank") return definition.rankKind === "startingStock" ? 5 : 10;
+    if (definition.kind === "fieldTier") return FIELD_SIZE_LADDER.length - 1;
+    if (definition.kind === "touchRank") return 10;
+    return 1;
+  }
+
+  private getHelperMemoryRank(helperId: HelperId, kind: PermanentRankKind): number {
+    if (kind === "throughput") return this.permanent.throughputRanks[helperId];
+    if (kind === "storage") return this.permanent.storageRanks[helperId];
+    if (kind === "efficiency") return this.permanent.efficiencyRanks[helperId];
+    return this.permanent.startingStockRanks[helperId];
+  }
+
+  private getMemoryNodeRuntime(definition: EcosystemMemoryNodeDefinition): MemoryNodeRuntime {
+    const availableGt = this.permanent.grassTouches;
+    if (definition.kind === "root") {
+      return {
+        rank: 1,
+        maxRank: 1,
+        cost: 0,
+        complete: true,
+        unlocked: true,
+        affordable: false,
+        action: () => false,
+        status: "Origin remembered",
+        effect: "The permanent Memory Web is awake.",
+        requirement: "",
+      };
+    }
+
+    if (definition.kind === "helperUnlock") {
+      const helperId = definition.helperId!;
+      const complete = this.permanent.unlockedHelpers[helperId];
       const prerequisite = HELPERS[helperId].unlockRequires;
-      return !prerequisite || this.permanent.unlockedHelpers[prerequisite];
-    });
-    if (nextHelper) {
-      const cost = getHelperUnlockCost(nextHelper);
-      offers.push({
-        label: `Awaken ${HELPERS[nextHelper].label}\n${cost} GT`,
-        detail: `Reveals ${HELPERS[nextHelper].label} in the Living Ledger and adds its recipes to Ecosystem Works.`,
+      const unlocked = !prerequisite || this.permanent.unlockedHelpers[prerequisite];
+      const cost = getHelperUnlockCost(helperId);
+      return {
+        rank: complete ? 1 : 0,
+        maxRank: 1,
         cost,
-        affordable: this.permanent.grassTouches >= cost,
-        action: () => unlockHelper(this.permanent, nextHelper),
-      });
+        complete,
+        unlocked,
+        affordable: unlocked && !complete && availableGt >= cost,
+        action: () => unlockHelper(this.permanent, helperId),
+        status: complete ? "Remembered" : unlocked ? `${cost} GT` : "Locked",
+        effect: complete
+          ? `${HELPERS[helperId].label} and its recipes are available in every run.`
+          : `Reveals ${HELPERS[helperId].label}, its equipment purchases, and its production recipes.`,
+        requirement: unlocked ? "" : `Requires ${HELPERS[prerequisite!].label}.`,
+      };
     }
 
-    for (const helperId of HELPER_IDS) {
-      if (!this.permanent.unlockedHelpers[helperId]) continue;
-      const alternate = HELPERS[helperId].modes[1];
-      if (!this.permanent.unlockedModes[helperId].includes(alternate.id)) {
-        const cost = getModeUnlockCost(helperId);
-        offers.push({
-          label: `${HELPERS[helperId].label}\n${alternate.label} mode\n${cost} GT`,
-          detail: alternate.description,
-          cost,
-          affordable: this.permanent.grassTouches >= cost,
-          action: () => unlockHelperMode(this.permanent, helperId, alternate.id),
-        });
-      }
-      for (const kind of ["throughput", "storage", "efficiency", "startingStock"] as const) {
-        const rank = kind === "throughput"
-          ? this.permanent.throughputRanks[helperId]
-          : kind === "storage"
-            ? this.permanent.storageRanks[helperId]
-            : kind === "efficiency"
-              ? this.permanent.efficiencyRanks[helperId]
-              : this.permanent.startingStockRanks[helperId];
-        const maxRank = kind === "startingStock" ? 5 : 10;
-        if (rank >= maxRank) continue;
-        const cost = getPermanentRankCost(this.permanent, helperId, kind);
-        const details: Record<PermanentRankKind, string> = {
-          throughput: "Each rank makes this helper's recipes 12% faster.",
-          storage: "Each rank adds 15% storage to this helper's part of the chain.",
-          efficiency: "Each rank reduces this helper's recipe inputs by 3.5%.",
-          startingStock: "Each rank carries three units of useful starting stock into a new run.",
-        };
-        offers.push({
-          label: `${HELPERS[helperId].label}\n${this.formatRankKind(kind)} ${rank + 1}/${maxRank}\n${cost} GT`,
-          detail: details[kind],
-          cost,
-          affordable: this.permanent.grassTouches >= cost,
-          action: () => purchasePermanentRank(this.permanent, helperId, kind),
-        });
-      }
+    if (definition.kind === "helperMode") {
+      const helperId = definition.helperId!;
+      const alternateMode = HELPERS[helperId].modes[1];
+      const complete = this.permanent.unlockedModes[helperId].includes(alternateMode.id);
+      const unlocked = this.permanent.unlockedHelpers[helperId];
+      const cost = getModeUnlockCost(helperId);
+      return {
+        rank: complete ? 1 : 0,
+        maxRank: 1,
+        cost,
+        complete,
+        unlocked,
+        affordable: unlocked && !complete && availableGt >= cost,
+        action: () => unlockHelperMode(this.permanent, helperId, alternateMode.id),
+        status: complete ? "Remembered" : unlocked ? `${cost} GT` : "Locked",
+        effect: `${alternateMode.label}: ${alternateMode.description}`,
+        requirement: unlocked ? "" : `Awaken ${HELPERS[helperId].label} first.`,
+      };
     }
 
-    if (this.permanent.maxFieldTier < FIELD_SIZE_LADDER.length - 1) {
-      const nextTier = this.permanent.maxFieldTier + 1;
-      const cost = getFieldTierUnlockCost(nextTier);
-      offers.push({
-        label: `Field Memory\nMax ${FIELD_SIZE_LADDER[nextTier]}x${FIELD_SIZE_LADDER[nextTier]}\n${cost} GT`,
-        detail: `Allows Cultivation rank ten to expand a run from ${FIELD_SIZE_LADDER[nextTier - 1]}x${FIELD_SIZE_LADDER[nextTier - 1]} to ${FIELD_SIZE_LADDER[nextTier]}x${FIELD_SIZE_LADDER[nextTier]}.`,
+    if (definition.kind === "helperRank") {
+      const helperId = definition.helperId!;
+      const kind = definition.rankKind!;
+      const rank = this.getHelperMemoryRank(helperId, kind);
+      const maxRank = this.getMemoryNodeMaxRank(definition);
+      const complete = rank >= maxRank;
+      const unlocked = this.permanent.unlockedHelpers[helperId];
+      const cost = complete ? 0 : getPermanentRankCost(this.permanent, helperId, kind);
+      const effects: Record<PermanentRankKind, string> = {
+        throughput: rank > 0 ? `Recipes run ${rank * 12}% faster.` : "Helper recipes run at their base speed.",
+        storage: rank > 0 ? `Relevant storage is ${rank * 15}% larger.` : "Relevant buffers use their base capacity.",
+        efficiency: rank > 0 ? `Recipe inputs are reduced by ${(rank * 3.5).toFixed(1)}%.` : "Recipes use their base input amounts.",
+        startingStock: rank > 0 ? `New fields begin with ${rank * 3} useful stock.` : "New fields begin without carried stock.",
+      };
+      return {
+        rank,
+        maxRank,
         cost,
-        affordable: this.permanent.grassTouches >= cost,
+        complete,
+        unlocked,
+        affordable: unlocked && !complete && availableGt >= cost,
+        action: () => purchasePermanentRank(this.permanent, helperId, kind),
+        status: complete ? `${rank}/${maxRank} complete` : unlocked ? `${rank}/${maxRank} | ${cost} GT` : "Locked",
+        effect: effects[kind],
+        requirement: unlocked ? "" : `Awaken ${HELPERS[helperId].label} first.`,
+      };
+    }
+
+    if (definition.kind === "fieldTier") {
+      const rank = this.permanent.maxFieldTier;
+      const maxRank = FIELD_SIZE_LADDER.length - 1;
+      const complete = rank >= maxRank;
+      const cost = complete ? 0 : getFieldTierUnlockCost(rank + 1);
+      const currentSize = FIELD_SIZE_LADDER[rank];
+      const nextSize = complete ? currentSize : FIELD_SIZE_LADDER[rank + 1];
+      return {
+        rank,
+        maxRank,
+        cost,
+        complete,
+        unlocked: true,
+        affordable: !complete && availableGt >= cost,
         action: () => unlockNextFieldTier(this.permanent),
-      });
+        status: complete ? "100x100 remembered" : `${currentSize}x${currentSize} | ${cost} GT`,
+        effect: complete
+          ? "Cultivation may expand a run all the way to 100x100."
+          : `Current maximum ${currentSize}x${currentSize}; next memory permits ${nextSize}x${nextSize}.`,
+        requirement: "",
+      };
     }
-    if (this.permanent.broadPalmRank < 10) {
-      const rank = this.permanent.broadPalmRank;
-      const cost = getTouchRankCost("broadPalm", rank);
-      offers.push({
-        label: `Broad Palm ${rank + 1}/10\n${cost} GT`,
-        detail: "Touches nearby tiles. Higher ranks widen the radius and raise area effectiveness from 40% to 100%.",
+
+    if (definition.kind === "touchRank") {
+      const kind = definition.touchKind!;
+      const rank = kind === "broadPalm" ? this.permanent.broadPalmRank : this.permanent.manyHandsRank;
+      const maxRank = 10;
+      const complete = rank >= maxRank;
+      const unlocked = kind === "broadPalm" || this.permanent.broadPalmRank >= 2;
+      const cost = complete ? 0 : getTouchRankCost(kind, rank);
+      let effect = "Manual touch affects one chosen tile at full strength.";
+      if (kind === "broadPalm" && rank > 0) {
+        const radius = 1 + Math.floor((rank - 1) / 2);
+        const effectiveness = Math.round(40 + ((rank - 1) / 9) * 60);
+        effect = `Nearby tiles within radius ${radius} receive ${effectiveness}% touch strength.`;
+      } else if (kind === "manyHands") {
+        const effectiveness = rank > 0 ? Math.round(35 + ((rank - 1) / 9) * 45) : 35;
+        effect = rank > 0
+          ? `${rank * 2} distant tiles receive ${effectiveness}% touch strength.`
+          : "Distant touch echoes have not been remembered yet.";
+      }
+      return {
+        rank,
+        maxRank,
         cost,
-        affordable: this.permanent.grassTouches >= cost,
-        action: () => purchaseTouchRank(this.permanent, "broadPalm"),
-      });
+        complete,
+        unlocked,
+        affordable: unlocked && !complete && availableGt >= cost,
+        action: () => purchaseTouchRank(this.permanent, kind),
+        status: complete ? "10/10 complete" : unlocked ? `${rank}/10 | ${cost} GT` : "Locked",
+        effect,
+        requirement: unlocked ? "" : "Requires Broad Palm rank 2.",
+      };
     }
-    if (this.permanent.broadPalmRank >= 2 && this.permanent.manyHandsRank < 10) {
-      const rank = this.permanent.manyHandsRank;
-      const cost = getTouchRankCost("manyHands", rank);
-      offers.push({
-        label: `Many Hands ${rank + 1}/10\n${cost} GT`,
-        detail: "Each manual touch also reaches two random distant tiles per rank, with improving effectiveness.",
-        cost,
-        affordable: this.permanent.grassTouches >= cost,
-        action: () => purchaseTouchRank(this.permanent, "manyHands"),
-      });
-    }
-    if (!this.permanent.fieldEmbrace && this.permanent.broadPalmRank >= 10 && this.permanent.manyHandsRank >= 10) {
-      offers.push({
-        label: "Field Embrace\n180 GT",
-        detail: "Every tenth manual touch sends a half-strength wave to one random tile in every 10x10 chunk.",
-        cost: 180,
-        affordable: this.permanent.grassTouches >= 180,
-        action: () => purchaseFieldEmbrace(this.permanent),
-      });
-    }
-    this.memoryOffers = offers;
-    const pageCount = Math.max(1, Math.ceil(offers.length / this.memoryOfferButtons.length));
-    this.memoryPage = Phaser.Math.Clamp(this.memoryPage, 0, pageCount - 1);
-    this.updateMemoryOfferButtons();
+
+    const complete = this.permanent.fieldEmbrace;
+    const unlocked = this.permanent.broadPalmRank >= 10 && this.permanent.manyHandsRank >= 10;
+    const cost = 180;
+    return {
+      rank: complete ? 1 : 0,
+      maxRank: 1,
+      cost,
+      complete,
+      unlocked,
+      affordable: unlocked && !complete && availableGt >= cost,
+      action: () => purchaseFieldEmbrace(this.permanent),
+      status: complete ? "Remembered" : unlocked ? `${cost} GT` : "Capstone locked",
+      effect: "Every tenth manual touch sends a half-strength wave to one tile in every 10x10 field chunk.",
+      requirement: unlocked ? "" : "Requires Broad Palm 10/10 and Many Hands 10/10.",
+    };
   }
 
-  private updateMemoryOfferButtons(): void {
-    const pageSize = this.memoryOfferButtons.length;
-    const pageCount = Math.max(1, Math.ceil(this.memoryOffers.length / pageSize));
-    for (let index = 0; index < pageSize; index += 1) {
-      const offer = this.memoryOffers[this.memoryPage * pageSize + index];
-      this.memoryOfferButtons[index]
-        .setVisible(Boolean(offer))
-        .setLabel(offer?.label ?? "")
-        .setEnabled(Boolean(offer?.affordable));
+  private refreshMemoryTree(): void {
+    if (!this.memoryTreeWorld) return;
+    if (!ECOSYSTEM_MEMORY_NODE_BY_ID.has(this.selectedMemoryNodeId)) this.selectedMemoryNodeId = "root:field-heir";
+    this.memoryCurrencyText.setText(`AVAILABLE GT  ${Math.floor(this.permanent.grassTouches)}`);
+    this.drawMemoryTreeConnectors();
+    for (const view of this.memoryNodeViews.values()) {
+      const runtime = this.getMemoryNodeRuntime(view.definition);
+      const selected = view.definition.id === this.selectedMemoryNodeId;
+      const hovered = view.definition.id === this.hoveredMemoryNodeId;
+      const frameKey = selected || hovered
+        ? "memory-node-selected"
+        : runtime.complete
+          ? "memory-node-owned"
+          : runtime.affordable
+            ? "memory-node-available"
+            : "memory-node-locked";
+      view.frame.setTexture(frameKey).setAlpha(runtime.unlocked || runtime.complete ? 1 : 0.58);
+      view.icon.setAlpha(runtime.unlocked || runtime.complete ? 1 : 0.34);
+      view.glow
+        .setFillStyle(view.definition.color, selected || hovered ? 0.2 : runtime.complete ? 0.12 : runtime.affordable ? 0.1 : 0.035)
+        .setStrokeStyle(selected || hovered ? 4 : 2, view.definition.color, selected || hovered ? 0.9 : runtime.complete ? 0.56 : 0.24);
+      view.title.setColor(runtime.unlocked || runtime.complete ? "#fff3c2" : "#718371");
+      view.status.setText(runtime.status).setColor(runtime.affordable ? "#ffe889" : runtime.complete ? "#9bd66f" : "#8fa08e");
+      for (let index = 0; index < view.rankPips.length; index += 1) {
+        view.rankPips[index].setFillStyle(index < runtime.rank ? view.definition.color : 0x11261a, index < runtime.rank ? 1 : 0.94);
+      }
     }
-    this.memoryPreviousButton.setLabel(`Previous ${this.memoryPage + 1}/${pageCount}`).setEnabled(this.memoryPage > 0);
-    this.memoryNextButton.setLabel(`Next ${this.memoryPage + 1}/${pageCount}`).setEnabled(this.memoryPage < pageCount - 1);
+    this.refreshMemoryDetail();
+    this.applyMemoryTreeViewTransform();
   }
 
-  private previewMemoryOffer(index: number): void {
-    const offer = this.memoryOffers[this.memoryPage * this.memoryOfferButtons.length + index];
-    if (offer) this.memoryDetail.setText(`${offer.detail}  Cost: ${offer.cost} GT.`);
+  private drawMemoryTreeConnectors(): void {
+    this.memoryTreeLines.clear();
+    for (const edge of ECOSYSTEM_MEMORY_EDGES) {
+      const from = ECOSYSTEM_MEMORY_NODE_BY_ID.get(edge.from);
+      const to = ECOSYSTEM_MEMORY_NODE_BY_ID.get(edge.to);
+      if (!from || !to) continue;
+      const runtime = this.getMemoryNodeRuntime(to);
+      const active = runtime.complete || runtime.rank > 0;
+      const color = active ? to.color : runtime.affordable ? 0xffe889 : runtime.unlocked ? 0x6f8e61 : 0x294033;
+      const alpha = active ? 0.82 : runtime.affordable ? 0.72 : runtime.unlocked ? 0.42 : 0.2;
+      this.memoryTreeLines.lineStyle(11, 0x020805, 0.88).lineBetween(from.x, from.y, to.x, to.y);
+      this.memoryTreeLines.lineStyle(active ? 5 : 3, color, alpha).lineBetween(from.x, from.y, to.x, to.y);
+    }
   }
 
-  private buyMemoryOffer(index: number): void {
-    const offer = this.memoryOffers[this.memoryPage * this.memoryOfferButtons.length + index];
-    if (!offer || !offer.affordable) {
-      this.audio.play("blocked");
+  private refreshMemoryDetail(): void {
+    const definition = ECOSYSTEM_MEMORY_NODE_BY_ID.get(this.selectedMemoryNodeId) ?? ECOSYSTEM_MEMORY_NODES[0];
+    const runtime = this.getMemoryNodeRuntime(definition);
+    const frameKey = runtime.complete
+      ? "memory-node-owned"
+      : runtime.affordable
+        ? "memory-node-available"
+        : runtime.unlocked
+          ? "memory-node-selected"
+          : "memory-node-locked";
+    const mobile = this.scale.width < 760;
+    const frameSize = mobile ? 76 : 112;
+    const iconSize = mobile ? 40 : 58;
+    this.memoryDetailIconFrame.setTexture(frameKey).setDisplaySize(frameSize, frameSize);
+    this.memoryDetailIcon
+      .setTexture(definition.iconKey)
+      .setDisplaySize(iconSize, iconSize)
+      .setAlpha(runtime.unlocked || runtime.complete ? 1 : 0.42)
+      .setAngle(0)
+      .setData("baseScaleX", this.memoryDetailIcon.scaleX)
+      .setData("baseScaleY", this.memoryDetailIcon.scaleY);
+    this.memoryDetailIconGlow
+      .setFillStyle(definition.color, runtime.complete ? 0.16 : runtime.affordable ? 0.12 : 0.06)
+      .setStrokeStyle(2, definition.color, runtime.unlocked || runtime.complete ? 0.62 : 0.28);
+    this.memoryDetailTitle.setText(definition.label);
+    this.memoryDetailBranch.setText(`${definition.branch.toUpperCase()} MEMORY`);
+    const rankLine = runtime.maxRank > 1 ? `Rank ${runtime.rank} / ${runtime.maxRank}` : runtime.complete ? "Remembered" : "Single memory";
+    this.memoryDetail.setText(`${definition.description}\n\n${rankLine}\n${runtime.effect}`);
+    if (definition.kind === "root") {
+      this.memoryDetailStatus.setText("Every permanent branch begins here.").setColor("#b8d9a4");
+    } else if (runtime.complete) {
+      this.memoryDetailStatus.setText("REMEMBERED\nThis memory is active in future runs.").setColor("#9bd66f");
+    } else if (!runtime.unlocked) {
+      this.memoryDetailStatus.setText(`LOCKED\n${runtime.requirement}`).setColor("#f1a6ce");
+    } else if (runtime.affordable) {
+      this.memoryDetailStatus.setText(`READY TO REMEMBER  |  ${runtime.cost} GT\nClick the node to purchase.`).setColor("#ffe889");
+    } else {
+      const short = Math.max(0, Math.ceil(runtime.cost - this.permanent.grassTouches));
+      this.memoryDetailStatus.setText(`COST ${runtime.cost} GT  |  AVAILABLE ${Math.floor(this.permanent.grassTouches)}\nNeed ${short} more GT.`).setColor("#f1a6ce");
+    }
+  }
+
+  private previewMemoryNode(nodeId: string): void {
+    const view = this.memoryNodeViews.get(nodeId);
+    if (!view) return;
+    this.hoveredMemoryNodeId = nodeId;
+    this.selectedMemoryNodeId = nodeId;
+    this.tweens.killTweensOf(view.icon);
+    const baseScaleX = Number(view.icon.getData("baseScaleX"));
+    const baseScaleY = Number(view.icon.getData("baseScaleY"));
+    this.tweens.add({
+      targets: view.icon,
+      scaleX: baseScaleX * 1.13,
+      scaleY: baseScaleY * 1.13,
+      y: -4,
+      duration: 420,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+    this.refreshMemoryTree();
+  }
+
+  private stopPreviewingMemoryNode(nodeId: string): void {
+    if (this.hoveredMemoryNodeId === nodeId) this.hoveredMemoryNodeId = null;
+    const view = this.memoryNodeViews.get(nodeId);
+    if (view) {
+      this.tweens.killTweensOf(view.icon);
+      view.icon
+        .setPosition(0, 0)
+        .setScale(Number(view.icon.getData("baseScaleX")), Number(view.icon.getData("baseScaleY")));
+    }
+    this.refreshMemoryTree();
+  }
+
+  private buyMemoryNode(nodeId: string): void {
+    const definition = ECOSYSTEM_MEMORY_NODE_BY_ID.get(nodeId);
+    if (!definition) return;
+    this.selectedMemoryNodeId = nodeId;
+    if (definition.kind === "root") {
+      this.audio.play("skill_select");
+      this.refreshMemoryTree();
       return;
     }
-    this.performMemoryPurchase(offer.action);
+    const runtime = this.getMemoryNodeRuntime(definition);
+    if (!runtime.affordable) {
+      this.audio.play("blocked");
+      this.refreshMemoryTree();
+      return;
+    }
+    this.performMemoryPurchase(runtime.action);
   }
 
-  private changeMemoryPage(delta: number): void {
-    const pageCount = Math.max(1, Math.ceil(this.memoryOffers.length / this.memoryOfferButtons.length));
-    this.memoryPage = Phaser.Math.Clamp(this.memoryPage + delta, 0, pageCount - 1);
-    this.audio.play("skill_select");
-    this.updateMemoryOfferButtons();
+  private adjustMemoryTreeZoom(factor: number, focusX?: number, focusY?: number): void {
+    if (this.state.active || this.optionsOpen) return;
+    const previousZoom = this.memoryTreeZoom;
+    const nextZoom = Phaser.Math.Clamp(previousZoom * factor, 1, 8);
+    if (Math.abs(nextZoom - previousZoom) < 0.001) return;
+    const viewportCenterX = this.memoryTreeViewport.x + this.memoryTreeViewport.width / 2;
+    const viewportCenterY = this.memoryTreeViewport.y + this.memoryTreeViewport.height / 2;
+    const previousScale = this.memoryTreeFitScale * previousZoom;
+    const nextScale = this.memoryTreeFitScale * nextZoom;
+    if (focusX !== undefined && focusY !== undefined && previousScale > 0) {
+      const worldX = (focusX - viewportCenterX - this.memoryTreePanX) / previousScale;
+      const worldY = (focusY - viewportCenterY - this.memoryTreePanY) / previousScale;
+      this.memoryTreePanX = focusX - viewportCenterX - worldX * nextScale;
+      this.memoryTreePanY = focusY - viewportCenterY - worldY * nextScale;
+    }
+    this.memoryTreeZoom = nextZoom;
+    if (focusX === undefined) this.audio.play("skill_select");
+    this.applyMemoryTreeViewTransform();
   }
 
-  private formatRankKind(kind: PermanentRankKind): string {
-    if (kind === "startingStock") return "Starting Stock";
-    return `${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
+  private resetMemoryTreeView(): void {
+    this.memoryTreeZoom = 1;
+    this.memoryTreePanX = 0;
+    this.memoryTreePanY = 0;
+    if (this.memoryTreeWorld) this.applyMemoryTreeViewTransform();
+  }
+
+  private applyMemoryTreeViewTransform(): void {
+    if (!this.memoryTreeWorld || this.memoryTreeFitScale <= 0) return;
+    const scale = this.memoryTreeFitScale * this.memoryTreeZoom;
+    const maxPanX = Math.max(0, (ECOSYSTEM_MEMORY_WORLD_WIDTH * scale - this.memoryTreeViewport.width) / 2);
+    const maxPanY = Math.max(0, (ECOSYSTEM_MEMORY_WORLD_HEIGHT * scale - this.memoryTreeViewport.height) / 2);
+    this.memoryTreePanX = Phaser.Math.Clamp(this.memoryTreePanX, -maxPanX, maxPanX);
+    this.memoryTreePanY = Phaser.Math.Clamp(this.memoryTreePanY, -maxPanY, maxPanY);
+    const centerX = this.memoryTreeViewport.x + this.memoryTreeViewport.width / 2;
+    const centerY = this.memoryTreeViewport.y + this.memoryTreeViewport.height / 2;
+    this.memoryTreeWorld.setPosition(centerX + this.memoryTreePanX, centerY + this.memoryTreePanY).setScale(scale);
+    const showLabels = this.memoryTreeZoom >= 1.75;
+    const showStatus = this.memoryTreeZoom >= 2.45;
+    const showPips = this.memoryTreeZoom >= 1.45;
+    for (const view of this.memoryNodeViews.values()) {
+      const screenX = centerX + this.memoryTreePanX + view.definition.x * scale;
+      const screenY = centerY + this.memoryTreePanY + view.definition.y * scale;
+      const margin = 100 * scale + 8;
+      const visible = screenX >= this.memoryTreeViewport.x - margin &&
+        screenX <= this.memoryTreeViewport.x + this.memoryTreeViewport.width + margin &&
+        screenY >= this.memoryTreeViewport.y - margin &&
+        screenY <= this.memoryTreeViewport.y + this.memoryTreeViewport.height + margin;
+      const highlighted = view.definition.id === this.selectedMemoryNodeId || view.definition.id === this.hoveredMemoryNodeId;
+      view.container.setVisible(visible);
+      if (view.hitArea.input) view.hitArea.input.enabled = visible;
+      view.title.setVisible(visible && (showLabels || highlighted));
+      view.status.setVisible(visible && (showStatus || highlighted));
+      for (const pip of view.rankPips) pip.setVisible(visible && (showPips || highlighted));
+    }
+    this.memoryZoomOutButton.setEnabled(this.memoryTreeZoom > 1.001);
+    this.memoryZoomInButton.setEnabled(this.memoryTreeZoom < 7.999);
+    this.memoryZoomResetButton.setLabel(this.memoryTreeZoom <= 1.001 ? "Fit" : `${this.memoryTreeZoom.toFixed(1)}x`);
+  }
+
+  private animateMemoryTree(now: number): void {
+    if (this.state.active || !this.memoryRoot.visible || this.optionsOpen) return;
+    const pulse = Math.sin(now * 0.0032);
+    const baseScaleX = Number(this.memoryDetailIcon.getData("baseScaleX") ?? this.memoryDetailIcon.scaleX);
+    const baseScaleY = Number(this.memoryDetailIcon.getData("baseScaleY") ?? this.memoryDetailIcon.scaleY);
+    this.memoryDetailIcon
+      .setScale(baseScaleX * (1 + pulse * 0.035), baseScaleY * (1 + pulse * 0.035))
+      .setAngle(pulse * 1.5);
+    this.memoryDetailIconGlow.setScale(1 + pulse * 0.035).setAlpha(0.88 + pulse * 0.1);
   }
 
   private adjustFieldZoom(factor: number): void {
@@ -1748,7 +2224,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.worksOpen = false;
     this.optionsOpen = false;
     this.lastGameOverState = false;
-    this.refreshMemoryOffers();
+    this.selectedMemoryNodeId = "helper:tinySprinkler:unlock";
+    this.resetMemoryTreeView();
+    this.refreshMemoryTree();
     this.layout(this.scale.width, this.scale.height);
     this.syncViewVisibility();
     this.renderField(true);
@@ -1779,6 +2257,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private pointInField(x: number, y: number): boolean {
     return x >= this.fieldBounds.x && x <= this.fieldBounds.x + this.fieldBounds.width &&
       y >= this.fieldBounds.y + 42 && y <= this.fieldBounds.y + this.fieldBounds.height;
+  }
+
+  private pointInMemoryTree(x: number, y: number): boolean {
+    return x >= this.memoryTreeViewport.x && x <= this.memoryTreeViewport.x + this.memoryTreeViewport.width &&
+      y >= this.memoryTreeViewport.y && y <= this.memoryTreeViewport.y + this.memoryTreeViewport.height;
   }
 
   private createText(text: string, fontSize: number, color: string, fontStyle = "normal"): Phaser.GameObjects.Text {
