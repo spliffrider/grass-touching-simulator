@@ -54,7 +54,7 @@ export class EcosystemDomBridge {
   private readonly playtestStatus?: HTMLOutputElement;
   private semanticControlIndex = 0;
 
-  constructor(private readonly actions: EcosystemDomActions, playtest: boolean) {
+  constructor(private readonly actions: EcosystemDomActions, playtest: boolean, showPlaytestPanel = false) {
     this.root = document.createElement("div");
     this.root.className = "ecosystem-agent-layer";
     this.root.dataset.testid = "ecosystem-agent-layer";
@@ -136,21 +136,22 @@ export class EcosystemDomBridge {
 
     if (playtest) {
       const panel = document.createElement("section");
-      panel.className = "ecosystem-playtest-panel";
+      panel.className = showPlaytestPanel ? "ecosystem-playtest-panel" : "ecosystem-agent-controls";
       panel.setAttribute("aria-label", "Ecosystem playtest controls");
       this.playtestStatus = document.createElement("output");
-      this.playtestStatus.className = "ecosystem-playtest-status";
+      this.playtestStatus.className = showPlaytestPanel ? "ecosystem-playtest-status" : "ecosystem-agent-readable";
+      const buttonClass = showPlaytestPanel ? "ecosystem-playtest-button" : "";
       panel.append(
         this.playtestStatus,
-        this.createButton("+250 GT and RT", () => this.actions.addPrototypeCurrency(), "ecosystem-debug-currency", "ecosystem-playtest-button"),
-        this.createButton("Unlock all", () => this.actions.unlockPrototype(), "ecosystem-debug-unlock", "ecosystem-playtest-button"),
-        this.createButton("Toggle Works", () => this.actions.toggleWorks(), "ecosystem-debug-works", "ecosystem-playtest-button"),
-        this.createButton("Begin next run", () => this.actions.beginNextRun(), "ecosystem-debug-next-run", "ecosystem-playtest-button"),
-        this.createButton("32x32", () => this.actions.setPrototypeField(32), "ecosystem-debug-field-32", "ecosystem-playtest-button"),
-        this.createButton("50x50", () => this.actions.setPrototypeField(50), "ecosystem-debug-field-50", "ecosystem-playtest-button"),
-        this.createButton("100x100", () => this.actions.setPrototypeField(100), "ecosystem-debug-field-100", "ecosystem-playtest-button"),
-        this.createButton("Force Game Over", () => this.actions.forceGameOver(), "ecosystem-debug-game-over", "ecosystem-playtest-button"),
-        this.createButton("Reset prototype", () => this.actions.resetPrototypeSave(), "ecosystem-debug-reset", "ecosystem-playtest-button"),
+        this.createButton("+250 GT and RT", () => this.actions.addPrototypeCurrency(), "ecosystem-debug-currency", buttonClass),
+        this.createButton("Unlock all", () => this.actions.unlockPrototype(), "ecosystem-debug-unlock", buttonClass),
+        this.createButton("Toggle Works", () => this.actions.toggleWorks(), "ecosystem-debug-works", buttonClass),
+        this.createButton("Begin next run", () => this.actions.beginNextRun(), "ecosystem-debug-next-run", buttonClass),
+        this.createButton("32x32", () => this.actions.setPrototypeField(32), "ecosystem-debug-field-32", buttonClass),
+        this.createButton("50x50", () => this.actions.setPrototypeField(50), "ecosystem-debug-field-50", buttonClass),
+        this.createButton("100x100", () => this.actions.setPrototypeField(100), "ecosystem-debug-field-100", buttonClass),
+        this.createButton("Force Game Over", () => this.actions.forceGameOver(), "ecosystem-debug-game-over", buttonClass),
+        this.createButton("Reset prototype", () => this.actions.resetPrototypeSave(), "ecosystem-debug-reset", buttonClass),
       );
       this.root.append(panel);
     }

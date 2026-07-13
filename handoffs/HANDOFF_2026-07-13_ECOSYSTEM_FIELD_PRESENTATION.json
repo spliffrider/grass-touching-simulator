@@ -1,0 +1,64 @@
+{
+  "date": "2026-07-13",
+  "topic": "Authored one-tile field presentation and ultrawide composition",
+  "currentUserGoal": "Replace the ecosystem prototype's debug-harness appearance with a game-quality opening scene that preserves the scalable field renderer and looks intentional on ultrawide, desktop, and phone screens.",
+  "workCompleted": [
+    "Constrained desktop content to a centered 1680-pixel stage so ultrawide screens no longer stretch the HUD and field across acres of empty space.",
+    "Recomposed the pre-sprinkler opening into three clear regions: a Field Heir identity panel, the central Living Field, and a live Care Balance panel opposing production against Scourge demand.",
+    "Restored the existing player portrait as a prominent opening-scene signal without bringing back the removed Sensi advisor panel.",
+    "Turned the single tile into an authored root plot with layered soil and brass framing, stage-colored trim, corner fittings, aura rings, a stage plaque, and a substantially larger touch target.",
+    "Added a fixed pool of 18 orbiting dew, pollen, grass, and spore motes plus subtle portrait, Scourge, helper, and tile motion without introducing per-frame field-sized work.",
+    "Forced nearest-neighbor filtering for pixel-art field, helper, character, and effect assets while retaining antialiased UI text.",
+    "Added readable manual-touch yield, permanent touch reach, Care coverage, production deficit, HP, and field-stage readouts to the opening side panels.",
+    "Removed one-tile zoom controls and locked one-tile panning/zooming so the authored focal composition cannot be accidentally dragged apart.",
+    "Kept zoom controls available after field expansion and relayouted immediately when Cultivation or debug field changes alter field size.",
+    "Hidden the developer control panel on the normal playtest URL while preserving every semantic automation action; the visible panel now requires the explicit debugPanel query parameter.",
+    "Fixed the missing grass-fleck effect asset path discovered during browser verification."
+  ],
+  "filesChanged": [
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "handoffs/HANDOFF_2026-07-13_ECOSYSTEM_FIELD_PRESENTATION.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 103 Vitest tests across 13 files, TypeScript, and the Vite production build.",
+    "Browser visual verification passed at the user's 2048x738 ultrawide viewport, the required 1280x720 desktop viewport, and the required 390x844 phone viewport.",
+    "The normal ?redesign&ecosystemPrototype&playtest URL showed no visible developer panel and produced no browser errors or warnings in a fresh tab.",
+    "The explicit debugPanel URL displayed the developer panel and retained exactly one semantic debug currency action.",
+    "A semantic coordinate touch and a real canvas-center click each increased RT by 0.92 and restored Ancient HP, confirming both automation and player input paths after the layout change.",
+    "Opening Options paused simulation and correctly reported optionsOpen through the redesign DOM snapshot.",
+    "The phone page remained exactly 390 pixels wide by 844 pixels high with no document overflow."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "debugUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Local isolated prototype checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "Expected after checkpoint commit: clean codex/ecosystem-factory-prototype branch.",
+    "The local Vite server is running on http://127.0.0.1:5173.",
+    "The browser test field was left paused in Options after input verification; this does not affect source or saves on another browser profile."
+  ],
+  "knownIssues": [
+    "The mature production economy and later field tiers still need hands-on balance testing; this slice deliberately focused on the weak opening presentation.",
+    "The pre-sprinkler side panels intentionally disappear below 1100 pixels and on phone, where the compact header carries the Care-versus-Scourge state.",
+    "Helper actions still reuse the existing small effect assets and synthesized SFX; unique late-tier audiovisual identities remain later polish work.",
+    "The Care Balance meter is intentionally severe at zero production; the first-sprinkler unlock flow still needs a full player pacing pass."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test the complete fresh Run 1 into the first Tiny Sprinkler Memory and judge whether the stronger visual opening also makes the survival pressure legible.",
+    "Polish the first helper unlock and purchase as the next visual payoff, including the transition from Field Heir side panels to the Living Ledger.",
+    "Tune first-run Scourge and manual Care only from observed play timing, not from screenshots.",
+    "After the first two runs feel good, give the Ecosystem Works and Memory Nursery the same authored visual hierarchy as the field opening."
+  ],
+  "doNotRevert": [
+    "Keep the scalable field simulation, compact tile state, and LOD renderer underneath this authored one-tile presentation.",
+    "Keep the normal playtest URL free of visible developer controls; use debugPanel only when a human needs the debug overlay.",
+    "Keep the player portrait in the player identity slot and do not restore Sensi as the player avatar or advisor panel.",
+    "Keep pixel-art assets on nearest-neighbor filtering while leaving UI text antialiased.",
+    "Keep the opening scene bounded on ultrawide displays and do not return to a full-width empty field card.",
+    "Do not use the legacy 1200-tile harness as redesign evidence."
+  ]
+}

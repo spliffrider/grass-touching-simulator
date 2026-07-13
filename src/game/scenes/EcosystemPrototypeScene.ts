@@ -110,6 +110,19 @@ const SAVE_INTERVAL_MS = 15_000;
 const UI_REFRESH_MS = 120;
 const FIELD_REDRAW_MS = 180;
 const MAX_EFFECTS = 24;
+const AMBIENT_MOTE_COUNT = 18;
+const MAX_SCENE_CONTENT_WIDTH = 1680;
+
+const TILE_STAGE_LABELS: Record<TileStage, string> = {
+  [TileStage.Dormant]: "Sleeping Soil",
+  [TileStage.Dewy]: "Dew-Kissed Grass",
+  [TileStage.Moist]: "Watered Patch",
+  [TileStage.Sprouting]: "New Clover",
+  [TileStage.Verdant]: "Living Grass",
+  [TileStage.Flowering]: "Wildflower Patch",
+  [TileStage.Pollinated]: "Pollinated Meadow",
+  [TileStage.Rooted]: "Ancient Roots",
+};
 
 interface SceneButton {
   container: Phaser.GameObjects.Container;
@@ -156,6 +169,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private projection!: FieldProjection;
   private fieldBounds: FieldViewportBounds = { x: 0, y: 0, width: 1, height: 1 };
   private playtest = false;
+  private showDebugPanel = false;
   private worksOpen = false;
   private optionsOpen = false;
   private memoryPage = 0;
@@ -177,17 +191,20 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private memoryRoot!: Phaser.GameObjects.Container;
   private optionsRoot!: Phaser.GameObjects.Container;
   private fieldChrome!: Phaser.GameObjects.Graphics;
+  private fieldAtmosphere!: Phaser.GameObjects.Graphics;
   private fieldGrid!: Phaser.GameObjects.Graphics;
   private fieldMaskShape!: Phaser.GameObjects.Graphics;
   private fieldSurface!: Phaser.GameObjects.Rectangle;
   private tileLayer!: Phaser.GameObjects.Container;
   private chunkLayer!: Phaser.GameObjects.Container;
   private helperLayer!: Phaser.GameObjects.Container;
+  private ambienceLayer!: Phaser.GameObjects.Container;
   private effectLayer!: Phaser.GameObjects.Container;
   private tilePool: Phaser.GameObjects.Image[] = [];
   private chunkPool: Phaser.GameObjects.Image[] = [];
   private impactPool: Phaser.GameObjects.Arc[] = [];
   private effectPool: Phaser.GameObjects.Image[] = [];
+  private ambientMotes: Phaser.GameObjects.Image[] = [];
   private helperActors = {} as Record<HelperId, HelperActorView>;
   private helperIcons = {} as Record<HelperId, Phaser.GameObjects.Image>;
   private helperBuyButtons = {} as Record<HelperId, SceneButton>;
@@ -208,6 +225,21 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private ledgerStocksRight!: Phaser.GameObjects.Text;
   private bottleneckText!: Phaser.GameObjects.Text;
   private touchSummaryText!: Phaser.GameObjects.Text;
+  private playerPortrait!: Phaser.GameObjects.Image;
+  private caretakerTitle!: Phaser.GameObjects.Text;
+  private caretakerRole!: Phaser.GameObjects.Text;
+  private caretakerStats!: Phaser.GameObjects.Text;
+  private balanceTitle!: Phaser.GameObjects.Text;
+  private balanceStatus!: Phaser.GameObjects.Text;
+  private balanceDetail!: Phaser.GameObjects.Text;
+  private balanceBarBack!: Phaser.GameObjects.Rectangle;
+  private balanceBarFill!: Phaser.GameObjects.Rectangle;
+  private balanceGoalMarker!: Phaser.GameObjects.Rectangle;
+  private scourgeHalo!: Phaser.GameObjects.Arc;
+  private scourgeCore!: Phaser.GameObjects.Arc;
+  private plotStageText!: Phaser.GameObjects.Text;
+  private plotDetailText!: Phaser.GameObjects.Text;
+  private openingPanelsVisible = false;
   private optionsButton!: SceneButton;
   private worksButton!: SceneButton;
   private cultivationButton!: SceneButton;
@@ -277,13 +309,26 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.load.image("eco-effect-seed", "/assets/effects/seed-kernel.png");
     this.load.image("eco-effect-pollen", "/assets/effects/pollen-fleck.png");
     this.load.image("eco-effect-spore", "/assets/effects/magic-spore.png");
-    this.load.image("eco-effect-grass", "/assets/effects/grass-fleck.png");
+    this.load.image("eco-effect-grass", "/assets/tiles/grass-fleck.png");
+    this.load.image("eco-player", "/assets/ui/characters/player-field-heir.png");
     this.load.audio("eco-music", "/assets/music/lucid-field-theme.wav");
   }
 
   create(): void {
     const params = new URLSearchParams(window.location.search);
     this.playtest = params.has("playtest");
+    this.showDebugPanel = params.has("debugPanel");
+    const pixelTextures = new Set([
+      ...Object.values(TILE_VARIANTS).flat(),
+      ...HELPER_IDS.map((helperId) => `eco-helper-${helperId}`),
+      "eco-player",
+      "eco-effect-water",
+      "eco-effect-seed",
+      "eco-effect-pollen",
+      "eco-effect-spore",
+      "eco-effect-grass",
+    ]);
+    for (const key of pixelTextures) this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
     this.permanent = loadPermanentEcosystemState();
     const loaded = loadActiveField(this.permanent);
     if (loaded) {
@@ -378,18 +423,30 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private createFieldView(): void {
     this.fieldChrome = this.add.graphics();
+    this.fieldAtmosphere = this.add.graphics();
     this.fieldGrid = this.add.graphics();
     this.fieldMaskShape = this.add.graphics().setVisible(false);
     this.tileLayer = this.add.container();
     this.chunkLayer = this.add.container();
     this.helperLayer = this.add.container();
+    this.ambienceLayer = this.add.container();
     this.effectLayer = this.add.container();
     const mask = this.fieldMaskShape.createGeometryMask();
     this.tileLayer.setMask(mask);
     this.chunkLayer.setMask(mask);
     this.helperLayer.setMask(mask);
+    this.ambienceLayer.setMask(mask);
     this.effectLayer.setMask(mask);
-    this.fieldRoot.add([this.fieldChrome, this.chunkLayer, this.tileLayer, this.fieldGrid, this.helperLayer, this.effectLayer]);
+    this.fieldRoot.add([
+      this.fieldChrome,
+      this.fieldAtmosphere,
+      this.chunkLayer,
+      this.ambienceLayer,
+      this.tileLayer,
+      this.fieldGrid,
+      this.helperLayer,
+      this.effectLayer,
+    ]);
 
     this.titleText = this.createText("Ancient Grass // Ecosystem", 30, "#fff3c2", "bold");
     this.runText = this.createText("", 13, "#b8d9a4");
@@ -405,6 +462,20 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.ledgerStocksRight = this.createText("", 11, "#e3f3d6");
     this.bottleneckText = this.createText("", 12, "#ffcf8b", "bold");
     this.touchSummaryText = this.createText("", 13, "#fff3c2", "bold").setAlpha(0);
+    this.playerPortrait = this.add.image(0, 0, "eco-player").setOrigin(0.5);
+    this.caretakerTitle = this.createText("FIELD HEIR", 22, "#fff3c2", "bold");
+    this.caretakerRole = this.createText("Manual caretaker", 12, "#8de7ff", "bold");
+    this.caretakerStats = this.createText("", 13, "#dff6ca");
+    this.balanceTitle = this.createText("CARE BALANCE", 22, "#fff3c2", "bold");
+    this.balanceStatus = this.createText("", 16, "#f1a6ce", "bold");
+    this.balanceDetail = this.createText("", 13, "#e3f3d6");
+    this.balanceBarBack = this.add.rectangle(0, 0, 100, 18, 0x071b11, 0.98).setOrigin(0, 0.5).setStrokeStyle(2, 0x5b3926, 0.9);
+    this.balanceBarFill = this.add.rectangle(0, 0, 100, 12, 0x83d765, 1).setOrigin(0, 0.5);
+    this.balanceGoalMarker = this.add.rectangle(0, 0, 3, 24, 0xffe889, 0.92).setOrigin(0.5);
+    this.scourgeHalo = this.add.circle(0, 0, 38, 0x5d213d, 0.22).setStrokeStyle(3, 0xf07ab2, 0.72);
+    this.scourgeCore = this.add.circle(0, 0, 15, 0x9d315f, 0.7).setStrokeStyle(2, 0xffb1d3, 0.9);
+    this.plotStageText = this.createText("", 20, "#fff3c2", "bold").setOrigin(0.5);
+    this.plotDetailText = this.createText("", 12, "#b8d9a4", "bold").setOrigin(0.5);
     this.fieldRoot.add([
       this.titleText,
       this.runText,
@@ -420,6 +491,20 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.ledgerStocksRight,
       this.bottleneckText,
       this.touchSummaryText,
+      this.playerPortrait,
+      this.caretakerTitle,
+      this.caretakerRole,
+      this.caretakerStats,
+      this.balanceTitle,
+      this.balanceStatus,
+      this.balanceDetail,
+      this.balanceBarBack,
+      this.balanceBarFill,
+      this.balanceGoalMarker,
+      this.scourgeHalo,
+      this.scourgeCore,
+      this.plotStageText,
+      this.plotDetailText,
     ]);
 
     this.optionsButton = this.createButton(this.fieldRoot, "Options", () => this.toggleOptions());
@@ -452,6 +537,17 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const image = this.add.image(0, 0, TILE_TEXTURE_KEYS[0]).setVisible(false).setOrigin(0.5).setAlpha(0.82);
       this.chunkLayer.add(image);
       this.chunkPool.push(image);
+    }
+    const ambienceTextures = ["eco-effect-water", "eco-effect-pollen", "eco-effect-grass", "eco-effect-spore"];
+    for (let index = 0; index < AMBIENT_MOTE_COUNT; index += 1) {
+      const mote = this.add.image(0, 0, ambienceTextures[index % ambienceTextures.length]).setOrigin(0.5).setVisible(false);
+      mote.setData("phase", (index / AMBIENT_MOTE_COUNT) * Math.PI * 2);
+      mote.setData("orbitX", 0);
+      mote.setData("orbitY", 0);
+      mote.setData("centerX", 0);
+      mote.setData("centerY", 0);
+      this.ambienceLayer.add(mote);
+      this.ambientMotes.push(mote);
     }
     for (let index = 0; index < MAX_EFFECTS; index += 1) {
       const impact = this.add.circle(0, 0, 20, 0x8de7ff, 0).setStrokeStyle(3, 0x8de7ff, 0).setVisible(false);
@@ -546,6 +642,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           this.syncViewVisibility();
         }
         setPrototypeFieldSize(this.state, this.permanent, size);
+        this.layout(this.scale.width, this.scale.height);
         this.resetFieldView();
         this.persistAll();
       },
@@ -562,7 +659,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       },
       resetPrototypeSave: () => this.resetPrototypeSave(),
     };
-    this.domBridge = new EcosystemDomBridge(actions, this.playtest);
+    this.domBridge = new EcosystemDomBridge(actions, this.playtest, this.showDebugPanel);
   }
 
   private bindInput(): void {
@@ -576,7 +673,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const dx = pointer.x - this.dragState.lastX;
       const dy = pointer.y - this.dragState.lastY;
       if (Math.abs(dx) + Math.abs(dy) > 3) this.dragState.moved = true;
-      if (this.dragState.moved && this.projection) {
+      if (this.dragState.moved && this.projection && this.state.field.stages.length > 1) {
         this.fieldView = panFieldViewport(this.fieldView, this.projection, dx, dy);
         this.renderField(true);
       }
@@ -593,7 +690,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       }
     });
     this.input.on("wheel", (pointer: Phaser.Input.Pointer, _objects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
-      if (!this.state.active || this.worksOpen || this.optionsOpen || !this.pointInField(pointer.x, pointer.y)) return;
+      if (!this.state.active || this.worksOpen || this.optionsOpen || this.state.field.stages.length === 1 || !this.pointInField(pointer.x, pointer.y)) return;
       const factor = deltaY > 0 ? 0.82 : 1.22;
       this.fieldView = zoomFieldAtPoint(this.fieldView, this.projection, pointer.x, pointer.y, factor);
       this.renderField(true);
@@ -606,44 +703,52 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private layout(width: number, height: number): void {
     const mobile = width < 760;
     const ledgerUnlocked = this.permanent.unlockedHelpers.tinySprinkler;
+    const contentWidth = mobile ? width - 16 : Math.min(MAX_SCENE_CONTENT_WIDTH, width - 44);
+    const contentX = (width - contentWidth) / 2;
     const backgroundScale = Math.max(width / this.background.width, height / this.background.height);
     this.background.setDisplaySize(this.background.width * backgroundScale, this.background.height * backgroundScale);
     this.background.setPosition((width - this.background.displayWidth) / 2, (height - this.background.displayHeight) / 2);
 
     this.fieldChrome.clear();
-    const header = { x: mobile ? 8 : 22, y: mobile ? 8 : 16, width: width - (mobile ? 16 : 44), height: mobile ? 86 : 88 };
+    const header = { x: contentX, y: mobile ? 8 : 16, width: contentWidth, height: mobile ? 94 : 102 };
     this.drawPanel(this.fieldChrome, header.x, header.y, header.width, header.height, 0.94);
     if (mobile) {
-      this.titleText.setText("Ancient Grass // Ecosystem").setFontSize(18).setPosition(header.x + 14, header.y + 8);
-      this.runText.setPosition(header.x + 15, header.y + 34);
-      this.hpBarBack.setPosition(header.x + 14, header.y + 59).setSize(header.width - 150, 17);
-      this.hpBarFill.setPosition(header.x + 16, header.y + 59).setSize(header.width - 154, 13);
-      this.hpText.setFontSize(12).setPosition(header.x + 18, header.y + 50);
-      this.pressureText.setFontSize(10).setPosition(header.x + 18, header.y + 72);
-      this.currencyText.setFontSize(11).setOrigin(1, 0).setPosition(header.x + header.width - 12, header.y + 47);
+      this.titleText.setText("Ancient Grass: Ecosystem").setFontSize(19).setPosition(header.x + 14, header.y + 8);
+      this.runText.setFontSize(11).setPosition(header.x + 15, header.y + 36);
+      this.hpBarBack.setPosition(header.x + 14, header.y + 64).setSize(header.width - 150, 18);
+      this.hpBarFill.setPosition(header.x + 17, header.y + 64).setSize(header.width - 156, 12);
+      this.hpText.setFontSize(12).setPosition(header.x + 18, header.y + 52);
+      this.pressureText.setFontSize(10).setPosition(header.x + 18, header.y + 78);
+      this.currencyText.setFontSize(11).setOrigin(1, 0).setPosition(header.x + header.width - 12, header.y + 53);
       this.optionsButton.setPosition(header.x + header.width - 90, header.y + 8);
       this.optionsButton.setSize(78, 28);
     } else {
-      this.titleText.setText("Ancient Grass // Ecosystem").setFontSize(30).setPosition(header.x + 20, header.y + 10);
-      this.runText.setPosition(header.x + 22, header.y + 52);
-      const barX = header.x + Math.min(430, header.width * 0.37);
-      const barWidth = Math.max(240, header.width - (barX - header.x) - 230);
-      this.hpBarBack.setPosition(barX, header.y + 34).setSize(barWidth, 22);
-      this.hpBarFill.setPosition(barX + 3, header.y + 34).setSize(barWidth - 6, 16);
-      this.hpText.setFontSize(14).setPosition(barX + 8, header.y + 24);
-      this.pressureText.setFontSize(12).setPosition(barX + 8, header.y + 58);
-      this.currencyText.setFontSize(14).setOrigin(1, 0).setPosition(header.x + header.width - 112, header.y + 51);
-      this.optionsButton.setPosition(header.x + header.width - 102, header.y + 12);
-      this.optionsButton.setSize(84, 34);
+      this.titleText.setText("Ancient Grass: Ecosystem").setFontSize(30).setPosition(header.x + 22, header.y + 11);
+      this.runText.setFontSize(13).setPosition(header.x + 24, header.y + 58);
+      const barX = header.x + Math.min(420, header.width * 0.34);
+      const barWidth = Math.min(880, Math.max(320, header.width - (barX - header.x) - 254));
+      this.hpBarBack.setPosition(barX, header.y + 39).setSize(barWidth, 24);
+      this.hpBarFill.setPosition(barX + 3, header.y + 39).setSize(barWidth - 6, 18);
+      this.hpText.setFontSize(15).setPosition(barX + 9, header.y + 25);
+      this.pressureText.setFontSize(13).setPosition(barX + 9, header.y + 65);
+      this.currencyText.setFontSize(15).setOrigin(1, 0).setPosition(header.x + header.width - 116, header.y + 59);
+      this.optionsButton.setPosition(header.x + header.width - 104, header.y + 14);
+      this.optionsButton.setSize(86, 36);
     }
 
     let ledgerX = 0;
     let ledgerY = 0;
     let ledgerWidth = 0;
     let ledgerHeight = 0;
+    let caretakerX = 0;
+    let caretakerWidth = 0;
+    let balanceX = 0;
+    let balanceWidth = 0;
+    this.openingPanelsVisible = !mobile && !ledgerUnlocked && width >= 1100;
     if (mobile) {
-      const fieldHeight = ledgerUnlocked ? Math.min(350, Math.max(250, height * 0.43)) : height - 122;
-      this.fieldBounds = { x: 12, y: 108, width: width - 24, height: fieldHeight };
+      const fieldY = header.y + header.height + 8;
+      const fieldHeight = ledgerUnlocked ? Math.min(350, Math.max(250, height * 0.43)) : height - fieldY - 10;
+      this.fieldBounds = { x: 12, y: fieldY, width: width - 24, height: fieldHeight };
       if (ledgerUnlocked) {
         ledgerX = 12;
         ledgerY = this.fieldBounds.y + this.fieldBounds.height + 8;
@@ -651,19 +756,48 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         ledgerHeight = Math.max(190, height - ledgerY - 10);
       }
     } else {
-      ledgerX = 22;
-      ledgerY = 118;
-      ledgerWidth = ledgerUnlocked ? Math.min(314, Math.max(284, width * 0.24)) : 0;
+      ledgerY = header.y + header.height + 12;
       ledgerHeight = height - ledgerY - 20;
-      this.fieldBounds = {
-        x: ledgerUnlocked ? ledgerX + ledgerWidth + 14 : 22,
-        y: ledgerY,
-        width: width - (ledgerUnlocked ? ledgerX + ledgerWidth + 36 : 44),
-        height: height - ledgerY - 20,
-      };
+      if (ledgerUnlocked) {
+        ledgerX = contentX;
+        ledgerWidth = Math.min(314, Math.max(284, contentWidth * 0.24));
+        this.fieldBounds = {
+          x: ledgerX + ledgerWidth + 14,
+          y: ledgerY,
+          width: contentWidth - ledgerWidth - 14,
+          height: ledgerHeight,
+        };
+      } else if (this.openingPanelsVisible) {
+        const gap = 14;
+        caretakerWidth = Phaser.Math.Clamp(contentWidth * 0.19, 240, 310);
+        balanceWidth = caretakerWidth;
+        caretakerX = contentX;
+        this.fieldBounds = {
+          x: caretakerX + caretakerWidth + gap,
+          y: ledgerY,
+          width: contentWidth - caretakerWidth - balanceWidth - gap * 2,
+          height: ledgerHeight,
+        };
+        balanceX = this.fieldBounds.x + this.fieldBounds.width + gap;
+      } else {
+        const fieldWidth = Math.min(contentWidth, 900);
+        this.fieldBounds = {
+          x: contentX + (contentWidth - fieldWidth) / 2,
+          y: ledgerY,
+          width: fieldWidth,
+          height: ledgerHeight,
+        };
+      }
     }
-    this.drawPanel(this.fieldChrome, this.fieldBounds.x, this.fieldBounds.y, this.fieldBounds.width, this.fieldBounds.height, 0.9);
+    this.drawPanel(this.fieldChrome, this.fieldBounds.x, this.fieldBounds.y, this.fieldBounds.width, this.fieldBounds.height, 0.84);
     if (ledgerUnlocked) this.drawPanel(this.fieldChrome, ledgerX, ledgerY, ledgerWidth, ledgerHeight, 0.94);
+    if (this.openingPanelsVisible) {
+      this.drawPanel(this.fieldChrome, caretakerX, ledgerY, caretakerWidth, ledgerHeight, 0.94);
+      this.drawPanel(this.fieldChrome, balanceX, ledgerY, balanceWidth, ledgerHeight, 0.94);
+      this.fieldChrome.lineStyle(2, 0xd8b66a, 0.38);
+      this.fieldChrome.lineBetween(caretakerX + 18, ledgerY + 58, caretakerX + caretakerWidth - 18, ledgerY + 58);
+      this.fieldChrome.lineBetween(balanceX + 18, ledgerY + 58, balanceX + balanceWidth - 18, ledgerY + 58);
+    }
 
     this.fieldMaskShape.clear().fillStyle(0xffffff, 1).fillRect(
       this.fieldBounds.x + 6,
@@ -673,11 +807,48 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     );
     this.fieldSurface.setPosition(this.fieldBounds.x + 6, this.fieldBounds.y + 42).setSize(this.fieldBounds.width - 12, this.fieldBounds.height - 48);
     this.fieldLabelText.setFontSize(mobile ? 12 : 16).setPosition(this.fieldBounds.x + 16, this.fieldBounds.y + (mobile ? 13 : 10));
-    this.fieldHintText.setVisible(!mobile).setOrigin(1, 0).setPosition(this.fieldBounds.x + this.fieldBounds.width - 150, this.fieldBounds.y + 15);
-    this.zoomOutButton.setPosition(this.fieldBounds.x + this.fieldBounds.width - 138, this.fieldBounds.y + 8).setSize(36, 28);
-    this.zoomResetButton.setPosition(this.fieldBounds.x + this.fieldBounds.width - 98, this.fieldBounds.y + 8).setSize(52, 28);
-    this.zoomInButton.setPosition(this.fieldBounds.x + this.fieldBounds.width - 42, this.fieldBounds.y + 8).setSize(34, 28);
+    const fieldCanZoom = this.state.field.width > 1 || this.state.field.height > 1;
+    this.fieldHintText.setVisible(!mobile && fieldCanZoom).setOrigin(1, 0).setPosition(this.fieldBounds.x + this.fieldBounds.width - 150, this.fieldBounds.y + 15);
+    this.zoomOutButton.setVisible(fieldCanZoom).setPosition(this.fieldBounds.x + this.fieldBounds.width - 138, this.fieldBounds.y + 8).setSize(36, 28);
+    this.zoomResetButton.setVisible(fieldCanZoom).setPosition(this.fieldBounds.x + this.fieldBounds.width - 98, this.fieldBounds.y + 8).setSize(52, 28);
+    this.zoomInButton.setVisible(fieldCanZoom).setPosition(this.fieldBounds.x + this.fieldBounds.width - 42, this.fieldBounds.y + 8).setSize(34, 28);
     this.touchSummaryText.setOrigin(0.5).setPosition(this.fieldBounds.x + this.fieldBounds.width / 2, this.fieldBounds.y + 52);
+
+    const openingObjects = [
+      this.playerPortrait,
+      this.caretakerTitle,
+      this.caretakerRole,
+      this.caretakerStats,
+      this.balanceTitle,
+      this.balanceStatus,
+      this.balanceDetail,
+      this.balanceBarBack,
+      this.balanceBarFill,
+      this.balanceGoalMarker,
+      this.scourgeHalo,
+      this.scourgeCore,
+    ];
+    for (const object of openingObjects) object.setVisible(this.openingPanelsVisible);
+    if (this.openingPanelsVisible) {
+      const portraitSize = Math.min(118, caretakerWidth - 72);
+      this.caretakerTitle.setFontSize(20).setPosition(caretakerX + 18, ledgerY + 18);
+      this.playerPortrait
+        .setPosition(caretakerX + caretakerWidth / 2, ledgerY + 124)
+        .setDisplaySize(portraitSize, portraitSize)
+        .setData("baseY", ledgerY + 124);
+      this.caretakerRole.setOrigin(0.5, 0).setPosition(caretakerX + caretakerWidth / 2, ledgerY + 190);
+      this.caretakerStats.setPosition(caretakerX + 20, ledgerY + 230).setWordWrapWidth(caretakerWidth - 40);
+
+      this.balanceTitle.setFontSize(20).setPosition(balanceX + 18, ledgerY + 18);
+      this.scourgeHalo.setPosition(balanceX + balanceWidth / 2, ledgerY + 120);
+      this.scourgeCore.setPosition(balanceX + balanceWidth / 2, ledgerY + 120);
+      this.balanceStatus.setOrigin(0.5, 0).setPosition(balanceX + balanceWidth / 2, ledgerY + 176);
+      const careBarWidth = balanceWidth - 42;
+      this.balanceBarBack.setPosition(balanceX + 21, ledgerY + 224).setSize(careBarWidth, 20);
+      this.balanceBarFill.setPosition(balanceX + 24, ledgerY + 224).setSize(careBarWidth - 6, 14);
+      this.balanceGoalMarker.setPosition(balanceX + balanceWidth - 24, ledgerY + 224).setSize(3, 26);
+      this.balanceDetail.setPosition(balanceX + 21, ledgerY + 254).setWordWrapWidth(balanceWidth - 42);
+    }
 
     this.ledgerTitle.setVisible(ledgerUnlocked);
     this.ledgerStocksLeft.setVisible(ledgerUnlocked);
@@ -865,6 +1036,37 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       : `${readout.fieldSize}x${readout.fieldSize} Living Field  |  Cultivation ${readout.cultivationRank}/10`);
     this.fieldHintText.setText(`${this.projection?.lod ?? "near"} view  |  wheel / +/- to zoom`);
     this.bottleneckText.setText(`Bottleneck: ${readout.bottleneck}`);
+    const palmRadius = this.permanent.broadPalmRank > 0 ? 1 + Math.floor((this.permanent.broadPalmRank - 1) / 2) : 0;
+    this.caretakerStats.setText([
+      `Touch yield     5.2 Care`,
+      `Dew gathered    1.15`,
+      `Run Touches     +0.92`,
+      "",
+      `Broad Palm      ${palmRadius > 0 ? `radius ${palmRadius}` : "single plot"}`,
+      `Many Hands      ${this.permanent.manyHandsRank * 2} echoes`,
+      `Touches made    ${this.state.manualTouchCount}`,
+    ].join("\n"));
+    const careRatio = readout.scourgeDemandPerSecond <= 0
+      ? 1
+      : readout.careProductionPerSecond / readout.scourgeDemandPerSecond;
+    const careBarWidth = Math.max(1, this.balanceBarBack.width - 6);
+    this.balanceBarFill
+      .setDisplaySize(Math.max(1, careBarWidth * Math.min(1, careRatio)), this.balanceBarFill.height)
+      .setFillStyle(careRatio >= 1 ? 0x83d765 : careRatio >= 0.55 ? 0xf0c85b : 0xe8616a, 1);
+    this.balanceStatus
+      .setText(careRatio >= 1 ? "CARE HOLDS" : careRatio >= 0.55 ? "PRESSURE RISING" : "SCOURGE ADVANCES")
+      .setColor(careRatio >= 1 ? "#9be27c" : careRatio >= 0.55 ? "#ffe889" : "#f1a6ce");
+    this.balanceDetail.setText([
+      `Demand         ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s`,
+      `Production     ${readout.careProductionPerSecond.toFixed(2)} Care/s`,
+      `Deficit        ${Math.max(0, readout.scourgeDemandPerSecond - readout.careProductionPerSecond).toFixed(2)} Care/s`,
+      "",
+      `Ancient HP     ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}`,
+      `Field stage    ${TILE_STAGE_LABELS[this.state.field.stages[0] as TileStage]}`,
+    ].join("\n"));
+    const firstStage = this.state.field.stages[0] as TileStage;
+    this.plotStageText.setText(TILE_STAGE_LABELS[firstStage].toUpperCase());
+    this.plotDetailText.setText(`Stage ${firstStage + 1} / ${TILE_TEXTURE_KEYS.length}   |   ${this.state.manualTouchCount} touches`);
 
     const stockLines = PRODUCTION_RESOURCE_IDS.map((resourceId) => {
       const resource = PRODUCTION_RESOURCES[resourceId];
@@ -954,9 +1156,15 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
     for (const image of this.tilePool) image.setVisible(false);
     for (const image of this.chunkPool) image.setVisible(false);
+    for (const mote of this.ambientMotes) mote.setVisible(false);
+    this.fieldAtmosphere.clear();
     this.fieldGrid.clear();
     const mobileBudget = this.scale.width < 760 ? MAX_NEAR_TILE_VIEWS_PHONE : MAX_NEAR_TILE_VIEWS_DESKTOP;
     const near = this.projection.lod === "near" && this.projection.visibleTiles.count <= mobileBudget;
+    const singlePlot = near && this.state.field.stages.length === 1;
+    this.plotStageText.setVisible(singlePlot);
+    this.plotDetailText.setVisible(singlePlot);
+    if (singlePlot) this.drawSinglePlotPresentation();
     if (near) {
       this.renderedTileViews = this.renderNearTiles(mobileBudget);
       this.renderedChunkViews = 0;
@@ -971,7 +1179,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private renderNearTiles(budget: number): number {
     const range = this.projection.visibleTiles;
     let poolIndex = 0;
-    const visualSize = Math.min(240, this.projection.cellSize * 0.9);
+    const singlePlot = this.state.field.stages.length === 1;
+    const visualSize = singlePlot
+      ? Math.min(420, this.projection.cellSize * 0.86, this.fieldBounds.height * 0.72)
+      : Math.min(240, this.projection.cellSize * 0.9);
     this.fieldGrid.lineStyle(this.projection.cellSize >= 38 ? 2 : 1, 0x3f271c, 0.62);
     for (let y = range.startY; y <= range.endY && poolIndex < budget; y += 1) {
       for (let x = range.startX; x <= range.endX && poolIndex < budget; x += 1) {
@@ -985,7 +1196,22 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         image.setPosition(screenX, screenY).setDisplaySize(visualSize, visualSize).setVisible(true).setAlpha(0.94);
         image.setData("baseY", screenY);
         image.setData("tileIndex", tileIndex);
-        if (this.projection.cellSize >= 24) {
+        if (singlePlot) {
+          this.fieldGrid.lineStyle(3, 0xd8b66a, 0.82).strokeRoundedRect(
+            screenX - visualSize / 2 - 4,
+            screenY - visualSize / 2 - 4,
+            visualSize + 8,
+            visualSize + 8,
+            4,
+          );
+          this.fieldGrid.lineStyle(1, 0xffe889, 0.38).strokeRoundedRect(
+            screenX - visualSize / 2 + 5,
+            screenY - visualSize / 2 + 5,
+            visualSize - 10,
+            visualSize - 10,
+            2,
+          );
+        } else if (this.projection.cellSize >= 24) {
           this.fieldGrid.strokeRect(
             this.projection.originX + x * this.projection.cellSize + this.projection.cellSize * 0.05,
             this.projection.originY + y * this.projection.cellSize + this.projection.cellSize * 0.05,
@@ -997,6 +1223,64 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       }
     }
     return poolIndex;
+  }
+
+  private drawSinglePlotPresentation(): void {
+    const centerX = this.projection.originX + this.projection.cellSize / 2;
+    const centerY = this.projection.originY + this.projection.cellSize / 2;
+    const visualSize = Math.min(420, this.projection.cellSize * 0.86, this.fieldBounds.height * 0.72);
+    const outerSize = visualSize + 54;
+    const frameX = centerX - outerSize / 2;
+    const frameY = centerY - outerSize / 2;
+    const stage = this.state.field.stages[0] as TileStage;
+    const auraColors = [0x7b5a37, 0x7cc9de, 0x4e9c6d, 0x82c95b, 0x65bb54, 0xe48cab, 0xe4bd55, 0x69b98b];
+    const auraColor = auraColors[stage];
+
+    this.fieldAtmosphere.fillStyle(0x020b07, 0.5).fillRoundedRect(frameX - 16, frameY + 12, outerSize + 32, outerSize + 30, 14);
+    this.fieldAtmosphere.fillStyle(0x21170f, 0.96).fillRoundedRect(frameX, frameY, outerSize, outerSize, 12);
+    this.fieldAtmosphere.lineStyle(6, 0x3d2619, 0.96).strokeRoundedRect(frameX + 2, frameY + 2, outerSize - 4, outerSize - 4, 11);
+    this.fieldAtmosphere.lineStyle(3, 0xd8b66a, 0.92).strokeRoundedRect(frameX + 9, frameY + 9, outerSize - 18, outerSize - 18, 8);
+    this.fieldAtmosphere.lineStyle(2, auraColor, 0.72).strokeRoundedRect(frameX + 18, frameY + 18, outerSize - 36, outerSize - 36, 6);
+    this.fieldAtmosphere.fillStyle(0x17351f, 0.76).fillRoundedRect(
+      centerX - visualSize / 2 - 10,
+      centerY - visualSize / 2 - 10,
+      visualSize + 20,
+      visualSize + 20,
+      5,
+    );
+    this.fieldAtmosphere.lineStyle(2, auraColor, 0.2).strokeCircle(centerX, centerY, visualSize * 0.68);
+    this.fieldAtmosphere.lineStyle(1, auraColor, 0.16).strokeCircle(centerX, centerY, visualSize * 0.75);
+
+    const cornerInset = 18;
+    for (const [cornerX, cornerY] of [
+      [frameX + cornerInset, frameY + cornerInset],
+      [frameX + outerSize - cornerInset, frameY + cornerInset],
+      [frameX + cornerInset, frameY + outerSize - cornerInset],
+      [frameX + outerSize - cornerInset, frameY + outerSize - cornerInset],
+    ]) {
+      this.fieldAtmosphere.fillStyle(0x75452b, 1).fillCircle(cornerX, cornerY, 7);
+      this.fieldAtmosphere.fillStyle(0xffe889, 0.82).fillCircle(cornerX, cornerY, 3);
+    }
+
+    const plaqueWidth = Math.min(310, visualSize * 0.74);
+    const plaqueY = centerY + visualSize / 2 + 8;
+    this.fieldAtmosphere.fillStyle(0x06190f, 0.96).fillRoundedRect(centerX - plaqueWidth / 2, plaqueY, plaqueWidth, 54, 5);
+    this.fieldAtmosphere.lineStyle(2, 0xd8b66a, 0.82).strokeRoundedRect(centerX - plaqueWidth / 2, plaqueY, plaqueWidth, 54, 5);
+    this.plotStageText.setFontSize(this.scale.width < 760 ? 15 : 19).setPosition(centerX, plaqueY + 15);
+    this.plotDetailText.setFontSize(this.scale.width < 760 ? 9 : 11).setPosition(centerX, plaqueY + 39);
+
+    for (let index = 0; index < this.ambientMotes.length; index += 1) {
+      const mote = this.ambientMotes[index];
+      const phase = Number(mote.getData("phase"));
+      const orbitBand = index % 3;
+      mote.setData("centerX", centerX);
+      mote.setData("centerY", centerY - 4);
+      mote.setData("orbitX", visualSize * (0.58 + orbitBand * 0.065));
+      mote.setData("orbitY", visualSize * (0.45 + orbitBand * 0.05));
+      mote.setDisplaySize(9 + (index % 4) * 2, 9 + (index % 4) * 2);
+      mote.setPosition(centerX + Math.cos(phase) * visualSize * 0.6, centerY + Math.sin(phase) * visualSize * 0.47);
+      mote.setAlpha(0.24 + (index % 4) * 0.09).setVisible(true);
+    }
   }
 
   private renderChunkTiles(): number {
@@ -1056,6 +1340,27 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const speed = 0.0012 + (index % 7) * 0.00007;
       image.y = baseY + Math.sin(now * speed + phase) * Math.min(2.4, this.projection.cellSize * 0.035);
       image.rotation = Math.sin(now * speed * 0.73 + phase * 1.4) * 0.012;
+    }
+    for (let index = 0; index < this.ambientMotes.length; index += 1) {
+      const mote = this.ambientMotes[index];
+      if (!mote.visible) continue;
+      const phase = Number(mote.getData("phase"));
+      const centerX = Number(mote.getData("centerX"));
+      const centerY = Number(mote.getData("centerY"));
+      const orbitX = Number(mote.getData("orbitX"));
+      const orbitY = Number(mote.getData("orbitY"));
+      const angle = phase + now * (0.0001 + (index % 5) * 0.000012);
+      mote.x = centerX + Math.cos(angle) * orbitX;
+      mote.y = centerY + Math.sin(angle) * orbitY + Math.sin(now * 0.0011 + phase * 2) * 5;
+      mote.rotation = angle + Math.sin(now * 0.0008 + phase) * 0.24;
+      mote.alpha = 0.22 + (index % 4) * 0.07 + (Math.sin(now * 0.0015 + phase) + 1) * 0.06;
+    }
+    if (this.openingPanelsVisible) {
+      const portraitBaseY = Number(this.playerPortrait.getData("baseY"));
+      this.playerPortrait.y = portraitBaseY + Math.sin(now * 0.00115) * 2.5;
+      const scourgePulse = 1 + Math.sin(now * 0.0022) * 0.055;
+      this.scourgeHalo.setScale(scourgePulse).setAlpha(0.78 + Math.sin(now * 0.0017) * 0.12);
+      this.scourgeCore.setScale(1 + Math.sin(now * 0.0031 + 0.8) * 0.09);
     }
     for (const helperId of HELPER_IDS) {
       const actor = this.helperActors[helperId];
@@ -1159,8 +1464,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const previousSize = this.state.field.width;
     if (buyCultivationRank(this.state, this.permanent)) {
       this.audio.play(previousSize !== this.state.field.width ? "milestone" : "upgrade");
-      if (previousSize !== this.state.field.width) this.resetFieldView();
-      this.renderField(true);
+      if (previousSize !== this.state.field.width) {
+        this.layout(this.scale.width, this.scale.height);
+        this.resetFieldView();
+      } else {
+        this.renderField(true);
+      }
       this.persistAll();
       this.refreshUi(false);
     } else {
@@ -1378,7 +1687,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private adjustFieldZoom(factor: number): void {
-    if (!this.state.active || this.worksOpen || this.optionsOpen) return;
+    if (!this.state.active || this.worksOpen || this.optionsOpen || this.state.field.stages.length === 1) return;
     const x = this.fieldBounds.x + this.fieldBounds.width / 2;
     const y = this.fieldBounds.y + this.fieldBounds.height / 2;
     this.fieldView = zoomFieldAtPoint(this.fieldView, this.projection, x, y, factor);
