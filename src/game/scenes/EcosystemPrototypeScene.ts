@@ -30,6 +30,7 @@ import {
   ECOSYSTEM_MEMORY_WORLD_WIDTH,
   type EcosystemMemoryNodeDefinition,
 } from "../ecosystem/EcosystemMemoryTree";
+import { EcosystemPerformanceMonitor } from "../ecosystem/EcosystemPerformanceMonitor";
 import {
   clearActiveField,
   loadActiveField,
@@ -120,7 +121,9 @@ const HELPER_EFFECT_TEXTURE: Record<HelperId, string> = {
 };
 
 const SAVE_INTERVAL_MS = 15_000;
-const UI_REFRESH_MS = 120;
+const UI_REFRESH_MS = 200;
+const DOM_REFRESH_MS = 1_000;
+const HARNESS_REFRESH_MS = 250;
 const FIELD_REDRAW_MS = 180;
 const MAX_EFFECTS = 24;
 const AMBIENT_MOTE_COUNT = 18;
@@ -221,12 +224,17 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private dragState: DragState | null = null;
   private saveElapsedMs = 0;
   private uiElapsedMs = 0;
+  private domElapsedMs = 0;
+  private harnessElapsedMs = 0;
   private fieldRedrawElapsedMs = 0;
+  private fieldRenderRequested = false;
   private latestFrameDeltaMs = 0;
   private maxFrameDeltaMs = 0;
   private frameSpikes = 0;
+  private readonly performanceMonitor = new EcosystemPerformanceMonitor();
   private renderedTileViews = 0;
   private renderedChunkViews = 0;
+  private displayObjectCount = 0;
   private lastGameOverState = false;
 
   private background!: Phaser.GameObjects.Image;
@@ -416,6 +424,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
     this.musicVolume = readStoredMusicVolume();
     this.sfxVolume = readStoredSfxVolume();
+    this.audio.prepare();
     this.audio.setVolume(this.sfxVolume);
     this.music = this.sound.add("eco-music", { loop: true, volume: this.musicVolume });
     this.music.play();
@@ -425,6 +434,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.createFactoryView();
     this.createMemoryView();
     this.createOptionsView();
+    this.displayObjectCount = this.countDisplayObjects();
     this.createDomBridge();
     this.bindInput();
     this.layout(this.scale.width, this.scale.height);
@@ -443,9 +453,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    const frameStart = performance.now();
     this.latestFrameDeltaMs = delta;
     this.maxFrameDeltaMs = Math.max(this.maxFrameDeltaMs, delta);
     if (delta > 34) this.frameSpikes += 1;
+    const simulationStart = performance.now();
     const speed = this.optionsOpen ? 0 : this.worksOpen ? 0.25 : 1;
     const result = advanceEcosystem(this.state, this.permanent, delta, speed);
     if (result.ticks > 0) {
@@ -462,25 +474,62 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       savePermanentEcosystemState(this.permanent);
       this.refreshMemoryTree();
       this.syncViewVisibility();
+      this.refreshUi(true);
     }
+    const simulationMs = performance.now() - simulationStart;
 
+    const animationStart = performance.now();
     this.animateLivingField(this.time.now);
     this.animateMemoryTree(this.time.now);
+    const animationMs = performance.now() - animationStart;
     this.uiElapsedMs += delta;
+    this.domElapsedMs += delta;
+    this.harnessElapsedMs += delta;
     this.fieldRedrawElapsedMs += delta;
     this.saveElapsedMs += delta;
-    if (this.uiElapsedMs >= UI_REFRESH_MS) {
+    let uiRefreshMs = -1;
+    let fieldRenderMs = -1;
+    let saveMs = -1;
+    if (this.uiElapsedMs >= UI_REFRESH_MS && this.state.active && !this.optionsOpen) {
       this.uiElapsedMs %= UI_REFRESH_MS;
+      const uiRefreshStart = performance.now();
       this.refreshUi(false);
+      uiRefreshMs = performance.now() - uiRefreshStart;
     }
-    if (this.fieldRedrawElapsedMs >= FIELD_REDRAW_MS) {
+    if (this.fieldRenderRequested || this.fieldRedrawElapsedMs >= FIELD_REDRAW_MS) {
       this.fieldRedrawElapsedMs %= FIELD_REDRAW_MS;
+      this.fieldRenderRequested = false;
+      const fieldRenderStart = performance.now();
       this.renderField(false);
+      fieldRenderMs = performance.now() - fieldRenderStart;
+    }
+    if (this.domElapsedMs >= DOM_REFRESH_MS) {
+      this.domElapsedMs %= DOM_REFRESH_MS;
+      const domRefreshStart = performance.now();
+      this.domBridge?.update(this.state, this.permanent, this.worksOpen, this.optionsOpen);
+      uiRefreshMs = Math.max(0, uiRefreshMs) + performance.now() - domRefreshStart;
+    }
+    if (this.playtest && this.harnessElapsedMs >= HARNESS_REFRESH_MS) {
+      this.harnessElapsedMs %= HARNESS_REFRESH_MS;
+      const harnessRefreshStart = performance.now();
+      this.updateHarnessDataset();
+      uiRefreshMs = Math.max(0, uiRefreshMs) + performance.now() - harnessRefreshStart;
     }
     if (this.saveElapsedMs >= SAVE_INTERVAL_MS) {
       this.saveElapsedMs %= SAVE_INTERVAL_MS;
+      const saveStart = performance.now();
       this.persistAll();
+      saveMs = performance.now() - saveStart;
     }
+    this.performanceMonitor.recordFrame(
+      delta,
+      performance.now() - frameStart,
+      simulationMs,
+      animationMs,
+      uiRefreshMs,
+      fieldRenderMs,
+      saveMs,
+    );
   }
 
   private createSceneLayers(): void {
@@ -1267,107 +1316,124 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private refreshUi(force: boolean): void {
     const readout = getEcosystemReadout(this.state);
-    const elapsedSeconds = Math.floor(readout.elapsedMs / 1_000);
-    const elapsedMinutes = Math.floor(elapsedSeconds / 60);
-    this.runText.setText(`Run ${this.state.runNumber}  |  ${elapsedMinutes}:${`${elapsedSeconds % 60}`.padStart(2, "0")}  |  ${this.worksOpen ? "Works at 1/4 speed" : "Field active"}`);
-    const hpRatio = Phaser.Math.Clamp(readout.hpRatio, 0, 1);
-    const hpBarWidth = Math.max(1, this.hpBarBack.width - 6);
-    this.hpBarFill.setDisplaySize(Math.max(1, hpBarWidth * hpRatio), this.hpBarFill.height);
-    this.hpBarFill.setFillStyle(hpRatio > 0.55 ? 0x83d765 : hpRatio > 0.25 ? 0xf0c85b : 0xe8616a, 1);
-    this.hpText.setText(`Ancient HP ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}`);
-    this.pressureText.setText(`Scourge ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s  |  produced ${readout.careProductionPerSecond.toFixed(2)}/s`);
-    this.currencyText.setText(`RT ${readout.runTouches.toFixed(0)}   GT ${this.permanent.grassTouches.toFixed(0)}`);
-    this.fieldLabelText.setText(this.scale.width < 760
-      ? `${readout.fieldSize}x${readout.fieldSize} | Cultivation ${readout.cultivationRank}/10`
-      : `${readout.fieldSize}x${readout.fieldSize} Living Field  |  Cultivation ${readout.cultivationRank}/10`);
-    this.fieldHintText.setText(`${this.projection?.lod ?? "near"} view  |  wheel / +/- to zoom`);
-    this.bottleneckText.setText(`Bottleneck: ${readout.bottleneck}`);
-    const palmRadius = this.permanent.broadPalmRank > 0 ? 1 + Math.floor((this.permanent.broadPalmRank - 1) / 2) : 0;
-    this.caretakerStats.setText([
-      `Touch yield     5.2 Care`,
-      `Dew gathered    1.15`,
-      `Run Touches     +0.92`,
-      "",
-      `Broad Palm      ${palmRadius > 0 ? `radius ${palmRadius}` : "single plot"}`,
-      `Many Hands      ${this.permanent.manyHandsRank * 2} echoes`,
-      `Touches made    ${this.state.manualTouchCount}`,
-    ].join("\n"));
-    const careRatio = readout.scourgeDemandPerSecond <= 0
-      ? 1
-      : readout.careProductionPerSecond / readout.scourgeDemandPerSecond;
-    const careBarWidth = Math.max(1, this.balanceBarBack.width - 6);
-    this.balanceBarFill
-      .setDisplaySize(Math.max(1, careBarWidth * Math.min(1, careRatio)), this.balanceBarFill.height)
-      .setFillStyle(careRatio >= 1 ? 0x83d765 : careRatio >= 0.55 ? 0xf0c85b : 0xe8616a, 1);
-    this.balanceStatus
-      .setText(careRatio >= 1 ? "CARE HOLDS" : careRatio >= 0.55 ? "PRESSURE RISING" : "SCOURGE ADVANCES")
-      .setColor(careRatio >= 1 ? "#9be27c" : careRatio >= 0.55 ? "#ffe889" : "#f1a6ce");
-    this.balanceDetail.setText([
-      `Demand         ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s`,
-      `Production     ${readout.careProductionPerSecond.toFixed(2)} Care/s`,
-      `Deficit        ${Math.max(0, readout.scourgeDemandPerSecond - readout.careProductionPerSecond).toFixed(2)} Care/s`,
-      "",
-      `Ancient HP     ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}`,
-      `Field stage    ${TILE_STAGE_LABELS[this.state.field.stages[0] as TileStage]}`,
-    ].join("\n"));
-    const firstStage = this.state.field.stages[0] as TileStage;
-    this.plotStageText.setText(TILE_STAGE_LABELS[firstStage].toUpperCase());
-    this.plotDetailText.setText(`Stage ${firstStage + 1} / ${TILE_TEXTURE_KEYS.length}   |   ${this.state.manualTouchCount} touches`);
+    if (this.state.active && !this.worksOpen) {
+      const elapsedSeconds = Math.floor(readout.elapsedMs / 1_000);
+      const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+      this.setTextIfChanged(this.runText, `Run ${this.state.runNumber}  |  ${elapsedMinutes}:${`${elapsedSeconds % 60}`.padStart(2, "0")}  |  Field active`);
+      const hpRatio = Phaser.Math.Clamp(readout.hpRatio, 0, 1);
+      const hpBarWidth = Math.max(1, this.hpBarBack.width - 6);
+      const hpDisplayWidth = Math.max(1, hpBarWidth * hpRatio);
+      if (Math.abs(this.hpBarFill.displayWidth - hpDisplayWidth) > 0.1) {
+        this.hpBarFill.setDisplaySize(hpDisplayWidth, this.hpBarFill.height);
+      }
+      const hpColor = hpRatio > 0.55 ? 0x83d765 : hpRatio > 0.25 ? 0xf0c85b : 0xe8616a;
+      if (this.hpBarFill.fillColor !== hpColor) this.hpBarFill.setFillStyle(hpColor, 1);
+      this.setTextIfChanged(this.hpText, `Ancient HP ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}`);
+      this.setTextIfChanged(this.pressureText, `Scourge ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s  |  produced ${readout.careProductionPerSecond.toFixed(2)}/s`);
+      this.setTextIfChanged(this.currencyText, `RT ${readout.runTouches.toFixed(0)}   GT ${this.permanent.grassTouches.toFixed(0)}`);
+      this.setTextIfChanged(this.fieldLabelText, this.scale.width < 760
+        ? `${readout.fieldSize}x${readout.fieldSize} | Cultivation ${readout.cultivationRank}/10`
+        : `${readout.fieldSize}x${readout.fieldSize} Living Field  |  Cultivation ${readout.cultivationRank}/10`);
+      this.setTextIfChanged(this.fieldHintText, `${this.projection?.lod ?? "near"} view  |  wheel / +/- to zoom`);
+      this.setTextIfChanged(this.bottleneckText, `Bottleneck: ${readout.bottleneck}`);
+      const palmRadius = this.permanent.broadPalmRank > 0 ? 1 + Math.floor((this.permanent.broadPalmRank - 1) / 2) : 0;
+      this.setTextIfChanged(this.caretakerStats, [
+        "Touch yield     5.2 Care",
+        "Dew gathered    1.15",
+        "Run Touches     +0.92",
+        "",
+        `Broad Palm      ${palmRadius > 0 ? `radius ${palmRadius}` : "single plot"}`,
+        `Many Hands      ${this.permanent.manyHandsRank * 2} echoes`,
+        `Touches made    ${this.state.manualTouchCount}`,
+      ].join("\n"));
+      const careRatio = readout.scourgeDemandPerSecond <= 0
+        ? 1
+        : readout.careProductionPerSecond / readout.scourgeDemandPerSecond;
+      const careBarWidth = Math.max(1, this.balanceBarBack.width - 6);
+      const careDisplayWidth = Math.max(1, careBarWidth * Math.min(1, careRatio));
+      if (Math.abs(this.balanceBarFill.displayWidth - careDisplayWidth) > 0.1) {
+        this.balanceBarFill.setDisplaySize(careDisplayWidth, this.balanceBarFill.height);
+      }
+      const careColor = careRatio >= 1 ? 0x83d765 : careRatio >= 0.55 ? 0xf0c85b : 0xe8616a;
+      if (this.balanceBarFill.fillColor !== careColor) this.balanceBarFill.setFillStyle(careColor, 1);
+      const balanceStatus = careRatio >= 1 ? "CARE HOLDS" : careRatio >= 0.55 ? "PRESSURE RISING" : "SCOURGE ADVANCES";
+      if (this.balanceStatus.text !== balanceStatus) {
+        this.balanceStatus
+          .setText(balanceStatus)
+          .setColor(careRatio >= 1 ? "#9be27c" : careRatio >= 0.55 ? "#ffe889" : "#f1a6ce");
+      }
+      this.setTextIfChanged(this.balanceDetail, [
+        `Demand         ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s`,
+        `Production     ${readout.careProductionPerSecond.toFixed(2)} Care/s`,
+        `Deficit        ${Math.max(0, readout.scourgeDemandPerSecond - readout.careProductionPerSecond).toFixed(2)} Care/s`,
+        "",
+        `Ancient HP     ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}`,
+        `Field stage    ${TILE_STAGE_LABELS[this.state.field.stages[0] as TileStage]}`,
+      ].join("\n"));
+      const firstStage = this.state.field.stages[0] as TileStage;
+      this.setTextIfChanged(this.plotStageText, TILE_STAGE_LABELS[firstStage].toUpperCase());
+      this.setTextIfChanged(this.plotDetailText, `Stage ${firstStage + 1} / ${TILE_TEXTURE_KEYS.length}   |   ${this.state.manualTouchCount} touches`);
 
-    const stockLines = PRODUCTION_RESOURCE_IDS.map((resourceId) => {
-      const resource = PRODUCTION_RESOURCES[resourceId];
-      const buffer = this.state.resources[resourceId];
-      const pausedMark = buffer.amount >= buffer.capacity - 0.01 ? " [FULL]" : "";
-      return `${resource.shortLabel.padEnd(5)} ${buffer.amount.toFixed(1)}/${buffer.capacity.toFixed(0)}  +${this.state.rates[resourceId].toFixed(2)}${pausedMark}`;
-    });
-    this.ledgerStocksLeft.setText(stockLines.slice(0, 6).join("\n"));
-    this.ledgerStocksRight.setText(stockLines.slice(6).join("\n"));
+      const stockLines = PRODUCTION_RESOURCE_IDS.map((resourceId) => {
+        const resource = PRODUCTION_RESOURCES[resourceId];
+        const buffer = this.state.resources[resourceId];
+        const pausedMark = buffer.amount >= buffer.capacity - 0.01 ? " [FULL]" : "";
+        return `${resource.shortLabel.padEnd(5)} ${buffer.amount.toFixed(1)}/${buffer.capacity.toFixed(0)}  +${this.state.rates[resourceId].toFixed(2)}${pausedMark}`;
+      });
+      this.setTextIfChanged(this.ledgerStocksLeft, stockLines.slice(0, 6).join("\n"));
+      this.setTextIfChanged(this.ledgerStocksRight, stockLines.slice(6).join("\n"));
 
-    for (const helperId of HELPER_IDS) {
-      const helper = this.state.helpers[helperId];
-      const cost = getHelperPurchaseCost(this.state, helperId);
-      const pause = helper.lastPauseReason ? ` | ${helper.lastPauseReason}` : "";
-      const label = `${HELPERS[helperId].label} x${helper.count}  Buy ${cost} RT${pause}`;
-      this.helperBuyButtons[helperId].setLabel(label).setEnabled(this.state.active && this.state.runTouches >= cost);
-      const unlocked = this.permanent.unlockedHelpers[helperId];
-      this.factoryHelperButtons[helperId]
-        .setVisible(unlocked)
-        .setLabel(`${HELPERS[helperId].label} x${helper.count} | Buy ${cost} RT`)
-        .setEnabled(this.state.active && this.state.runTouches >= cost);
-      const mode = HELPERS[helperId].modes.find((candidate) => candidate.id === helper.modeId)!;
-      const availableModes = HELPERS[helperId].modes.filter((candidate) => this.permanent.unlockedModes[helperId].includes(candidate.id));
-      const cooldown = helper.reconfigureRemainingMs > 0 ? ` (${Math.ceil(helper.reconfigureRemainingMs / 1_000)}s)` : "";
-      this.factoryModeButtons[helperId]
-        .setVisible(unlocked)
-        .setLabel(`Mode: ${mode.label}${cooldown}`)
-        .setEnabled(helper.count > 0 && availableModes.length > 1 && helper.reconfigureRemainingMs <= 0);
+      for (const helperId of HELPER_IDS) {
+        const helper = this.state.helpers[helperId];
+        const cost = getHelperPurchaseCost(this.state, helperId);
+        const pause = helper.lastPauseReason ? ` | ${helper.lastPauseReason}` : "";
+        this.helperBuyButtons[helperId]
+          .setLabel(`${HELPERS[helperId].label} x${helper.count}  Buy ${cost} RT${pause}`)
+          .setEnabled(this.state.runTouches >= cost);
+      }
+      const cultivationCost = getCultivationCost(this.state);
+      const cultivationComplete = this.state.field.cultivationRank >= 10;
+      this.cultivationButton
+        .setLabel(cultivationComplete ? "Cultivation complete" : `Cultivate ${this.state.field.cultivationRank + 1}/10 | ${cultivationCost} Growth`)
+        .setEnabled(!cultivationComplete && this.state.resources.growth.amount >= cultivationCost);
+      this.zoomOutButton.setEnabled(this.fieldView.zoom > FIELD_MIN_ZOOM + 0.01);
+      this.zoomInButton.setEnabled(this.fieldView.zoom < FIELD_MAX_ZOOM - 0.01);
     }
 
-    const cultivationCost = getCultivationCost(this.state);
-    const cultivationComplete = this.state.field.cultivationRank >= 10;
-    this.cultivationButton
-      .setLabel(cultivationComplete ? "Cultivation complete" : `Cultivate ${this.state.field.cultivationRank + 1}/10 | ${cultivationCost} Growth`)
-      .setEnabled(!cultivationComplete && this.state.resources.growth.amount >= cultivationCost);
-    this.zoomOutButton.setEnabled(this.fieldView.zoom > FIELD_MIN_ZOOM + 0.01);
-    this.zoomInButton.setEnabled(this.fieldView.zoom < FIELD_MAX_ZOOM - 0.01);
-
-    for (const resourceId of PRODUCTION_RESOURCE_IDS) {
-      const buffer = this.state.resources[resourceId];
-      this.factoryResourceTexts[resourceId].setText(
-        `${PRODUCTION_RESOURCES[resourceId].label}\n${buffer.amount.toFixed(1)} / ${buffer.capacity.toFixed(0)}\n+${this.state.rates[resourceId].toFixed(2)}/s`,
-      );
-      this.factoryResourceBacks[resourceId].setFillStyle(
-        buffer.amount >= buffer.capacity - 0.01 ? 0x412f1d : 0x0b2617,
-        0.96,
-      );
+    if (this.state.active && this.worksOpen) {
+      for (const helperId of HELPER_IDS) {
+        const helper = this.state.helpers[helperId];
+        const cost = getHelperPurchaseCost(this.state, helperId);
+        const unlocked = this.permanent.unlockedHelpers[helperId];
+        this.factoryHelperButtons[helperId]
+          .setVisible(unlocked)
+          .setLabel(`${HELPERS[helperId].label} x${helper.count} | Buy ${cost} RT`)
+          .setEnabled(this.state.runTouches >= cost);
+        const mode = HELPERS[helperId].modes.find((candidate) => candidate.id === helper.modeId)!;
+        const availableModes = HELPERS[helperId].modes.filter((candidate) => this.permanent.unlockedModes[helperId].includes(candidate.id));
+        const cooldown = helper.reconfigureRemainingMs > 0 ? ` (${Math.ceil(helper.reconfigureRemainingMs / 1_000)}s)` : "";
+        this.factoryModeButtons[helperId]
+          .setVisible(unlocked)
+          .setLabel(`Mode: ${mode.label}${cooldown}`)
+          .setEnabled(helper.count > 0 && availableModes.length > 1 && helper.reconfigureRemainingMs <= 0);
+      }
+      for (const resourceId of PRODUCTION_RESOURCE_IDS) {
+        const buffer = this.state.resources[resourceId];
+        this.setTextIfChanged(
+          this.factoryResourceTexts[resourceId],
+          `${PRODUCTION_RESOURCES[resourceId].label}\n${buffer.amount.toFixed(1)} / ${buffer.capacity.toFixed(0)}\n+${this.state.rates[resourceId].toFixed(2)}/s`,
+        );
+        const resourceColor = buffer.amount >= buffer.capacity - 0.01 ? 0x412f1d : 0x0b2617;
+        if (this.factoryResourceBacks[resourceId].fillColor !== resourceColor) {
+          this.factoryResourceBacks[resourceId].setFillStyle(resourceColor, 0.96);
+        }
+      }
+      this.setTextIfChanged(this.factoryBottleneck, `Current bottleneck: ${this.state.bottleneck}`);
     }
-    this.factoryBottleneck.setText(`Current bottleneck: ${this.state.bottleneck}`);
-    this.optionsMusicButton.setLabel(`Music volume: ${Math.round(this.musicVolume * 100)}%`);
-    this.optionsSfxButton.setLabel(`SFX volume: ${Math.round(this.sfxVolume * 100)}%`);
 
-    if (!this.state.active) {
+    if (!this.state.active && force) {
       const summary = this.state.endedSummary;
-      this.memorySummary.setText(summary
+      this.setTextIfChanged(this.memorySummary, summary
         ? [
           `+${summary.grassTouchesAwarded} Grass Touches`,
           "",
@@ -1381,15 +1447,30 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           `Available GT: ${this.permanent.grassTouches.toFixed(0)}`,
         ].join("\n")
         : `Available GT: ${this.permanent.grassTouches.toFixed(0)}`);
-      if (force) this.refreshMemoryTree();
+      this.refreshMemoryTree();
     }
-    this.beginNextRunButton.container.setScale(1 + Math.sin(this.time.now * 0.004) * 0.018);
-    this.domBridge?.update(this.state, this.permanent, this.worksOpen, this.optionsOpen);
-    this.updateHarnessDataset();
-    if (force) this.syncViewVisibility();
+    if (this.optionsOpen || force) {
+      this.optionsMusicButton.setLabel(`Music volume: ${Math.round(this.musicVolume * 100)}%`);
+      this.optionsSfxButton.setLabel(`SFX volume: ${Math.round(this.sfxVolume * 100)}%`);
+    }
+    if (force) {
+      this.domBridge?.update(this.state, this.permanent, this.worksOpen, this.optionsOpen);
+      this.updateHarnessDataset();
+      this.syncViewVisibility();
+    }
   }
 
   private renderField(force: boolean): void {
+    if (!force) {
+      let dirty = false;
+      for (let index = 0; index < this.state.field.dirtyChunks.length; index += 1) {
+        if (this.state.field.dirtyChunks[index] === 1) {
+          dirty = true;
+          break;
+        }
+      }
+      if (!dirty) return;
+    }
     const viewport = {
       x: this.fieldBounds.x + 8,
       y: this.fieldBounds.y + 44,
@@ -1397,8 +1478,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       height: Math.max(1, this.fieldBounds.height - 52),
     };
     this.projection = projectField(this.state.field.width, this.state.field.height, viewport, this.fieldView);
-    const dirty = this.state.field.dirtyChunks.some((value) => value === 1);
-    if (!force && !dirty) return;
 
     for (const image of this.tilePool) image.setVisible(false);
     for (const image of this.chunkPool) image.setVisible(false);
@@ -1687,12 +1766,25 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private touchTile(tileIndex: number): void {
     if (!this.state.active || this.worksOpen || this.optionsOpen) return;
+    const touchStart = performance.now();
     const result = touchFieldTile(this.state, this.permanent, tileIndex);
     if (!result) return;
+    const modelEnd = performance.now();
     this.audio.playGrassTouch("normal", "lush", result.fieldEmbraceTriggered, result.affectedTileCount);
+    const audioEnd = performance.now();
     this.showTouchImpacts(result);
-    this.renderField(true);
-    this.refreshUi(false);
+    const effectsEnd = performance.now();
+    this.fieldRenderRequested = true;
+    const renderEnd = performance.now();
+    const touchEnd = performance.now();
+    this.performanceMonitor.recordTouchAction(
+      touchEnd - touchStart,
+      modelEnd - touchStart,
+      audioEnd - modelEnd,
+      effectsEnd - audioEnd,
+      renderEnd - effectsEnd,
+      touchEnd - renderEnd,
+    );
   }
 
   private buyHelperFromUi(helperId: HelperId): void {
@@ -2168,6 +2260,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       .setScale(baseScaleX * (1 + pulse * 0.035), baseScaleY * (1 + pulse * 0.035))
       .setAngle(pulse * 1.5);
     this.memoryDetailIconGlow.setScale(1 + pulse * 0.035).setAlpha(0.88 + pulse * 0.1);
+    this.beginNextRunButton.container.setScale(1 + Math.sin(now * 0.004) * 0.018);
   }
 
   private adjustFieldZoom(factor: number): void {
@@ -2244,6 +2337,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private updateHarnessDataset(): void {
     const readout = getEcosystemReadout(this.state);
+    const performanceSnapshot = this.performanceMonitor.getSnapshot();
+    let activeEffects = 0;
+    for (const effect of this.effectPool) activeEffects += effect.visible ? 1 : 0;
+    for (const impact of this.impactPool) activeEffects += impact.visible ? 1 : 0;
     document.documentElement.dataset.grassEcosystemHarness = JSON.stringify({
       route: "ecosystemPrototype",
       field: `${this.state.field.width}x${this.state.field.height}`,
@@ -2251,12 +2348,51 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       lod: this.projection?.lod ?? "near",
       renderedTileViews: this.renderedTileViews,
       renderedChunkViews: this.renderedChunkViews,
+      pooledTileViews: this.tilePool.length,
+      pooledChunkViews: this.chunkPool.length,
+      pooledImpacts: this.impactPool.length,
+      pooledEffects: this.effectPool.length,
+      displayObjects: this.displayObjectCount,
+      activeTweens: this.getActiveTweenCount(),
+      compactFieldBytes: this.state.field.stages.byteLength
+        + this.state.field.chunkStageCounts.byteLength
+        + this.state.field.dirtyChunks.byteLength,
+      sparseWounds: this.state.field.sparseWounds.size,
       dirtyChunks: readout.dirtyChunks,
       fixedTicks: readout.fixedTicks,
-      activeEffects: this.effectPool.filter((effect) => effect.visible).length + this.impactPool.filter((impact) => impact.visible).length,
+      activeEffects,
       latestFrameDeltaMs: Number(this.latestFrameDeltaMs.toFixed(2)),
       maxFrameDeltaMs: Number(this.maxFrameDeltaMs.toFixed(2)),
       frameSpikes: this.frameSpikes,
+      sampleWindowMs: Number(performanceSnapshot.windowMs.toFixed(2)),
+      sampledFrames: performanceSnapshot.frames,
+      fps: Number(performanceSnapshot.fps.toFixed(2)),
+      averageFrameDeltaMs: Number(performanceSnapshot.averageFrameDeltaMs.toFixed(2)),
+      p95FrameDeltaMs: Number(performanceSnapshot.p95FrameDeltaMs.toFixed(2)),
+      windowMaxFrameDeltaMs: Number(performanceSnapshot.maxFrameDeltaMs.toFixed(2)),
+      averageFrameWorkMs: Number(performanceSnapshot.averageFrameWorkMs.toFixed(3)),
+      maxFrameWorkMs: Number(performanceSnapshot.maxFrameWorkMs.toFixed(3)),
+      averageSimulationMs: Number(performanceSnapshot.averageSimulationMs.toFixed(3)),
+      maxSimulationMs: Number(performanceSnapshot.maxSimulationMs.toFixed(3)),
+      averageAnimationMs: Number(performanceSnapshot.averageAnimationMs.toFixed(3)),
+      maxAnimationMs: Number(performanceSnapshot.maxAnimationMs.toFixed(3)),
+      uiRefreshes: performanceSnapshot.uiRefreshes,
+      averageUiRefreshMs: Number(performanceSnapshot.averageUiRefreshMs.toFixed(3)),
+      maxUiRefreshMs: Number(performanceSnapshot.maxUiRefreshMs.toFixed(3)),
+      fieldRenders: performanceSnapshot.fieldRenders,
+      averageFieldRenderMs: Number(performanceSnapshot.averageFieldRenderMs.toFixed(3)),
+      maxFieldRenderMs: Number(performanceSnapshot.maxFieldRenderMs.toFixed(3)),
+      saves: performanceSnapshot.saves,
+      averageSaveMs: Number(performanceSnapshot.averageSaveMs.toFixed(3)),
+      maxSaveMs: Number(performanceSnapshot.maxSaveMs.toFixed(3)),
+      touchActions: performanceSnapshot.touchActions,
+      averageTouchActionMs: Number(performanceSnapshot.averageTouchActionMs.toFixed(3)),
+      maxTouchActionMs: Number(performanceSnapshot.maxTouchActionMs.toFixed(3)),
+      averageTouchModelMs: Number(performanceSnapshot.averageTouchModelMs.toFixed(3)),
+      averageTouchAudioMs: Number(performanceSnapshot.averageTouchAudioMs.toFixed(3)),
+      averageTouchEffectsMs: Number(performanceSnapshot.averageTouchEffectsMs.toFixed(3)),
+      averageTouchRenderMs: Number(performanceSnapshot.averageTouchRenderMs.toFixed(3)),
+      averageTouchUiMs: Number(performanceSnapshot.averageTouchUiMs.toFixed(3)),
       fullFieldScans: 0,
       productionRunsPerFrame: 0,
     });
@@ -2265,6 +2401,23 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private pointInField(x: number, y: number): boolean {
     return x >= this.fieldBounds.x && x <= this.fieldBounds.x + this.fieldBounds.width &&
       y >= this.fieldBounds.y + 42 && y <= this.fieldBounds.y + this.fieldBounds.height;
+  }
+
+  private getActiveTweenCount(): number {
+    const tweenManager = this.tweens as unknown as { getTweens?: () => unknown[]; getAllTweens?: () => unknown[] };
+    return tweenManager.getTweens?.().length ?? tweenManager.getAllTweens?.().length ?? 0;
+  }
+
+  private countDisplayObjects(): number {
+    const stack = [...this.children.list];
+    let count = 0;
+    while (stack.length > 0) {
+      const gameObject = stack.pop();
+      if (!gameObject) continue;
+      count += 1;
+      if (gameObject instanceof Phaser.GameObjects.Container) stack.push(...gameObject.list);
+    }
+    return count;
   }
 
   private pointInMemoryTree(x: number, y: number): boolean {
@@ -2282,6 +2435,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       strokeThickness: fontSize >= 20 ? 4 : 2,
       lineSpacing: 2,
     });
+  }
+
+  private setTextIfChanged(target: Phaser.GameObjects.Text, value: string): void {
+    if (target.text !== value) target.setText(value);
   }
 
   private createButton(
@@ -2320,15 +2477,17 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         return button;
       },
       setLabel: (nextLabel: string) => {
-        text.setText(nextLabel);
+        if (text.text !== nextLabel) text.setText(nextLabel);
         return button;
       },
       setEnabled: (enabled: boolean) => {
+        if (button.enabled === enabled) return button;
         button.enabled = enabled;
         syncAppearance();
         return button;
       },
       setVisible: (visible: boolean) => {
+        if (button.visible === visible) return button;
         button.visible = visible;
         syncAppearance();
         return button;

@@ -39,6 +39,8 @@ interface DynamicButton {
   rankKind?: PermanentRankKind;
 }
 
+const TILE_STAGE_DOM_LABELS = ["dormant", "dewy", "moist", "sprouting", "verdant", "flowering", "pollinated", "rooted"] as const;
+
 export class EcosystemDomBridge {
   private readonly root: HTMLDivElement;
   private readonly readable: HTMLOutputElement;
@@ -161,13 +163,12 @@ export class EcosystemDomBridge {
   }
 
   update(state: EcosystemState, permanent: PermanentEcosystemState, worksOpen: boolean, optionsOpen: boolean): void {
-    const stageLabels = ["dormant", "dewy", "moist", "sprouting", "verdant", "flowering", "pollinated", "rooted"];
     const dominantChunks = Array.from({ length: TILE_STAGE_COUNT }, () => 0);
     for (let chunkIndex = 0; chunkIndex < state.field.dirtyChunks.length; chunkIndex += 1) {
       dominantChunks[getDominantChunkStage(state.field, chunkIndex) as TileStage] += 1;
     }
     const chunkSummary = dominantChunks
-      .map((count, stage) => count > 0 ? `${count} ${stageLabels[stage]}` : "")
+      .map((count, stage) => count > 0 ? `${count} ${TILE_STAGE_DOM_LABELS[stage]}` : "")
       .filter(Boolean)
       .join(", ");
     const lines = [
@@ -188,30 +189,29 @@ export class EcosystemDomBridge {
         return `${HELPERS[helperId].label}: ${helper.count}, ${helper.modeId}${helper.lastPauseReason ? `, ${helper.lastPauseReason}` : ""}`;
       }),
     ];
-    this.readable.value = lines.join("\n");
-    this.readable.textContent = this.readable.value;
-    this.xInput.max = `${Math.max(0, state.field.width - 1)}`;
-    this.yInput.max = `${Math.max(0, state.field.height - 1)}`;
-    this.cultivateButton.disabled = !state.active || state.resources.growth.amount < getCultivationCost(state);
-    this.cultivateButton.textContent = `Buy Cultivation ${Math.min(10, state.field.cultivationRank + 1)}/10 for ${getCultivationCost(state)} Growth`;
-    this.worksButton.textContent = worksOpen ? "Close Ecosystem Works" : "Open Ecosystem Works";
-    this.optionsButton.textContent = optionsOpen ? "Close Options" : "Open Options";
-    this.nextRunButton.disabled = state.active;
+    this.setOutput(this.readable, lines.join("\n"));
+    this.setInputMax(this.xInput, `${Math.max(0, state.field.width - 1)}`);
+    this.setInputMax(this.yInput, `${Math.max(0, state.field.height - 1)}`);
+    this.setDisabled(this.cultivateButton, !state.active || state.resources.growth.amount < getCultivationCost(state));
+    this.setText(this.cultivateButton, `Buy Cultivation ${Math.min(10, state.field.cultivationRank + 1)}/10 for ${getCultivationCost(state)} Growth`);
+    this.setText(this.worksButton, worksOpen ? "Close Ecosystem Works" : "Open Ecosystem Works");
+    this.setText(this.optionsButton, optionsOpen ? "Close Options" : "Open Options");
+    this.setDisabled(this.nextRunButton, state.active);
 
     for (const button of this.buyButtons) {
       const helperId = button.helperId!;
       const unlocked = permanent.unlockedHelpers[helperId];
       const cost = getHelperPurchaseCost(state, helperId);
-      button.element.hidden = !unlocked;
-      button.element.disabled = !state.active || state.runTouches < cost;
-      button.element.textContent = `Buy ${HELPERS[helperId].label} for ${cost} RT`;
+      this.setHidden(button.element, !unlocked);
+      this.setDisabled(button.element, !state.active || state.runTouches < cost);
+      this.setText(button.element, `Buy ${HELPERS[helperId].label} for ${cost} RT`);
     }
     for (const button of this.modeButtons) {
       const helperId = button.helperId!;
       const helper = state.helpers[helperId];
       const unlocked = permanent.unlockedModes[helperId].includes(button.modeId!);
-      button.element.hidden = !unlocked;
-      button.element.disabled = !state.active || helper.count <= 0 || helper.modeId === button.modeId || helper.reconfigureRemainingMs > 0;
+      this.setHidden(button.element, !unlocked);
+      this.setDisabled(button.element, !state.active || helper.count <= 0 || helper.modeId === button.modeId || helper.reconfigureRemainingMs > 0);
     }
     for (const button of this.memoryButtons) {
       const helperId = button.helperId!;
@@ -225,30 +225,29 @@ export class EcosystemDomBridge {
               : permanent.startingStockRanks[helperId];
         const maxRank = button.rankKind === "startingStock" ? 5 : 10;
         const cost = getPermanentRankCost(permanent, helperId, button.rankKind);
-        button.element.hidden = state.active || !permanent.unlockedHelpers[helperId];
-        button.element.disabled = rank >= maxRank || permanent.grassTouches < cost;
-        button.element.textContent = `${HELPERS[helperId].label} ${button.rankKind} ${rank}/${maxRank}; next ${cost} GT`;
+        this.setHidden(button.element, state.active || !permanent.unlockedHelpers[helperId]);
+        this.setDisabled(button.element, rank >= maxRank || permanent.grassTouches < cost);
+        this.setText(button.element, `${HELPERS[helperId].label} ${button.rankKind} ${rank}/${maxRank}; next ${cost} GT`);
       } else if (button.modeId) {
         const owned = permanent.unlockedModes[helperId].includes(button.modeId);
         const cost = getModeUnlockCost(helperId);
-        button.element.hidden = state.active || !permanent.unlockedHelpers[helperId] || owned;
-        button.element.disabled = permanent.grassTouches < cost;
+        this.setHidden(button.element, state.active || !permanent.unlockedHelpers[helperId] || owned);
+        this.setDisabled(button.element, permanent.grassTouches < cost);
       } else {
         const prerequisite = HELPERS[helperId].unlockRequires;
         const cost = getHelperUnlockCost(helperId);
-        button.element.hidden = state.active || permanent.unlockedHelpers[helperId];
-        button.element.disabled = Boolean(prerequisite && !permanent.unlockedHelpers[prerequisite]) || permanent.grassTouches < cost;
+        this.setHidden(button.element, state.active || permanent.unlockedHelpers[helperId]);
+        this.setDisabled(button.element, Boolean(prerequisite && !permanent.unlockedHelpers[prerequisite]) || permanent.grassTouches < cost);
       }
     }
     if (this.playtestStatus) {
-      this.playtestStatus.value = `HP ${state.hp.toFixed(1)} | RT ${state.runTouches.toFixed(0)} | GT ${permanent.grassTouches.toFixed(0)} | ${state.field.width}x${state.field.height}`;
-      this.playtestStatus.textContent = this.playtestStatus.value;
+      this.setOutput(this.playtestStatus, `HP ${state.hp.toFixed(1)} | RT ${state.runTouches.toFixed(0)} | GT ${permanent.grassTouches.toFixed(0)} | ${state.field.width}x${state.field.height}`);
     }
 
-    this.root.dataset.state = state.active ? "active" : "memory";
-    this.root.dataset.worksOpen = `${worksOpen}`;
-    this.root.dataset.optionsOpen = `${optionsOpen}`;
-    document.documentElement.dataset.grassEcosystemPrototype = JSON.stringify({
+    this.setDataset(this.root, "state", state.active ? "active" : "memory");
+    this.setDataset(this.root, "worksOpen", `${worksOpen}`);
+    this.setDataset(this.root, "optionsOpen", `${optionsOpen}`);
+    const prototypeSnapshot = JSON.stringify({
       active: state.active,
       hp: Number(state.hp.toFixed(3)),
       run: state.runNumber,
@@ -264,6 +263,9 @@ export class EcosystemDomBridge {
       worksOpen,
       optionsOpen,
     });
+    if (document.documentElement.dataset.grassEcosystemPrototype !== prototypeSnapshot) {
+      document.documentElement.dataset.grassEcosystemPrototype = prototypeSnapshot;
+    }
   }
 
   destroy(): void {
@@ -303,5 +305,29 @@ export class EcosystemDomBridge {
     element.classList.add("ecosystem-semantic-control");
     element.style.left = `${(index % 100) * 5}px`;
     element.style.top = `${Math.floor(index / 100) * 5}px`;
+  }
+
+  private setText(element: HTMLElement, value: string): void {
+    if (element.textContent !== value) element.textContent = value;
+  }
+
+  private setOutput(element: HTMLOutputElement, value: string): void {
+    if (element.value !== value) element.value = value;
+  }
+
+  private setInputMax(element: HTMLInputElement, value: string): void {
+    if (element.max !== value) element.max = value;
+  }
+
+  private setDisabled(element: HTMLButtonElement, disabled: boolean): void {
+    if (element.disabled !== disabled) element.disabled = disabled;
+  }
+
+  private setHidden(element: HTMLElement, hidden: boolean): void {
+    if (element.hidden !== hidden) element.hidden = hidden;
+  }
+
+  private setDataset(element: HTMLElement, key: string, value: string): void {
+    if (element.dataset[key] !== value) element.dataset[key] = value;
   }
 }

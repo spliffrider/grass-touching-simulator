@@ -1,0 +1,68 @@
+{
+  "date": "2026-07-13",
+  "topic": "Measured ecosystem frame-pacing and 100x100 performance pass",
+  "currentUserGoal": "Keep the ecosystem redesign buttery smooth now and preserve a credible path to a real 100x100 field with 10,000 logical tiles.",
+  "workCompleted": [
+    "Added a redesign-specific, allocation-free performance monitor with one-second windows, frame-time histogram p95, frame-work timing, simulation, animation, UI, field-render, save, and touch-action phase metrics.",
+    "Expanded the redesign harness with logical versus rendered tile counts, fixed pool sizes, recursive display-object count, active tween and effect counts, compact field-state bytes, sparse wound count, and frame-pacing metrics.",
+    "Measured the actual ecosystem route before changing hot paths. The model itself was cheap; repeated Phaser text rasterization, hidden semantic-control mutation, synchronous touch redraws, and first-touch audio initialization caused the visible hitches.",
+    "Changed the active HUD to refresh at 5 Hz, semantic DOM state at 1 Hz, and the playtest harness at 4 Hz while forcing immediate updates for state transitions and purchases.",
+    "Added change detection to Phaser text/button updates and semantic DOM text, attributes, visibility, disabled state, and exported JSON so unchanged UI is not regenerated.",
+    "Stopped refreshing hidden field, factory, options, and Memory Grove surfaces. The current visible surface alone receives periodic numeric updates.",
+    "Moved the Begin Next Run pulse to the per-frame Memory Grove animation path so it remains smooth without forcing the whole UI to refresh.",
+    "Coalesced touch-driven field redraws onto the next scene frame and removed synchronous full HUD/DOM refreshes from the touch handler while retaining immediate sound and impact feedback.",
+    "Moved Web Audio graph creation out of the first touch and stopped generating the full fallback WAV library synchronously while a supported AudioContext is resuming.",
+    "Made clean field redraw checks occur before viewport projection and removed temporary arrays from active-effect harness counting.",
+    "Added deterministic tests for the performance monitor, including p95, phase maxima, and out-of-frame touch actions."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemPerformanceMonitor.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "src/game/systems/AudioSystem.ts",
+    "tests/EcosystemPerformanceMonitor.test.ts",
+    "handoffs/HANDOFF_2026-07-13_ECOSYSTEM_PERFORMANCE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 111 Vitest tests across 16 files, strict TypeScript, and the Vite production build.",
+    "The actual redesign route was tested at 1280x720 and 390x844; the final browser reload had no new errors or warnings.",
+    "Before optimization, a one-tile touch could cost 36.2ms on first audio startup and recurring touch windows averaged roughly 2.5-7.3ms. Final 1x1 and 100x100 touch samples averaged about 0.1ms with a 0.2ms maximum.",
+    "Final desktop 100x100 sample: 10,000 logical tiles, far LOD, 100 rendered chunk views, zero rendered tile views, 144 FPS at the current display cadence, 6.75ms p95 frame delta, 6.96ms window maximum delta, 0.031ms average scene work, and 0.9ms maximum scene work.",
+    "The 100x100 compact stage, chunk-summary, and dirty-marker arrays use 11,700 bytes; sparse wounds remain separate.",
+    "The Phaser scene contains 1,436 recursively counted display objects regardless of logical field size, including fixed pools of 360 near tile views, 100 chunk views, 24 impacts, and 24 helper effects.",
+    "A real active-field 100x100 periodic save measured 0.5ms without a frame-time spike.",
+    "The 390x844 responsive 100x100 sample on desktop hardware reported 142 FPS, 8.25ms p95 frame delta, 8.34ms maximum delta, and 0.7ms maximum scene work. This is viewport verification, not a claim about physical low-end phone hardware.",
+    "The accessible DOM snapshot remained complete at 100x100, including chunk summaries, resources, helpers, coordinates, and controls."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "debugUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Local optimized prototype checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "The performance implementation, tests, and handoff should be committed together on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173, and the browser was restored to a fresh 1x1 run."
+  ],
+  "knownIssues": [
+    "The 390x844 result uses responsive viewport emulation on the desktop GPU/CPU. A real lower-end phone performance run is still required before claiming the physical-phone target.",
+    "The fixed 1,436-object scene includes hidden Memory Grove content and preallocated tile/chunk pools. Current measurements show ample headroom, but lazy scene construction could reduce memory further if a real device profile identifies object traversal or memory pressure.",
+    "Playtest instrumentation itself performs bounded work at 4 Hz. Non-playtest prototype routes do not continuously refresh the harness.",
+    "The broader ecosystem balance and visual-development work remains alpha; this pass addresses frame pacing and architecture rather than gameplay depth."
+  ],
+  "nextRecommendedSteps": [
+    "Profile the same redesign build on a real midrange or low-end phone before setting a physical-device performance claim.",
+    "Add a repeatable long-running helper-and-particle stress scenario once visible ecosystem helpers are implemented; keep effect pools capped.",
+    "Continue ecosystem gameplay slices without introducing per-tile display objects, per-frame 10,000-tile scans, or synchronous save/UI work.",
+    "Use the new harness to compare 32x32 near/mid zoom, 50x50, and 100x100 whenever field rendering or touch propagation changes."
+  ],
+  "doNotRevert": [
+    "Keep 100x100 as 10,000 compact logical tile states summarized into at most 100 rendered chunks at far zoom.",
+    "Keep touch actions free of synchronous HUD/DOM rebuilds and full field redraws.",
+    "Keep semantic DOM accessibility; throttle and change-detect it instead of removing it.",
+    "Keep first-touch audio free of synchronous fallback-library generation when Web Audio is available.",
+    "Do not use the legacy 1,200-tile harness as evidence for redesign performance."
+  ]
+}

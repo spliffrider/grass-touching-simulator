@@ -52,28 +52,17 @@ export class AudioSystem {
     this.applyVolume();
   }
 
+  prepare(): void {
+    this.ensureContext();
+  }
+
   unlock(): void {
-    const AudioContextCtor = window.AudioContext ?? window.webkitAudioContext;
-    if (!AudioContextCtor) {
-      return;
-    }
+    if (!this.ensureContext()) return;
+    const context = this.context;
+    if (!context) return;
 
-    if (!this.context) {
-      this.context = new AudioContextCtor();
-      this.master = this.context.createGain();
-      this.limiter = this.context.createDynamicsCompressor();
-      this.master.gain.value = this.getMasterGainTarget();
-      this.limiter.threshold.value = -10;
-      this.limiter.knee.value = 18;
-      this.limiter.ratio.value = 12;
-      this.limiter.attack.value = 0.003;
-      this.limiter.release.value = 0.14;
-      this.master.connect(this.limiter);
-      this.limiter.connect(this.context.destination);
-    }
-
-    if (this.context.state === "suspended") {
-      this.resumePromise ??= this.context
+    if (context.state === "suspended") {
+      this.resumePromise ??= context
         .resume()
         .then(() => {
           this.unlocked = true;
@@ -85,6 +74,24 @@ export class AudioSystem {
     }
 
     this.unlocked = true;
+  }
+
+  private ensureContext(): boolean {
+    if (this.context) return true;
+    const AudioContextCtor = window.AudioContext ?? window.webkitAudioContext;
+    if (!AudioContextCtor) return false;
+    this.context = new AudioContextCtor();
+    this.master = this.context.createGain();
+    this.limiter = this.context.createDynamicsCompressor();
+    this.master.gain.value = this.getMasterGainTarget();
+    this.limiter.threshold.value = -10;
+    this.limiter.knee.value = 18;
+    this.limiter.ratio.value = 12;
+    this.limiter.attack.value = 0.003;
+    this.limiter.release.value = 0.14;
+    this.master.connect(this.limiter);
+    this.limiter.connect(this.context.destination);
+    return true;
   }
 
   private applyVolume(): void {
@@ -142,7 +149,6 @@ export class AudioSystem {
         return false;
       }
 
-      this.playFallbackGrassTouch(isCrit);
       this.resumePromise ??= this.context
         .resume()
         .then(() => {
@@ -177,7 +183,6 @@ export class AudioSystem {
 
     if (this.context.state !== "running" || !this.unlocked) {
       this.lastGrassTouchSoundAt = performance.now();
-      this.playFallbackGrassTouch(false);
       this.resumePromise ??= this.context
         .resume()
         .then(() => {
