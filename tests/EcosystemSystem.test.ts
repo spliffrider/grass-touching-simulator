@@ -4,6 +4,7 @@ import { HELPER_RECONFIGURE_MS } from "../src/game/ecosystem/EcosystemCatalog";
 import {
   advanceEcosystem,
   buyCultivationRank,
+  consumeHelperPulses,
   createEcosystemState,
   createPermanentEcosystemState,
   getBroadPalmPower,
@@ -64,6 +65,23 @@ describe("EcosystemSystem", () => {
 
     expect(state.resources.dew.amount).toBeCloseTo(dewBefore, 10);
     expect(state.helpers.tinySprinkler.lastPauseReason).toMatch(/full/i);
+  });
+
+  it("emits one consumable Tiny Sprinkler pulse after a completed production cycle", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.unlockedHelpers.tinySprinkler = true;
+    const state = createEcosystemState(permanent, { seed: 41 });
+    state.helpers.tinySprinkler.count = 1;
+    state.resources.dew.amount = state.resources.dew.capacity;
+    state.resources.moisture.amount = 0;
+    state.resources.care.amount = 0;
+
+    for (let step = 0; step < 12; step += 1) advanceEcosystem(state, permanent, 250);
+
+    expect(state.resources.moisture.amount).toBeGreaterThan(0);
+    expect(state.resources.care.producedTotal).toBeGreaterThan(0);
+    expect(consumeHelperPulses(state).tinySprinkler).toBe(1);
+    expect(consumeHelperPulses(state).tinySprinkler).toBe(0);
   });
 
   it("never overfills a buffer or creates negative stock", () => {

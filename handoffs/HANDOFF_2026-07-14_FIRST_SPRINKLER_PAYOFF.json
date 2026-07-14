@@ -1,0 +1,59 @@
+{
+  "date": "2026-07-14",
+  "topic": "First Tiny Sprinkler automation payoff",
+  "currentUserGoal": "Continue turning the ecosystem prototype into an engaging game while preserving the measured 100x100 performance architecture.",
+  "workCompleted": [
+    "Reworked field helper placement so owned helpers sit visibly inside the living field instead of hiding beneath the single-plot stage plaque.",
+    "Added a bounded helper badge and production-cycle bar for every helper type. The count label remains static during ordinary operation so progress does not trigger repeated text rasterization.",
+    "Added a first-purchase arrival sequence with a scale-in pose, field impact ring, readable online announcement, and a priming spray.",
+    "Changed real Tiny Sprinkler production pulses into a three-droplet spray with a pooled impact ring, mode-aware resource feedback, a Care-bar flash, and actor recoil.",
+    "Added a soft synthesized sprinkler spray sound with a scene-level playback interval so large helper counts cannot create unbounded audio spam.",
+    "Kept all new visuals fixed-size and pooled: eight helper badges, eight feedback labels, and one shared arrival announcement. No object count scales with logical field size.",
+    "Added a deterministic test proving that one completed Tiny Sprinkler cycle emits one consumable helper pulse and that consuming it clears the signal."
+  ],
+  "filesChanged": [
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "src/game/systems/AudioSystem.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-14_FIRST_SPRINKLER_PAYOFF.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 112 Vitest tests across 16 files, strict TypeScript, and the Vite production build.",
+    "The actual ecosystem route was exercised from a clean save through Game Over, Tiny Sprinkler Memory purchase, Begin Next Run, and the first run-local sprinkler purchase.",
+    "The arrival and actor placement were visually checked at the default 1280x720 viewport and at 390x844. The actor, cycle bar, and stage plaque remained separate and readable.",
+    "The browser reported no errors or warnings after the desktop, phone, and 100x100 checks.",
+    "Final 100x100 responsive sample on desktop hardware: 10,000 logical tiles, far LOD, 100 rendered chunk views, zero rendered tile views, 1,461 fixed display objects, 143.99 FPS at the current display cadence, 6.75ms p95 frame delta, 0.045ms average scene work, 1.1ms maximum scene work, and zero full-field scans.",
+    "The helper presentation adds 25 fixed display objects independent of field size. Existing pools remain capped at 360 near-tile views, 100 chunk views, 24 impacts, and 24 helper effects."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "debugUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Local ecosystem prototype checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "The first-sprinkler implementation, test, and handoff belong in one checkpoint on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173, and the browser is restored to a clean Run 1 at 1x1."
+  ],
+  "knownIssues": [
+    "The first-purchase field arrival is intentionally shown when buying from the Living Ledger. A first unit bought while Ecosystem Works covers the field receives the normal factory purchase feedback but does not replay the field arrival after returning.",
+    "The synthesized sprinkler sound was exercised through the browser path, but subjective audio tuning still needs the user's ears at their normal speaker volume.",
+    "The 390x844 and 100x100 measurements use responsive viewport emulation on desktop hardware, not a physical low-end phone.",
+    "Only Tiny Sprinkler has bespoke multi-projectile choreography and a dedicated sound so far. The shared bounded feedback path supports later helpers, but each deserves its own motion and audio character in future slices."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test the Tiny Sprinkler arrival, cycle meter, spray sound, and repeated production feedback at normal play speed.",
+    "Build the first meaningful Dew-to-Moisture-to-Growth decision so the new automation payoff changes player choices as clearly as it now changes presentation.",
+    "Give Field Mouse its own arrival, carry animation, and production sound when the next helper becomes part of the playable progression.",
+    "Add a repeatable helper-heavy redesign harness before many helper types can fire simultaneously, while retaining the fixed effect and audio caps."
+  ],
+  "doNotRevert": [
+    "Keep helper presentation bounded by helper type rather than helper count or logical tile count.",
+    "Keep cycle progress on rectangle geometry instead of rapidly changing Phaser text.",
+    "Keep production pulse visuals driven by deterministic model pulse events rather than cosmetic timers.",
+    "Keep 100x100 represented by compact logical state and at most 100 far-LOD chunk views.",
+    "Do not use the legacy 1,200-tile harness as evidence for redesign performance."
+  ]
+}

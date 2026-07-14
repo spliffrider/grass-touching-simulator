@@ -16,6 +16,7 @@ type SoundName =
   | "prick"
   | "mower"
   | "wound_seal"
+  | "sprinkler"
   | "dormancy"
   | "last_stand";
 
@@ -261,6 +262,9 @@ export class AudioSystem {
       case "wound_seal":
         this.playWoundSeal();
         break;
+      case "sprinkler":
+        this.playSprinkler();
+        break;
       case "dormancy":
         this.playDormancy();
         break;
@@ -469,6 +473,14 @@ export class AudioSystem {
     this.playToneSweep(112, 168, 0.24, 0.052, "sine", now);
     this.playArp([293.66, 440, 587.33], now + 0.045, 0.065, 0.038, "sine");
     this.playTone(880 + Math.random() * 40, 0.16, 0.022, "sine", now + 0.2);
+  }
+
+  private playSprinkler(): void {
+    const now = this.now();
+    this.playNoiseSweep(0.18, 2380 + Math.random() * 420, 0.032, now);
+    this.playNoiseSweep(0.11, 4100 + Math.random() * 480, 0.015, now + 0.055);
+    this.playToneSweep(620, 360, 0.13, 0.026, "sine", now + 0.015);
+    this.playTone(980 + Math.random() * 70, 0.07, 0.02, "triangle", now + 0.11);
   }
 
   private playDormancy(): void {

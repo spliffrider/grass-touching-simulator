@@ -120,6 +120,28 @@ const HELPER_EFFECT_TEXTURE: Record<HelperId, string> = {
   meadowRabbit: "eco-effect-seed",
 };
 
+const HELPER_EFFECT_COLOR: Record<HelperId, number> = {
+  tinySprinkler: 0x8de7ff,
+  fieldMouse: 0xb8d96c,
+  beeHive: 0xffe889,
+  chickenPatrol: 0xd8b66a,
+  earthwormCrew: 0xc98c68,
+  ancientRoots: 0x83d765,
+  sheepLoop: 0xb8f1a0,
+  meadowRabbit: 0xe7b88e,
+};
+
+const HELPER_PULSE_COPY: Record<HelperId, string> = {
+  tinySprinkler: "MOISTURE + CARE",
+  fieldMouse: "GROWTH + RT",
+  beeHive: "POLLINATED BLOOMS",
+  chickenPatrol: "COMPOST + RT",
+  earthwormCrew: "HUMUS",
+  ancientRoots: "ROOT ENERGY + CARE",
+  sheepLoop: "CLIPPINGS + CARE",
+  meadowRabbit: "GROWTH + FLOWERS",
+};
+
 const SAVE_INTERVAL_MS = 15_000;
 const UI_REFRESH_MS = 200;
 const DOM_REFRESH_MS = 1_000;
@@ -128,6 +150,9 @@ const FIELD_REDRAW_MS = 180;
 const MAX_EFFECTS = 24;
 const AMBIENT_MOTE_COUNT = 18;
 const MAX_SCENE_CONTENT_WIDTH = 1680;
+const HELPER_ARRIVAL_MS = 760;
+const HELPER_PULSE_ANIMATION_MS = 620;
+const HELPER_SOUND_INTERVAL_MS = 720;
 
 const TILE_STAGE_LABELS: Record<TileStage, string> = {
   [TileStage.Dormant]: "Sleeping Soil",
@@ -157,10 +182,18 @@ interface SceneButton {
 
 interface HelperActorView {
   image: Phaser.GameObjects.Image;
+  badgeBack: Phaser.GameObjects.Rectangle;
+  progressFill: Phaser.GameObjects.Rectangle;
   countText: Phaser.GameObjects.Text;
   baseX: number;
   baseY: number;
+  baseScaleX: number;
+  baseScaleY: number;
+  actorSize: number;
+  badgeWidth: number;
   phase: number;
+  arrivalStartedAt: number;
+  pulseStartedAt: number;
 }
 
 interface MemoryNodeRuntime {
@@ -258,6 +291,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private effectPool: Phaser.GameObjects.Image[] = [];
   private ambientMotes: Phaser.GameObjects.Image[] = [];
   private helperActors = {} as Record<HelperId, HelperActorView>;
+  private helperFeedbackTexts = {} as Record<HelperId, Phaser.GameObjects.Text>;
+  private helperAnnouncementText!: Phaser.GameObjects.Text;
   private helperIcons = {} as Record<HelperId, Phaser.GameObjects.Image>;
   private helperBuyButtons = {} as Record<HelperId, SceneButton>;
   private factoryHelperButtons = {} as Record<HelperId, SceneButton>;
@@ -342,6 +377,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private music?: Phaser.Sound.BaseSound;
   private musicVolume = 0;
   private sfxVolume = 0;
+  private lastHelperSoundAt = -Infinity;
   private readonly handlePageHide = (): void => this.persistAll();
 
   constructor() {
@@ -463,7 +499,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     if (result.ticks > 0) {
       const pulses = consumeHelperPulses(this.state);
       for (const helperId of HELPER_IDS) {
-        if (pulses[helperId] > 0) this.spawnHelperEffect(helperId);
+        if (pulses[helperId] > 0) this.spawnHelperEffect(helperId, pulses[helperId]);
       }
     }
     if (!this.state.active && !this.lastGameOverState) {
@@ -639,9 +675,25 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.fieldRoot.add(icon);
       this.helperBuyButtons[helperId] = this.createButton(this.fieldRoot, "", () => this.buyHelperFromUi(helperId), 0x1b4f2c);
       const actorImage = this.add.image(0, 0, `eco-helper-${helperId}`).setOrigin(0.5);
-      const countText = this.createText("", 11, "#fff3c2", "bold").setOrigin(0.5, 0);
-      this.helperLayer.add([actorImage, countText]);
-      this.helperActors[helperId] = { image: actorImage, countText, baseX: 0, baseY: 0, phase: HELPER_IDS.indexOf(helperId) * 1.17 };
+      const badgeBack = this.add.rectangle(0, 0, 92, 20, 0x06190f, 0.92).setStrokeStyle(1, 0xd8b66a, 0.68);
+      const progressFill = this.add.rectangle(0, 0, 1, 3, 0x8de7ff, 0.88).setOrigin(0, 0.5);
+      const countText = this.createText("", 10, "#fff3c2", "bold").setOrigin(0.5);
+      this.helperLayer.add([actorImage, badgeBack, progressFill, countText]);
+      this.helperActors[helperId] = {
+        image: actorImage,
+        badgeBack,
+        progressFill,
+        countText,
+        baseX: 0,
+        baseY: 0,
+        baseScaleX: 1,
+        baseScaleY: 1,
+        actorSize: 0,
+        badgeWidth: 92,
+        phase: HELPER_IDS.indexOf(helperId) * 1.17,
+        arrivalStartedAt: -Infinity,
+        pulseStartedAt: -Infinity,
+      };
     }
 
     const tilePoolSize = MAX_NEAR_TILE_VIEWS_DESKTOP;
@@ -676,6 +728,21 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.effectLayer.add(effect);
       this.effectPool.push(effect);
     }
+    for (const helperId of HELPER_IDS) {
+      const feedback = this.createText("", 12, "#fff3c2", "bold")
+        .setOrigin(0.5)
+        .setBackgroundColor("#06190f")
+        .setPadding(7, 3, 7, 3)
+        .setVisible(false);
+      this.effectLayer.add(feedback);
+      this.helperFeedbackTexts[helperId] = feedback;
+    }
+    this.helperAnnouncementText = this.createText("", 17, "#fff3c2", "bold")
+      .setOrigin(0.5)
+      .setBackgroundColor("#06190f")
+      .setPadding(10, 5, 10, 5)
+      .setVisible(false);
+    this.effectLayer.add(this.helperAnnouncementText);
 
     this.fieldSurface = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0.001).setOrigin(0).setInteractive({ useHandCursor: true });
     this.fieldRoot.add(this.fieldSurface);
@@ -1390,6 +1457,18 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         this.helperBuyButtons[helperId]
           .setLabel(`${HELPERS[helperId].label} x${helper.count}  Buy ${cost} RT${pause}`)
           .setEnabled(this.state.runTouches >= cost);
+        const actor = this.helperActors[helperId];
+        if (helper.count > 0) {
+          this.setTextIfChanged(actor.countText, helper.lastPauseReason ? `x${helper.count}  |  PAUSED` : `x${helper.count}`);
+          const progressRatio = helper.lastPauseReason ? 0 : Phaser.Math.Clamp(helper.pulseProgress, 0, 1);
+          actor.progressFill.setDisplaySize(Math.max(1, (actor.badgeWidth - 4) * progressRatio), 3);
+          const progressColor = helper.lastPauseReason ? 0xe8616a : HELPER_EFFECT_COLOR[helperId];
+          if (actor.progressFill.fillColor !== progressColor) actor.progressFill.setFillStyle(progressColor, 0.9);
+          const statusColor = helper.lastPauseReason ? "#f1a6ce" : "#fff3c2";
+          if (actor.countText.getData("statusColor") !== statusColor) {
+            actor.countText.setData("statusColor", statusColor).setColor(statusColor);
+          }
+        }
       }
       const cultivationCost = getCultivationCost(this.state);
       const cultivationComplete = this.state.field.cultivationRank >= 10;
@@ -1643,19 +1722,60 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private layoutHelperActors(): void {
     const owned = HELPER_IDS.filter((helperId) => this.state.helpers[helperId].count > 0);
-    const actorSize = Phaser.Math.Clamp(Math.min(this.fieldBounds.width / Math.max(5, owned.length + 1), 54), 26, 54);
+    const singlePlot = this.state.field.stages.length === 1 && this.projection?.lod === "near";
+    const singlePlotSize = singlePlot
+      ? Math.min(420, this.projection.cellSize * 0.86, this.fieldBounds.height * 0.72)
+      : 0;
+    const actorSize = Phaser.Math.Clamp(
+      Math.min((singlePlot ? singlePlotSize : this.fieldBounds.width) / Math.max(5, owned.length + 1), singlePlot ? 64 : 54),
+      singlePlot ? 38 : 26,
+      singlePlot ? 64 : 54,
+    );
+    const singlePlotCenterX = singlePlot ? this.projection.originX + this.projection.cellSize / 2 : 0;
+    const singlePlotCenterY = singlePlot ? this.projection.originY + this.projection.cellSize / 2 : 0;
+    const visibleLeft = Math.max(this.fieldBounds.x + 28, this.projection.originX + actorSize * 0.7);
+    const visibleRight = Math.min(
+      this.fieldBounds.x + this.fieldBounds.width - 28,
+      this.projection.originX + this.projection.worldWidth - actorSize * 0.7,
+    );
+    const visibleBottom = Math.min(
+      this.fieldBounds.y + this.fieldBounds.height - 14,
+      this.projection.originY + this.projection.worldHeight,
+    );
     for (const helperId of HELPER_IDS) {
       const actor = this.helperActors[helperId];
       const index = owned.indexOf(helperId);
       const visible = index >= 0;
       actor.image.setVisible(visible);
+      actor.badgeBack.setVisible(visible);
+      actor.progressFill.setVisible(visible);
       actor.countText.setVisible(visible);
       if (!visible) continue;
       const fraction = (index + 1) / (owned.length + 1);
-      actor.baseX = this.fieldBounds.x + 24 + fraction * (this.fieldBounds.width - 48);
-      actor.baseY = this.fieldBounds.y + this.fieldBounds.height - actorSize * 0.72;
+      actor.baseX = singlePlot
+        ? singlePlotCenterX - singlePlotSize / 2 + actorSize * 0.8 + fraction * (singlePlotSize - actorSize * 1.6)
+        : visibleLeft + fraction * Math.max(0, visibleRight - visibleLeft);
+      actor.baseY = singlePlot
+        ? singlePlotCenterY + singlePlotSize / 2 - actorSize * 0.92
+        : visibleBottom - actorSize * 0.9;
+      actor.actorSize = actorSize;
+      actor.badgeWidth = Phaser.Math.Clamp(actorSize * 1.78, 78, 112);
       actor.image.setPosition(actor.baseX, actor.baseY).setDisplaySize(actorSize, actorSize);
-      actor.countText.setText(`x${this.state.helpers[helperId].count}`).setPosition(actor.baseX, actor.baseY + actorSize * 0.45);
+      actor.baseScaleX = actor.image.scaleX;
+      actor.baseScaleY = actor.image.scaleY;
+      actor.badgeBack.setDisplaySize(actor.badgeWidth, 20).setPosition(actor.baseX, actor.baseY + actorSize * 0.53);
+      actor.progressFill.setPosition(actor.baseX - actor.badgeWidth / 2 + 2, actor.baseY + actorSize * 0.53 + 7);
+      const countFontSize = actorSize >= 48 ? 10 : 9;
+      if (actor.countText.getData("fontSize") !== countFontSize) {
+        actor.countText.setData("fontSize", countFontSize).setFontSize(countFontSize);
+      }
+      actor.countText.setPosition(actor.baseX, actor.baseY + actorSize * 0.53 - 1);
+      if (this.time.now - actor.arrivalStartedAt >= HELPER_ARRIVAL_MS) {
+        actor.image.setAlpha(1).setScale(actor.baseScaleX, actor.baseScaleY);
+        actor.badgeBack.setAlpha(1);
+        actor.progressFill.setAlpha(0.9);
+        actor.countText.setAlpha(1);
+      }
     }
   }
 
@@ -1692,42 +1812,183 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     for (const helperId of HELPER_IDS) {
       const actor = this.helperActors[helperId];
       if (!actor.image.visible) continue;
-      actor.image.x = actor.baseX + Math.sin(now * 0.0011 + actor.phase) * 4;
-      actor.image.y = actor.baseY + Math.sin(now * 0.0017 + actor.phase) * 3;
-      actor.image.rotation = Math.sin(now * 0.0013 + actor.phase) * 0.05;
-      actor.countText.x = actor.image.x;
-      actor.countText.y = actor.image.y + actor.image.displayHeight * 0.45;
+      const arrivalAge = now - actor.arrivalStartedAt;
+      const arrivalRatio = Phaser.Math.Clamp(arrivalAge / HELPER_ARRIVAL_MS, 0, 1);
+      const arrivalEase = 1 - Math.pow(1 - arrivalRatio, 3);
+      const arrivalScale = arrivalRatio < 1 ? arrivalEase * (1 + Math.sin(arrivalRatio * Math.PI) * 0.16) : 1;
+      const pulseAge = now - actor.pulseStartedAt;
+      const pulseRatio = Phaser.Math.Clamp(pulseAge / HELPER_PULSE_ANIMATION_MS, 0, 1);
+      const pulseScale = pulseAge >= 0 && pulseAge < HELPER_PULSE_ANIMATION_MS
+        ? 1 + Math.sin(pulseRatio * Math.PI) * 0.14
+        : 1;
+      const pulseKick = pulseAge >= 0 && pulseAge < HELPER_PULSE_ANIMATION_MS
+        ? Math.sin(pulseRatio * Math.PI * 3) * (1 - pulseRatio) * 0.1
+        : 0;
+      const idleX = Math.sin(now * 0.0011 + actor.phase) * 4;
+      const idleY = Math.sin(now * 0.0017 + actor.phase) * 3;
+      actor.image.x = actor.baseX + idleX;
+      actor.image.y = actor.baseY + idleY - Math.sin(pulseRatio * Math.PI) * actor.actorSize * 0.08;
+      actor.image.rotation = Math.sin(now * 0.0013 + actor.phase) * 0.05 + pulseKick;
+      actor.image.setScale(actor.baseScaleX * arrivalScale * pulseScale, actor.baseScaleY * arrivalScale * pulseScale);
+      actor.image.setAlpha(arrivalRatio);
+      const badgeY = actor.image.y + actor.actorSize * 0.53;
+      actor.badgeBack.setPosition(actor.image.x, badgeY).setAlpha(arrivalRatio);
+      actor.progressFill.setPosition(actor.image.x - actor.badgeWidth / 2 + 2, badgeY + 7).setAlpha(arrivalRatio * 0.9);
+      actor.countText.setPosition(actor.image.x, badgeY - 1).setAlpha(arrivalRatio);
     }
   }
 
-  private spawnHelperEffect(helperId: HelperId): void {
+  private spawnHelperEffect(helperId: HelperId, pulseCount = 1, priming = false): void {
     const actor = this.helperActors[helperId];
     if (!actor.image.visible || !this.state.active || this.worksOpen) return;
-    const effect = this.effectPool.find((candidate) => !candidate.visible);
-    if (!effect) return;
-    const targetX = Phaser.Math.Clamp(
-      this.projection.originX + Math.random() * this.projection.worldWidth,
-      this.fieldBounds.x + 22,
-      this.fieldBounds.x + this.fieldBounds.width - 22,
-    );
-    const targetY = Phaser.Math.Clamp(
-      this.projection.originY + Math.random() * this.projection.worldHeight,
-      this.fieldBounds.y + 58,
-      this.fieldBounds.y + this.fieldBounds.height - 36,
-    );
-    effect.setTexture(HELPER_EFFECT_TEXTURE[helperId]).setPosition(actor.image.x, actor.image.y).setDisplaySize(18, 18).setAlpha(1).setScale(1).setVisible(true);
-    this.tweens.killTweensOf(effect);
+    actor.pulseStartedAt = this.time.now;
+    if (helperId === "tinySprinkler" && this.time.now - this.lastHelperSoundAt >= HELPER_SOUND_INTERVAL_MS) {
+      this.lastHelperSoundAt = this.time.now;
+      this.audio.play("sprinkler");
+    }
+    const burstCount = helperId === "tinySprinkler" ? 3 : 1;
+    const singlePlot = this.state.field.stages.length === 1 && this.projection.lod === "near";
+    const centerX = this.projection.originX + this.projection.worldWidth / 2;
+    const centerY = this.projection.originY + this.projection.worldHeight / 2;
+    const singlePlotVisualSize = singlePlot
+      ? Math.min(420, this.projection.cellSize * 0.86, this.fieldBounds.height * 0.72)
+      : 0;
+    for (let burstIndex = 0; burstIndex < burstCount; burstIndex += 1) {
+      const effect = this.effectPool.find((candidate) => !candidate.visible);
+      if (!effect) break;
+      const targetX = singlePlot
+        ? centerX + (burstIndex - (burstCount - 1) / 2) * Math.min(42, singlePlotVisualSize * 0.13) + (Math.random() - 0.5) * 12
+        : Phaser.Math.Clamp(
+          this.projection.originX + Math.random() * this.projection.worldWidth,
+          this.fieldBounds.x + 22,
+          this.fieldBounds.x + this.fieldBounds.width - 22,
+        );
+      const targetY = singlePlot
+        ? centerY - singlePlotVisualSize * 0.08 + (Math.random() - 0.5) * Math.min(70, singlePlotVisualSize * 0.18)
+        : Phaser.Math.Clamp(
+          this.projection.originY + Math.random() * this.projection.worldHeight,
+          this.fieldBounds.y + 58,
+          this.fieldBounds.y + this.fieldBounds.height - 36,
+        );
+      effect
+        .setTexture(HELPER_EFFECT_TEXTURE[helperId])
+        .setPosition(actor.image.x, actor.image.y - actor.actorSize * 0.18)
+        .setDisplaySize(helperId === "tinySprinkler" ? 20 : 18, helperId === "tinySprinkler" ? 20 : 18)
+        .setAlpha(1)
+        .setScale(1)
+        .setVisible(true);
+      this.tweens.killTweensOf(effect);
+      this.tweens.add({
+        targets: effect,
+        x: targetX,
+        y: targetY,
+        rotation: helperId === "tinySprinkler" ? (burstIndex - 1) * 0.26 : Math.PI * 2,
+        scale: 0.72,
+        alpha: 0.3,
+        delay: burstIndex * 70,
+        duration: 540 + HELPER_IDS.indexOf(helperId) * 32,
+        ease: "Sine.easeInOut",
+        onComplete: () => {
+          effect.setVisible(false);
+          if (burstIndex === 0) this.completeHelperEffect(helperId, targetX, targetY, pulseCount, priming);
+        },
+      });
+    }
+  }
+
+  private completeHelperEffect(helperId: HelperId, x: number, y: number, pulseCount: number, priming: boolean): void {
+    const color = HELPER_EFFECT_COLOR[helperId];
+    const impact = this.impactPool.find((candidate) => !candidate.visible);
+    if (impact) {
+      impact.setPosition(x, y).setRadius(14).setFillStyle(color, 0.1).setStrokeStyle(3, color, 0.9).setAlpha(1).setScale(0.4).setVisible(true);
+      this.tweens.killTweensOf(impact);
+      this.tweens.add({
+        targets: impact,
+        scale: 2.1,
+        alpha: 0,
+        duration: 460,
+        ease: "Cubic.easeOut",
+        onComplete: () => impact.setVisible(false),
+      });
+    }
+
+    if (!priming) {
+      const feedback = this.helperFeedbackTexts[helperId];
+      const modeCopy = helperId === "tinySprinkler" && this.state.helpers.tinySprinkler.modeId === "cultivator"
+        ? "MOISTURE + GROWTH"
+        : HELPER_PULSE_COPY[helperId];
+      feedback
+        .setText(`${modeCopy}${pulseCount > 1 ? ` x${pulseCount}` : ""}`)
+        .setColor(`#${color.toString(16).padStart(6, "0")}`)
+        .setPosition(x, y - 18)
+        .setAlpha(1)
+        .setVisible(true);
+      this.tweens.killTweensOf(feedback);
+      this.tweens.add({
+        targets: feedback,
+        y: y - 42,
+        alpha: 0,
+        duration: 820,
+        ease: "Cubic.easeOut",
+        onComplete: () => feedback.setVisible(false),
+      });
+    }
+
+    if (!priming && helperId === "tinySprinkler" && this.state.helpers.tinySprinkler.modeId === "caretaker") {
+      this.tweens.killTweensOf(this.hpBarFill);
+      this.hpBarFill.setAlpha(1);
+      this.tweens.add({ targets: this.hpBarFill, alpha: 0.64, yoyo: true, duration: 120, onComplete: () => this.hpBarFill.setAlpha(1) });
+    }
+  }
+
+  private showHelperArrival(helperId: HelperId): void {
+    const actor = this.helperActors[helperId];
+    actor.arrivalStartedAt = this.time.now;
+    actor.pulseStartedAt = this.time.now;
+    actor.image.setAlpha(0).setScale(0.01);
+    actor.badgeBack.setAlpha(0);
+    actor.progressFill.setAlpha(0);
+    actor.countText.setAlpha(0);
+
+    const color = HELPER_EFFECT_COLOR[helperId];
+    const impact = this.impactPool.find((candidate) => !candidate.visible);
+    if (impact) {
+      impact
+        .setPosition(actor.baseX, actor.baseY)
+        .setRadius(Math.max(18, actor.actorSize * 0.45))
+        .setFillStyle(color, 0.08)
+        .setStrokeStyle(3, color, 0.94)
+        .setAlpha(1)
+        .setScale(0.35)
+        .setVisible(true);
+      this.tweens.killTweensOf(impact);
+      this.tweens.add({
+        targets: impact,
+        scale: 2.25,
+        alpha: 0,
+        duration: 720,
+        ease: "Back.easeOut",
+        onComplete: () => impact.setVisible(false),
+      });
+    }
+
+    this.helperAnnouncementText
+      .setText(`${HELPERS[helperId].label.toUpperCase()} ONLINE`)
+      .setColor(`#${color.toString(16).padStart(6, "0")}`)
+      .setPosition(actor.baseX, actor.baseY - actor.actorSize * 0.95)
+      .setAlpha(1)
+      .setVisible(true);
+    this.tweens.killTweensOf(this.helperAnnouncementText);
     this.tweens.add({
-      targets: effect,
-      x: targetX,
-      y: targetY,
-      rotation: Math.PI * 2,
-      scale: 0.72,
-      alpha: 0.25,
-      duration: 620 + HELPER_IDS.indexOf(helperId) * 32,
-      ease: "Sine.easeInOut",
-      onComplete: () => effect.setVisible(false),
+      targets: this.helperAnnouncementText,
+      y: actor.baseY - actor.actorSize * 1.35,
+      alpha: 0,
+      delay: 360,
+      duration: 900,
+      ease: "Cubic.easeOut",
+      onComplete: () => this.helperAnnouncementText.setVisible(false),
     });
+    this.spawnHelperEffect(helperId, 1, true);
   }
 
   private showTouchImpacts(result: TouchBatchResult): void {
@@ -1788,11 +2049,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private buyHelperFromUi(helperId: HelperId): void {
+    const previousCount = this.state.helpers[helperId].count;
     if (buyHelper(this.state, this.permanent, helperId)) {
-      this.audio.play("upgrade");
+      this.audio.play(previousCount === 0 ? "unlock" : "upgrade");
       const button = this.worksOpen ? this.factoryHelperButtons[helperId] : this.helperBuyButtons[helperId];
       this.tweens.add({ targets: button.container, scale: 1.06, yoyo: true, duration: 110 });
       this.layoutHelperActors();
+      if (previousCount === 0 && !this.worksOpen) this.showHelperArrival(helperId);
       this.persistAll();
       this.refreshUi(false);
     } else {
