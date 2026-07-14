@@ -21,7 +21,7 @@ Care. The Scourge is an increasing demand curve, not a scripted timer. A run
 ends only after available Care and manual intervention can no longer cover that
 demand and the Ancient Grass reaches zero HP.
 
-The first run is a deliberately brief 10-20 second lesson in touching and
+The first run is a deliberately brutal 5-10 second lesson in touching and
 inevitable Scourge pressure. The first automation run grows into minutes, and
 mature fields can remain active across saved browser sessions. Closing the game
 never grants resources and never advances Scourge.

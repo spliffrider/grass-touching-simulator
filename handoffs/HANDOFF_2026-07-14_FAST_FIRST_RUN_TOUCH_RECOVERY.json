@@ -3,7 +3,7 @@
   "topic": "Fast first run and explicit manual touch recovery",
   "currentUserGoal": "Make Ancient HP collapse much faster in the first run while keeping manual grass touching fast, fluid, and honest about its intentional per-tile cooldown.",
   "workCompleted": [
-    "Compressed only the fresh-save Scourge ramp. A no-touch first run now fails in under ten seconds in the browser, while a deterministic run touching every 750 ms lands in the 12-20 second target band.",
+    "Compressed only the fresh-save Scourge ramp to one second. A no-touch first run now fails in roughly three seconds in the browser, while a deterministic run touching every 750 ms lands in the 5-10 second target band.",
     "Left the completedRuns >= 1 Scourge curve unchanged, preserving the existing second-run multi-minute target.",
     "Added a sparse per-tile manual touch recovery gate. A tile starts at 380 ms recovery, while a different tile remains immediately touchable.",
     "Added a rank-ready recovery curve with ten reductions from 380 ms to a 140 ms floor. The actual permanent Fast Touch Memory node is intentionally deferred to the next tree-design slice.",
@@ -28,7 +28,7 @@
   "verificationRun": [
     "npm run check passed: ESLint, 117 Vitest tests across 17 files, strict TypeScript, and the Vite production build.",
     "Focused ecosystem pacing and cooldown tests passed: 17 tests across EcosystemSystem.test.ts and EcosystemTouchCooldown.test.ts.",
-    "At 1280x720 on a clean no-touch Run 1, Ancient HP was 83.7 at five seconds with Scourge demand at 6.39 Care/s, and Game Over occurred before ten seconds.",
+    "At 1280x720 on a clean no-touch Run 1, Scourge demand reached 2.62 Care/s after one second and 45.79 Care/s by the approximately three-second Game Over.",
     "The accepted-touch browser capture showed the grass remaining visible beneath the dimmer, the TOUCH RECOVERING label, and a clearly filling progress strip.",
     "The first scaled-rectangle implementation exposed a cyan field-flood bug during browser inspection. It was replaced before checkpointing by one fixed Graphics overlay, and the corrected browser capture was clean.",
     "Final 100x100 desktop sample: 10,000 logical tiles, far LOD, 100 rendered chunk views, zero rendered tile views, 1,463 fixed display objects, zero frame spikes, approximately 144 FPS at the current display cadence, 6.75 ms p95 frame delta, 0.019-0.075 ms average scene work across samples, and zero full-field scans.",
@@ -61,7 +61,7 @@
   "doNotRevert": [
     "Keep accepted ecosystem touches outside the shared audio-throttle path; only the explicit gameplay cooldown may reject a manual tap.",
     "Keep cooldown tracking sparse and presentation fixed-size. Never create cooldown objects for every logical tile.",
-    "Keep the special three-second Scourge ramp limited to completedRuns === 0 unless a new balance pass intentionally changes later runs.",
+    "Keep the special one-second Scourge ramp limited to completedRuns === 0 unless a new balance pass intentionally changes later runs.",
     "Keep recovery progress on geometry rather than rapidly changing Phaser text.",
     "Do not use the legacy 1,200-tile harness as evidence for redesign performance."
   ]

@@ -177,8 +177,8 @@ describe("EcosystemSystem", () => {
   });
 
   it("ends the first manual run as a brief onboarding failure", () => {
-    expect(simulateManualRun(0, 0)).toBeGreaterThanOrEqual(12_000);
-    expect(simulateManualRun(0, 0)).toBeLessThanOrEqual(20_000);
+    expect(simulateManualRun(0, 0)).toBeGreaterThanOrEqual(5_000);
+    expect(simulateManualRun(0, 0)).toBeLessThanOrEqual(10_000);
   });
 
   it("moves the second run into the first multi-minute band", () => {

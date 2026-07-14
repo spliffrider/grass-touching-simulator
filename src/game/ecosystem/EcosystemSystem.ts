@@ -736,7 +736,7 @@ function performRecipe(
 function getScourgeDemand(state: EcosystemState, permanent: PermanentEcosystemState): number {
   const completed = permanent.completedRuns;
   const rampSeconds = completed === 0
-    ? 3
+    ? 1
     : completed <= 5
       ? 44 * Math.pow(2.03, completed)
       : 1_520 * Math.pow(1.34, completed - 5);
