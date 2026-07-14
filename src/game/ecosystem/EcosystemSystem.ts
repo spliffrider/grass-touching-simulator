@@ -735,7 +735,11 @@ function performRecipe(
 
 function getScourgeDemand(state: EcosystemState, permanent: PermanentEcosystemState): number {
   const completed = permanent.completedRuns;
-  const rampSeconds = completed <= 5 ? 44 * Math.pow(2.03, completed) : 1_520 * Math.pow(1.34, completed - 5);
+  const rampSeconds = completed === 0
+    ? 3
+    : completed <= 5
+      ? 44 * Math.pow(2.03, completed)
+      : 1_520 * Math.pow(1.34, completed - 5);
   const ageRatio = state.elapsedMs / 1_000 / rampSeconds;
   const tileScale = 1 + Math.log2(state.field.stages.length + 1) * 0.11;
   return 0.72 * tileScale * Math.pow(1 + ageRatio, 2.12);

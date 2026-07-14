@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-14",
-  "latestHandoff": "HANDOFF_2026-07-14_FIRST_SPRINKLER_PAYOFF.json",
+  "latestHandoff": "HANDOFF_2026-07-14_FAST_FIRST_RUN_TOUCH_RECOVERY.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

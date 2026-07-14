@@ -1,0 +1,68 @@
+{
+  "date": "2026-07-14",
+  "topic": "Fast first run and explicit manual touch recovery",
+  "currentUserGoal": "Make Ancient HP collapse much faster in the first run while keeping manual grass touching fast, fluid, and honest about its intentional per-tile cooldown.",
+  "workCompleted": [
+    "Compressed only the fresh-save Scourge ramp. A no-touch first run now fails in under ten seconds in the browser, while a deterministic run touching every 750 ms lands in the 12-20 second target band.",
+    "Left the completedRuns >= 1 Scourge curve unchanged, preserving the existing second-run multi-minute target.",
+    "Added a sparse per-tile manual touch recovery gate. A tile starts at 380 ms recovery, while a different tile remains immediately touchable.",
+    "Added a rank-ready recovery curve with ten reductions from 380 ms to a 140 ms floor. The actual permanent Fast Touch Memory node is intentionally deferred to the next tree-design slice.",
+    "Added one fixed Graphics overlay and one fixed text label for recovery feedback. The touched tile dims, a progress strip fills, an early repeat tap pulses pink, and readiness flashes briefly.",
+    "Added a distinct quiet cooldown-tap sound for rejected repeat taps.",
+    "Made every accepted ecosystem touch bypass the old shared grass-sound interval so accepted taps always respond immediately; legacy and other redesign callers keep their existing audio guardrails.",
+    "Added redesign harness fields for the configured cooldown, tracked sparse cooldown entries, and current visual recovery time.",
+    "Updated the durable ecosystem design document to describe the short first run and explicit tile recovery contract.",
+    "Added focused tests for same-tile blocking, independent tiles, recovery progress, bounded sparse tracking, and the future ten-rank duration curve."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/ecosystem/EcosystemTouchCooldown.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "src/game/systems/AudioSystem.ts",
+    "tests/EcosystemSystem.test.ts",
+    "tests/EcosystemTouchCooldown.test.ts",
+    "handoffs/HANDOFF_2026-07-14_FAST_FIRST_RUN_TOUCH_RECOVERY.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 117 Vitest tests across 17 files, strict TypeScript, and the Vite production build.",
+    "Focused ecosystem pacing and cooldown tests passed: 17 tests across EcosystemSystem.test.ts and EcosystemTouchCooldown.test.ts.",
+    "At 1280x720 on a clean no-touch Run 1, Ancient HP was 83.7 at five seconds with Scourge demand at 6.39 Care/s, and Game Over occurred before ten seconds.",
+    "The accepted-touch browser capture showed the grass remaining visible beneath the dimmer, the TOUCH RECOVERING label, and a clearly filling progress strip.",
+    "The first scaled-rectangle implementation exposed a cyan field-flood bug during browser inspection. It was replaced before checkpointing by one fixed Graphics overlay, and the corrected browser capture was clean.",
+    "Final 100x100 desktop sample: 10,000 logical tiles, far LOD, 100 rendered chunk views, zero rendered tile views, 1,463 fixed display objects, zero frame spikes, approximately 144 FPS at the current display cadence, 6.75 ms p95 frame delta, 0.019-0.075 ms average scene work across samples, and zero full-field scans.",
+    "Browser console inspection found no application errors or warnings.",
+    "A fresh 390x844 browser pass was not completed because the browser security policy rejected the synthetic phone-sized wrapper. Do not claim that viewport was reverified in this slice."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "debugUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Local ecosystem prototype checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "The fast-first-run and touch-recovery implementation, tests, design update, and handoff belong in one checkpoint on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173."
+  ],
+  "knownIssues": [
+    "The recovery duration curve accepts a future rank, but no permanent Fast Touch rank or Memory node is wired yet. Add and place that progression deliberately in the Memory Web.",
+    "The 390x844 responsive viewport still needs a fresh hands-on pass for this overlay.",
+    "The 380 ms starting recovery is intentionally quick but remains subjective; hands-on rhythm testing should decide whether it needs a small adjustment.",
+    "Cooldown state is scene-local and intentionally not persisted. Reloading can clear at most a 380 ms recovery window, which is not worth active-save schema cost."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test a clean first run by tapping both on cadence and too early; judge HP pressure, bar readability, rejection sound, and whether the 380 ms rhythm feels physical rather than sluggish.",
+    "Design and place a ten-rank Fast Touch Memory branch, then pass its owned rank into getManualTouchCooldownMs.",
+    "Rerun the actual 390x844 viewport and confirm the recovery label hides cleanly when a projected tile is too small.",
+    "Continue into the first meaningful Dew-to-Moisture-to-Growth decision after the new first-run rhythm is approved."
+  ],
+  "doNotRevert": [
+    "Keep accepted ecosystem touches outside the shared audio-throttle path; only the explicit gameplay cooldown may reject a manual tap.",
+    "Keep cooldown tracking sparse and presentation fixed-size. Never create cooldown objects for every logical tile.",
+    "Keep the special three-second Scourge ramp limited to completedRuns === 0 unless a new balance pass intentionally changes later runs.",
+    "Keep recovery progress on geometry rather than rapidly changing Phaser text.",
+    "Do not use the legacy 1,200-tile harness as evidence for redesign performance."
+  ]
+}

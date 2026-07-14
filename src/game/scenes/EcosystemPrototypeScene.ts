@@ -32,6 +32,11 @@ import {
 } from "../ecosystem/EcosystemMemoryTree";
 import { EcosystemPerformanceMonitor } from "../ecosystem/EcosystemPerformanceMonitor";
 import {
+  getManualTouchCooldownMs,
+  getTouchCooldownProgress,
+  tryStartTouchCooldown,
+} from "../ecosystem/EcosystemTouchCooldown";
+import {
   clearActiveField,
   loadActiveField,
   loadPermanentEcosystemState,
@@ -153,6 +158,7 @@ const MAX_SCENE_CONTENT_WIDTH = 1680;
 const HELPER_ARRIVAL_MS = 760;
 const HELPER_PULSE_ANIMATION_MS = 620;
 const HELPER_SOUND_INTERVAL_MS = 720;
+const TOUCH_READY_FLASH_MS = 220;
 
 const TILE_STAGE_LABELS: Record<TileStage, string> = {
   [TileStage.Dormant]: "Sleeping Soil",
@@ -235,6 +241,14 @@ interface DragState {
   moved: boolean;
 }
 
+interface TouchRecoveryVisualState {
+  tileIndex: number;
+  startedAtMs: number;
+  readyAtMs: number;
+  blockedAtMs: number;
+  readyShown: boolean;
+}
+
 export class EcosystemPrototypeScene extends Phaser.Scene {
   private permanent!: PermanentEcosystemState;
   private state!: EcosystemState;
@@ -293,6 +307,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private helperActors = {} as Record<HelperId, HelperActorView>;
   private helperFeedbackTexts = {} as Record<HelperId, Phaser.GameObjects.Text>;
   private helperAnnouncementText!: Phaser.GameObjects.Text;
+  private touchCooldownGraphics!: Phaser.GameObjects.Graphics;
+  private touchCooldownText!: Phaser.GameObjects.Text;
+  private readonly touchCooldowns = new Map<number, number>();
+  private touchRecoveryVisual: TouchRecoveryVisualState | null = null;
   private helperIcons = {} as Record<HelperId, Phaser.GameObjects.Image>;
   private helperBuyButtons = {} as Record<HelperId, SceneButton>;
   private factoryHelperButtons = {} as Record<HelperId, SceneButton>;
@@ -505,6 +523,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     if (!this.state.active && !this.lastGameOverState) {
       this.lastGameOverState = true;
       this.worksOpen = false;
+      this.resetTouchRecovery();
       this.audio.play("dormancy");
       clearActiveField();
       savePermanentEcosystemState(this.permanent);
@@ -742,7 +761,17 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       .setBackgroundColor("#06190f")
       .setPadding(10, 5, 10, 5)
       .setVisible(false);
-    this.effectLayer.add(this.helperAnnouncementText);
+    this.touchCooldownGraphics = this.add.graphics().setVisible(false);
+    this.touchCooldownText = this.createText("TOUCH RECOVERING", 12, "#bff4ff", "bold")
+      .setOrigin(0.5)
+      .setBackgroundColor("#06190f")
+      .setPadding(7, 3, 7, 3)
+      .setVisible(false);
+    this.effectLayer.add([
+      this.touchCooldownGraphics,
+      this.touchCooldownText,
+      this.helperAnnouncementText,
+    ]);
 
     this.fieldSurface = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0.001).setOrigin(0).setInteractive({ useHandCursor: true });
     this.fieldRoot.add(this.fieldSurface);
@@ -899,6 +928,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           this.syncViewVisibility();
         }
         setPrototypeFieldSize(this.state, this.permanent, size);
+        this.resetTouchRecovery();
         this.layout(this.scale.width, this.scale.height);
         this.resetFieldView();
         this.persistAll();
@@ -1836,6 +1866,93 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       actor.progressFill.setPosition(actor.image.x - actor.badgeWidth / 2 + 2, badgeY + 7).setAlpha(arrivalRatio * 0.9);
       actor.countText.setPosition(actor.image.x, badgeY - 1).setAlpha(arrivalRatio);
     }
+    this.animateTouchRecovery(now);
+  }
+
+  private animateTouchRecovery(now: number): void {
+    const feedback = this.touchRecoveryVisual;
+    if (!feedback || !this.state.active || this.worksOpen || this.optionsOpen) {
+      this.setTouchRecoveryVisible(false);
+      return;
+    }
+    if (now > feedback.readyAtMs + TOUCH_READY_FLASH_MS) {
+      this.touchRecoveryVisual = null;
+      this.setTouchRecoveryVisible(false);
+      return;
+    }
+
+    const tileX = feedback.tileIndex % this.state.field.width;
+    const tileY = Math.floor(feedback.tileIndex / this.state.field.width);
+    const centerX = this.projection.originX + (tileX + 0.5) * this.projection.cellSize;
+    const centerY = this.projection.originY + (tileY + 0.5) * this.projection.cellSize;
+    if (!this.pointInField(centerX, centerY)) {
+      this.setTouchRecoveryVisible(false);
+      return;
+    }
+
+    const singlePlot = this.state.field.stages.length === 1 && this.projection.lod === "near";
+    const visualSize = singlePlot
+      ? Math.min(420, this.projection.cellSize * 0.86, this.fieldBounds.height * 0.72)
+      : Math.max(14, Math.min(240, this.projection.cellSize * 0.9));
+    const ready = now >= feedback.readyAtMs;
+    const blockedAge = now - feedback.blockedAtMs;
+    const blockedPulse = blockedAge >= 0 && blockedAge < 170
+      ? Math.sin((blockedAge / 170) * Math.PI)
+      : 0;
+    const barWidth = Phaser.Math.Clamp(visualSize * 0.56, 16, 180);
+    const barHeight = Phaser.Math.Clamp(visualSize * 0.024, 3, 8);
+    const barY = visualSize >= 72 ? centerY - visualSize * 0.31 : centerY;
+    const labelY = centerY - visualSize * 0.4;
+
+    this.touchCooldownGraphics.clear().setVisible(true);
+    if (ready) {
+      if (!feedback.readyShown) {
+        feedback.readyShown = true;
+        this.touchCooldownText.setText("TOUCH READY").setColor("#dfff8f");
+      }
+      const readyAlpha = 1 - Phaser.Math.Clamp((now - feedback.readyAtMs) / TOUCH_READY_FLASH_MS, 0, 1);
+      this.touchCooldownGraphics
+        .fillStyle(0x83d765, 0.05 * readyAlpha)
+        .fillRect(centerX - visualSize / 2, centerY - visualSize / 2, visualSize, visualSize)
+        .lineStyle(3, 0x83d765, 0.8 * readyAlpha)
+        .strokeRect(centerX - visualSize / 2, centerY - visualSize / 2, visualSize, visualSize);
+      this.touchCooldownText
+        .setPosition(centerX, labelY)
+        .setAlpha(readyAlpha)
+        .setVisible(visualSize >= 72);
+      return;
+    }
+
+    const progress = getTouchCooldownProgress(feedback.startedAtMs, feedback.readyAtMs, now);
+    const cooldownColor = blockedPulse > 0 ? 0xf07ab2 : 0x8de7ff;
+    const pulseSize = visualSize * (1 + blockedPulse * 0.025);
+    this.touchCooldownGraphics
+      .fillStyle(blockedPulse > 0 ? 0x5d213d : 0x07130d, 0.34 + blockedPulse * 0.12)
+      .fillRect(centerX - pulseSize / 2, centerY - pulseSize / 2, pulseSize, pulseSize)
+      .lineStyle(3 + blockedPulse * 2, cooldownColor, 0.86)
+      .strokeRect(centerX - pulseSize / 2, centerY - pulseSize / 2, pulseSize, pulseSize)
+      .fillStyle(0x06190f, 0.94)
+      .fillRect(centerX - barWidth / 2 - 2, barY - (barHeight + 4) / 2, barWidth + 4, barHeight + 4)
+      .lineStyle(1, 0xfff3c2, 0.62)
+      .strokeRect(centerX - barWidth / 2 - 2, barY - (barHeight + 4) / 2, barWidth + 4, barHeight + 4)
+      .fillStyle(cooldownColor, 1)
+      .fillRect(centerX - barWidth / 2, barY - barHeight / 2, Math.max(1, barWidth * progress), barHeight);
+    this.touchCooldownText
+      .setPosition(centerX, labelY)
+      .setAlpha(0.9 + blockedPulse * 0.1)
+      .setVisible(visualSize >= 72);
+  }
+
+  private setTouchRecoveryVisible(visible: boolean): void {
+    this.touchCooldownGraphics.setVisible(visible);
+    if (!visible) this.touchCooldownGraphics.clear();
+    this.touchCooldownText.setVisible(visible);
+  }
+
+  private resetTouchRecovery(): void {
+    this.touchCooldowns.clear();
+    this.touchRecoveryVisual = null;
+    this.setTouchRecoveryVisible(false);
   }
 
   private spawnHelperEffect(helperId: HelperId, pulseCount = 1, priming = false): void {
@@ -2028,10 +2145,35 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private touchTile(tileIndex: number): void {
     if (!this.state.active || this.worksOpen || this.optionsOpen) return;
     const touchStart = performance.now();
+    const now = this.time.now;
+    const cooldownMs = getManualTouchCooldownMs();
+    const cooldown = tryStartTouchCooldown(this.touchCooldowns, tileIndex, now, cooldownMs);
+    if (!cooldown.accepted) {
+      this.touchRecoveryVisual = {
+        tileIndex,
+        startedAtMs: cooldown.readyAtMs - cooldownMs,
+        readyAtMs: cooldown.readyAtMs,
+        blockedAtMs: now,
+        readyShown: false,
+      };
+      this.touchCooldownText.setText("TOUCH RECOVERING").setColor("#ffb1d3");
+      this.audio.play("touch_cooldown");
+      this.animateTouchRecovery(now);
+      return;
+    }
+    this.touchRecoveryVisual = {
+      tileIndex,
+      startedAtMs: now,
+      readyAtMs: cooldown.readyAtMs,
+      blockedAtMs: -Infinity,
+      readyShown: false,
+    };
+    this.touchCooldownText.setText("TOUCH RECOVERING").setColor("#bff4ff");
+    this.animateTouchRecovery(now);
     const result = touchFieldTile(this.state, this.permanent, tileIndex);
     if (!result) return;
     const modelEnd = performance.now();
-    this.audio.playGrassTouch("normal", "lush", result.fieldEmbraceTriggered, result.affectedTileCount);
+    this.audio.playGrassTouch("normal", "lush", result.fieldEmbraceTriggered, result.affectedTileCount, true);
     const audioEnd = performance.now();
     this.showTouchImpacts(result);
     const effectsEnd = performance.now();
@@ -2119,6 +2261,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private beginNextRun(): void {
     if (this.state.active) return;
     this.state = createNextEcosystemRun(this.permanent);
+    this.resetTouchRecovery();
     this.lastGameOverState = false;
     this.fieldView = { centerX: 0.5, centerY: 0.5, zoom: 1 };
     this.audio.play("milestone");
@@ -2584,6 +2727,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     localStorage.removeItem("grass-touching-simulator.ecosystem-memory.v1");
     this.permanent = createPermanentEcosystemState();
     this.state = createEcosystemState(this.permanent);
+    this.resetTouchRecovery();
     this.fieldView = { centerX: 0.5, centerY: 0.5, zoom: 1 };
     this.worksOpen = false;
     this.optionsOpen = false;
@@ -2649,6 +2793,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       averageSaveMs: Number(performanceSnapshot.averageSaveMs.toFixed(3)),
       maxSaveMs: Number(performanceSnapshot.maxSaveMs.toFixed(3)),
       touchActions: performanceSnapshot.touchActions,
+      manualTouchCooldownMs: getManualTouchCooldownMs(),
+      trackedTouchCooldowns: this.touchCooldowns.size,
+      touchCooldownRemainingMs: this.touchRecoveryVisual
+        ? Math.max(0, Math.round(this.touchRecoveryVisual.readyAtMs - this.time.now))
+        : 0,
       averageTouchActionMs: Number(performanceSnapshot.averageTouchActionMs.toFixed(3)),
       maxTouchActionMs: Number(performanceSnapshot.maxTouchActionMs.toFixed(3)),
       averageTouchModelMs: Number(performanceSnapshot.averageTouchModelMs.toFixed(3)),

@@ -21,8 +21,10 @@ Care. The Scourge is an increasing demand curve, not a scripted timer. A run
 ends only after available Care and manual intervention can no longer cover that
 demand and the Ancient Grass reaches zero HP.
 
-Early runs last minutes. Mature fields can remain active across saved browser
-sessions. Closing the game never grants resources and never advances Scourge.
+The first run is a deliberately brief 10-20 second lesson in touching and
+inevitable Scourge pressure. The first automation run grows into minutes, and
+mature fields can remain active across saved browser sessions. Closing the game
+never grants resources and never advances Scourge.
 
 ## Production Graph
 
@@ -111,6 +113,12 @@ remains a useful maximum-rank production bonus.
 
 A touch always applies full power to its primary tile. It heals HP, generates
 Dew and RT, and advances that tile's natural stage.
+
+Each primary tile then enters a short, explicit recovery window. The tile dims,
+a recovery strip fills, and an early repeat tap pulses immediately without
+awarding another touch. Different tiles remain independently touchable, so a
+larger field supports fast fluid routing. The base 380 ms recovery has a
+rank-ready curve down to a 140 ms floor for future manual-speed Memories.
 
 - Broad Palm has ten ranks. Radius is
   `1 + floor((rank - 1) / 2)` and nearby effectiveness scales linearly from

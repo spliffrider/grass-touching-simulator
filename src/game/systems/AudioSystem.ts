@@ -17,6 +17,7 @@ type SoundName =
   | "mower"
   | "wound_seal"
   | "sprinkler"
+  | "touch_cooldown"
   | "dormancy"
   | "last_stand";
 
@@ -130,7 +131,13 @@ export class AudioSystem {
     this.playNow(name);
   }
 
-  playGrassTouch(tier: GrassTierId = "normal", trait: TileTrait = "normal", isCrit = false, comboCount = 0): boolean {
+  playGrassTouch(
+    tier: GrassTierId = "normal",
+    trait: TileTrait = "normal",
+    isCrit = false,
+    comboCount = 0,
+    force = false,
+  ): boolean {
     if (this.volume <= 0) {
       return false;
     }
@@ -138,7 +145,7 @@ export class AudioSystem {
     this.unlock();
 
     if (!this.context || !this.master) {
-      if (!this.shouldPlayGrassTouchSound(isCrit, comboCount)) {
+      if (!this.claimGrassTouchSound(isCrit, comboCount, force)) {
         return false;
       }
 
@@ -146,7 +153,7 @@ export class AudioSystem {
     }
 
     if (this.context.state !== "running" || !this.unlocked) {
-      if (!this.shouldPlayGrassTouchSound(isCrit, comboCount)) {
+      if (!this.claimGrassTouchSound(isCrit, comboCount, force)) {
         return false;
       }
 
@@ -162,7 +169,7 @@ export class AudioSystem {
       return true;
     }
 
-    if (!this.shouldPlayGrassTouchSound(isCrit, comboCount)) {
+    if (!this.claimGrassTouchSound(isCrit, comboCount, force)) {
       return false;
     }
 
@@ -265,6 +272,9 @@ export class AudioSystem {
       case "sprinkler":
         this.playSprinkler();
         break;
+      case "touch_cooldown":
+        this.playTouchCooldown();
+        break;
       case "dormancy":
         this.playDormancy();
         break;
@@ -365,6 +375,12 @@ export class AudioSystem {
     }
 
     this.lastGrassTouchSoundAt = now;
+    return true;
+  }
+
+  private claimGrassTouchSound(isCrit: boolean, comboCount: number, force: boolean): boolean {
+    if (!force) return this.shouldPlayGrassTouchSound(isCrit, comboCount);
+    this.lastGrassTouchSoundAt = performance.now();
     return true;
   }
 
@@ -481,6 +497,12 @@ export class AudioSystem {
     this.playNoiseSweep(0.11, 4100 + Math.random() * 480, 0.015, now + 0.055);
     this.playToneSweep(620, 360, 0.13, 0.026, "sine", now + 0.015);
     this.playTone(980 + Math.random() * 70, 0.07, 0.02, "triangle", now + 0.11);
+  }
+
+  private playTouchCooldown(): void {
+    const now = this.now();
+    this.playToneSweep(420, 330, 0.045, 0.025, "triangle", now);
+    this.playNoiseSweep(0.035, 980, 0.012, now);
   }
 
   private playDormancy(): void {

@@ -176,9 +176,9 @@ describe("EcosystemSystem", () => {
     expect(state.field.cultivationRank).toBe(0);
   });
 
-  it("lands the first manual run in the 60-120 second target band", () => {
-    expect(simulateManualRun(0, 0)).toBeGreaterThanOrEqual(60_000);
-    expect(simulateManualRun(0, 0)).toBeLessThanOrEqual(120_000);
+  it("ends the first manual run as a brief onboarding failure", () => {
+    expect(simulateManualRun(0, 0)).toBeGreaterThanOrEqual(12_000);
+    expect(simulateManualRun(0, 0)).toBeLessThanOrEqual(20_000);
   });
 
   it("moves the second run into the first multi-minute band", () => {
