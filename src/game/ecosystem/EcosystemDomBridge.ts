@@ -182,11 +182,23 @@ export class EcosystemDomBridge {
       .map((count, stage) => count > 0 ? `${count} ${TILE_STAGE_DOM_LABELS[stage]}` : "")
       .filter(Boolean)
       .join(", ");
+    const tinySprinkler = state.helpers.tinySprinkler;
+    const firstSprinklerCost = getHelperPurchaseCost(state, "tinySprinkler");
+    const automationLine = permanent.unlockedHelpers.tinySprinkler
+      ? tinySprinkler.count === 0
+        ? state.runTouches >= firstSprinklerCost
+          ? `First automation ready: buy Tiny Sprinkler for ${firstSprinklerCost} RT`
+          : `First automation: ${Math.floor(state.runTouches)} / ${firstSprinklerCost} RT toward Tiny Sprinkler`
+        : tinySprinkler.lastPauseReason
+          ? `Tiny Sprinkler paused: ${tinySprinkler.lastPauseReason}`
+          : `Tiny Sprinkler active: Dew to Moisture and Care, cycle ${Math.floor(tinySprinkler.pulseProgress * 100)}%`
+      : null;
     const lines = [
       `Ecosystem prototype | Run ${state.runNumber} | ${state.active ? "active" : "Game Over"}`,
       `Ancient HP ${state.hp.toFixed(1)} / ${state.maxHp.toFixed(0)}`,
       `Scourge demand ${state.scourgeDemandPerSecond.toFixed(2)} Care/s | Care production ${state.rates.care.toFixed(2)}/s`,
       `Field ${state.field.width}x${state.field.height} | Cultivation ${state.field.cultivationRank}/10 | RT ${state.runTouches.toFixed(1)} | GT ${permanent.grassTouches.toFixed(0)}`,
+      ...(automationLine ? [automationLine] : []),
       `Bottleneck: ${state.bottleneck}`,
       `Chunks: ${state.field.dirtyChunks.length} total; ${chunkSummary}`,
       "Stocks:",
@@ -215,7 +227,11 @@ export class EcosystemDomBridge {
       const cost = getHelperPurchaseCost(state, helperId);
       this.setHidden(button.element, !unlocked);
       this.setDisabled(button.element, !state.active || state.runTouches < cost);
-      this.setText(button.element, `Buy ${HELPERS[helperId].label} for ${cost} RT`);
+      this.setText(button.element, helperId === "tinySprinkler" && state.helpers.tinySprinkler.count === 0
+        ? state.runTouches >= cost
+          ? `Buy first Tiny Sprinkler for ${cost} RT`
+          : `First Tiny Sprinkler: ${Math.floor(state.runTouches)} / ${cost} RT`
+        : `Buy ${HELPERS[helperId].label} for ${cost} RT`);
     }
     for (const button of this.modeButtons) {
       const helperId = button.helperId!;
@@ -287,6 +303,11 @@ export class EcosystemDomBridge {
       runTouches: Number(state.runTouches.toFixed(3)),
       grassTouches: Number(permanent.grassTouches.toFixed(3)),
       fastTouchRank: permanent.fastTouchRank,
+      tinySprinklers: tinySprinkler.count,
+      firstSprinklerCost,
+      firstSprinklerProgress: tinySprinkler.count > 0
+        ? 1
+        : Number(Math.min(1, state.runTouches / firstSprinklerCost).toFixed(3)),
       carePerSecond: Number(state.rates.care.toFixed(4)),
       scourgePerSecond: Number(state.scourgeDemandPerSecond.toFixed(4)),
       bottleneck: state.bottleneck,

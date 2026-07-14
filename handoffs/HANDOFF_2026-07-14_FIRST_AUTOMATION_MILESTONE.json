@@ -1,0 +1,60 @@
+{
+  "date": "2026-07-14",
+  "topic": "First automation milestone",
+  "currentUserGoal": "Keep advancing the ecosystem redesign by making the first Tiny Sprinkler purchase understandable, satisfying, and mechanically proven.",
+  "workCompleted": [
+    "Added a First Automation strip to the Living Ledger that fills toward the first 14 RT Tiny Sprinkler purchase.",
+    "Changed the strip into a live sprinkler cycle meter after purchase, with explicit Dew to Moisture plus Care copy and a useful paused-for-Dew instruction.",
+    "Made the first sprinkler purchase use milestone audio, a focused text pulse, the existing pooled helper arrival, water spray, impact, and HP feedback.",
+    "Added progress-aware labels to both the Phaser purchase button and the semantic browser control, including a direct ready-to-buy call at the threshold.",
+    "Kept all automation guidance hidden until the Tiny Sprinkler Memory is actually unlocked.",
+    "Expanded the redesign debug snapshot with first-sprinkler count, cost, and normalized progress fields.",
+    "Added a deterministic test proving the first Tiny Sprinkler consumes Dew, produces Moisture and Care, and emits a helper pulse.",
+    "Documented the first-automation teaching contract in the durable ecosystem design document."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-14_FIRST_AUTOMATION_MILESTONE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 120 Vitest tests across 17 files, strict TypeScript, and the Vite production build.",
+    "At 1280x720 on the actual ecosystem redesign route, a reset Run 1 showed no automation copy before the Tiny Sprinkler Memory was unlocked.",
+    "Run 1 ended naturally in approximately six seconds and awarded exactly 7 GT; unlocking Tiny Sprinkler cost 5 GT.",
+    "Run 2 displayed 0 of 14 RT progress; sixteen accepted cooldown-paced touches produced 14.72 RT and changed the semantic prompt to a direct purchase call.",
+    "Buying the first sprinkler consumed 14 RT, increased its count to one, consumed Dew, and produced measurable Moisture and Care within one cycle.",
+    "Browser diagnostics contained no errors or warnings.",
+    "The in-app browser was fixed at 1280x720, so a true 390x844 pass was not available for this slice."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "debugUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Local ecosystem prototype checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "The first-automation implementation, test, design note, and this handoff belong in one focused checkpoint on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173, paused in Options on a clean Run 1."
+  ],
+  "knownIssues": [
+    "The Ledger needs a true 390x844 visual pass when a resizable browser viewport is available.",
+    "The first Tiny Sprinkler now reads clearly, but its production strength and 14 RT price still need hands-on pacing feedback over several natural Run 2 attempts.",
+    "Later helpers still enter through the generic purchase presentation and need similarly distinct ecosystem roles as their chains become playable."
+  ],
+  "nextRecommendedSteps": [
+    "Turn the first sprinkler cycle into a more visible field event by syncing water arrival, HP response, and the Ledger cycle meter at the exact production tick.",
+    "Give Run 2 a concise objective transition from gather 14 RT to keep Dew supplied while the sprinkler works.",
+    "Begin the first Field Mouse chain only after the sprinkler loop feels readable and worth sustaining."
+  ],
+  "doNotRevert": [
+    "Keep automation guidance hidden until its Memory unlock.",
+    "Keep first-sprinkler progress tied to current-run RT and the real dynamic purchase cost.",
+    "Keep helper effects pooled and avoid per-frame object creation or full-field scans.",
+    "Keep semantic controls synchronized with the visible Phaser state so agents and automated tests observe the same milestone.",
+    "Do not use the legacy 1,200-tile harness as redesign evidence."
+  ]
+}

@@ -330,6 +330,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private ledgerStocksLeft!: Phaser.GameObjects.Text;
   private ledgerStocksRight!: Phaser.GameObjects.Text;
   private bottleneckText!: Phaser.GameObjects.Text;
+  private automationGoalText!: Phaser.GameObjects.Text;
+  private automationGoalBack!: Phaser.GameObjects.Rectangle;
+  private automationGoalFill!: Phaser.GameObjects.Rectangle;
   private touchSummaryText!: Phaser.GameObjects.Text;
   private playerPortrait!: Phaser.GameObjects.Image;
   private caretakerTitle!: Phaser.GameObjects.Text;
@@ -636,6 +639,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.ledgerStocksLeft = this.createText("", 11, "#e3f3d6");
     this.ledgerStocksRight = this.createText("", 11, "#e3f3d6");
     this.bottleneckText = this.createText("", 12, "#ffcf8b", "bold");
+    this.automationGoalText = this.createText("", 11, "#8de7ff", "bold");
+    this.automationGoalBack = this.add.rectangle(0, 0, 100, 9, 0x06190f, 0.96).setOrigin(0, 0.5).setStrokeStyle(1, 0xd8b66a, 0.58);
+    this.automationGoalFill = this.add.rectangle(0, 0, 96, 5, 0x8de7ff, 0.94).setOrigin(0, 0.5);
     this.touchSummaryText = this.createText("", 13, "#fff3c2", "bold").setAlpha(0);
     this.playerPortrait = this.add.image(0, 0, "eco-player").setOrigin(0.5);
     this.caretakerTitle = this.createText("FIELD HEIR", 22, "#fff3c2", "bold");
@@ -665,6 +671,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.ledgerStocksLeft,
       this.ledgerStocksRight,
       this.bottleneckText,
+      this.automationGoalBack,
+      this.automationGoalFill,
+      this.automationGoalText,
       this.touchSummaryText,
       this.playerPortrait,
       this.caretakerTitle,
@@ -1175,12 +1184,18 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.ledgerStocksLeft.setVisible(ledgerUnlocked);
     this.ledgerStocksRight.setVisible(ledgerUnlocked);
     this.bottleneckText.setVisible(ledgerUnlocked);
+    this.automationGoalText.setVisible(ledgerUnlocked);
+    this.automationGoalBack.setVisible(ledgerUnlocked);
+    this.automationGoalFill.setVisible(ledgerUnlocked);
     this.worksButton.setVisible(ledgerUnlocked);
     this.cultivationButton.setVisible(ledgerUnlocked);
     if (ledgerUnlocked) {
       this.ledgerTitle.setFontSize(mobile ? 18 : 22).setPosition(ledgerX + 16, ledgerY + 12);
       this.bottleneckText.setPosition(ledgerX + 16, ledgerY + 42).setWordWrapWidth(ledgerWidth - 32);
-      const stockY = ledgerY + (mobile ? 68 : 76);
+      this.automationGoalText.setFontSize(mobile ? 9 : 10).setPosition(ledgerX + 16, ledgerY + 68).setWordWrapWidth(ledgerWidth - 32);
+      this.automationGoalBack.setPosition(ledgerX + 16, ledgerY + 92).setSize(ledgerWidth - 32, 9);
+      this.automationGoalFill.setPosition(ledgerX + 18, ledgerY + 92).setSize(ledgerWidth - 36, 5);
+      const stockY = ledgerY + (mobile ? 106 : 110);
       this.ledgerStocksLeft.setPosition(ledgerX + 16, stockY);
       this.ledgerStocksRight.setPosition(ledgerX + ledgerWidth * 0.52, stockY);
       const unlockedHelpers = HELPER_IDS.filter((helperId) => this.permanent.unlockedHelpers[helperId]);
@@ -1473,6 +1488,41 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.setTextIfChanged(this.plotStageText, TILE_STAGE_LABELS[firstStage].toUpperCase());
       this.setTextIfChanged(this.plotDetailText, `Stage ${firstStage + 1} / ${TILE_TEXTURE_KEYS.length}   |   ${this.state.manualTouchCount} touches`);
 
+      const sprinkler = this.state.helpers.tinySprinkler;
+      const sprinklerCost = getHelperPurchaseCost(this.state, "tinySprinkler");
+      let automationProgress = 0;
+      let automationColor: number;
+      let automationCopy: string;
+      if (sprinkler.count <= 0) {
+        automationProgress = Phaser.Math.Clamp(this.state.runTouches / sprinklerCost, 0, 1);
+        const ready = this.state.runTouches >= sprinklerCost;
+        automationColor = ready ? 0xffe889 : 0x8de7ff;
+        automationCopy = ready
+          ? `FIRST AUTOMATION READY  |  Buy Tiny Sprinkler for ${sprinklerCost} RT`
+          : `FIRST AUTOMATION  |  Gather RT ${Math.floor(this.state.runTouches)} / ${sprinklerCost}`;
+      } else if (sprinkler.lastPauseReason) {
+        automationColor = 0xe8616a;
+        automationCopy = sprinkler.lastPauseReason.toLowerCase().includes("dew")
+          ? "SPRINKLER PAUSED  |  Needs Dew - touch the field"
+          : `SPRINKLER PAUSED  |  ${sprinkler.lastPauseReason}`;
+      } else {
+        automationProgress = Phaser.Math.Clamp(sprinkler.pulseProgress, 0, 1);
+        automationColor = 0x83d765;
+        automationCopy = "SPRINKLER ACTIVE  |  Dew -> Moisture + Care";
+      }
+      this.setTextIfChanged(this.automationGoalText, automationCopy);
+      const automationHex = `#${automationColor.toString(16).padStart(6, "0")}`;
+      if (this.automationGoalText.getData("goalColor") !== automationHex) {
+        this.automationGoalText.setData("goalColor", automationHex).setColor(automationHex);
+      }
+      if (this.automationGoalFill.fillColor !== automationColor) {
+        this.automationGoalFill.setFillStyle(automationColor, 0.94);
+      }
+      const automationWidth = Math.max(1, (this.automationGoalBack.width - 4) * automationProgress);
+      if (Math.abs(this.automationGoalFill.displayWidth - automationWidth) > 0.1) {
+        this.automationGoalFill.setDisplaySize(automationWidth, this.automationGoalFill.height);
+      }
+
       const stockLines = PRODUCTION_RESOURCE_IDS.map((resourceId) => {
         const resource = PRODUCTION_RESOURCES[resourceId];
         const buffer = this.state.resources[resourceId];
@@ -1486,8 +1536,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         const helper = this.state.helpers[helperId];
         const cost = getHelperPurchaseCost(this.state, helperId);
         const pause = helper.lastPauseReason ? ` | ${helper.lastPauseReason}` : "";
+        const label = helperId === "tinySprinkler" && helper.count === 0
+          ? this.state.runTouches >= cost
+            ? `Buy first Tiny Sprinkler  |  ${cost} RT`
+            : `Tiny Sprinkler  |  ${Math.floor(this.state.runTouches)} / ${cost} RT`
+          : `${HELPERS[helperId].label} x${helper.count}  Buy ${cost} RT${pause}`;
         this.helperBuyButtons[helperId]
-          .setLabel(`${HELPERS[helperId].label} x${helper.count}  Buy ${cost} RT${pause}`)
+          .setLabel(label)
           .setEnabled(this.state.runTouches >= cost);
         const actor = this.helperActors[helperId];
         if (helper.count > 0) {
@@ -1841,6 +1896,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.scourgeHalo.setScale(scourgePulse).setAlpha(0.78 + Math.sin(now * 0.0017) * 0.12);
       this.scourgeCore.setScale(1 + Math.sin(now * 0.0031 + 0.8) * 0.09);
     }
+    if (this.automationGoalText.visible) {
+      const firstSprinklerCost = getHelperPurchaseCost(this.state, "tinySprinkler");
+      const readyForFirstSprinkler = this.state.helpers.tinySprinkler.count === 0 && this.state.runTouches >= firstSprinklerCost;
+      this.automationGoalText.setAlpha(readyForFirstSprinkler ? 0.82 + (Math.sin(now * 0.006) + 1) * 0.09 : 1);
+    }
     for (const helperId of HELPER_IDS) {
       const actor = this.helperActors[helperId];
       if (!actor.image.visible) continue;
@@ -2092,7 +2152,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
 
     this.helperAnnouncementText
-      .setText(`${HELPERS[helperId].label.toUpperCase()} ONLINE`)
+      .setText(helperId === "tinySprinkler" ? "FIRST SPRINKLER ONLINE" : `${HELPERS[helperId].label.toUpperCase()} ONLINE`)
       .setColor(`#${color.toString(16).padStart(6, "0")}`)
       .setPosition(actor.baseX, actor.baseY - actor.actorSize * 0.95)
       .setAlpha(1)
@@ -2195,9 +2255,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private buyHelperFromUi(helperId: HelperId): void {
     const previousCount = this.state.helpers[helperId].count;
     if (buyHelper(this.state, this.permanent, helperId)) {
-      this.audio.play(previousCount === 0 ? "unlock" : "upgrade");
+      const firstSprinkler = helperId === "tinySprinkler" && previousCount === 0;
+      this.audio.play(firstSprinkler ? "milestone" : previousCount === 0 ? "unlock" : "upgrade");
       const button = this.worksOpen ? this.factoryHelperButtons[helperId] : this.helperBuyButtons[helperId];
       this.tweens.add({ targets: button.container, scale: 1.06, yoyo: true, duration: 110 });
+      if (firstSprinkler) {
+        this.tweens.killTweensOf(this.automationGoalText);
+        this.tweens.add({ targets: this.automationGoalText, scale: 1.06, yoyo: true, duration: 180, ease: "Back.easeOut" });
+      }
       this.layoutHelperActors();
       if (previousCount === 0 && !this.worksOpen) this.showHelperArrival(helperId);
       this.persistAll();

@@ -59,6 +59,16 @@ Every resource is capacity constrained. A recipe pauses, without consuming its
 input, when any required output has no room. The Living Ledger identifies those
 pauses and reports the resource currently limiting Care throughput.
 
+### First Automation
+
+Remembering Tiny Sprinkler reveals the Living Ledger on the following run. A
+fixed First Automation strip fills from current RT toward the first 14 RT
+sprinkler purchase. Once bought, the same strip becomes its production-cycle
+meter and explicitly reports `Dew -> Moisture + Care`; if the recipe pauses for
+Dew, it tells the player to touch the field. The first purchase uses the pooled
+arrival, water-spray, impact, sound, and HP-bar feedback so automation reads as
+a run milestone rather than a silent number change.
+
 ## Fixed-Tick Simulation
 
 Production runs on deterministic 250 ms ticks. Frame rendering never executes

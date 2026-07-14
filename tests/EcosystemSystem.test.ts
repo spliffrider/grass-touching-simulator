@@ -5,6 +5,7 @@ import { getManualTouchCooldownMs } from "../src/game/ecosystem/EcosystemTouchCo
 import {
   advanceEcosystem,
   buyCultivationRank,
+  buyHelper,
   consumeHelperPulses,
   createEcosystemState,
   createPermanentEcosystemState,
@@ -12,6 +13,8 @@ import {
   getBroadPalmPower,
   getBroadPalmRadius,
   getManyHandsPower,
+  getHelperPurchaseCost,
+  getHelperUnlockCost,
   getTouchRankCost,
   normalizePermanentEcosystemState,
   purchaseTouchRank,
@@ -19,6 +22,7 @@ import {
   switchHelperMode,
   touchFieldTile,
   unlockAllPrototypeMemories,
+  unlockHelper,
 } from "../src/game/ecosystem/EcosystemSystem";
 
 describe("EcosystemSystem", () => {
@@ -87,6 +91,29 @@ describe("EcosystemSystem", () => {
     expect(state.resources.care.producedTotal).toBeGreaterThan(0);
     expect(consumeHelperPulses(state).tinySprinkler).toBe(1);
     expect(consumeHelperPulses(state).tinySprinkler).toBe(0);
+  });
+
+  it("carries the first loss into a purchasable Dew-to-Care sprinkler chain", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.grassTouches = getHelperUnlockCost("tinySprinkler");
+    expect(unlockHelper(permanent, "tinySprinkler")).toBe(true);
+    permanent.completedRuns = 1;
+
+    const state = createEcosystemState(permanent, { seed: 47 });
+    const purchaseCost = getHelperPurchaseCost(state, "tinySprinkler");
+    state.runTouches = purchaseCost;
+    state.resources.dew.amount = 8;
+
+    expect(buyHelper(state, permanent, "tinySprinkler")).toBe(true);
+    expect(state.helpers.tinySprinkler.count).toBe(1);
+    expect(state.runTouches).toBe(0);
+
+    for (let step = 0; step < 12; step += 1) advanceEcosystem(state, permanent, 250);
+
+    expect(state.resources.dew.consumedTotal).toBeGreaterThan(0);
+    expect(state.resources.moisture.producedTotal).toBeGreaterThan(0);
+    expect(state.resources.care.producedTotal).toBeGreaterThan(0);
+    expect(consumeHelperPulses(state).tinySprinkler).toBeGreaterThanOrEqual(1);
   });
 
   it("never overfills a buffer or creates negative stock", () => {
