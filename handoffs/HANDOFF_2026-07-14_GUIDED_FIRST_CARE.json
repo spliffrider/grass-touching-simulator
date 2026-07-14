@@ -1,0 +1,60 @@
+{
+  "date": "2026-07-14",
+  "topic": "Guided first Care cycle",
+  "currentUserGoal": "Continue the ecosystem redesign by teaching the player what the first Tiny Sprinkler does after it has been purchased.",
+  "workCompleted": [
+    "Added a shared first-automation objective state with locked, gather, ready, first-cycle, sustain, dry, and paused stages.",
+    "Changed the Living Ledger strip from a generic active indicator into a guided sequence: gather 14 RT, buy the sprinkler, watch the first spray, then keep its Dew reserve supplied.",
+    "Made a sub-one-Dew reserve produce an explicit dry-sprinkler instruction instead of relying on fractional natural Dew production to report a pause.",
+    "Synchronized the Phaser copy, semantic readable state, and redesign debug snapshot through the same objective resolver.",
+    "Added a one-time CARE ONLINE celebration at the first completed Caretaker water impact, using existing pooled text, water, impact, audio, and tween objects.",
+    "Prevented Cultivator-mode cycles from incorrectly celebrating Care production.",
+    "Documented the guided first-cycle contract and added deterministic transition coverage."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-14_GUIDED_FIRST_CARE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 121 Vitest tests across 17 files, strict TypeScript, and the Vite production build.",
+    "The focused EcosystemSystem suite passed 16 tests, including locked to gather to ready to firstCycle to sustain to dry objective transitions.",
+    "At 1280x720 on the actual redesign route, Run 2 began in gather, reached ready after sixteen accepted touches, entered firstCycle after the 14 RT purchase, and reached sustain after the first production cycle.",
+    "The live semantic copy reported the first Dew-to-Moisture-and-Care cycle, then changed to Care online with a 22.3 Dew reserve and continued cycle progress.",
+    "Tiny Sprinkler produced 0.109 Care per second during the verified sustain state.",
+    "Browser diagnostics contained no errors or warnings.",
+    "The in-app browser remained fixed at 1280x720, so a true 390x844 pass was not available for this slice."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "debugUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Local ecosystem prototype checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "The guided first-Care implementation, test, design note, and this handoff belong in one focused checkpoint on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173."
+  ],
+  "knownIssues": [
+    "The CARE ONLINE impact celebration is browser-verified through its underlying production transition but still deserves a hands-on audio and visual feel check.",
+    "The objective strip needs a true 390x844 visual pass when a resizable browser viewport is available.",
+    "Run 2 now explains the first automation loop, but its 14 RT price and 0.109 Care per second output still need player pacing feedback."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test whether the first-spray and CARE ONLINE transition feels satisfying rather than over-explained.",
+    "Add the first Field Mouse resource-chain objective only after the Tiny Sprinkler loop has passed that feel test.",
+    "Give the dry state a subtle actor animation change if players still miss the red Ledger instruction."
+  ],
+  "doNotRevert": [
+    "Keep visible and semantic first-automation copy derived from getFirstAutomationStatus.",
+    "Keep the dry threshold explicit at less than one Dew because natural fallback production can prevent lastPauseReason from becoming stable.",
+    "Keep CARE ONLINE restricted to the first Caretaker cycle and reuse pooled scene objects.",
+    "Do not add per-frame allocations or field scans for tutorial progression.",
+    "Do not use the legacy 1,200-tile harness as redesign evidence."
+  ]
+}

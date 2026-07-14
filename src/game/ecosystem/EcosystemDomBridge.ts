@@ -2,12 +2,14 @@ import { HELPER_IDS, HELPERS, PRODUCTION_RESOURCE_IDS, PRODUCTION_RESOURCES, TIL
 import {
   getCultivationCost,
   getDominantChunkStage,
+  getFirstAutomationStatus,
   getHelperPurchaseCost,
   getHelperUnlockCost,
   getModeUnlockCost,
   getPermanentRankCost,
   getTouchRankCost,
   type EcosystemState,
+  type FirstAutomationStatus,
   type PermanentEcosystemState,
   type PermanentRankKind,
   type PermanentTouchRankKind,
@@ -43,6 +45,25 @@ interface DynamicButton {
 }
 
 const TILE_STAGE_DOM_LABELS = ["dormant", "dewy", "moist", "sprouting", "verdant", "flowering", "pollinated", "rooted"] as const;
+
+function getAutomationReadableLine(status: FirstAutomationStatus): string | null {
+  switch (status.stage) {
+    case "locked":
+      return null;
+    case "gather":
+      return `First automation: ${Math.floor(status.purchaseProgress * status.purchaseCost)} / ${status.purchaseCost} RT toward Tiny Sprinkler`;
+    case "ready":
+      return `First automation ready: buy Tiny Sprinkler for ${status.purchaseCost} RT`;
+    case "firstCycle":
+      return `First sprinkler cycle: Dew is becoming Moisture and Care, cycle ${Math.floor(status.cycleProgress * 100)}%`;
+    case "sustain":
+      return `Care online: keep Tiny Sprinkler supplied; ${status.dewAmount.toFixed(1)} Dew available, cycle ${Math.floor(status.cycleProgress * 100)}%`;
+    case "dry":
+      return "Tiny Sprinkler dry: touch the field to gather Dew";
+    case "paused":
+      return `Tiny Sprinkler paused: ${status.pauseReason ?? "check its buffers"}`;
+  }
+}
 
 export class EcosystemDomBridge {
   private readonly root: HTMLDivElement;
@@ -184,15 +205,8 @@ export class EcosystemDomBridge {
       .join(", ");
     const tinySprinkler = state.helpers.tinySprinkler;
     const firstSprinklerCost = getHelperPurchaseCost(state, "tinySprinkler");
-    const automationLine = permanent.unlockedHelpers.tinySprinkler
-      ? tinySprinkler.count === 0
-        ? state.runTouches >= firstSprinklerCost
-          ? `First automation ready: buy Tiny Sprinkler for ${firstSprinklerCost} RT`
-          : `First automation: ${Math.floor(state.runTouches)} / ${firstSprinklerCost} RT toward Tiny Sprinkler`
-        : tinySprinkler.lastPauseReason
-          ? `Tiny Sprinkler paused: ${tinySprinkler.lastPauseReason}`
-          : `Tiny Sprinkler active: Dew to Moisture and Care, cycle ${Math.floor(tinySprinkler.pulseProgress * 100)}%`
-      : null;
+    const firstAutomation = getFirstAutomationStatus(state, permanent);
+    const automationLine = getAutomationReadableLine(firstAutomation);
     const lines = [
       `Ecosystem prototype | Run ${state.runNumber} | ${state.active ? "active" : "Game Over"}`,
       `Ancient HP ${state.hp.toFixed(1)} / ${state.maxHp.toFixed(0)}`,
@@ -303,6 +317,7 @@ export class EcosystemDomBridge {
       runTouches: Number(state.runTouches.toFixed(3)),
       grassTouches: Number(permanent.grassTouches.toFixed(3)),
       fastTouchRank: permanent.fastTouchRank,
+      firstAutomationStage: firstAutomation.stage,
       tinySprinklers: tinySprinkler.count,
       firstSprinklerCost,
       firstSprinklerProgress: tinySprinkler.count > 0

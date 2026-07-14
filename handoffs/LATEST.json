@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-14",
-  "latestHandoff": "HANDOFF_2026-07-14_FIRST_AUTOMATION_MILESTONE.json",
+  "latestHandoff": "HANDOFF_2026-07-14_GUIDED_FIRST_CARE.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

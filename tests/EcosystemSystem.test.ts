@@ -12,6 +12,7 @@ import {
   forceGameOver,
   getBroadPalmPower,
   getBroadPalmRadius,
+  getFirstAutomationStatus,
   getManyHandsPower,
   getHelperPurchaseCost,
   getHelperUnlockCost,
@@ -114,6 +115,27 @@ describe("EcosystemSystem", () => {
     expect(state.resources.moisture.producedTotal).toBeGreaterThan(0);
     expect(state.resources.care.producedTotal).toBeGreaterThan(0);
     expect(consumeHelperPulses(state).tinySprinkler).toBeGreaterThanOrEqual(1);
+  });
+
+  it("reports each first-automation teaching stage from unlock through Dew upkeep", () => {
+    const permanent = createPermanentEcosystemState();
+    const state = createEcosystemState(permanent, { seed: 71 });
+    expect(getFirstAutomationStatus(state, permanent).stage).toBe("locked");
+
+    permanent.grassTouches = getHelperUnlockCost("tinySprinkler");
+    expect(unlockHelper(permanent, "tinySprinkler")).toBe(true);
+    expect(getFirstAutomationStatus(state, permanent).stage).toBe("gather");
+
+    state.runTouches = getHelperPurchaseCost(state, "tinySprinkler");
+    expect(getFirstAutomationStatus(state, permanent).stage).toBe("ready");
+    expect(buyHelper(state, permanent, "tinySprinkler")).toBe(true);
+    expect(getFirstAutomationStatus(state, permanent).stage).toBe("firstCycle");
+
+    for (let step = 0; step < 12; step += 1) advanceEcosystem(state, permanent, 250);
+    expect(getFirstAutomationStatus(state, permanent).stage).toBe("sustain");
+
+    state.resources.dew.amount = 0;
+    expect(getFirstAutomationStatus(state, permanent).stage).toBe("dry");
   });
 
   it("never overfills a buffer or creates negative stock", () => {

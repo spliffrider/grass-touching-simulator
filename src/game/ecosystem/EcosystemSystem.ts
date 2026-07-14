@@ -133,6 +133,18 @@ export interface EcosystemReadout {
   dirtyChunks: number;
 }
 
+export type FirstAutomationStage = "locked" | "gather" | "ready" | "firstCycle" | "sustain" | "dry" | "paused";
+
+export interface FirstAutomationStatus {
+  stage: FirstAutomationStage;
+  purchaseCost: number;
+  purchaseProgress: number;
+  cycleProgress: number;
+  dewAmount: number;
+  careProduced: number;
+  pauseReason: string | null;
+}
+
 export type PermanentRankKind = "throughput" | "storage" | "efficiency" | "startingStock";
 
 const BASE_RESOURCE_CAPACITY: Record<ProductionResourceId, number> = {
@@ -180,6 +192,7 @@ const TOUCH_RANK_BASE_COST: Record<PermanentTouchRankKind, number> = {
   broadPalm: 7,
   manyHands: 12,
 };
+const FIRST_SPRINKLER_CARE_MILESTONE = 0.3;
 const EPSILON = 0.000_001;
 
 function createHelperNumberRecord(value = 0): HelperRankRecord {
@@ -364,6 +377,33 @@ export function createEcosystemState(
 export function getHelperPurchaseCost(state: EcosystemState, helperId: HelperId): number {
   const definition = HELPERS[helperId];
   return Math.ceil(definition.baseCost * Math.pow(definition.costGrowth, state.helpers[helperId].count));
+}
+
+export function getFirstAutomationStatus(
+  state: EcosystemState,
+  permanent: PermanentEcosystemState,
+): FirstAutomationStatus {
+  const sprinkler = state.helpers.tinySprinkler;
+  const purchaseCost = getHelperPurchaseCost(state, "tinySprinkler");
+  const common = {
+    purchaseCost,
+    purchaseProgress: Math.min(1, Math.max(0, state.runTouches / purchaseCost)),
+    cycleProgress: Math.min(1, Math.max(0, sprinkler.pulseProgress)),
+    dewAmount: state.resources.dew.amount,
+    careProduced: state.resources.care.producedTotal,
+    pauseReason: sprinkler.lastPauseReason,
+  };
+
+  if (!permanent.unlockedHelpers.tinySprinkler) return { stage: "locked", ...common };
+  if (sprinkler.count <= 0) {
+    return { stage: state.runTouches >= purchaseCost ? "ready" : "gather", ...common };
+  }
+  if (state.resources.dew.amount < 1) return { stage: "dry", ...common };
+  if (sprinkler.lastPauseReason) return { stage: "paused", ...common };
+  if (state.resources.care.producedTotal < FIRST_SPRINKLER_CARE_MILESTONE) {
+    return { stage: "firstCycle", ...common };
+  }
+  return { stage: "sustain", ...common };
 }
 
 export function buyHelper(state: EcosystemState, permanent: PermanentEcosystemState, helperId: HelperId): boolean {

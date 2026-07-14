@@ -69,6 +69,12 @@ Dew, it tells the player to touch the field. The first purchase uses the pooled
 arrival, water-spray, impact, sound, and HP-bar feedback so automation reads as
 a run milestone rather than a silent number change.
 
+The teaching state advances through gathering, purchase readiness, the first
+spray, sustained Care, and a dry-sprinkler recovery prompt. The first completed
+Care cycle celebrates at the water impact; subsequent cycles retain the meter
+and Dew-reserve instruction without repeatedly interrupting play. Both Phaser
+and the semantic browser layer derive their copy from the same objective state.
+
 ## Fixed-Tick Simulation
 
 Production runs on deterministic 250 ms ticks. Frame rendering never executes

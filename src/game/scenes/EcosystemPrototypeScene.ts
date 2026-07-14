@@ -71,6 +71,7 @@ import {
   getDominantChunkStage,
   getEcosystemReadout,
   getFieldTierUnlockCost,
+  getFirstAutomationStatus,
   getHelperPurchaseCost,
   getHelperUnlockCost,
   getModeUnlockCost,
@@ -284,6 +285,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private renderedChunkViews = 0;
   private displayObjectCount = 0;
   private lastGameOverState = false;
+  private firstSprinklerCycleCelebrated = false;
 
   private background!: Phaser.GameObjects.Image;
   private fieldRoot!: Phaser.GameObjects.Container;
@@ -479,6 +481,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       setPrototypeFieldSize(this.state, this.permanent, requestedField);
       this.fieldView = { centerX: 0.5, centerY: 0.5, zoom: 1 };
     }
+    this.firstSprinklerCycleCelebrated = this.state.helpers.tinySprinkler.count > 0
+      && getFirstAutomationStatus(this.state, this.permanent).careProduced >= 0.3;
 
     this.musicVolume = readStoredMusicVolume();
     this.sfxVolume = readStoredSfxVolume();
@@ -521,7 +525,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     if (result.ticks > 0) {
       const pulses = consumeHelperPulses(this.state);
       for (const helperId of HELPER_IDS) {
-        if (pulses[helperId] > 0) this.spawnHelperEffect(helperId, pulses[helperId]);
+        if (pulses[helperId] <= 0) continue;
+        const celebrateFirstCare = helperId === "tinySprinkler"
+          && this.state.helpers.tinySprinkler.modeId === "caretaker"
+          && !this.firstSprinklerCycleCelebrated;
+        if (celebrateFirstCare) this.firstSprinklerCycleCelebrated = true;
+        this.spawnHelperEffect(helperId, pulses[helperId], false, celebrateFirstCare);
       }
     }
     if (!this.state.active && !this.lastGameOverState) {
@@ -934,6 +943,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       setPrototypeField: (size) => {
         if (!this.state.active) {
           this.state = createNextEcosystemRun(this.permanent);
+          this.firstSprinklerCycleCelebrated = false;
           this.lastGameOverState = false;
           this.syncViewVisibility();
         }
@@ -1488,27 +1498,38 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.setTextIfChanged(this.plotStageText, TILE_STAGE_LABELS[firstStage].toUpperCase());
       this.setTextIfChanged(this.plotDetailText, `Stage ${firstStage + 1} / ${TILE_TEXTURE_KEYS.length}   |   ${this.state.manualTouchCount} touches`);
 
-      const sprinkler = this.state.helpers.tinySprinkler;
-      const sprinklerCost = getHelperPurchaseCost(this.state, "tinySprinkler");
+      const firstAutomation = getFirstAutomationStatus(this.state, this.permanent);
       let automationProgress = 0;
       let automationColor: number;
       let automationCopy: string;
-      if (sprinkler.count <= 0) {
-        automationProgress = Phaser.Math.Clamp(this.state.runTouches / sprinklerCost, 0, 1);
-        const ready = this.state.runTouches >= sprinklerCost;
-        automationColor = ready ? 0xffe889 : 0x8de7ff;
-        automationCopy = ready
-          ? `FIRST AUTOMATION READY  |  Buy Tiny Sprinkler for ${sprinklerCost} RT`
-          : `FIRST AUTOMATION  |  Gather RT ${Math.floor(this.state.runTouches)} / ${sprinklerCost}`;
-      } else if (sprinkler.lastPauseReason) {
-        automationColor = 0xe8616a;
-        automationCopy = sprinkler.lastPauseReason.toLowerCase().includes("dew")
-          ? "SPRINKLER PAUSED  |  Needs Dew - touch the field"
-          : `SPRINKLER PAUSED  |  ${sprinkler.lastPauseReason}`;
-      } else {
-        automationProgress = Phaser.Math.Clamp(sprinkler.pulseProgress, 0, 1);
-        automationColor = 0x83d765;
-        automationCopy = "SPRINKLER ACTIVE  |  Dew -> Moisture + Care";
+      switch (firstAutomation.stage) {
+        case "ready":
+          automationProgress = 1;
+          automationColor = 0xffe889;
+          automationCopy = `FIRST AUTOMATION READY  |  Buy Tiny Sprinkler for ${firstAutomation.purchaseCost} RT`;
+          break;
+        case "firstCycle":
+          automationProgress = firstAutomation.cycleProgress;
+          automationColor = 0x8de7ff;
+          automationCopy = "FIRST SPRAY  |  Watch Dew become Moisture + Care";
+          break;
+        case "sustain":
+          automationProgress = firstAutomation.cycleProgress;
+          automationColor = 0x83d765;
+          automationCopy = `CARE ONLINE  |  Keep Dew supplied (${Math.floor(firstAutomation.dewAmount)} Dew)`;
+          break;
+        case "dry":
+          automationColor = 0xe8616a;
+          automationCopy = "SPRINKLER DRY  |  Touch the field to gather Dew";
+          break;
+        case "paused":
+          automationColor = 0xe8616a;
+          automationCopy = `SPRINKLER PAUSED  |  ${firstAutomation.pauseReason ?? "Check its buffers"}`;
+          break;
+        default:
+          automationProgress = firstAutomation.purchaseProgress;
+          automationColor = 0x8de7ff;
+          automationCopy = `FIRST AUTOMATION  |  Gather RT ${Math.floor(this.state.runTouches)} / ${firstAutomation.purchaseCost}`;
       }
       this.setTextIfChanged(this.automationGoalText, automationCopy);
       const automationHex = `#${automationColor.toString(16).padStart(6, "0")}`;
@@ -2017,7 +2038,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.setTouchRecoveryVisible(false);
   }
 
-  private spawnHelperEffect(helperId: HelperId, pulseCount = 1, priming = false): void {
+  private spawnHelperEffect(helperId: HelperId, pulseCount = 1, priming = false, celebrateFirstCare = false): void {
     const actor = this.helperActors[helperId];
     if (!actor.image.visible || !this.state.active || this.worksOpen) return;
     actor.pulseStartedAt = this.time.now;
@@ -2069,13 +2090,20 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         ease: "Sine.easeInOut",
         onComplete: () => {
           effect.setVisible(false);
-          if (burstIndex === 0) this.completeHelperEffect(helperId, targetX, targetY, pulseCount, priming);
+          if (burstIndex === 0) this.completeHelperEffect(helperId, targetX, targetY, pulseCount, priming, celebrateFirstCare);
         },
       });
     }
   }
 
-  private completeHelperEffect(helperId: HelperId, x: number, y: number, pulseCount: number, priming: boolean): void {
+  private completeHelperEffect(
+    helperId: HelperId,
+    x: number,
+    y: number,
+    pulseCount: number,
+    priming: boolean,
+    celebrateFirstCare: boolean,
+  ): void {
     const color = HELPER_EFFECT_COLOR[helperId];
     const impact = this.impactPool.find((candidate) => !candidate.visible);
     if (impact) {
@@ -2118,6 +2146,31 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.hpBarFill.setAlpha(1);
       this.tweens.add({ targets: this.hpBarFill, alpha: 0.64, yoyo: true, duration: 120, onComplete: () => this.hpBarFill.setAlpha(1) });
     }
+    if (celebrateFirstCare) this.showFirstCareOnline();
+  }
+
+  private showFirstCareOnline(): void {
+    const actor = this.helperActors.tinySprinkler;
+    this.audio.play("milestone");
+    this.helperAnnouncementText
+      .setText("CARE ONLINE")
+      .setColor("#83d765")
+      .setPosition(actor.baseX, actor.baseY - actor.actorSize * 0.95)
+      .setAlpha(1)
+      .setVisible(true);
+    this.tweens.killTweensOf(this.helperAnnouncementText);
+    this.tweens.add({
+      targets: this.helperAnnouncementText,
+      y: actor.baseY - actor.actorSize * 1.35,
+      alpha: 0,
+      delay: 460,
+      duration: 1_000,
+      ease: "Cubic.easeOut",
+      onComplete: () => this.helperAnnouncementText.setVisible(false),
+    });
+    this.tweens.killTweensOf(this.automationGoalText);
+    this.automationGoalText.setScale(1);
+    this.tweens.add({ targets: this.automationGoalText, scale: 1.08, yoyo: true, duration: 180, ease: "Back.easeOut" });
   }
 
   private showHelperArrival(helperId: HelperId): void {
@@ -2328,6 +2381,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private beginNextRun(): void {
     if (this.state.active) return;
     this.state = createNextEcosystemRun(this.permanent);
+    this.firstSprinklerCycleCelebrated = false;
     this.resetTouchRecovery();
     this.lastGameOverState = false;
     this.fieldView = { centerX: 0.5, centerY: 0.5, zoom: 1 };
@@ -2804,6 +2858,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     localStorage.removeItem("grass-touching-simulator.ecosystem-memory.v1");
     this.permanent = createPermanentEcosystemState();
     this.state = createEcosystemState(this.permanent);
+    this.firstSprinklerCycleCelebrated = false;
     this.resetTouchRecovery();
     this.fieldView = { centerX: 0.5, centerY: 0.5, zoom: 1 };
     this.worksOpen = false;
