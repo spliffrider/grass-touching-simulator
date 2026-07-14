@@ -6,6 +6,7 @@ import {
   ECOSYSTEM_MEMORY_WORLD_HEIGHT,
   ECOSYSTEM_MEMORY_WORLD_WIDTH,
 } from "../src/game/ecosystem/EcosystemMemoryTree";
+import { getTouchRankCost } from "../src/game/ecosystem/EcosystemSystem";
 
 interface Point {
   x: number;
@@ -25,9 +26,15 @@ function edgesCross(a1: Point, a2: Point, b1: Point, b2: Point): boolean {
 }
 
 describe("Ecosystem Memory Tree", () => {
-  it("defines a stable, expandable 53-node web", () => {
-    expect(ECOSYSTEM_MEMORY_NODES).toHaveLength(53);
+  it("defines a stable, expandable 54-node web", () => {
+    expect(ECOSYSTEM_MEMORY_NODES).toHaveLength(54);
     expect(new Set(ECOSYSTEM_MEMORY_NODES.map((node) => node.id)).size).toBe(ECOSYSTEM_MEMORY_NODES.length);
+    expect(ECOSYSTEM_MEMORY_NODE_BY_ID.get("touch:fastTouch")).toMatchObject({
+      kind: "touchRank",
+      prerequisites: ["root:field-heir"],
+      touchKind: "fastTouch",
+    });
+    expect(getTouchRankCost("fastTouch", 0)).toBe(9);
   });
 
   it("keeps every node and prerequisite inside the declared graph", () => {

@@ -89,6 +89,7 @@ import {
   type EcosystemState,
   type PermanentEcosystemState,
   type PermanentRankKind,
+  type PermanentTouchRankKind,
 } from "../ecosystem/EcosystemSystem";
 import { AudioSystem } from "../systems/AudioSystem";
 
@@ -1439,6 +1440,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         "Dew gathered    1.15",
         "Run Touches     +0.92",
         "",
+        `Fast Touch      ${getManualTouchCooldownMs(this.permanent.fastTouchRank)} ms recovery`,
         `Broad Palm      ${palmRadius > 0 ? `radius ${palmRadius}` : "single plot"}`,
         `Many Hands      ${this.permanent.manyHandsRank * 2} echoes`,
         `Touches made    ${this.state.manualTouchCount}`,
@@ -2146,7 +2148,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     if (!this.state.active || this.worksOpen || this.optionsOpen) return;
     const touchStart = performance.now();
     const now = this.time.now;
-    const cooldownMs = getManualTouchCooldownMs();
+    const cooldownMs = getManualTouchCooldownMs(this.permanent.fastTouchRank);
     const cooldown = tryStartTouchCooldown(this.touchCooldowns, tileIndex, now, cooldownMs);
     if (!cooldown.accepted) {
       this.touchRecoveryVisual = {
@@ -2410,14 +2412,24 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
 
     if (definition.kind === "touchRank") {
-      const kind = definition.touchKind!;
-      const rank = kind === "broadPalm" ? this.permanent.broadPalmRank : this.permanent.manyHandsRank;
+      const kind: PermanentTouchRankKind = definition.touchKind!;
+      const rank = kind === "fastTouch"
+        ? this.permanent.fastTouchRank
+        : kind === "broadPalm"
+          ? this.permanent.broadPalmRank
+          : this.permanent.manyHandsRank;
       const maxRank = 10;
       const complete = rank >= maxRank;
-      const unlocked = kind === "broadPalm" || this.permanent.broadPalmRank >= 2;
+      const unlocked = kind !== "manyHands" || this.permanent.broadPalmRank >= 2;
       const cost = complete ? 0 : getTouchRankCost(kind, rank);
       let effect = "Manual touch affects one chosen tile at full strength.";
-      if (kind === "broadPalm" && rank > 0) {
+      if (kind === "fastTouch") {
+        const recoveryMs = getManualTouchCooldownMs(rank);
+        const nextRecoveryMs = getManualTouchCooldownMs(Math.min(maxRank, rank + 1));
+        effect = rank >= maxRank
+          ? `Each tile recovers in ${recoveryMs} ms, the fastest remembered rhythm.`
+          : `Each tile recovers in ${recoveryMs} ms; the next rank lowers it to ${nextRecoveryMs} ms.`;
+      } else if (kind === "broadPalm" && rank > 0) {
         const radius = 1 + Math.floor((rank - 1) / 2);
         const effectiveness = Math.round(40 + ((rank - 1) / 9) * 60);
         effect = `Nearby tiles within radius ${radius} receive ${effectiveness}% touch strength.`;
@@ -2793,7 +2805,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       averageSaveMs: Number(performanceSnapshot.averageSaveMs.toFixed(3)),
       maxSaveMs: Number(performanceSnapshot.maxSaveMs.toFixed(3)),
       touchActions: performanceSnapshot.touchActions,
-      manualTouchCooldownMs: getManualTouchCooldownMs(),
+      manualTouchCooldownMs: getManualTouchCooldownMs(this.permanent.fastTouchRank),
       trackedTouchCooldowns: this.touchCooldowns.size,
       touchCooldownRemainingMs: this.touchRecoveryVisual
         ? Math.max(0, Math.round(this.touchRecoveryVisual.readyAtMs - this.time.now))

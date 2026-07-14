@@ -93,7 +93,7 @@ Permanent Memories retain:
 - helper and alternate-mode unlocks
 - field-size ceilings
 - throughput, storage, efficiency, and starting-stock ranks
-- Broad Palm, Many Hands, and Field Embrace
+- Fast Touch, Broad Palm, Many Hands, and Field Embrace
 
 Helper unlocks reveal their equipment row and recipes; hidden helpers cannot be
 bought. Tiny Sprinkler is the first unlock and also reveals the Living Ledger.
@@ -119,9 +119,11 @@ Dew and RT, and advances that tile's natural stage.
 Each primary tile then enters a short, explicit recovery window. The tile dims,
 a recovery strip fills, and an early repeat tap pulses immediately without
 awarding another touch. Different tiles remain independently touchable, so a
-larger field supports fast fluid routing. The base 380 ms recovery has a
-rank-ready curve down to a 140 ms floor for future manual-speed Memories.
+larger field supports fast fluid routing. Fast Touch has ten permanent ranks;
+each rank removes 24 ms from the base 380 ms recovery, reaching a 140 ms floor.
 
+- Fast Touch has ten ranks. It costs more than the guaranteed first-run reward,
+  preserving Broad Palm and Tiny Sprinkler as the first immediate choices.
 - Broad Palm has ten ranks. Radius is
   `1 + floor((rank - 1) / 2)` and nearby effectiveness scales linearly from
   40% to 100%.

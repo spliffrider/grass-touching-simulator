@@ -1,0 +1,62 @@
+{
+  "date": "2026-07-14",
+  "topic": "Fast Touch permanent progression",
+  "currentUserGoal": "Continue the ecosystem redesign by turning the manual tile-recovery curve into real, visible Memory progression.",
+  "workCompleted": [
+    "Added Fast Touch as a ten-rank permanent Memory with a 9 GT opening cost and the existing escalating touch-rank cost curve.",
+    "Placed Fast Touch on its own root-adjacent touch branch using the existing mindful-contact icon; the graph remains inside its world bounds and all connectors remain non-crossing.",
+    "Wired Fast Touch rank into live manual tile recovery, reducing the base 380 ms cooldown by 24 ms per rank to a 140 ms floor at rank ten.",
+    "Added the current recovery time to the active caretaker readout and to the redesign performance harness.",
+    "Kept old v1 permanent saves compatible by normalizing a missing fastTouchRank to zero rather than resetting progress.",
+    "Updated semantic Memory controls so Fast Touch, Broad Palm, and Many Hands are hidden during active play, disabled when locked or unaffordable, and labeled with rank and next cost.",
+    "Updated the durable ecosystem design document and expanded Memory Web and economy tests."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemMemoryTree.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-14_FAST_TOUCH_MEMORY.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 119 Vitest tests across 17 files, strict TypeScript, and the Vite production build.",
+    "The focused ecosystem and touch-cooldown suites passed 19 tests.",
+    "The 54-node Memory Web test confirms the Fast Touch root connection, world bounds, unique ids, and zero geometric connector crossings.",
+    "At 1280x720 on the actual redesign route, the first-run 7 GT state showed Fast Touch 0/10 at 9 GT and correctly disabled it while leaving Broad Palm affordable.",
+    "After adding prototype currency, buying Fast Touch rank 1 spent 9 GT, advanced the control to 1/10 with a 25 GT next cost, and changed the live harness cooldown from 380 ms to 356 ms.",
+    "Browser diagnostics contained no errors or warnings.",
+    "No phone viewport was rerun because the in-app browser remained fixed at 1280x720; the new node is covered by graph bounds and connector tests but still deserves the next available 390x844 visual pass."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "debugUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Local ecosystem prototype checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "The Fast Touch implementation, tests, design update, and this handoff belong in one focused checkpoint on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173, paused in Options on a clean Run 1."
+  ],
+  "knownIssues": [
+    "The 390x844 Memory Grove layout still needs a fresh visual pass when a true phone viewport is available.",
+    "Fast Touch pricing and the 24 ms per-rank curve are now functional but still need hands-on pacing feedback across several runs.",
+    "Field Tier and Field Embrace semantic controls predate this slice and still lack the richer rank/cost labels now used by touch-rank controls."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test whether Fast Touch rank 1 feels noticeably smoother without erasing the recovery rhythm.",
+    "Build the first meaningful Run 2 Dew-to-Moisture decision around the newly affordable Tiny Sprinkler path.",
+    "Give the first Memory Grove visit stronger visual guidance toward Broad Palm versus Tiny Sprinkler while preserving player choice."
+  ],
+  "doNotRevert": [
+    "Keep Fast Touch more expensive than the guaranteed 7 GT first-run award unless the intended first-purchase choice is explicitly redesigned.",
+    "Keep old permanent saves backward-compatible by defaulting missing fastTouchRank to zero.",
+    "Keep cooldown tracking sparse and the overlay fixed-size; Fast Touch changes duration only, not the 10,000-tile architecture.",
+    "Keep accepted ecosystem touches outside the shared audio-throttle path.",
+    "Do not use the legacy 1,200-tile harness as redesign evidence."
+  ]
+}

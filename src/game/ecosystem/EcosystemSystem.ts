@@ -27,6 +27,7 @@ export type HelperUnlockRecord = Record<HelperId, boolean>;
 export type HelperModeUnlockRecord = Record<HelperId, string[]>;
 export type ProductionBufferRecord = Record<ProductionResourceId, ProductionBuffer>;
 export type ProductionRateRecord = Record<ProductionResourceId, number>;
+export type PermanentTouchRankKind = "fastTouch" | "broadPalm" | "manyHands";
 
 export interface PermanentEcosystemState {
   version: typeof ECOSYSTEM_PERMANENT_VERSION;
@@ -39,6 +40,7 @@ export interface PermanentEcosystemState {
   efficiencyRanks: HelperRankRecord;
   startingStockRanks: HelperRankRecord;
   maxFieldTier: number;
+  fastTouchRank: number;
   broadPalmRank: number;
   manyHandsRank: number;
   fieldEmbrace: boolean;
@@ -173,6 +175,11 @@ const STARTING_STOCK_RESOURCE: Record<HelperId, ProductionResourceId> = {
 };
 
 const FIELD_TIER_COSTS = [0, 8, 14, 22, 34, 52, 78, 116, 170, 250, 370] as const;
+const TOUCH_RANK_BASE_COST: Record<PermanentTouchRankKind, number> = {
+  fastTouch: 9,
+  broadPalm: 7,
+  manyHands: 12,
+};
 const EPSILON = 0.000_001;
 
 function createHelperNumberRecord(value = 0): HelperRankRecord {
@@ -207,6 +214,7 @@ export function createPermanentEcosystemState(): PermanentEcosystemState {
     efficiencyRanks: createHelperNumberRecord(),
     startingStockRanks: createHelperNumberRecord(),
     maxFieldTier: 0,
+    fastTouchRank: 0,
     broadPalmRank: 0,
     manyHandsRank: 0,
     fieldEmbrace: false,
@@ -224,6 +232,7 @@ export function normalizePermanentEcosystemState(input: unknown): PermanentEcosy
   normalized.grassTouches = Math.max(0, Number(source.grassTouches) || 0);
   normalized.completedRuns = Math.max(0, Math.floor(Number(source.completedRuns) || 0));
   normalized.maxFieldTier = clampRank(Number(source.maxFieldTier), FIELD_SIZE_LADDER.length - 1);
+  normalized.fastTouchRank = clampRank(Number(source.fastTouchRank), 10);
   normalized.broadPalmRank = clampRank(Number(source.broadPalmRank), 10);
   normalized.manyHandsRank = clampRank(Number(source.manyHandsRank), 10);
   normalized.fieldEmbrace = source.fieldEmbrace === true;
@@ -512,13 +521,16 @@ export function unlockNextFieldTier(permanent: PermanentEcosystemState): boolean
   return true;
 }
 
-export function getTouchRankCost(kind: "broadPalm" | "manyHands", rank: number): number {
-  const base = kind === "broadPalm" ? 7 : 12;
-  return Math.ceil(base * Math.pow(rank + 1, 1.42));
+export function getTouchRankCost(kind: PermanentTouchRankKind, rank: number): number {
+  return Math.ceil(TOUCH_RANK_BASE_COST[kind] * Math.pow(rank + 1, 1.42));
 }
 
-export function purchaseTouchRank(permanent: PermanentEcosystemState, kind: "broadPalm" | "manyHands"): boolean {
-  const currentRank = kind === "broadPalm" ? permanent.broadPalmRank : permanent.manyHandsRank;
+export function purchaseTouchRank(permanent: PermanentEcosystemState, kind: PermanentTouchRankKind): boolean {
+  const currentRank = kind === "fastTouch"
+    ? permanent.fastTouchRank
+    : kind === "broadPalm"
+      ? permanent.broadPalmRank
+      : permanent.manyHandsRank;
   if (currentRank >= 10) {
     return false;
   }
@@ -530,7 +542,9 @@ export function purchaseTouchRank(permanent: PermanentEcosystemState, kind: "bro
     return false;
   }
   permanent.grassTouches -= cost;
-  if (kind === "broadPalm") {
+  if (kind === "fastTouch") {
+    permanent.fastTouchRank += 1;
+  } else if (kind === "broadPalm") {
     permanent.broadPalmRank += 1;
   } else {
     permanent.manyHandsRank += 1;
@@ -1070,6 +1084,7 @@ export function setPrototypeFieldSize(
 
 export function unlockAllPrototypeMemories(permanent: PermanentEcosystemState): void {
   permanent.maxFieldTier = FIELD_SIZE_LADDER.length - 1;
+  permanent.fastTouchRank = 10;
   permanent.broadPalmRank = 10;
   permanent.manyHandsRank = 10;
   permanent.fieldEmbrace = true;

@@ -6,9 +6,11 @@ import {
   getHelperUnlockCost,
   getModeUnlockCost,
   getPermanentRankCost,
+  getTouchRankCost,
   type EcosystemState,
   type PermanentEcosystemState,
   type PermanentRankKind,
+  type PermanentTouchRankKind,
 } from "./EcosystemSystem";
 
 export interface EcosystemDomActions {
@@ -23,7 +25,7 @@ export interface EcosystemDomActions {
   unlockMode(helperId: HelperId, modeId: string): void;
   buyRank(helperId: HelperId, kind: PermanentRankKind): void;
   unlockFieldTier(): void;
-  buyTouchRank(kind: "broadPalm" | "manyHands"): void;
+  buyTouchRank(kind: PermanentTouchRankKind): void;
   buyFieldEmbrace(): void;
   addPrototypeCurrency(): void;
   forceGameOver(): void;
@@ -37,6 +39,7 @@ interface DynamicButton {
   helperId?: HelperId;
   modeId?: string;
   rankKind?: PermanentRankKind;
+  touchKind?: PermanentTouchRankKind;
 }
 
 const TILE_STAGE_DOM_LABELS = ["dormant", "dewy", "moist", "sprouting", "verdant", "flowering", "pollinated", "rooted"] as const;
@@ -128,10 +131,18 @@ export class EcosystemDomBridge {
         memories.append(rankButton);
       }
     }
+    const touchButtons = ([
+      ["fastTouch", "Fast Touch", "ecosystem-rank-fast-touch"],
+      ["broadPalm", "Broad Palm", "ecosystem-rank-broad-palm"],
+      ["manyHands", "Many Hands", "ecosystem-rank-many-hands"],
+    ] as const).map(([touchKind, label, testId]) => {
+      const element = this.createButton(`Buy ${label} rank`, () => this.actions.buyTouchRank(touchKind), testId);
+      this.memoryButtons.push({ element, touchKind });
+      return element;
+    });
     memories.append(
       this.createButton("Unlock next field size", () => this.actions.unlockFieldTier(), "ecosystem-unlock-field"),
-      this.createButton("Buy Broad Palm rank", () => this.actions.buyTouchRank("broadPalm"), "ecosystem-rank-broad-palm"),
-      this.createButton("Buy Many Hands rank", () => this.actions.buyTouchRank("manyHands"), "ecosystem-rank-many-hands"),
+      ...touchButtons,
       this.createButton("Unlock Field Embrace", () => this.actions.buyFieldEmbrace(), "ecosystem-unlock-field-embrace"),
     );
     this.root.append(memories);
@@ -214,6 +225,24 @@ export class EcosystemDomBridge {
       this.setDisabled(button.element, !state.active || helper.count <= 0 || helper.modeId === button.modeId || helper.reconfigureRemainingMs > 0);
     }
     for (const button of this.memoryButtons) {
+      if (button.touchKind) {
+        const kind = button.touchKind;
+        const rank = kind === "fastTouch"
+          ? permanent.fastTouchRank
+          : kind === "broadPalm"
+            ? permanent.broadPalmRank
+            : permanent.manyHandsRank;
+        const unlocked = kind !== "manyHands" || permanent.broadPalmRank >= 2;
+        const maxRank = 10;
+        const cost = rank >= maxRank ? 0 : getTouchRankCost(kind, rank);
+        const label = kind === "fastTouch" ? "Fast Touch" : kind === "broadPalm" ? "Broad Palm" : "Many Hands";
+        this.setHidden(button.element, state.active);
+        this.setDisabled(button.element, !unlocked || rank >= maxRank || permanent.grassTouches < cost);
+        this.setText(button.element, rank >= maxRank
+          ? `${label} ${rank}/${maxRank}; complete`
+          : `${label} ${rank}/${maxRank}; next ${cost} GT`);
+        continue;
+      }
       const helperId = button.helperId!;
       if (button.rankKind) {
         const rank = button.rankKind === "throughput"
@@ -257,6 +286,7 @@ export class EcosystemDomBridge {
       cultivation: state.field.cultivationRank,
       runTouches: Number(state.runTouches.toFixed(3)),
       grassTouches: Number(permanent.grassTouches.toFixed(3)),
+      fastTouchRank: permanent.fastTouchRank,
       carePerSecond: Number(state.rates.care.toFixed(4)),
       scourgePerSecond: Number(state.scourgeDemandPerSecond.toFixed(4)),
       bottleneck: state.bottleneck,

@@ -1,5 +1,5 @@
 import { HELPER_IDS, HELPERS, type HelperId } from "./EcosystemCatalog";
-import type { PermanentRankKind } from "./EcosystemSystem";
+import type { PermanentRankKind, PermanentTouchRankKind } from "./EcosystemSystem";
 
 export const ECOSYSTEM_MEMORY_WORLD_WIDTH = 3600;
 export const ECOSYSTEM_MEMORY_WORLD_HEIGHT = 1500;
@@ -27,7 +27,7 @@ export interface EcosystemMemoryNodeDefinition {
   prerequisites: readonly string[];
   helperId?: HelperId;
   rankKind?: PermanentRankKind;
-  touchKind?: "broadPalm" | "manyHands";
+  touchKind?: PermanentTouchRankKind;
 }
 
 export interface EcosystemMemoryEdge {
@@ -101,6 +101,20 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       x: -1580,
       y: 0,
       prerequisites: [],
+    },
+    {
+      id: "touch:fastTouch",
+      kind: "touchRank",
+      label: "Fast Touch",
+      branch: "Touch",
+      description: "Ten ranks shorten each tile's visible recovery without removing its deliberate rhythm.",
+      color: 0xf0cc62,
+      iconKey: "memory-icon-fast-touch",
+      iconPath: "/assets/ui/skills/mindful-contact.png",
+      x: -1710,
+      y: -270,
+      prerequisites: [ROOT_ID],
+      touchKind: "fastTouch",
     },
     {
       id: "touch:broadPalm",

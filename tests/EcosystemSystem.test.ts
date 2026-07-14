@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { HELPER_RECONFIGURE_MS } from "../src/game/ecosystem/EcosystemCatalog";
+import { getManualTouchCooldownMs } from "../src/game/ecosystem/EcosystemTouchCooldown";
 import {
   advanceEcosystem,
   buyCultivationRank,
@@ -12,6 +13,7 @@ import {
   getBroadPalmRadius,
   getManyHandsPower,
   getTouchRankCost,
+  normalizePermanentEcosystemState,
   purchaseTouchRank,
   setPrototypeFieldSize,
   switchHelperMode,
@@ -149,6 +151,24 @@ describe("EcosystemSystem", () => {
     expect(getBroadPalmPower(10)).toBeCloseTo(1);
     expect(getManyHandsPower(1)).toBeCloseTo(0.35);
     expect(getManyHandsPower(10)).toBeCloseTo(0.8);
+  });
+
+  it("purchases Fast Touch ranks and safely defaults old saves to rank zero", () => {
+    const legacy = normalizePermanentEcosystemState({
+      version: 1,
+      grassTouches: 12,
+      completedRuns: 1,
+    });
+    expect(legacy.fastTouchRank).toBe(0);
+    expect(getManualTouchCooldownMs(legacy.fastTouchRank)).toBe(380);
+
+    const firstRankCost = getTouchRankCost("fastTouch", 0);
+    legacy.grassTouches = firstRankCost;
+    expect(firstRankCost).toBe(9);
+    expect(purchaseTouchRank(legacy, "fastTouch")).toBe(true);
+    expect(legacy.fastTouchRank).toBe(1);
+    expect(legacy.grassTouches).toBe(0);
+    expect(getManualTouchCooldownMs(legacy.fastTouchRank)).toBe(356);
   });
 
   it("holds ten thousand real tile states at 100x100", () => {

@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-14",
-  "latestHandoff": "HANDOFF_2026-07-14_FIRST_RUN_MEMORY_GRANT.json",
+  "latestHandoff": "HANDOFF_2026-07-14_FAST_TOUCH_MEMORY.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",
