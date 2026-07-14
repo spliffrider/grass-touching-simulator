@@ -1,0 +1,52 @@
+{
+  "date": "2026-07-14",
+  "topic": "Guaranteed first-run Memory purchase",
+  "currentUserGoal": "Ensure the first Game Over always awards enough permanent GT to buy the first ranked skill in the Memory Web.",
+  "workCompleted": [
+    "Changed the fresh-save Run 1 reward floor from a magic 5 GT to the live cost of Broad Palm rank 1, currently 7 GT.",
+    "Kept the existing 5 GT minimum for completedRuns >= 1, so later-run reward balance is unchanged.",
+    "Added a regression test that force-ends an unproductive first run, verifies its award covers Broad Palm rank 1, and purchases that rank successfully.",
+    "Updated the ecosystem design document to make the first-run progression promise explicit."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-14_FIRST_RUN_MEMORY_GRANT.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 118 Vitest tests across 17 files, strict TypeScript, and the Vite production build.",
+    "The focused EcosystemSystem suite passed all 13 tests.",
+    "At 1280x720 on the actual redesign prototype route, an untouched first run reached Game Over with exactly 7 GT.",
+    "The Browser's real Buy Broad Palm rank control successfully spent the 7 GT and left 0 GT.",
+    "Browser diagnostics contained only Vite connection and Phaser startup messages, with no errors or warnings.",
+    "No new phone pass was run because this slice changes only deterministic reward arithmetic and tests, with no presentation or layout changes."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "debugUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Local ecosystem prototype checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "The first-run reward guarantee, regression test, design update, and this handoff belong in one focused checkpoint on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173, paused in Options on a clean Run 1."
+  ],
+  "knownIssues": [
+    "The future ten-rank Fast Touch Memory is still not implemented or placed in the Memory Web.",
+    "The fresh-save first run remains deliberately severe and still needs hands-on rhythm feedback after the one-second Scourge ramp change."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test whether earning exactly one immediate Memory choice makes the brutal first loss feel purposeful.",
+    "Decide whether the intended first purchase should be Broad Palm or Tiny Sprinkler, then use layout and onboarding emphasis to communicate that choice without removing player freedom.",
+    "Design and place the ten-rank Fast Touch Memory branch before wiring cooldown reduction into permanent progression."
+  ],
+  "doNotRevert": [
+    "Keep the Run 1 floor derived from getTouchRankCost(\"broadPalm\", 0), so cost tuning cannot silently make the first ranked skill unaffordable.",
+    "Keep the special reward floor limited to completedRuns === 0 unless later progression balance is intentionally retuned.",
+    "Keep the special one-second Scourge ramp limited to completedRuns === 0.",
+    "Do not use the legacy 1,200-tile harness as redesign evidence."
+  ]
+}

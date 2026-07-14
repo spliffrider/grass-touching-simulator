@@ -789,8 +789,11 @@ function finishRun(state: EcosystemState, permanent: PermanentEcosystemState): v
   state.active = false;
   state.hp = 0;
   const careProduced = state.resources.care.producedTotal;
+  const minimumAward = permanent.completedRuns === 0
+    ? getTouchRankCost("broadPalm", 0)
+    : 5;
   const award = Math.max(
-    5,
+    minimumAward,
     Math.floor((careProduced + state.manualCareTotal) / 7.5) + Math.floor(state.field.sizeIndex * 2.5),
   );
   permanent.grassTouches += award;

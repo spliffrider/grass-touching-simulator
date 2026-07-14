@@ -7,9 +7,12 @@ import {
   consumeHelperPulses,
   createEcosystemState,
   createPermanentEcosystemState,
+  forceGameOver,
   getBroadPalmPower,
   getBroadPalmRadius,
   getManyHandsPower,
+  getTouchRankCost,
+  purchaseTouchRank,
   setPrototypeFieldSize,
   switchHelperMode,
   touchFieldTile,
@@ -179,6 +182,18 @@ describe("EcosystemSystem", () => {
   it("ends the first manual run as a brief onboarding failure", () => {
     expect(simulateManualRun(0, 0)).toBeGreaterThanOrEqual(5_000);
     expect(simulateManualRun(0, 0)).toBeLessThanOrEqual(10_000);
+  });
+
+  it("guarantees enough first-run GT to remember the first Broad Palm rank", () => {
+    const permanent = createPermanentEcosystemState();
+    const state = createEcosystemState(permanent, { seed: 19 });
+    const firstSkillCost = getTouchRankCost("broadPalm", 0);
+
+    forceGameOver(state, permanent);
+
+    expect(state.endedSummary?.grassTouchesAwarded).toBeGreaterThanOrEqual(firstSkillCost);
+    expect(permanent.grassTouches).toBeGreaterThanOrEqual(firstSkillCost);
+    expect(purchaseTouchRank(permanent, "broadPalm")).toBe(true);
   });
 
   it("moves the second run into the first multi-minute band", () => {
