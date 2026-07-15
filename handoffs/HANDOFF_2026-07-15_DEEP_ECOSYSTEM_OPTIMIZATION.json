@@ -1,0 +1,61 @@
+{
+  "date": "2026-07-15",
+  "topic": "Deep ecosystem rendering and 100x100 field optimization",
+  "currentUserGoal": "Make the ecosystem prototype feel fast and fluid now while preserving a genuinely scalable path to a 100x100 field with 10,000 logical tiles.",
+  "workCompleted": [
+    "Profiled the actual ecosystemPrototype route instead of the obsolete legacy performance harness at 1x1, 32x32, 100x100, phone size, near zoom, and with all eight helpers active.",
+    "Replaced timer-polled field redraws with dirty-chunk-driven rendering and coalesced UI refreshes onto deterministic production ticks or accepted input actions.",
+    "Stopped advanceEcosystem from scanning chunk dirtiness on rendered frames that did not execute a fixed production tick.",
+    "Moved tile and ambient animation metadata out of Phaser DataManager lookups and into fixed typed arrays, and reduced near-tile sway to one trigonometric calculation per tile.",
+    "Replaced the touch cooldown Graphics clear-and-rebuild path with four persistent pooled display objects while preserving blocked, recovering, and ready feedback.",
+    "Added bounded touch-impact and helper-effect budgets for phone and distant field LODs.",
+    "Made displayed HP predict deterministic damage within the current fixed-tick window so the bar moves continuously without changing simulation outcomes.",
+    "Skipped hidden-field animation work and idle heartbeat display writes, requested a high-performance WebGL context for the ecosystem prototype, and exposed actually visible display-object counts in the redesign harness."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemHealthVisual.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "src/main.ts",
+    "tests/EcosystemHealthVisual.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-15_DEEP_ECOSYSTEM_OPTIMIZATION.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 132 Vitest tests across 18 files, strict TypeScript, and the Vite production build.",
+    "Idle 1x1 field redraws fell from five to six polls per second to zero when no chunks changed; visible field objects were approximately 48 to 49.",
+    "A 100x100 field used 10,000 logical tiles in 11,700 compact bytes, rendered 100 chunk summaries, performed zero full-field scans, and showed approximately 156 visible objects on the 390x844 phone viewport.",
+    "The 100x100 field with all eight helpers active showed approximately 198 to 203 visible objects, three to seven active effects, and nine to fourteen active tweens while production continued.",
+    "Near zoom on a 32x32 field rendered 165 individual tiles from a bounded pool and showed approximately 222 visible objects.",
+    "The browser harness reported about 144 FPS and a 6.75 ms p95 frame delta in ordinary, helper-heavy, phone-sized, and near-zoom checks on the current test machine; simulation work stayed around 0.001 to 0.01 ms and no browser warnings or errors appeared."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "status": "Verified local optimization checkpoint; not pushed, merged into master, or promoted to production."
+  },
+  "currentGitStatus": [
+    "The optimization implementation, tests, and this handoff are intended for one local commit on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173."
+  ],
+  "knownIssues": [
+    "The browser measurements establish bounded work and strong headroom on the current machine; they do not replace hands-on testing on the user's slowest target phone or tablet.",
+    "Display pools remain allocated after zooming back out, but hidden pooled objects do not animate or render and their counts remain capped by viewport policy.",
+    "The playtest debug controls can obscure mobile UI and are not representative of the normal player route.",
+    "The current 100x100 far view is intentionally a 10x10 chunk summary rather than 10,000 simultaneous sprites."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user replay the first run and judge perceived input latency, cooldown clarity, and HP motion on their own display.",
+    "Add a repeatable low-power redesign benchmark mode only when testing on slower hardware reveals a measurable miss.",
+    "Continue the visible Field Mouse production-chain objective after the hands-on smoothness check."
+  ],
+  "doNotRevert": [
+    "Keep 10,000 logical tiles separate from the bounded near, mid, and far display pools.",
+    "Keep field redraws dirty-chunk-driven; do not restore a per-frame or fixed polling redraw loop.",
+    "Keep simulation deterministic and fixed-tick-based; displayed HP prediction must remain visual only.",
+    "Do not use the legacy 1,200-tile harness as evidence for ecosystemPrototype performance.",
+    "Keep touch feedback pooled and effect counts bounded by viewport and LOD."
+  ]
+}

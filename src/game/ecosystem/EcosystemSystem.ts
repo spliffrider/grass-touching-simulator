@@ -927,7 +927,7 @@ export function advanceEcosystem(
   speed = 1,
 ): EcosystemTickResult {
   if (!state.active || speed <= 0 || deltaMs <= 0) {
-    return { ticks: 0, gameOver: !state.active, changedChunks: countDirtyChunks(state.field) };
+    return { ticks: 0, gameOver: !state.active, changedChunks: 0 };
   }
   state.tickAccumulatorMs += Math.min(deltaMs, 2_000) * speed;
   let ticks = 0;
@@ -936,7 +936,11 @@ export function advanceEcosystem(
     runFixedTick(state, permanent);
     ticks += 1;
   }
-  return { ticks, gameOver: !state.active, changedChunks: countDirtyChunks(state.field) };
+  return {
+    ticks,
+    gameOver: !state.active,
+    changedChunks: ticks > 0 ? countDirtyChunks(state.field) : 0,
+  };
 }
 
 export function getBroadPalmRadius(rank: number): number {

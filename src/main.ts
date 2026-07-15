@@ -82,6 +82,7 @@ const config: Phaser.Types.Core.GameConfig = {
     pixelArt: !(useRedesignPrototype || useEcosystemPrototype),
     antialias: useRedesignPrototype || useEcosystemPrototype,
     roundPixels: !(useRedesignPrototype || useEcosystemPrototype),
+    powerPreference: useEcosystemPrototype ? "high-performance" : "default",
   },
   scene: useEcosystemPrototype
     ? [EcosystemPrototypeScene]

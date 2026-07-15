@@ -9,6 +9,7 @@ import {
   FIELD_SIZE_LADDER,
   HELPER_IDS,
   HELPERS,
+  PRODUCTION_TICK_MS,
   PRODUCTION_RESOURCE_IDS,
   PRODUCTION_RESOURCES,
   TileStage,
@@ -23,6 +24,7 @@ import {
 } from "../ecosystem/EcosystemHeroTextures";
 import {
   getHealthHeartbeatPulse,
+  predictHealthRatio,
   smoothHealthRatio,
 } from "../ecosystem/EcosystemHealthVisual";
 import {
@@ -156,10 +158,8 @@ const HELPER_PULSE_COPY: Record<HelperId, string> = {
 };
 
 const SAVE_INTERVAL_MS = 15_000;
-const UI_REFRESH_MS = 200;
 const DOM_REFRESH_MS = 1_000;
 const HARNESS_REFRESH_MS = 250;
-const FIELD_REDRAW_MS = 180;
 const MAX_EFFECTS = 24;
 const MAX_CHUNK_VIEWS = 100;
 const AMBIENT_MOTE_COUNT = 18;
@@ -281,10 +281,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private hoveredMemoryNodeId: string | null = null;
   private dragState: DragState | null = null;
   private saveElapsedMs = 0;
-  private uiElapsedMs = 0;
   private domElapsedMs = 0;
   private harnessElapsedMs = 0;
-  private fieldRedrawElapsedMs = 0;
+  private uiRefreshRequested = false;
   private fieldRenderRequested = false;
   private latestFrameDeltaMs = 0;
   private maxFrameDeltaMs = 0;
@@ -312,14 +311,23 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private ambienceLayer!: Phaser.GameObjects.Container;
   private effectLayer!: Phaser.GameObjects.Container;
   private tilePool: Phaser.GameObjects.Image[] = [];
+  private readonly tileAnimationPhases = new Float32Array(MAX_NEAR_TILE_VIEWS_DESKTOP);
+  private readonly tileBaseYs = new Float32Array(MAX_NEAR_TILE_VIEWS_DESKTOP);
   private chunkPool: Phaser.GameObjects.Image[] = [];
   private impactPool: Phaser.GameObjects.Arc[] = [];
   private effectPool: Phaser.GameObjects.Image[] = [];
   private ambientMotes: Phaser.GameObjects.Image[] = [];
+  private readonly ambientMotePhases = new Float32Array(AMBIENT_MOTE_COUNT);
+  private readonly ambientMoteCenterXs = new Float32Array(AMBIENT_MOTE_COUNT);
+  private readonly ambientMoteCenterYs = new Float32Array(AMBIENT_MOTE_COUNT);
+  private readonly ambientMoteOrbitXs = new Float32Array(AMBIENT_MOTE_COUNT);
+  private readonly ambientMoteOrbitYs = new Float32Array(AMBIENT_MOTE_COUNT);
   private helperActors = {} as Record<HelperId, HelperActorView>;
   private helperFeedbackTexts = {} as Record<HelperId, Phaser.GameObjects.Text>;
   private helperAnnouncementText!: Phaser.GameObjects.Text;
-  private touchCooldownGraphics!: Phaser.GameObjects.Graphics;
+  private touchCooldownShade!: Phaser.GameObjects.Rectangle;
+  private touchCooldownBarBack!: Phaser.GameObjects.Rectangle;
+  private touchCooldownBarFill!: Phaser.GameObjects.Rectangle;
   private touchCooldownText!: Phaser.GameObjects.Text;
   private readonly touchCooldowns = new Map<number, number>();
   private touchRecoveryVisual: TouchRecoveryVisualState | null = null;
@@ -536,6 +544,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const speed = this.optionsOpen ? 0 : this.worksOpen ? 0.25 : 1;
     const result = advanceEcosystem(this.state, this.permanent, delta, speed);
     if (result.ticks > 0) {
+      this.uiRefreshRequested = true;
+      if (result.changedChunks > 0) this.fieldRenderRequested = true;
       const pulses = consumeHelperPulses(this.state);
       for (const helperId of HELPER_IDS) {
         if (pulses[helperId] <= 0) continue;
@@ -556,6 +566,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.refreshMemoryTree();
       this.syncViewVisibility();
       this.refreshUi(true);
+      this.uiRefreshRequested = false;
+      this.fieldRenderRequested = false;
     }
     const simulationMs = performance.now() - simulationStart;
 
@@ -564,25 +576,22 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.animateLivingField(this.time.now);
     this.animateMemoryTree(this.time.now);
     const animationMs = performance.now() - animationStart;
-    this.uiElapsedMs += delta;
     this.domElapsedMs += delta;
     this.harnessElapsedMs += delta;
-    this.fieldRedrawElapsedMs += delta;
     this.saveElapsedMs += delta;
     let uiRefreshMs = -1;
     let fieldRenderMs = -1;
     let saveMs = -1;
-    if (this.uiElapsedMs >= UI_REFRESH_MS && this.state.active && !this.optionsOpen) {
-      this.uiElapsedMs %= UI_REFRESH_MS;
+    if (this.uiRefreshRequested && this.state.active && !this.optionsOpen) {
+      this.uiRefreshRequested = false;
       const uiRefreshStart = performance.now();
       this.refreshUi(false);
       uiRefreshMs = performance.now() - uiRefreshStart;
     }
-    if (this.fieldRenderRequested || this.fieldRedrawElapsedMs >= FIELD_REDRAW_MS) {
-      this.fieldRedrawElapsedMs %= FIELD_REDRAW_MS;
+    if (this.fieldRenderRequested && this.fieldRoot.visible) {
       this.fieldRenderRequested = false;
       const fieldRenderStart = performance.now();
-      this.renderField(false);
+      this.renderField(true);
       fieldRenderMs = performance.now() - fieldRenderStart;
     }
     if (this.domElapsedMs >= DOM_REFRESH_MS) {
@@ -756,11 +765,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const ambienceTextures = ["eco-effect-water", "eco-effect-pollen", "eco-effect-grass", "eco-effect-spore"];
     for (let index = 0; index < AMBIENT_MOTE_COUNT; index += 1) {
       const mote = this.add.image(0, 0, ambienceTextures[index % ambienceTextures.length]).setOrigin(0.5).setVisible(false);
-      mote.setData("phase", (index / AMBIENT_MOTE_COUNT) * Math.PI * 2);
-      mote.setData("orbitX", 0);
-      mote.setData("orbitY", 0);
-      mote.setData("centerX", 0);
-      mote.setData("centerY", 0);
+      this.ambientMotePhases[index] = (index / AMBIENT_MOTE_COUNT) * Math.PI * 2;
       this.ambienceLayer.add(mote);
       this.ambientMotes.push(mote);
     }
@@ -786,14 +791,24 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       .setBackgroundColor("#06190f")
       .setPadding(10, 5, 10, 5)
       .setVisible(false);
-    this.touchCooldownGraphics = this.add.graphics().setVisible(false);
+    this.touchCooldownShade = this.add.rectangle(0, 0, 1, 1, 0x07130d, 0.34)
+      .setStrokeStyle(3, 0x8de7ff, 0.86)
+      .setVisible(false);
+    this.touchCooldownBarBack = this.add.rectangle(0, 0, 1, 1, 0x06190f, 0.94)
+      .setStrokeStyle(1, 0xfff3c2, 0.62)
+      .setVisible(false);
+    this.touchCooldownBarFill = this.add.rectangle(0, 0, 1, 1, 0x8de7ff, 1)
+      .setOrigin(0, 0.5)
+      .setVisible(false);
     this.touchCooldownText = this.createText("TOUCH RECOVERING", 12, "#bff4ff", "bold")
       .setOrigin(0.5)
       .setBackgroundColor("#06190f")
       .setPadding(7, 3, 7, 3)
       .setVisible(false);
     this.effectLayer.add([
-      this.touchCooldownGraphics,
+      this.touchCooldownShade,
+      this.touchCooldownBarBack,
+      this.touchCooldownBarFill,
       this.touchCooldownText,
       this.helperAnnouncementText,
     ]);
@@ -1469,6 +1484,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private refreshUi(force: boolean): void {
+    this.uiRefreshRequested = false;
     const readout = getEcosystemReadout(this.state);
     if (this.state.active && !this.worksOpen) {
       const elapsedSeconds = Math.floor(readout.elapsedMs / 1_000);
@@ -1677,6 +1693,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private renderField(force: boolean): void {
+    this.fieldRenderRequested = false;
     if (!force) {
       let dirty = false;
       for (let index = 0; index < this.state.field.dirtyChunks.length; index += 1) {
@@ -1723,8 +1740,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     if (this.tilePool.length >= required) return;
     for (let index = this.tilePool.length; index < required; index += 1) {
       const image = this.add.image(0, 0, TILE_TEXTURE_KEYS[0]).setVisible(false).setOrigin(0.5);
-      image.setData("phase", (index * 2.399) % (Math.PI * 2));
-      image.setData("baseY", 0);
+      this.tileAnimationPhases[index] = (index * 2.399) % (Math.PI * 2);
       this.tileLayer.add(image);
       this.tilePool.push(image);
     }
@@ -1764,8 +1780,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         const screenX = this.projection.originX + (x + 0.5) * this.projection.cellSize;
         const screenY = this.projection.originY + (y + 0.5) * this.projection.cellSize;
         image.setPosition(screenX, screenY).setDisplaySize(visualSize, visualSize).setVisible(true).setAlpha(0.94);
-        image.setData("baseY", screenY);
-        image.setData("tileIndex", tileIndex);
+        this.tileBaseYs[poolIndex] = screenY;
         if (singlePlot) {
           this.fieldGrid.lineStyle(3, 0xd8b66a, 0.82).strokeRoundedRect(
             screenX - visualSize / 2 - 4,
@@ -1841,12 +1856,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
     for (let index = 0; index < this.ambientMotes.length; index += 1) {
       const mote = this.ambientMotes[index];
-      const phase = Number(mote.getData("phase"));
+      const phase = this.ambientMotePhases[index];
       const orbitBand = index % 3;
-      mote.setData("centerX", centerX);
-      mote.setData("centerY", centerY - 4);
-      mote.setData("orbitX", visualSize * (0.58 + orbitBand * 0.065));
-      mote.setData("orbitY", visualSize * (0.45 + orbitBand * 0.05));
+      this.ambientMoteCenterXs[index] = centerX;
+      this.ambientMoteCenterYs[index] = centerY - 4;
+      this.ambientMoteOrbitXs[index] = visualSize * (0.58 + orbitBand * 0.065);
+      this.ambientMoteOrbitYs[index] = visualSize * (0.45 + orbitBand * 0.05);
       mote.setDisplaySize(9 + (index % 4) * 2, 9 + (index % 4) * 2);
       mote.setPosition(centerX + Math.cos(phase) * visualSize * 0.6, centerY + Math.sin(phase) * visualSize * 0.47);
       mote.setAlpha(0.24 + (index % 4) * 0.09).setVisible(true);
@@ -1944,22 +1959,24 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private animateLivingField(now: number): void {
+    if (!this.fieldRoot.visible || this.optionsOpen) return;
     for (let index = 0; index < this.renderedTileViews; index += 1) {
       const image = this.tilePool[index];
-      const phase = Number(image.getData("phase"));
-      const baseY = Number(image.getData("baseY"));
+      const phase = this.tileAnimationPhases[index];
+      const baseY = this.tileBaseYs[index];
       const speed = 0.0012 + (index % 7) * 0.00007;
-      image.y = baseY + Math.sin(now * speed + phase) * Math.min(2.4, this.projection.cellSize * 0.035);
-      image.rotation = Math.sin(now * speed * 0.73 + phase * 1.4) * 0.012;
+      const sway = Math.sin(now * speed + phase);
+      image.y = baseY + sway * Math.min(2.4, this.projection.cellSize * 0.035);
+      image.rotation = sway * 0.012;
     }
     for (let index = 0; index < this.ambientMotes.length; index += 1) {
       const mote = this.ambientMotes[index];
       if (!mote.visible) continue;
-      const phase = Number(mote.getData("phase"));
-      const centerX = Number(mote.getData("centerX"));
-      const centerY = Number(mote.getData("centerY"));
-      const orbitX = Number(mote.getData("orbitX"));
-      const orbitY = Number(mote.getData("orbitY"));
+      const phase = this.ambientMotePhases[index];
+      const centerX = this.ambientMoteCenterXs[index];
+      const centerY = this.ambientMoteCenterYs[index];
+      const orbitX = this.ambientMoteOrbitXs[index];
+      const orbitY = this.ambientMoteOrbitYs[index];
       const angle = phase + now * (0.0001 + (index % 5) * 0.000012);
       mote.x = centerX + Math.cos(angle) * orbitX;
       mote.y = centerY + Math.sin(angle) * orbitY + Math.sin(now * 0.0011 + phase * 2) * 5;
@@ -2043,18 +2060,21 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const barY = visualSize >= 72 ? centerY - visualSize * 0.31 : centerY;
     const labelY = centerY - visualSize * 0.4;
 
-    this.touchCooldownGraphics.clear().setVisible(true);
     if (ready) {
       if (!feedback.readyShown) {
         feedback.readyShown = true;
         this.touchCooldownText.setText("TOUCH READY").setColor("#dfff8f");
       }
       const readyAlpha = 1 - Phaser.Math.Clamp((now - feedback.readyAtMs) / TOUCH_READY_FLASH_MS, 0, 1);
-      this.touchCooldownGraphics
-        .fillStyle(0x83d765, 0.05 * readyAlpha)
-        .fillRect(centerX - visualSize / 2, centerY - visualSize / 2, visualSize, visualSize)
-        .lineStyle(3, 0x83d765, 0.8 * readyAlpha)
-        .strokeRect(centerX - visualSize / 2, centerY - visualSize / 2, visualSize, visualSize);
+      this.touchCooldownShade
+        .setPosition(centerX, centerY)
+        .setSize(visualSize, visualSize)
+        .setFillStyle(0x83d765, 0.05)
+        .setStrokeStyle(3, 0x83d765, 0.8)
+        .setAlpha(readyAlpha)
+        .setVisible(true);
+      this.touchCooldownBarBack.setVisible(false);
+      this.touchCooldownBarFill.setVisible(false);
       this.touchCooldownText
         .setPosition(centerX, labelY)
         .setAlpha(readyAlpha)
@@ -2065,17 +2085,22 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const progress = getTouchCooldownProgress(feedback.startedAtMs, feedback.readyAtMs, now);
     const cooldownColor = blockedPulse > 0 ? 0xf07ab2 : 0x8de7ff;
     const pulseSize = visualSize * (1 + blockedPulse * 0.025);
-    this.touchCooldownGraphics
-      .fillStyle(blockedPulse > 0 ? 0x5d213d : 0x07130d, 0.34 + blockedPulse * 0.12)
-      .fillRect(centerX - pulseSize / 2, centerY - pulseSize / 2, pulseSize, pulseSize)
-      .lineStyle(3 + blockedPulse * 2, cooldownColor, 0.86)
-      .strokeRect(centerX - pulseSize / 2, centerY - pulseSize / 2, pulseSize, pulseSize)
-      .fillStyle(0x06190f, 0.94)
-      .fillRect(centerX - barWidth / 2 - 2, barY - (barHeight + 4) / 2, barWidth + 4, barHeight + 4)
-      .lineStyle(1, 0xfff3c2, 0.62)
-      .strokeRect(centerX - barWidth / 2 - 2, barY - (barHeight + 4) / 2, barWidth + 4, barHeight + 4)
-      .fillStyle(cooldownColor, 1)
-      .fillRect(centerX - barWidth / 2, barY - barHeight / 2, Math.max(1, barWidth * progress), barHeight);
+    this.touchCooldownShade
+      .setPosition(centerX, centerY)
+      .setSize(pulseSize, pulseSize)
+      .setFillStyle(blockedPulse > 0 ? 0x5d213d : 0x07130d, 0.34 + blockedPulse * 0.12)
+      .setStrokeStyle(3 + blockedPulse * 2, cooldownColor, 0.86)
+      .setAlpha(1)
+      .setVisible(true);
+    this.touchCooldownBarBack
+      .setPosition(centerX, barY)
+      .setSize(barWidth + 4, barHeight + 4)
+      .setVisible(true);
+    this.touchCooldownBarFill
+      .setPosition(centerX - barWidth / 2, barY)
+      .setSize(Math.max(1, barWidth * progress), barHeight)
+      .setFillStyle(cooldownColor, 1)
+      .setVisible(true);
     this.touchCooldownText
       .setPosition(centerX, labelY)
       .setAlpha(0.9 + blockedPulse * 0.1)
@@ -2083,8 +2108,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private setTouchRecoveryVisible(visible: boolean): void {
-    this.touchCooldownGraphics.setVisible(visible);
-    if (!visible) this.touchCooldownGraphics.clear();
+    this.touchCooldownShade.setVisible(visible);
+    this.touchCooldownBarBack.setVisible(visible);
+    this.touchCooldownBarFill.setVisible(visible);
     this.touchCooldownText.setVisible(visible);
   }
 
@@ -2102,8 +2128,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.lastHelperSoundAt = this.time.now;
       this.audio.play("sprinkler");
     }
-    const burstCount = helperId === "tinySprinkler" ? 3 : 1;
     const singlePlot = this.state.field.stages.length === 1 && this.projection.lod === "near";
+    const burstCount = helperId === "tinySprinkler"
+      ? singlePlot
+        ? 3
+        : this.projection.lod === "near"
+          ? 2
+          : 1
+      : 1;
     const centerX = this.projection.originX + this.projection.worldWidth / 2;
     const centerY = this.projection.originY + this.projection.worldHeight / 2;
     const singlePlotVisualSize = singlePlot
@@ -2280,7 +2312,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private showTouchImpacts(result: TouchBatchResult): void {
-    for (let index = 0; index < result.representativeImpacts.length && index < this.impactPool.length; index += 1) {
+    const impactBudget = this.scale.width < 760
+      ? 8
+      : this.projection.lod === "far"
+        ? 12
+        : this.impactPool.length;
+    for (let index = 0; index < result.representativeImpacts.length && index < impactBudget; index += 1) {
       const impact = result.representativeImpacts[index];
       const x = impact.tileIndex % this.state.field.width;
       const y = Math.floor(impact.tileIndex / this.state.field.width);
@@ -2348,6 +2385,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const audioEnd = performance.now();
     this.showTouchImpacts(result);
     const effectsEnd = performance.now();
+    this.uiRefreshRequested = true;
     this.fieldRenderRequested = true;
     const renderEnd = performance.now();
     const touchEnd = performance.now();
@@ -2942,14 +2980,22 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private animateHealthBar(now: number, delta: number): void {
-    if (!this.state.active || !this.fieldRoot.visible) {
+    if (!this.state.active || !this.fieldRoot.visible || this.optionsOpen) {
+      if (this.hpHeartbeatPulse > 0) {
+        this.hpBarFill.setScale(this.hpBarFill.scaleX, 1);
+        this.hpBarHeartbeatGlow.setAlpha(0).setScale(this.hpBarHeartbeatGlow.scaleX, 1);
+      }
       this.hpHeartbeatPulse = 0;
-      this.hpBarFill.setScale(this.hpBarFill.scaleX, 1);
-      this.hpBarHeartbeatGlow.setAlpha(0).setScale(this.hpBarHeartbeatGlow.scaleX, 1);
       return;
     }
 
-    const targetRatio = Phaser.Math.Clamp(this.state.hp / Math.max(1, this.state.maxHp), 0, 1);
+    const targetRatio = predictHealthRatio(
+      this.state.hp,
+      this.state.maxHp,
+      -this.state.careDeficitPerSecond,
+      this.state.tickAccumulatorMs,
+      PRODUCTION_TICK_MS,
+    );
     this.displayedHpRatio = smoothHealthRatio(this.displayedHpRatio, targetRatio, delta);
     const barWidth = Math.max(1, this.hpBarBack.width - 6);
     const displayWidth = Math.max(1, barWidth * this.displayedHpRatio);
@@ -2958,7 +3004,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.hpBarHeartbeatGlow.setDisplaySize(displayWidth, this.hpBarHeartbeatGlow.height);
     }
 
-    this.hpHeartbeatPulse = getHealthHeartbeatPulse(now, targetRatio);
+    const previousPulse = this.hpHeartbeatPulse;
+    const rawPulse = getHealthHeartbeatPulse(now, targetRatio);
+    this.hpHeartbeatPulse = rawPulse >= 0.002 ? rawPulse : 0;
+    if (this.hpHeartbeatPulse <= 0 && previousPulse <= 0) return;
     const urgency = 1 - targetRatio;
     const fillPulse = 1 + this.hpHeartbeatPulse * (0.045 + urgency * 0.065);
     const glowPulse = 1 + this.hpHeartbeatPulse * (0.16 + urgency * 0.18);
@@ -3077,6 +3126,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       pooledImpacts: this.impactPool.length,
       pooledEffects: this.effectPool.length,
       displayObjects: this.displayObjectCount,
+      visibleDisplayObjects: this.countVisibleDisplayObjects(),
       activeTweens: this.getActiveTweenCount(),
       compactFieldBytes: this.state.field.stages.byteLength
         + this.state.field.chunkStageCounts.byteLength
@@ -3147,6 +3197,23 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       if (!gameObject) continue;
       count += 1;
       if (gameObject instanceof Phaser.GameObjects.Container) stack.push(...gameObject.list);
+    }
+    return count;
+  }
+
+  private countVisibleDisplayObjects(): number {
+    const stack = [...this.children.list];
+    let count = 0;
+    while (stack.length > 0) {
+      const gameObject = stack.pop();
+      if (!gameObject) continue;
+      const renderState = gameObject as unknown as { visible: boolean; renderFlags: number };
+      if (!renderState.visible || renderState.renderFlags !== 15) continue;
+      if (gameObject instanceof Phaser.GameObjects.Container) {
+        stack.push(...gameObject.list);
+      } else {
+        count += 1;
+      }
     }
     return count;
   }

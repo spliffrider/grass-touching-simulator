@@ -234,6 +234,17 @@ describe("EcosystemSystem", () => {
     expect(state.field.dirtyChunks).toHaveLength(100);
   });
 
+  it("does not inspect chunk dirtiness on frames without a production tick", () => {
+    const permanent = createPermanentEcosystemState();
+    const state = createEcosystemState(permanent);
+    setPrototypeFieldSize(state, permanent, 100);
+
+    const result = advanceEcosystem(state, permanent, 16);
+
+    expect(result.ticks).toBe(0);
+    expect(result.changedChunks).toBe(0);
+  });
+
   it("expands only after cultivation rank ten and an owned field memory", () => {
     const permanent = createPermanentEcosystemState();
     permanent.maxFieldTier = 1;

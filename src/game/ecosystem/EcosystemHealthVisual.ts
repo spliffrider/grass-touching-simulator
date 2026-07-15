@@ -19,6 +19,23 @@ export function smoothHealthRatio(current: number, target: number, deltaMs: numb
   return safeCurrent + (safeTarget - safeCurrent) * blend;
 }
 
+export function predictHealthRatio(
+  hp: number,
+  maxHp: number,
+  hpDeltaPerSecond: number,
+  pendingMs: number,
+  maxPendingMs: number,
+): number {
+  const safeMaxHp = Math.max(1, Number.isFinite(maxHp) ? maxHp : 1);
+  const safeHp = Number.isFinite(hp) ? hp : 0;
+  const safeRate = Number.isFinite(hpDeltaPerSecond) ? hpDeltaPerSecond : 0;
+  const predictionMs = Math.max(0, Math.min(
+    Number.isFinite(pendingMs) ? pendingMs : 0,
+    Math.max(0, Number.isFinite(maxPendingMs) ? maxPendingMs : 0),
+  ));
+  return clampRatio((safeHp + safeRate * predictionMs / 1_000) / safeMaxHp);
+}
+
 export function getHealthHeartbeatCycleMs(healthRatio: number): number {
   const urgency = Math.pow(1 - clampRatio(healthRatio), 1.25);
   return HEALTH_HEARTBEAT_SLOW_MS - (HEALTH_HEARTBEAT_SLOW_MS - HEALTH_HEARTBEAT_FAST_MS) * urgency;

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getHealthHeartbeatCycleMs,
   getHealthHeartbeatPulse,
+  predictHealthRatio,
   smoothHealthRatio,
 } from "../src/game/ecosystem/EcosystemHealthVisual";
 
@@ -34,5 +35,19 @@ describe("EcosystemHealthVisual", () => {
     expect(getHealthHeartbeatPulse(healthyCycle * 0.08, 1)).toBeGreaterThan(0.95);
     expect(getHealthHeartbeatPulse(healthyCycle * 0.15, 1)).toBeLessThan(0.2);
     expect(getHealthHeartbeatPulse(healthyCycle * 0.22, 1)).toBeGreaterThan(0.5);
+  });
+
+  it("predicts continuous damage between deterministic production ticks", () => {
+    const beforeTick = predictHealthRatio(100, 100, -20, 249, 250);
+    const afterTick = predictHealthRatio(95, 100, -20, 0, 250);
+
+    expect(beforeTick).toBeCloseTo(0.9502, 4);
+    expect(afterTick).toBe(0.95);
+    expect(Math.abs(beforeTick - afterTick)).toBeLessThan(0.001);
+  });
+
+  it("bounds health prediction to one fixed-tick window", () => {
+    expect(predictHealthRatio(50, 100, -100, 2_000, 250)).toBe(0.25);
+    expect(predictHealthRatio(99, 100, 20, 250, 250)).toBe(1);
   });
 });
