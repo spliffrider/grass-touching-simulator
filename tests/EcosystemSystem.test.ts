@@ -40,6 +40,23 @@ describe("EcosystemSystem", () => {
     return state.elapsedMs;
   }
 
+  function simulateCooldownLimitedManualRun(completedRuns: number, touchCooldownMs: number): number {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = completedRuns;
+    const state = createEcosystemState(permanent, { seed: 8_008 + completedRuns });
+    let wallElapsedMs = 0;
+    let nextTouchAtMs = 0;
+    while (state.active && wallElapsedMs < 10_000) {
+      if (wallElapsedMs >= nextTouchAtMs) {
+        touchFieldTile(state, permanent, 0);
+        nextTouchAtMs += touchCooldownMs;
+      }
+      advanceEcosystem(state, permanent, 10);
+      wallElapsedMs += 10;
+    }
+    return state.elapsedMs;
+  }
+
   it("advances identical seeds deterministically", () => {
     const permanentA = createPermanentEcosystemState();
     const permanentB = createPermanentEcosystemState();
@@ -261,13 +278,20 @@ describe("EcosystemSystem", () => {
   });
 
   it("ends the first manual run as a brief onboarding failure", () => {
-    expect(simulateManualRun(0, 0)).toBeGreaterThanOrEqual(2_000);
-    expect(simulateManualRun(0, 0)).toBeLessThanOrEqual(4_000);
+    expect(simulateManualRun(0, 0)).toBeGreaterThanOrEqual(1_500);
+    expect(simulateManualRun(0, 0)).toBeLessThanOrEqual(2_500);
+  });
+
+  it("overpowers a first-run player touching at every legal cooldown", () => {
+    const duration = simulateCooldownLimitedManualRun(0, getManualTouchCooldownMs(0));
+
+    expect(duration).toBeGreaterThanOrEqual(1_500);
+    expect(duration).toBeLessThanOrEqual(2_500);
   });
 
   it("does not grant free Scourge relief for repeated losses", () => {
-    expect(simulateManualRun(12, 0)).toBeGreaterThanOrEqual(2_000);
-    expect(simulateManualRun(12, 0)).toBeLessThanOrEqual(4_000);
+    expect(simulateManualRun(12, 0)).toBeGreaterThanOrEqual(1_500);
+    expect(simulateManualRun(12, 0)).toBeLessThanOrEqual(2_500);
   });
 
   it("guarantees enough first-run GT to remember the first Broad Palm rank", () => {

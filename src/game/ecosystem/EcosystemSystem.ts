@@ -21,7 +21,7 @@ import {
 
 export const ECOSYSTEM_PERMANENT_VERSION = 1;
 export const ECOSYSTEM_ACTIVE_VERSION = 1;
-const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.35;
+const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.2;
 
 export type HelperRankRecord = Record<HelperId, number>;
 export type HelperUnlockRecord = Record<HelperId, boolean>;
