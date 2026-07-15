@@ -1511,7 +1511,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.setTextIfChanged(this.bottleneckText, `Bottleneck: ${readout.bottleneck}`);
       const palmRadius = this.permanent.broadPalmRank > 0 ? 1 + Math.floor((this.permanent.broadPalmRank - 1) / 2) : 0;
       this.setTextIfChanged(this.caretakerStats, [
-        "Touch yield     5.2 Care",
+        `Touch yield     ${this.state.runNumber === 1 ? "0 Care (overwhelmed)" : "5.2 Care"}`,
         "Dew gathered    1.15",
         "Run Touches     +0.92",
         "",

@@ -1,0 +1,56 @@
+{
+  "date": "2026-07-15",
+  "topic": "Collapse, survival, and thriving balance contract",
+  "currentUserGoal": "Make progression move through three distinct states: an unsurvivable first run, a survivable automation phase, and a mature ecosystem that can genuinely thrive with sustained Care surplus.",
+  "workCompleted": [
+    "Made Run 1 intentionally unwinnable by disabling manual HP recovery while preserving Dew and Run Touch rewards.",
+    "Raised the Run 1 Scourge base to 100,000 so its first production tick overwhelms spam clicking and ends the run immediately after play begins.",
+    "Kept the guaranteed first-run payout at 7 GT so the loss directly unlocks the first Memory and teaches the meta-progression loop.",
+    "Updated the caretaker readout to state that Run 1 touch yield is zero Care instead of promising healing that cannot occur.",
+    "Increased field-size storage scaling so a mature 100x100 production chain does not choke on full coproduct buffers before it reaches a true Care surplus.",
+    "Added deterministic regression coverage for the unwinnable first run, the existing multi-minute Run 2 survival band, and a ten-minute mature thriving state."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-15_COLLAPSE_SURVIVE_THRIVE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 137 Vitest tests across 18 files, strict TypeScript, and the Vite production build.",
+    "Fresh Run 1 browser verification reached Game Over on the first 250 ms production tick at approximately 633,542 Care/s demand and awarded 7 GT.",
+    "The deterministic Run 2 contract remains in the 150-330 second target band with the first Tiny Sprinkler.",
+    "The mature 100x100 regression survived ten simulated minutes at 100 HP, produced more than 856 Care, banked more than 263 Care, and ran with direct Care surplus for more than 1,000 production ticks.",
+    "Memory Grove and 100x100 state were checked at 1280x720 and 390x844; no layout regression was found in the changed surfaces."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "status": "Verified local balance checkpoint; not pushed, merged into master, or promoted to production."
+  },
+  "currentGitStatus": [
+    "The balance implementation, tests, and this handoff are intended for one local commit on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173."
+  ],
+  "knownIssues": [
+    "Run 1 is now a scripted collapse rather than a conventional winnable challenge; its presentation must clearly teach that the loss creates permanent progress.",
+    "The Run 2 duration band and mature thriving fixture are deterministic model contracts, but hands-on pacing and equipment costs still need player testing.",
+    "The mature fixture validates a viable end-state configuration, not every possible Memory, helper-count, or mode combination.",
+    "Field-size storage scaling is a first pass and should be revisited alongside future helper recipes and resource sinks."
+  ],
+  "nextRecommendedSteps": [
+    "Give Run 1 a strong authored collapse presentation and make the 7 GT reward visibly connect to the first Tiny Sprinkler Memory.",
+    "Hands-on test the full Run 1 to Memory Grove to Run 2 transition without debug controls.",
+    "Tune the surviving phase around meaningful bottleneck choices rather than only HP duration.",
+    "Add explicit UI language for positive Care surplus so the player can feel the moment the ecosystem crosses from surviving into thriving."
+  ],
+  "doNotRevert": [
+    "Do not make Run 1 healable or survivable without an explicit redesign of the authored-collapse onboarding contract.",
+    "Keep first-run resource rewards even though first-run Care healing is disabled.",
+    "Do not treat a longer time-to-death as evidence of thriving; mature balance must sustain HP and bank Care over time.",
+    "Keep all balance phases deterministic and covered by headless tests before tuning presentation around them.",
+    "Do not use the legacy 1,200-tile harness as evidence for ecosystemPrototype performance."
+  ]
+}

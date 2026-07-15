@@ -21,7 +21,7 @@ import {
 
 export const ECOSYSTEM_PERMANENT_VERSION = 1;
 export const ECOSYSTEM_ACTIVE_VERSION = 1;
-const FIRST_RUN_SCOURGE_BASE = 1_000;
+const FIRST_RUN_SCOURGE_BASE = 100_000;
 const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.18;
 const PRE_AUTOMATION_SCOURGE_RAMP_SECONDS = 0.2;
 
@@ -271,7 +271,7 @@ function getCapacity(resourceId: ProductionResourceId, permanent: PermanentEcosy
   const helperId = RESOURCE_STORAGE_HELPER[resourceId];
   const memoryMultiplier = 1 + permanent.storageRanks[helperId] * 0.15;
   const cultivationMultiplier = 1 + field.cultivationRank * 0.08;
-  const fieldMultiplier = 1 + Math.sqrt(field.width * field.height) * 0.08;
+  const fieldMultiplier = 1 + Math.sqrt(field.width * field.height) * 0.12;
   return BASE_RESOURCE_CAPACITY[resourceId] * memoryMultiplier * cultivationMultiplier * fieldMultiplier;
 }
 
@@ -1039,7 +1039,9 @@ export function touchFieldTile(
     totalPower += impact.power;
     advanceTileStage(state.field, impact.tileIndex);
   }
-  const healedHp = Math.min(state.maxHp - state.hp, totalPower * 5.2);
+  const healedHp = state.runNumber === 1
+    ? 0
+    : Math.min(state.maxHp - state.hp, totalPower * 5.2);
   state.hp += healedHp;
   state.manualCareTotal += healedHp;
   const dewGained = addResource(state, "dew", totalPower * 1.15);

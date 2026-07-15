@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { HELPER_RECONFIGURE_MS, PRODUCTION_TICK_MS } from "../src/game/ecosystem/EcosystemCatalog";
+import {
+  HELPER_IDS,
+  HELPER_RECONFIGURE_MS,
+  FIELD_SIZE_LADDER,
+  PRODUCTION_RESOURCE_IDS,
+  PRODUCTION_TICK_MS,
+} from "../src/game/ecosystem/EcosystemCatalog";
 import { getManualTouchCooldownMs } from "../src/game/ecosystem/EcosystemTouchCooldown";
 import {
   advanceEcosystem,
@@ -290,6 +296,19 @@ describe("EcosystemSystem", () => {
     expect(duration).toBe(PRODUCTION_TICK_MS);
   });
 
+  it("allows no manual HP recovery during the unwinnable first run", () => {
+    const permanent = createPermanentEcosystemState();
+    const state = createEcosystemState(permanent, { seed: 4_004 });
+    state.hp = 50;
+
+    const result = touchFieldTile(state, permanent, 0);
+
+    expect(result?.healedHp).toBe(0);
+    expect(state.hp).toBe(50);
+    expect(result?.dewGained).toBeGreaterThan(0);
+    expect(result?.runTouchesGained).toBeGreaterThan(0);
+  });
+
   it("keeps Run 1 brutal even when prototype Memories were pre-unlocked", () => {
     const permanent = createPermanentEcosystemState();
     unlockAllPrototypeMemories(permanent);
@@ -317,7 +336,7 @@ describe("EcosystemSystem", () => {
     advanceEcosystem(state, permanent, 250);
 
     expect(state.elapsedMs).toBe(250);
-    expect(state.scourgeDemandPerSecond).toBeGreaterThan(5_000);
+    expect(state.scourgeDemandPerSecond).toBeGreaterThan(500_000);
     expect(state.hp).toBe(0);
     expect(state.active).toBe(false);
   });
@@ -343,6 +362,35 @@ describe("EcosystemSystem", () => {
     const duration = simulateManualRun(1, 1);
     expect(duration).toBeGreaterThanOrEqual(150_000);
     expect(duration).toBeLessThanOrEqual(330_000);
+  });
+
+  it("lets a developed production web reach a sustained thriving state", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 20;
+    unlockAllPrototypeMemories(permanent);
+    const state = createEcosystemState(permanent, {
+      seed: 20_026,
+      fieldSizeIndex: FIELD_SIZE_LADDER.length - 1,
+    });
+    for (const helperId of HELPER_IDS) state.helpers[helperId].count = 2;
+    state.helpers.beeHive.modeId = "honeyReserve";
+    state.helpers.earthwormCrew.modeId = "triage";
+    for (const resourceId of PRODUCTION_RESOURCE_IDS) {
+      state.resources[resourceId].amount = state.resources[resourceId].capacity * 0.75;
+    }
+    state.hp = 75;
+    let careSurplusTicks = 0;
+
+    for (let step = 0; step < 2_400 && state.active; step += 1) {
+      advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+      if (state.rates.care > state.scourgeDemandPerSecond) careSurplusTicks += 1;
+    }
+
+    expect(state.active).toBe(true);
+    expect(state.hp).toBe(100);
+    expect(careSurplusTicks).toBeGreaterThan(1_000);
+    expect(state.resources.care.producedTotal).toBeGreaterThan(800);
+    expect(state.resources.care.amount).toBeGreaterThan(200);
   });
 
   it("runs at quarter speed in Ecosystem Works and stops completely in Options", () => {
