@@ -350,17 +350,18 @@ export function createEcosystemState(
   const seed = (options.seed ?? 0x5eed_2026) >>> 0 || 1;
   const fieldSizeIndex = Math.min(permanent.maxFieldTier, options.fieldSizeIndex ?? 0);
   const field = createField(fieldSizeIndex, seed);
+  const runNumber = permanent.completedRuns + 1;
   return {
     version: ECOSYSTEM_ACTIVE_VERSION,
     active: true,
-    runNumber: permanent.completedRuns + 1,
+    runNumber,
     elapsedMs: 0,
     tickAccumulatorMs: 0,
     fixedTicks: 0,
     rngState: seed,
     hp: 100,
     maxHp: 100,
-    scourgeDemandPerSecond: 0.7,
+    scourgeDemandPerSecond: runNumber === 1 ? 0 : 0.7,
     careDeficitPerSecond: 0,
     runTouches: 0,
     runTouchesEarned: 0,
@@ -372,7 +373,7 @@ export function createEcosystemState(
     helpers: createHelperRuntime(),
     helperPulses: createHelperNumberRecord(),
     field,
-    bottleneck: "Manual Care",
+    bottleneck: runNumber === 1 ? "Touch the field to wake the Scourge" : "Manual Care",
     endedSummary: null,
   };
 }
@@ -876,6 +877,12 @@ function finishRun(state: EcosystemState, permanent: PermanentEcosystemState): v
 }
 
 function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState): void {
+  if (state.runNumber === 1 && state.manualTouchCount === 0) {
+    state.scourgeDemandPerSecond = 0;
+    state.careDeficitPerSecond = 0;
+    state.bottleneck = "Touch the field to wake the Scourge";
+    return;
+  }
   const tickSeconds = PRODUCTION_TICK_MS / 1_000;
   state.elapsedMs += PRODUCTION_TICK_MS;
   state.fixedTicks += 1;

@@ -80,6 +80,7 @@ describe("EcosystemSystem", () => {
 
   it("pauses a helper without consuming input when output storage is full", () => {
     const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
     permanent.unlockedHelpers.tinySprinkler = true;
     const state = createEcosystemState(permanent, { seed: 4 });
     state.helpers.tinySprinkler.count = 1;
@@ -295,12 +296,32 @@ describe("EcosystemSystem", () => {
     const permanent = createPermanentEcosystemState();
     unlockAllPrototypeMemories(permanent);
     const state = createEcosystemState(permanent, { seed: 5_005 });
+    touchFieldTile(state, permanent, 0);
 
     while (state.active && state.elapsedMs < 5_000) advanceEcosystem(state, permanent, 250);
 
     expect(state.runNumber).toBe(1);
     expect(state.elapsedMs).toBeGreaterThanOrEqual(750);
     expect(state.elapsedMs).toBeLessThanOrEqual(1_250);
+  });
+
+  it("waits for the player's first touch before unleashing Run 1", () => {
+    const permanent = createPermanentEcosystemState();
+    const state = createEcosystemState(permanent, { seed: 6_006 });
+
+    for (let elapsed = 0; elapsed < 5_000; elapsed += 250) advanceEcosystem(state, permanent, 250);
+
+    expect(state.active).toBe(true);
+    expect(state.elapsedMs).toBe(0);
+    expect(state.hp).toBe(100);
+    expect(state.scourgeDemandPerSecond).toBe(0);
+
+    touchFieldTile(state, permanent, 0);
+    advanceEcosystem(state, permanent, 250);
+
+    expect(state.elapsedMs).toBe(250);
+    expect(state.scourgeDemandPerSecond).toBeGreaterThan(20);
+    expect(state.hp).toBeLessThan(100);
   });
 
   it("does not grant free Scourge relief for repeated losses", () => {
@@ -328,6 +349,7 @@ describe("EcosystemSystem", () => {
 
   it("runs at quarter speed in Ecosystem Works and stops completely in Options", () => {
     const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
     const state = createEcosystemState(permanent);
     advanceEcosystem(state, permanent, 1_000, 0.25);
     expect(state.elapsedMs).toBe(250);

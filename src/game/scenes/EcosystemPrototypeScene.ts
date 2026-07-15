@@ -1487,9 +1487,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.uiRefreshRequested = false;
     const readout = getEcosystemReadout(this.state);
     if (this.state.active && !this.worksOpen) {
+      const awaitingFirstTouch = this.state.runNumber === 1 && this.state.manualTouchCount === 0;
       const elapsedSeconds = Math.floor(readout.elapsedMs / 1_000);
       const elapsedMinutes = Math.floor(elapsedSeconds / 60);
-      this.setTextIfChanged(this.runText, `Run ${this.state.runNumber}  |  ${elapsedMinutes}:${`${elapsedSeconds % 60}`.padStart(2, "0")}  |  Field active`);
+      this.setTextIfChanged(this.runText, awaitingFirstTouch
+        ? "Run 1  |  Awaiting your first touch"
+        : `Run ${this.state.runNumber}  |  ${elapsedMinutes}:${`${elapsedSeconds % 60}`.padStart(2, "0")}  |  Field active`);
       const hpRatio = Phaser.Math.Clamp(readout.hpRatio, 0, 1);
       const hpColor = hpRatio > 0.55 ? 0x83d765 : hpRatio > 0.25 ? 0xf0c85b : 0xe8616a;
       if (this.hpBarFill.fillColor !== hpColor) {
@@ -1497,7 +1500,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         this.hpBarHeartbeatGlow.setFillStyle(hpColor, 1);
       }
       this.setTextIfChanged(this.hpText, `Ancient HP ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}`);
-      this.setTextIfChanged(this.pressureText, `Scourge ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s  |  produced ${readout.careProductionPerSecond.toFixed(2)}/s`);
+      this.setTextIfChanged(this.pressureText, awaitingFirstTouch
+        ? "Scourge dormant  |  Touch the grass to begin"
+        : `Scourge ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s  |  produced ${readout.careProductionPerSecond.toFixed(2)}/s`);
       this.setTextIfChanged(this.currencyText, `RT ${readout.runTouches.toFixed(0)}   GT ${this.permanent.grassTouches.toFixed(0)}`);
       this.setTextIfChanged(this.fieldLabelText, this.scale.width < 760
         ? `${readout.fieldSize}x${readout.fieldSize} | Cultivation ${readout.cultivationRank}/10`
@@ -1525,11 +1530,17 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       }
       const careColor = careRatio >= 1 ? 0x83d765 : careRatio >= 0.55 ? 0xf0c85b : 0xe8616a;
       if (this.balanceBarFill.fillColor !== careColor) this.balanceBarFill.setFillStyle(careColor, 1);
-      const balanceStatus = careRatio >= 1 ? "CARE HOLDS" : careRatio >= 0.55 ? "PRESSURE RISING" : "SCOURGE ADVANCES";
+      const balanceStatus = awaitingFirstTouch
+        ? "TOUCH TO BEGIN"
+        : careRatio >= 1
+          ? "CARE HOLDS"
+          : careRatio >= 0.55
+            ? "PRESSURE RISING"
+            : "SCOURGE ADVANCES";
       if (this.balanceStatus.text !== balanceStatus) {
         this.balanceStatus
           .setText(balanceStatus)
-          .setColor(careRatio >= 1 ? "#9be27c" : careRatio >= 0.55 ? "#ffe889" : "#f1a6ce");
+          .setColor(awaitingFirstTouch ? "#fff3c2" : careRatio >= 1 ? "#9be27c" : careRatio >= 0.55 ? "#ffe889" : "#f1a6ce");
       }
       this.setTextIfChanged(this.balanceDetail, [
         `Demand         ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s`,
@@ -1542,6 +1553,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const firstStage = this.state.field.stages[0] as TileStage;
       this.setTextIfChanged(this.plotStageText, TILE_STAGE_LABELS[firstStage].toUpperCase());
       this.setTextIfChanged(this.plotDetailText, `Stage ${firstStage + 1} / ${TILE_TEXTURE_KEYS.length}   |   ${this.state.manualTouchCount} touches`);
+      if (awaitingFirstTouch) {
+        this.touchSummaryText
+          .setText("TOUCH THE GRASS TO BEGIN")
+          .setY(this.fieldBounds.y + 39)
+          .setAlpha(1);
+      }
 
       const firstAutomation = getFirstAutomationStatus(this.state, this.permanent);
       let automationProgress = 0;
