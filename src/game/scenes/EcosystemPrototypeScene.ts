@@ -26,8 +26,10 @@ import {
   ECOSYSTEM_MEMORY_ICON_ASSETS,
   ECOSYSTEM_MEMORY_NODES,
   ECOSYSTEM_MEMORY_NODE_BY_ID,
+  ECOSYSTEM_MEMORY_CONNECTOR_GAP,
   ECOSYSTEM_MEMORY_WORLD_HEIGHT,
   ECOSYSTEM_MEMORY_WORLD_WIDTH,
+  getEcosystemMemoryNodeVisualRadius,
   type EcosystemMemoryNodeDefinition,
 } from "../ecosystem/EcosystemMemoryTree";
 import { EcosystemPerformanceMonitor } from "../ecosystem/EcosystemPerformanceMonitor";
@@ -380,7 +382,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private memoryTreeDecor!: Phaser.GameObjects.Graphics;
   private memoryTreeLines!: Phaser.GameObjects.Graphics;
   private memoryTreeMaskShape!: Phaser.GameObjects.Graphics;
-  private readonly memoryConnectorPaths = new Map<string, Phaser.Math.Vector2[]>();
   private memoryNodeViews = new Map<string, MemoryNodeView>();
   private memoryDetailTitle!: Phaser.GameObjects.Text;
   private memoryDetailBranch!: Phaser.GameObjects.Text;
@@ -2683,9 +2684,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const active = runtime.complete || runtime.rank > 0;
       const color = active ? to.color : runtime.affordable ? 0xffe889 : runtime.unlocked ? 0x6f8e61 : 0x294033;
       const alpha = active ? 0.82 : runtime.affordable ? 0.72 : runtime.unlocked ? 0.42 : 0.2;
-      const bend = this.getMemoryConnectorBend(edge, to);
-      this.strokeMemoryConnector(from, to, bend, 11, 0x020805, 0.88);
-      this.strokeMemoryConnector(from, to, bend, active ? 5 : 3, color, alpha);
+      this.strokeMemoryConnector(from, to, 11, 0x020805, 0.88);
+      this.strokeMemoryConnector(from, to, active ? 5 : 3, color, alpha);
     }
   }
 
@@ -2747,19 +2747,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
   }
 
-  private getMemoryConnectorBend(edge: { from: string; to: string }, to: EcosystemMemoryNodeDefinition): number {
-    const key = `${edge.from}>${edge.to}`;
-    let hash = 0;
-    for (let index = 0; index < key.length; index += 1) hash = (hash * 31 + key.charCodeAt(index)) | 0;
-    const direction = (hash & 1) === 0 ? 1 : -1;
-    const strength = to.kind === "helperUnlock" ? 28 : to.kind === "capstone" ? 24 : 18;
-    return direction * strength;
-  }
-
   private strokeMemoryConnector(
     from: EcosystemMemoryNodeDefinition,
     to: EcosystemMemoryNodeDefinition,
-    bend: number,
     width: number,
     color: number,
     alpha: number,
@@ -2767,22 +2757,19 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const length = Math.max(1, Math.hypot(dx, dy));
-    const controlX = (from.x + to.x) / 2 - (dy / length) * bend;
-    const controlY = (from.y + to.y) / 2 + (dx / length) * bend;
-    const key = `${from.id}>${to.id}`;
-    let points = this.memoryConnectorPaths.get(key);
-    if (!points) {
-      const curve = new Phaser.Curves.QuadraticBezier(
-        new Phaser.Math.Vector2(from.x, from.y),
-        new Phaser.Math.Vector2(controlX, controlY),
-        new Phaser.Math.Vector2(to.x, to.y),
-      );
-      points = curve.getPoints(12);
-      this.memoryConnectorPaths.set(key, points);
-    }
+    const unitX = dx / length;
+    const unitY = dy / length;
+    const fromInset = getEcosystemMemoryNodeVisualRadius(from) + ECOSYSTEM_MEMORY_CONNECTOR_GAP;
+    const toInset = getEcosystemMemoryNodeVisualRadius(to) + ECOSYSTEM_MEMORY_CONNECTOR_GAP;
+    if (fromInset + toInset >= length) return;
     this.memoryTreeLines
       .lineStyle(width, color, alpha)
-      .strokePoints(points, false);
+      .lineBetween(
+        from.x + unitX * fromInset,
+        from.y + unitY * fromInset,
+        to.x - unitX * toInset,
+        to.y - unitY * toInset,
+      );
   }
 
   private refreshMemoryDetail(): void {
@@ -2916,7 +2903,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const centerY = this.memoryTreeViewport.y + this.memoryTreeViewport.height / 2;
     this.memoryTreeWorld.setPosition(centerX + this.memoryTreePanX, centerY + this.memoryTreePanY).setScale(scale);
     const showLabels = this.memoryTreeZoom >= 1.75;
-    const showStatus = this.memoryTreeZoom >= 2.45;
+    const showStatus = this.memoryTreeZoom >= 3.25;
     const showPips = this.memoryTreeZoom >= 1.45;
     for (const view of this.memoryNodeViews.values()) {
       const screenX = centerX + this.memoryTreePanX + view.definition.x * scale;

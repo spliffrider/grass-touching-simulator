@@ -1,0 +1,55 @@
+{
+  "date": "2026-07-15",
+  "topic": "Memory Web branch and skill-point clearance",
+  "currentUserGoal": "Keep Memory Web branches from crossing or overlapping and prevent skill points from overlapping visually at zoomed-in overview levels.",
+  "workCompleted": [
+    "Removed the independently bent QuadraticBezier connector paths that could cross nodes despite the straight-edge graph test passing.",
+    "Rendered every connector as a straight branch clipped outside both endpoint glow radii, with a shared connector gap.",
+    "Expanded world-space layout coordinates by 30 percent while preserving the organic Fit silhouette, making node frames and labels less crowded at useful zoom levels.",
+    "Repositioned rank and mode satellites around Field Mouse, Bee Hive, Earthworm Crew, Sheep Loop, and Meadow Rabbit so the production-chain trunk and local branches remain unobstructed.",
+    "Delayed rank/status copy until 3.25x zoom; 2.5x now shows skill names without stacking every status line.",
+    "Upgraded Memory Web tests from center-distance checks to actual glow-radius separation, branch-to-unrelated-node clearance, non-crossing branches, and minimum branch fan-out at shared hubs."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemMemoryTree.test.ts",
+    "handoffs/HANDOFF_2026-07-15_MEMORY_WEB_CLEARANCE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 125 Vitest tests across 17 files, strict TypeScript, and the Vite production build.",
+    "The focused EcosystemMemoryTree suite passed seven tests, including visual-radius spacing, branch crossings, unrelated-node clearance, and shared-hub fan-out.",
+    "The live Memory Grove was screenshot-verified at Fit, 1.4x, 1.8x, and 2.5x in the in-app browser.",
+    "Responsive browser checks covered 1280x720 and 390x844; the canvas matched each requested viewport.",
+    "Browser diagnostics contained no errors or warnings.",
+    "The sampled Memory Grove state held about 116 FPS with zero frame spikes, 741 display objects, and about 0.03 ms average frame work."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "status": "Local ecosystem prototype checkpoint; not pushed, merged into master, or promoted to production."
+  },
+  "currentGitStatus": [
+    "The Memory Web clearance implementation, tests, and handoff are committed together on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173."
+  ],
+  "knownIssues": [
+    "Decorative helper-territory contours intentionally overlap at their edges; progression branches and skill nodes do not.",
+    "Late-game locked nodes remain deliberately subdued at Fit zoom and may need a later contrast pass after more of the web is playable.",
+    "Future cross-links will need explicit positions because automatic graph layout is not part of this prototype."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user inspect the revised 2.5x overview and pan through each helper cluster.",
+    "Continue the ecosystem loop with the first Field Mouse resource-chain objective and visible production activity after visual approval.",
+    "Extend the radius and branch-clearance tests whenever new Memory nodes or cross-links are introduced."
+  ],
+  "doNotRevert": [
+    "Keep rendered branches straight and radius-clipped so production geometry exactly matches test geometry.",
+    "Do not restore independently bent cached curves unless collision validation is upgraded to inspect the rendered curves themselves.",
+    "Keep node spacing based on visual glow radii rather than a fixed center-distance constant.",
+    "Keep branch-to-node clearance and shared-hub fan-out regression tests.",
+    "Keep status text hidden until 3.25x while allowing selected and hovered nodes to reveal their details earlier."
+  ]
+}

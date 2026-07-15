@@ -5,6 +5,7 @@ import {
   ECOSYSTEM_MEMORY_NODE_BY_ID,
   ECOSYSTEM_MEMORY_WORLD_HEIGHT,
   ECOSYSTEM_MEMORY_WORLD_WIDTH,
+  getEcosystemMemoryNodeVisualRadius,
 } from "../src/game/ecosystem/EcosystemMemoryTree";
 import { getTouchRankCost } from "../src/game/ecosystem/EcosystemSystem";
 
@@ -23,6 +24,22 @@ function edgesCross(a1: Point, a2: Point, b1: Point, b2: Point): boolean {
   const o3 = orientation(b1, b2, a1);
   const o4 = orientation(b1, b2, a2);
   return o1 * o2 < 0 && o3 * o4 < 0;
+}
+
+function pointToSegmentDistance(point: Point, start: Point, end: Point): number {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
+  return Math.hypot(point.x - (start.x + dx * t), point.y - (start.y + dy * t));
+}
+
+function angleBetweenVectors(left: Point, right: Point): number {
+  const leftLength = Math.hypot(left.x, left.y);
+  const rightLength = Math.hypot(right.x, right.y);
+  const cosine = (left.x * right.x + left.y * right.y) / (leftLength * rightLength);
+  return Math.acos(Math.max(-1, Math.min(1, cosine)));
 }
 
 describe("Ecosystem Memory Tree", () => {
@@ -67,7 +84,7 @@ describe("Ecosystem Memory Tree", () => {
     }
   });
 
-  it("uses distinct organic helper-cluster silhouettes with clear node spacing", () => {
+  it("uses distinct organic helper-cluster silhouettes with clear visual spacing", () => {
     const helperUnlocks = ECOSYSTEM_MEMORY_NODES.filter((node) => node.kind === "helperUnlock");
     expect(new Set(helperUnlocks.map((node) => node.y)).size).toBeGreaterThanOrEqual(6);
 
@@ -83,10 +100,52 @@ describe("Ecosystem Memory Tree", () => {
       const left = ECOSYSTEM_MEMORY_NODES[leftIndex];
       for (let rightIndex = leftIndex + 1; rightIndex < ECOSYSTEM_MEMORY_NODES.length; rightIndex += 1) {
         const right = ECOSYSTEM_MEMORY_NODES[rightIndex];
-        if (Math.hypot(right.x - left.x, right.y - left.y) < 105) crowdedPairs.push(`${left.id} / ${right.id}`);
+        const requiredDistance = getEcosystemMemoryNodeVisualRadius(left) +
+          getEcosystemMemoryNodeVisualRadius(right) + 20;
+        if (Math.hypot(right.x - left.x, right.y - left.y) < requiredDistance) {
+          crowdedPairs.push(`${left.id} / ${right.id}`);
+        }
       }
     }
     expect(crowdedPairs).toEqual([]);
+  });
+
+  it("keeps every branch clear of unrelated skill points", () => {
+    const blockedBranches: string[] = [];
+    for (const edge of ECOSYSTEM_MEMORY_EDGES) {
+      const from = ECOSYSTEM_MEMORY_NODE_BY_ID.get(edge.from)!;
+      const to = ECOSYSTEM_MEMORY_NODE_BY_ID.get(edge.to)!;
+      for (const node of ECOSYSTEM_MEMORY_NODES) {
+        if (node.id === edge.from || node.id === edge.to) continue;
+        const requiredClearance = getEcosystemMemoryNodeVisualRadius(node) + 18;
+        if (pointToSegmentDistance(node, from, to) < requiredClearance) {
+          blockedBranches.push(`${edge.from} -> ${edge.to} passes ${node.id}`);
+        }
+      }
+    }
+    expect(blockedBranches).toEqual([]);
+  });
+
+  it("fans branches apart when they share a skill point", () => {
+    const narrowBranchPairs: string[] = [];
+    for (const node of ECOSYSTEM_MEMORY_NODES) {
+      const neighbors = ECOSYSTEM_MEMORY_EDGES.flatMap((edge) => {
+        if (edge.from === node.id) return [ECOSYSTEM_MEMORY_NODE_BY_ID.get(edge.to)!];
+        if (edge.to === node.id) return [ECOSYSTEM_MEMORY_NODE_BY_ID.get(edge.from)!];
+        return [];
+      });
+      for (let leftIndex = 0; leftIndex < neighbors.length; leftIndex += 1) {
+        const left = neighbors[leftIndex];
+        const leftVector = { x: left.x - node.x, y: left.y - node.y };
+        for (let rightIndex = leftIndex + 1; rightIndex < neighbors.length; rightIndex += 1) {
+          const right = neighbors[rightIndex];
+          const rightVector = { x: right.x - node.x, y: right.y - node.y };
+          const angleDegrees = angleBetweenVectors(leftVector, rightVector) * 180 / Math.PI;
+          if (angleDegrees < 14) narrowBranchPairs.push(`${node.id}: ${left.id} / ${right.id}`);
+        }
+      }
+    }
+    expect(narrowBranchPairs).toEqual([]);
   });
 
   it("makes unlocks visually dominant over their numeric rank nodes", () => {

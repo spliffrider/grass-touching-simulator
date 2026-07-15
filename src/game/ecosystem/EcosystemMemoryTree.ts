@@ -1,8 +1,12 @@
 import { HELPER_IDS, HELPERS, type HelperId } from "./EcosystemCatalog";
 import type { PermanentRankKind, PermanentTouchRankKind } from "./EcosystemSystem";
 
-export const ECOSYSTEM_MEMORY_WORLD_WIDTH = 3700;
-export const ECOSYSTEM_MEMORY_WORLD_HEIGHT = 1800;
+const MEMORY_LAYOUT_SCALE = 1.3;
+
+export const ECOSYSTEM_MEMORY_WORLD_WIDTH = 3700 * MEMORY_LAYOUT_SCALE;
+export const ECOSYSTEM_MEMORY_WORLD_HEIGHT = 1800 * MEMORY_LAYOUT_SCALE;
+export const ECOSYSTEM_MEMORY_NODE_GLOW_RADIUS = 56;
+export const ECOSYSTEM_MEMORY_CONNECTOR_GAP = 10;
 
 export type EcosystemMemoryNodeKind =
   | "root"
@@ -56,6 +60,14 @@ interface HelperMemoryLayout {
   ranks: Record<PermanentRankKind, { x: number; y: number }>;
 }
 
+function scalePosition(value: number): number {
+  return value * MEMORY_LAYOUT_SCALE;
+}
+
+export function getEcosystemMemoryNodeVisualRadius(node: EcosystemMemoryNodeDefinition): number {
+  return ECOSYSTEM_MEMORY_NODE_GLOW_RADIUS * (node.visualScale ?? 1);
+}
+
 const HELPER_LAYOUTS: Record<HelperId, HelperMemoryLayout> = {
   tinySprinkler: {
     x: -1120,
@@ -77,7 +89,7 @@ const HELPER_LAYOUTS: Record<HelperId, HelperMemoryLayout> = {
     ranks: {
       throughput: { x: -140, y: -150 },
       efficiency: { x: 100, y: -210 },
-      storage: { x: -200, y: 90 },
+      storage: { x: -120, y: 190 },
       startingStock: { x: 10, y: 240 },
     },
   },
@@ -89,8 +101,8 @@ const HELPER_LAYOUTS: Record<HelperId, HelperMemoryLayout> = {
     ranks: {
       throughput: { x: -140, y: -180 },
       efficiency: { x: 130, y: -230 },
-      storage: { x: -200, y: 60 },
-      startingStock: { x: -90, y: 230 },
+      storage: { x: 40, y: 200 },
+      startingStock: { x: -80, y: 300 },
     },
   },
   chickenPatrol: {
@@ -111,7 +123,7 @@ const HELPER_LAYOUTS: Record<HelperId, HelperMemoryLayout> = {
     scale: 1.04,
     mode: { x: 250, y: -120 },
     ranks: {
-      throughput: { x: -170, y: -150 },
+      throughput: { x: 40, y: -240 },
       efficiency: { x: 140, y: -210 },
       storage: { x: -220, y: 130 },
       startingStock: { x: -20, y: 260 },
@@ -133,12 +145,12 @@ const HELPER_LAYOUTS: Record<HelperId, HelperMemoryLayout> = {
     x: 1150,
     y: 130,
     scale: 1,
-    mode: { x: 220, y: 300 },
+    mode: { x: 360, y: 260 },
     ranks: {
       throughput: { x: -150, y: -160 },
       efficiency: { x: 120, y: -230 },
-      storage: { x: -220, y: 130 },
-      startingStock: { x: 50, y: 240 },
+      storage: { x: -20, y: 360 },
+      startingStock: { x: 170, y: 240 },
     },
   },
   meadowRabbit: {
@@ -149,7 +161,7 @@ const HELPER_LAYOUTS: Record<HelperId, HelperMemoryLayout> = {
     ranks: {
       throughput: { x: -140, y: -170 },
       efficiency: { x: 130, y: -240 },
-      storage: { x: -200, y: 140 },
+      storage: { x: 180, y: 180 },
       startingStock: { x: -10, y: 270 },
     },
   },
@@ -211,8 +223,8 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       description: "The first remembered touch. Every permanent branch grows from here.",
       color: 0xffe889,
       iconKey: "eco-player",
-      x: -1470,
-      y: 40,
+      x: scalePosition(-1470),
+      y: scalePosition(40),
       visualScale: 1.2,
       prerequisites: [],
     },
@@ -225,8 +237,8 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       color: 0xf0cc62,
       iconKey: "memory-icon-fast-touch",
       iconPath: "/assets/ui/skills/mindful-contact.png",
-      x: -1670,
-      y: -170,
+      x: scalePosition(-1670),
+      y: scalePosition(-170),
       visualScale: 0.92,
       prerequisites: [ROOT_ID],
       touchKind: "fastTouch",
@@ -240,8 +252,8 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       color: 0x8de7ff,
       iconKey: "memory-icon-broad-palm",
       iconPath: "/assets/ui/skills/palm-press.png",
-      x: -1450,
-      y: -260,
+      x: scalePosition(-1450),
+      y: scalePosition(-260),
       visualScale: 0.96,
       prerequisites: [ROOT_ID],
       touchKind: "broadPalm",
@@ -255,8 +267,8 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       color: 0x8de7ff,
       iconKey: "memory-icon-many-hands",
       iconPath: "/assets/ui/skills/two-handed-technique.png",
-      x: -1340,
-      y: -470,
+      x: scalePosition(-1340),
+      y: scalePosition(-470),
       visualScale: 0.94,
       prerequisites: ["touch:broadPalm"],
       touchKind: "manyHands",
@@ -270,8 +282,8 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       color: 0xf1a6ce,
       iconKey: "memory-icon-field-embrace",
       iconPath: "/assets/ui/skills/ecosystem-loop.png",
-      x: -1430,
-      y: -700,
+      x: scalePosition(-1430),
+      y: scalePosition(-700),
       visualScale: 1.1,
       prerequisites: ["touch:manyHands"],
     },
@@ -284,8 +296,8 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       color: 0x9bd66f,
       iconKey: "memory-icon-field-tier",
       iconPath: "/assets/ui/skills/root-network.png",
-      x: -1600,
-      y: 420,
+      x: scalePosition(-1600),
+      y: scalePosition(420),
       visualScale: 1.04,
       prerequisites: [ROOT_ID],
     },
@@ -295,7 +307,8 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
     const helperId = HELPER_IDS[index];
     const helper = HELPERS[helperId];
     const layout = HELPER_LAYOUTS[helperId];
-    const { x, y } = layout;
+    const x = scalePosition(layout.x);
+    const y = scalePosition(layout.y);
     const prerequisite = index === 0 ? ROOT_ID : helperUnlockId(HELPER_IDS[index - 1]);
     nodes.push({
       id: helperUnlockId(helperId),
@@ -324,8 +337,8 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
         color: HELPER_COLORS[helperId],
         iconKey: meta.iconKey,
         iconPath: meta.iconPath,
-        x: x + offset.x,
-        y: y + offset.y,
+        x: x + scalePosition(offset.x),
+        y: y + scalePosition(offset.y),
         visualScale: RANK_VISUAL_SCALES[kind],
         prerequisites: [helperUnlockId(helperId)],
         helperId,
@@ -343,8 +356,8 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       color: HELPER_COLORS[helperId],
       iconKey: "memory-icon-helper-mode",
       iconPath: "/assets/ui/skills/helper-routes.png",
-      x: x + layout.mode.x,
-      y: y + layout.mode.y,
+      x: x + scalePosition(layout.mode.x),
+      y: y + scalePosition(layout.mode.y),
       visualScale: 0.86,
       prerequisites: [helperUnlockId(helperId)],
       helperId,
