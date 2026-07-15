@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { HELPER_RECONFIGURE_MS } from "../src/game/ecosystem/EcosystemCatalog";
+import { HELPER_RECONFIGURE_MS, PRODUCTION_TICK_MS } from "../src/game/ecosystem/EcosystemCatalog";
 import { getManualTouchCooldownMs } from "../src/game/ecosystem/EcosystemTouchCooldown";
 import {
   advanceEcosystem,
@@ -281,15 +281,13 @@ describe("EcosystemSystem", () => {
   });
 
   it("ends the first manual run as a brief onboarding failure", () => {
-    expect(simulateManualRun(0, 0)).toBeGreaterThanOrEqual(750);
-    expect(simulateManualRun(0, 0)).toBeLessThanOrEqual(1_250);
+    expect(simulateManualRun(0, 0)).toBe(PRODUCTION_TICK_MS);
   });
 
   it("overpowers a first-run player touching at every legal cooldown", () => {
     const duration = simulateCooldownLimitedManualRun(0, getManualTouchCooldownMs(0));
 
-    expect(duration).toBeGreaterThanOrEqual(750);
-    expect(duration).toBeLessThanOrEqual(1_250);
+    expect(duration).toBe(PRODUCTION_TICK_MS);
   });
 
   it("keeps Run 1 brutal even when prototype Memories were pre-unlocked", () => {
@@ -301,8 +299,7 @@ describe("EcosystemSystem", () => {
     while (state.active && state.elapsedMs < 5_000) advanceEcosystem(state, permanent, 250);
 
     expect(state.runNumber).toBe(1);
-    expect(state.elapsedMs).toBeGreaterThanOrEqual(750);
-    expect(state.elapsedMs).toBeLessThanOrEqual(1_250);
+    expect(state.elapsedMs).toBe(PRODUCTION_TICK_MS);
   });
 
   it("waits for the player's first touch before unleashing Run 1", () => {
@@ -320,8 +317,9 @@ describe("EcosystemSystem", () => {
     advanceEcosystem(state, permanent, 250);
 
     expect(state.elapsedMs).toBe(250);
-    expect(state.scourgeDemandPerSecond).toBeGreaterThan(20);
-    expect(state.hp).toBeLessThan(100);
+    expect(state.scourgeDemandPerSecond).toBeGreaterThan(500);
+    expect(state.hp).toBe(0);
+    expect(state.active).toBe(false);
   });
 
   it("does not grant free Scourge relief for repeated losses", () => {
