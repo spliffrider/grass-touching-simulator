@@ -22,6 +22,10 @@ import {
   ECOSYSTEM_HERO_TILE_TEXTURE_KEYS,
 } from "../ecosystem/EcosystemHeroTextures";
 import {
+  getHealthHeartbeatPulse,
+  smoothHealthRatio,
+} from "../ecosystem/EcosystemHealthVisual";
+import {
   ECOSYSTEM_MEMORY_EDGES,
   ECOSYSTEM_MEMORY_ICON_ASSETS,
   ECOSYSTEM_MEMORY_NODES,
@@ -328,6 +332,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private runText!: Phaser.GameObjects.Text;
   private hpBarBack!: Phaser.GameObjects.Rectangle;
   private hpBarFill!: Phaser.GameObjects.Rectangle;
+  private hpBarHeartbeatGlow!: Phaser.GameObjects.Rectangle;
   private hpText!: Phaser.GameObjects.Text;
   private pressureText!: Phaser.GameObjects.Text;
   private currencyText!: Phaser.GameObjects.Text;
@@ -356,6 +361,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private plotStageText!: Phaser.GameObjects.Text;
   private plotDetailText!: Phaser.GameObjects.Text;
   private openingPanelsVisible = false;
+  private displayedHpRatio = 1;
+  private hpHeartbeatPulse = 0;
   private optionsButton!: SceneButton;
   private worksButton!: SceneButton;
   private cultivationButton!: SceneButton;
@@ -553,6 +560,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const simulationMs = performance.now() - simulationStart;
 
     const animationStart = performance.now();
+    this.animateHealthBar(this.time.now, delta);
     this.animateLivingField(this.time.now);
     this.animateMemoryTree(this.time.now);
     const animationMs = performance.now() - animationStart;
@@ -645,6 +653,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.runText = this.createText("", 13, "#b8d9a4");
     this.hpBarBack = this.add.rectangle(0, 0, 100, 18, 0x071b11, 0.94).setOrigin(0, 0.5);
     this.hpBarFill = this.add.rectangle(0, 0, 100, 14, 0x83d765, 1).setOrigin(0, 0.5);
+    this.hpBarHeartbeatGlow = this.add.rectangle(0, 0, 100, 14, 0xb9ff9c, 0)
+      .setOrigin(0, 0.5)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.displayedHpRatio = Phaser.Math.Clamp(this.state.hp / Math.max(1, this.state.maxHp), 0, 1);
     this.hpText = this.createText("", 15, "#f2e8d5", "bold");
     this.pressureText = this.createText("", 13, "#f1a6ce");
     this.currencyText = this.createText("", 14, "#ffe889", "bold");
@@ -677,6 +689,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.runText,
       this.hpBarBack,
       this.hpBarFill,
+      this.hpBarHeartbeatGlow,
       this.hpText,
       this.pressureText,
       this.currencyText,
@@ -1072,6 +1085,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.runText.setFontSize(11).setPosition(header.x + 15, header.y + 36);
       this.hpBarBack.setPosition(header.x + 14, header.y + 64).setSize(header.width - 150, 18);
       this.hpBarFill.setPosition(header.x + 17, header.y + 64).setSize(header.width - 156, 12);
+      this.hpBarHeartbeatGlow.setPosition(header.x + 17, header.y + 64).setSize(header.width - 156, 12);
       this.hpText.setFontSize(12).setPosition(header.x + 18, header.y + 52);
       this.pressureText.setFontSize(10).setPosition(header.x + 18, header.y + 78);
       this.currencyText.setFontSize(11).setOrigin(1, 0).setPosition(header.x + header.width - 12, header.y + 53);
@@ -1084,12 +1098,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const barWidth = Math.min(880, Math.max(320, header.width - (barX - header.x) - 254));
       this.hpBarBack.setPosition(barX, header.y + 39).setSize(barWidth, 24);
       this.hpBarFill.setPosition(barX + 3, header.y + 39).setSize(barWidth - 6, 18);
+      this.hpBarHeartbeatGlow.setPosition(barX + 3, header.y + 39).setSize(barWidth - 6, 18);
       this.hpText.setFontSize(15).setPosition(barX + 9, header.y + 25);
       this.pressureText.setFontSize(13).setPosition(barX + 9, header.y + 65);
       this.currencyText.setFontSize(15).setOrigin(1, 0).setPosition(header.x + header.width - 116, header.y + 59);
       this.optionsButton.setPosition(header.x + header.width - 104, header.y + 14);
       this.optionsButton.setSize(86, 36);
     }
+    this.animateHealthBar(this.time.now, 0);
 
     let ledgerX = 0;
     let ledgerY = 0;
@@ -1459,13 +1475,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const elapsedMinutes = Math.floor(elapsedSeconds / 60);
       this.setTextIfChanged(this.runText, `Run ${this.state.runNumber}  |  ${elapsedMinutes}:${`${elapsedSeconds % 60}`.padStart(2, "0")}  |  Field active`);
       const hpRatio = Phaser.Math.Clamp(readout.hpRatio, 0, 1);
-      const hpBarWidth = Math.max(1, this.hpBarBack.width - 6);
-      const hpDisplayWidth = Math.max(1, hpBarWidth * hpRatio);
-      if (Math.abs(this.hpBarFill.displayWidth - hpDisplayWidth) > 0.1) {
-        this.hpBarFill.setDisplaySize(hpDisplayWidth, this.hpBarFill.height);
-      }
       const hpColor = hpRatio > 0.55 ? 0x83d765 : hpRatio > 0.25 ? 0xf0c85b : 0xe8616a;
-      if (this.hpBarFill.fillColor !== hpColor) this.hpBarFill.setFillStyle(hpColor, 1);
+      if (this.hpBarFill.fillColor !== hpColor) {
+        this.hpBarFill.setFillStyle(hpColor, 1);
+        this.hpBarHeartbeatGlow.setFillStyle(hpColor, 1);
+      }
       this.setTextIfChanged(this.hpText, `Ancient HP ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}`);
       this.setTextIfChanged(this.pressureText, `Scourge ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s  |  produced ${readout.careProductionPerSecond.toFixed(2)}/s`);
       this.setTextIfChanged(this.currencyText, `RT ${readout.runTouches.toFixed(0)}   GT ${this.permanent.grassTouches.toFixed(0)}`);
@@ -2423,6 +2437,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private beginNextRun(): void {
     if (this.state.active) return;
     this.state = createNextEcosystemRun(this.permanent);
+    this.displayedHpRatio = 1;
+    this.hpHeartbeatPulse = 0;
     this.firstSprinklerCycleCelebrated = false;
     this.resetTouchRecovery();
     this.lastGameOverState = false;
@@ -2925,6 +2941,33 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.memoryZoomResetButton.setLabel(this.memoryTreeZoom <= 1.001 ? "Fit" : `${this.memoryTreeZoom.toFixed(1)}x`);
   }
 
+  private animateHealthBar(now: number, delta: number): void {
+    if (!this.state.active || !this.fieldRoot.visible) {
+      this.hpHeartbeatPulse = 0;
+      this.hpBarFill.setScale(this.hpBarFill.scaleX, 1);
+      this.hpBarHeartbeatGlow.setAlpha(0).setScale(this.hpBarHeartbeatGlow.scaleX, 1);
+      return;
+    }
+
+    const targetRatio = Phaser.Math.Clamp(this.state.hp / Math.max(1, this.state.maxHp), 0, 1);
+    this.displayedHpRatio = smoothHealthRatio(this.displayedHpRatio, targetRatio, delta);
+    const barWidth = Math.max(1, this.hpBarBack.width - 6);
+    const displayWidth = Math.max(1, barWidth * this.displayedHpRatio);
+    if (Math.abs(this.hpBarFill.displayWidth - displayWidth) > 0.1) {
+      this.hpBarFill.setDisplaySize(displayWidth, this.hpBarFill.height);
+      this.hpBarHeartbeatGlow.setDisplaySize(displayWidth, this.hpBarHeartbeatGlow.height);
+    }
+
+    this.hpHeartbeatPulse = getHealthHeartbeatPulse(now, targetRatio);
+    const urgency = 1 - targetRatio;
+    const fillPulse = 1 + this.hpHeartbeatPulse * (0.045 + urgency * 0.065);
+    const glowPulse = 1 + this.hpHeartbeatPulse * (0.16 + urgency * 0.18);
+    this.hpBarFill.setScale(this.hpBarFill.scaleX, fillPulse);
+    this.hpBarHeartbeatGlow
+      .setScale(this.hpBarHeartbeatGlow.scaleX, glowPulse)
+      .setAlpha(this.hpHeartbeatPulse * (0.12 + urgency * 0.22));
+  }
+
   private animateMemoryTree(now: number): void {
     if (this.state.active || !this.memoryRoot.visible || this.optionsOpen) return;
     const pulse = Math.sin(now * 0.0032);
@@ -2995,6 +3038,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     localStorage.removeItem("grass-touching-simulator.ecosystem-memory.v1");
     this.permanent = createPermanentEcosystemState();
     this.state = createEcosystemState(this.permanent);
+    this.displayedHpRatio = 1;
+    this.hpHeartbeatPulse = 0;
     this.firstSprinklerCycleCelebrated = false;
     this.resetTouchRecovery();
     this.fieldView = { centerX: 0.5, centerY: 0.5, zoom: 1 };
@@ -3066,6 +3111,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       maxSaveMs: Number(performanceSnapshot.maxSaveMs.toFixed(3)),
       touchActions: performanceSnapshot.touchActions,
       manualTouchCooldownMs: getManualTouchCooldownMs(this.permanent.fastTouchRank),
+      displayedHpRatio: Number(this.displayedHpRatio.toFixed(4)),
+      hpHeartbeatPulse: Number(this.hpHeartbeatPulse.toFixed(4)),
       trackedTouchCooldowns: this.touchCooldowns.size,
       touchCooldownRemainingMs: this.touchRecoveryVisual
         ? Math.max(0, Math.round(this.touchRecoveryVisual.readyAtMs - this.time.now))

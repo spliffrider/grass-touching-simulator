@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-15",
-  "latestHandoff": "HANDOFF_2026-07-15_SCOURGE_MEMORY_GATING.json",
+  "latestHandoff": "HANDOFF_2026-07-15_FLUID_HEARTBEAT_HP.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

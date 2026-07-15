@@ -1,0 +1,53 @@
+{
+  "date": "2026-07-15",
+  "topic": "Fluid Ancient HP bar with responsive heartbeat",
+  "currentUserGoal": "Make the Ancient HP bar move fluidly and visibly pump like a heartbeat without compromising the ecosystem prototype's performance.",
+  "workCompleted": [
+    "Moved the HP bar's displayed width from the 200 ms UI refresh cadence to frame-rate-independent per-frame interpolation while leaving deterministic HP simulation untouched.",
+    "Added a reusable additive glow layer and a two-beat heartbeat profile that accelerates and becomes more pronounced as Ancient HP falls.",
+    "Kept the implementation allocation-free in the scene hot path and avoided particles, timers, and heartbeat tweens.",
+    "Integrated the heartbeat layer into desktop and mobile header layouts and preserved the existing healing flash behavior.",
+    "Exposed displayed HP ratio and heartbeat pulse in the redesign performance harness for repeatable browser verification.",
+    "Added focused tests for monotonic smoothing, frame-rate independence, and low-HP heartbeat acceleration."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemHealthVisual.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemHealthVisual.test.ts",
+    "handoffs/HANDOFF_2026-07-15_FLUID_HEARTBEAT_HP.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 129 Vitest tests across 18 files, strict TypeScript, and the Vite production build.",
+    "Desktop browser verification covered healthy, mid-health, and red danger states on the actual ecosystemPrototype route.",
+    "Mobile browser verification at 390x844 confirmed the pumping bar remains inside the compact header without overlapping adjacent readouts.",
+    "The redesign harness measured average animation work around 0.03-0.05 ms per frame, zero active tweens, zero active effects, and no full-field scans during the test.",
+    "Browser console contained no errors or warnings."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "status": "Local ecosystem prototype checkpoint; not pushed, merged into master, or promoted to production."
+  },
+  "currentGitStatus": [
+    "The HP animation implementation, tests, and this handoff are intended for one local commit on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173."
+  ],
+  "knownIssues": [
+    "The heartbeat is intentionally a display-layer signal; it does not alter HP damage, healing, or Scourge timing.",
+    "The performance harness snapshots the pulse at the UI refresh cadence, while the visible bar itself animates every rendered frame.",
+    "A static screenshot may capture the glow between beats; motion is most apparent during live play, especially below 25 percent HP."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user judge the heartbeat strength and cadence during a real first-run failure.",
+    "Tune only the visual amplitude or cadence if requested; keep HP balance changes inside the deterministic ecosystem model.",
+    "Continue the visible Field Mouse resource-chain objective after the health presentation is approved."
+  ],
+  "doNotRevert": [
+    "Keep the simulated HP value deterministic and separate from displayedHpRatio.",
+    "Keep heartbeat work allocation-free and bounded to the two existing rectangle layers.",
+    "Do not move HP width updates back into the throttled refreshUi path.",
+    "Do not use Phaser heartbeat tweens that would conflict with the existing healing flash or accumulate during long runs."
+  ]
+}
