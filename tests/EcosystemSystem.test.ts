@@ -317,7 +317,7 @@ describe("EcosystemSystem", () => {
     advanceEcosystem(state, permanent, 250);
 
     expect(state.elapsedMs).toBe(250);
-    expect(state.scourgeDemandPerSecond).toBeGreaterThan(500);
+    expect(state.scourgeDemandPerSecond).toBeGreaterThan(5_000);
     expect(state.hp).toBe(0);
     expect(state.active).toBe(false);
   });
