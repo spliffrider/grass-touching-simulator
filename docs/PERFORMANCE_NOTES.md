@@ -129,3 +129,31 @@ Important fields:
 ## Main Lesson
 
 The browser was not the blocker. The killer issue was using an expensive render-texture resize path during normal gameplay. Keep expensive graphics resource operations out of the hot redraw path, and use the perf overlay's `dt`, `spikes`, `layout`, `tw`, `objects`, and `hot ...` fields before guessing.
+
+## 2026-07-15 Ecosystem Adaptive Pool Pass
+
+The ecosystem prototype was profiled on its own redesign route before this
+change. The fixed-tick economy was already inexpensive, but a fresh 1x1 field
+eagerly created 360 near-tile images, 100 chunk images, and one display object
+for every Memory rank pip. That produced 1,483 Phaser display objects before
+the player needed almost any of them.
+
+Near-tile and chunk image pools now grow only to the current projection's
+bounded visible count. They retain their high-water mark after growth so zoom
+and field-size transitions do not destroy and recreate graphics. Multi-rank
+Memory pips are drawn into one `Graphics` object per node and redraw only when
+the owned rank changes.
+
+Measured on `?redesign&ecosystemPrototype&playtest&debugPanel`:
+
+- Fresh 1x1 field: 740 display objects, 1 pooled tile view, 0 pooled chunk
+  views, 144 FPS, no frame spikes, and about 0.03 ms average frame work.
+- Rapid-touch 1x1 run: touch action about 0.4 ms with no frame spikes.
+- 100x100 field: 10,000 logical tiles represented by 100 rendered chunk views,
+  840 display objects, 144 FPS, no full-field scans, and about 0.04 ms average
+  frame work.
+- 390x844 fresh field: 60 FPS, no frame spikes, and about 0.01 ms average frame
+  work.
+
+These figures come from the ecosystem redesign harness. The legacy 1,200-tile
+`GameScene` harness was not used and is not evidence for this architecture.

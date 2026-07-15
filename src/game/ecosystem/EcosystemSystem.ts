@@ -21,6 +21,7 @@ import {
 
 export const ECOSYSTEM_PERMANENT_VERSION = 1;
 export const ECOSYSTEM_ACTIVE_VERSION = 1;
+const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.35;
 
 export type HelperRankRecord = Record<HelperId, number>;
 export type HelperUnlockRecord = Record<HelperId, boolean>;
@@ -790,7 +791,7 @@ function performRecipe(
 function getScourgeDemand(state: EcosystemState, permanent: PermanentEcosystemState): number {
   const completed = permanent.completedRuns;
   const rampSeconds = completed === 0
-    ? 1
+    ? FIRST_RUN_SCOURGE_RAMP_SECONDS
     : completed <= 5
       ? 44 * Math.pow(2.03, completed)
       : 1_520 * Math.pow(1.34, completed - 5);

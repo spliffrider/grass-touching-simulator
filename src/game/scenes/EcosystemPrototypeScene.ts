@@ -155,6 +155,7 @@ const DOM_REFRESH_MS = 1_000;
 const HARNESS_REFRESH_MS = 250;
 const FIELD_REDRAW_MS = 180;
 const MAX_EFFECTS = 24;
+const MAX_CHUNK_VIEWS = 100;
 const AMBIENT_MOTE_COUNT = 18;
 const MAX_SCENE_CONTENT_WIDTH = 1680;
 const HELPER_ARRIVAL_MS = 760;
@@ -226,7 +227,8 @@ interface MemoryNodeView {
   icon: Phaser.GameObjects.Image;
   title: Phaser.GameObjects.Text;
   status: Phaser.GameObjects.Text;
-  rankPips: Phaser.GameObjects.Arc[];
+  rankPips: Phaser.GameObjects.Graphics | null;
+  rankPipCount: number;
 }
 
 interface MemoryTreeDragState {
@@ -734,19 +736,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       };
     }
 
-    const tilePoolSize = MAX_NEAR_TILE_VIEWS_DESKTOP;
-    for (let index = 0; index < tilePoolSize; index += 1) {
-      const image = this.add.image(0, 0, TILE_TEXTURE_KEYS[0]).setVisible(false).setOrigin(0.5);
-      image.setData("phase", (index * 2.399) % (Math.PI * 2));
-      image.setData("baseY", 0);
-      this.tileLayer.add(image);
-      this.tilePool.push(image);
-    }
-    for (let index = 0; index < 100; index += 1) {
-      const image = this.add.image(0, 0, TILE_TEXTURE_KEYS[0]).setVisible(false).setOrigin(0.5).setAlpha(0.82);
-      this.chunkLayer.add(image);
-      this.chunkPool.push(image);
-    }
     const ambienceTextures = ["eco-effect-water", "eco-effect-pollen", "eco-effect-grass", "eco-effect-spore"];
     for (let index = 0; index < AMBIENT_MOTE_COUNT; index += 1) {
       const mote = this.add.image(0, 0, ambienceTextures[index % ambienceTextures.length]).setOrigin(0.5).setVisible(false);
@@ -862,16 +851,22 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const title = this.createText(definition.label, 14, "#fff3c2", "bold").setOrigin(0.5, 0).setPosition(0, 54).setAlign("center");
       const status = this.createText("", 10, "#b8d9a4", "bold").setOrigin(0.5, 0).setPosition(0, 76).setAlign("center");
       const maxRank = this.getMemoryNodeMaxRank(definition);
-      const rankPips: Phaser.GameObjects.Arc[] = [];
-      if (maxRank > 1) {
-        for (let rank = 0; rank < maxRank; rank += 1) {
-          const pip = this.add.circle((rank - (maxRank - 1) / 2) * 8, 48, 2.7, 0x11261a, 0.95).setStrokeStyle(1, definition.color, 0.45);
-          rankPips.push(pip);
-        }
-      }
-      container.add([hitArea, glow, frame, icon, ...rankPips, title, status]);
+      const rankPips = maxRank > 1 ? this.add.graphics() : null;
+      if (rankPips) rankPips.setData("rank", -1);
+      container.add([hitArea, glow, frame, icon, ...(rankPips ? [rankPips] : []), title, status]);
       this.memoryTreeWorld.add(container);
-      this.memoryNodeViews.set(definition.id, { definition, container, hitArea, glow, frame, icon, title, status, rankPips });
+      this.memoryNodeViews.set(definition.id, {
+        definition,
+        container,
+        hitArea,
+        glow,
+        frame,
+        icon,
+        title,
+        status,
+        rankPips,
+        rankPipCount: maxRank,
+      });
 
       hitArea.on("pointerover", () => this.previewMemoryNode(definition.id));
       hitArea.on("pointerout", () => this.stopPreviewingMemoryNode(definition.id));
@@ -1678,14 +1673,41 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.plotDetailText.setVisible(singlePlot);
     if (singlePlot) this.drawSinglePlotPresentation();
     if (near) {
+      this.ensureTilePoolSize(Math.min(mobileBudget, this.projection.visibleTiles.count));
       this.renderedTileViews = this.renderNearTiles(mobileBudget);
       this.renderedChunkViews = 0;
     } else {
+      this.ensureChunkPoolSize(Math.min(MAX_CHUNK_VIEWS, this.projection.visibleChunks.count));
       this.renderedTileViews = 0;
       this.renderedChunkViews = this.renderChunkTiles();
     }
     this.layoutHelperActors();
     clearDirtyChunks(this.state.field);
+  }
+
+  private ensureTilePoolSize(required: number): void {
+    if (this.tilePool.length >= required) return;
+    for (let index = this.tilePool.length; index < required; index += 1) {
+      const image = this.add.image(0, 0, TILE_TEXTURE_KEYS[0]).setVisible(false).setOrigin(0.5);
+      image.setData("phase", (index * 2.399) % (Math.PI * 2));
+      image.setData("baseY", 0);
+      this.tileLayer.add(image);
+      this.tilePool.push(image);
+    }
+    this.displayObjectCount = this.countDisplayObjects();
+  }
+
+  private ensureChunkPoolSize(required: number): void {
+    if (this.chunkPool.length >= required) return;
+    for (let index = this.chunkPool.length; index < required; index += 1) {
+      const image = this.add.image(0, 0, TILE_TEXTURE_KEYS[0])
+        .setVisible(false)
+        .setOrigin(0.5)
+        .setAlpha(0.82);
+      this.chunkLayer.add(image);
+      this.chunkPool.push(image);
+    }
+    this.displayObjectCount = this.countDisplayObjects();
   }
 
   private renderNearTiles(budget: number): number {
@@ -2612,12 +2634,24 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         .setStrokeStyle(selected || hovered ? 4 : 2, view.definition.color, selected || hovered ? 0.9 : runtime.complete ? 0.56 : 0.24);
       view.title.setColor(runtime.unlocked || runtime.complete ? "#fff3c2" : "#718371");
       view.status.setText(runtime.status).setColor(runtime.affordable ? "#ffe889" : runtime.complete ? "#9bd66f" : "#8fa08e");
-      for (let index = 0; index < view.rankPips.length; index += 1) {
-        view.rankPips[index].setFillStyle(index < runtime.rank ? view.definition.color : 0x11261a, index < runtime.rank ? 1 : 0.94);
-      }
+      this.refreshMemoryRankPips(view, runtime.rank);
     }
     this.refreshMemoryDetail();
     this.applyMemoryTreeViewTransform();
+  }
+
+  private refreshMemoryRankPips(view: MemoryNodeView, rank: number): void {
+    const graphics = view.rankPips;
+    if (!graphics || graphics.getData("rank") === rank) return;
+    graphics.clear().lineStyle(1, view.definition.color, 0.45);
+    for (let index = 0; index < view.rankPipCount; index += 1) {
+      const x = (index - (view.rankPipCount - 1) / 2) * 8;
+      graphics
+        .fillStyle(index < rank ? view.definition.color : 0x11261a, index < rank ? 1 : 0.94)
+        .fillCircle(x, 48, 2.7)
+        .strokeCircle(x, 48, 2.7);
+    }
+    graphics.setData("rank", rank);
   }
 
   private drawMemoryTreeConnectors(): void {
@@ -2781,7 +2815,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       if (view.hitArea.input) view.hitArea.input.enabled = visible;
       view.title.setVisible(visible && (showLabels || highlighted));
       view.status.setVisible(visible && (showStatus || highlighted));
-      for (const pip of view.rankPips) pip.setVisible(visible && (showPips || highlighted));
+      view.rankPips?.setVisible(visible && (showPips || highlighted));
     }
     this.memoryZoomOutButton.setEnabled(this.memoryTreeZoom > 1.001);
     this.memoryZoomInButton.setEnabled(this.memoryTreeZoom < 7.999);
@@ -2882,6 +2916,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     for (const impact of this.impactPool) activeEffects += impact.visible ? 1 : 0;
     document.documentElement.dataset.grassEcosystemHarness = JSON.stringify({
       route: "ecosystemPrototype",
+      active: this.state.active,
+      runNumber: this.state.runNumber,
+      elapsedMs: Math.round(this.state.elapsedMs),
       field: `${this.state.field.width}x${this.state.field.height}`,
       logicalTiles: readout.logicalTiles,
       lod: this.projection?.lod ?? "near",

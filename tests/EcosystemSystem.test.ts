@@ -158,6 +158,7 @@ describe("EcosystemSystem", () => {
 
   it("enforces the five-second helper reconfiguration pause", () => {
     const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
     permanent.unlockedHelpers.tinySprinkler = true;
     permanent.unlockedModes.tinySprinkler.push("cultivator");
     const state = createEcosystemState(permanent);
@@ -249,8 +250,8 @@ describe("EcosystemSystem", () => {
   });
 
   it("ends the first manual run as a brief onboarding failure", () => {
-    expect(simulateManualRun(0, 0)).toBeGreaterThanOrEqual(5_000);
-    expect(simulateManualRun(0, 0)).toBeLessThanOrEqual(10_000);
+    expect(simulateManualRun(0, 0)).toBeGreaterThanOrEqual(2_000);
+    expect(simulateManualRun(0, 0)).toBeLessThanOrEqual(4_000);
   });
 
   it("guarantees enough first-run GT to remember the first Broad Palm rank", () => {

@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-14",
-  "latestHandoff": "HANDOFF_2026-07-14_GUIDED_FIRST_CARE.json",
+  "updatedAt": "2026-07-15",
+  "latestHandoff": "HANDOFF_2026-07-15_FAST_OPENING_PERFORMANCE.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

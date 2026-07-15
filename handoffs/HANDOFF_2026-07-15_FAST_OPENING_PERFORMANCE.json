@@ -1,0 +1,63 @@
+{
+  "date": "2026-07-15",
+  "topic": "Fast opening and adaptive redesign pools",
+  "currentUserGoal": "Make the ecosystem prototype feel fast and buttery smooth, shorten the first run sharply, and preserve a visually busy field that can scale to 100x100.",
+  "workCompleted": [
+    "Profiled the actual ecosystem redesign route before optimizing and confirmed that fixed-tick simulation and accepted touches were already inexpensive.",
+    "Replaced the eager 360-tile and 100-chunk image allocation with adaptive pools that grow only to the current bounded viewport demand and retain their high-water mark.",
+    "Replaced hundreds of individual Memory rank-pip circles with one cached Graphics object per multi-rank node.",
+    "Added active, runNumber, and elapsedMs to the redesign harness for deterministic browser pacing checks.",
+    "Reduced only the fresh-save first-run Scourge ramp from 1.0 seconds to 0.35 seconds; later-run ramp formulas remain unchanged.",
+    "Updated the first-run target contract and isolated the helper reconfiguration test on Run 2 so the deliberately disposable opener cannot invalidate that system test.",
+    "Recorded the measured redesign performance evidence in docs/PERFORMANCE_NOTES.md."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "docs/PERFORMANCE_NOTES.md",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-15_FAST_OPENING_PERFORMANCE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 121 Vitest tests across 17 files, strict TypeScript, and the Vite production build.",
+    "The focused EcosystemSystem suite passed all 16 tests; deterministic Run 1 remains inside the 2-4 second band and Run 2 remains inside its 150-330 second band.",
+    "A live rapid-touch Run 1 ended at exactly 3.0 seconds on the actual redesign route.",
+    "Fresh 1x1 desktop state dropped from 1,483 display objects to 740, with one pooled tile view and zero pooled chunk views, 144 FPS, about 0.03 ms average frame work, and no spikes.",
+    "The actual 100x100 redesign state used 10,000 compact logical tiles, 100 summarized chunk views, 840 display objects, 144 FPS, about 0.04 ms average frame work, no full-field scans, and no spikes.",
+    "At 390x844, the fresh field held 60 FPS with about 0.01 ms average frame work and no spikes.",
+    "Browser diagnostics contained no errors or warnings.",
+    "The legacy 1,200-tile GameScene harness was not used."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "debugUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Local ecosystem prototype checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "The fast-opening performance slice and this handoff belong in one focused local commit on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173."
+  ],
+  "knownIssues": [
+    "The user still needs to judge the subjective feel of the new three-second opener and the transition into Memory Grove.",
+    "The in-app browser screenshot API timed out during the responsive pass, although the 390x844 redesign harness and semantic state were verified and the page reported no warnings.",
+    "The full Memory Web is still created at scene startup. Rank-pip batching reduced its cost substantially; lazy-building the entire web was intentionally avoided because it could move a hitch to Game Over.",
+    "Adaptive pools retain their largest allocated size after a field or zoom transition to prevent destruction and reallocation churn."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user hands-on test the three-second first run, cooldown feedback, Game Over transition, and first Memory purchase.",
+    "If the feel is smooth, continue with the first Field Mouse resource-chain objective and visible helper activity.",
+    "If an intermittent hitch remains, reproduce the exact transition and add a timing marker around that path before making another optimization."
+  ],
+  "doNotRevert": [
+    "Keep redesign tile and chunk pools adaptive and bounded by projected visible demand.",
+    "Keep pool high-water retention; do not destroy pooled images when zooming out or returning to a smaller field.",
+    "Keep Memory rank pips batched and redraw them only when rank changes.",
+    "Keep the first-run Scourge override isolated from completedRuns >= 1.",
+    "Keep the guaranteed first-run GT floor and the visible artificial touch cooldown feedback.",
+    "Do not cite the legacy 1,200-tile harness as redesign performance evidence."
+  ]
+}
