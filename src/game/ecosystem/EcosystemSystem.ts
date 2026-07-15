@@ -789,12 +789,15 @@ function performRecipe(
 }
 
 function getScourgeDemand(state: EcosystemState, permanent: PermanentEcosystemState): number {
-  const completed = permanent.completedRuns;
-  const rampSeconds = completed === 0
+  const unlockedHelperCount = HELPER_IDS.reduce(
+    (count, helperId) => count + (permanent.unlockedHelpers[helperId] ? 1 : 0),
+    0,
+  );
+  const rampSeconds = unlockedHelperCount === 0
     ? FIRST_RUN_SCOURGE_RAMP_SECONDS
-    : completed <= 5
-      ? 44 * Math.pow(2.03, completed)
-      : 1_520 * Math.pow(1.34, completed - 5);
+    : unlockedHelperCount <= 5
+      ? 44 * Math.pow(2.03, unlockedHelperCount)
+      : 1_520 * Math.pow(1.34, unlockedHelperCount - 5);
   const ageRatio = state.elapsedMs / 1_000 / rampSeconds;
   const tileScale = 1 + Math.log2(state.field.stages.length + 1) * 0.11;
   return 0.72 * tileScale * Math.pow(1 + ageRatio, 2.12);

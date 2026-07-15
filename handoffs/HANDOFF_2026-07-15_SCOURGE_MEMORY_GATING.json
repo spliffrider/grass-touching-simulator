@@ -1,0 +1,51 @@
+{
+  "date": "2026-07-15",
+  "topic": "Scourge progression gated by purchased Memories",
+  "currentUserGoal": "Make the first playthrough die extremely quickly and require actual skill or Memory investment, rather than repeated losses, to earn longer runs.",
+  "workCompleted": [
+    "Identified that the prototype was granting an exponential Scourge-ramp slowdown from completedRuns, so merely losing repeatedly made later runs dramatically easier.",
+    "Removed completed-run count from Scourge pacing and keyed the breathing-room curve to the number of unlocked production-chain helper Memories instead.",
+    "Preserved the intended three-second fresh failure and the multi-minute Tiny Sprinkler follow-up band.",
+    "Added a regression proving that an unupgraded save with twelve completed losses still dies in the same brief onboarding window as Run 1.",
+    "Verified a genuinely fresh Run 1 on an isolated localhost browser origin without touching the user's 127.0.0.1 prototype save."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-15_SCOURGE_MEMORY_GATING.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 126 Vitest tests across 17 files, strict TypeScript, and the Vite production build.",
+    "The focused EcosystemSystem suite passed 17 tests.",
+    "An isolated browser save reached Game Over on Run 1 at exactly 3000 ms.",
+    "The fresh browser run remained at 144 FPS with zero frame spikes and no browser errors or warnings.",
+    "The deterministic second-run Tiny Sprinkler simulation remains inside its intended 150-330 second band."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "status": "Local ecosystem prototype checkpoint; not pushed, merged into master, or promoted to production."
+  },
+  "currentGitStatus": [
+    "The Scourge Memory-gating correction, regression test, and handoff are committed together on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173."
+  ],
+  "knownIssues": [
+    "A save with unlocked helper Memories intentionally receives a longer Scourge ramp because that is now earned permanent progression.",
+    "Numeric helper ranks currently extend survival through their production effects rather than directly slowing Scourge demand.",
+    "The HUD shows the run number but does not yet explicitly label the helper-Memory tier that controls the opening demand ramp."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user begin another run on their existing save and judge whether its duration matches the Memories they have actually purchased.",
+    "Tune the first Tiny Sprinkler purchase race after hands-on testing without weakening the unupgraded three-second failure.",
+    "Continue the visible Field Mouse resource-chain objective once the opening progression feels correct."
+  ],
+  "doNotRevert": [
+    "Do not use completedRuns to grant Scourge relief; run count is history, not power.",
+    "Keep the unupgraded first-run and repeated-loss duration regression bands at 2-4 seconds unless the user explicitly changes the target.",
+    "Keep the first-loss GT guarantee so the Tiny Sprinkler unlock remains immediately affordable.",
+    "Keep later survival grounded in unlocked production Memories, run-local equipment, and Care throughput."
+  ]
+}

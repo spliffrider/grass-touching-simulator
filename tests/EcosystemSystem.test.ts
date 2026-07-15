@@ -254,6 +254,11 @@ describe("EcosystemSystem", () => {
     expect(simulateManualRun(0, 0)).toBeLessThanOrEqual(4_000);
   });
 
+  it("does not grant free Scourge relief for repeated losses", () => {
+    expect(simulateManualRun(12, 0)).toBeGreaterThanOrEqual(2_000);
+    expect(simulateManualRun(12, 0)).toBeLessThanOrEqual(4_000);
+  });
+
   it("guarantees enough first-run GT to remember the first Broad Palm rank", () => {
     const permanent = createPermanentEcosystemState();
     const state = createEcosystemState(permanent, { seed: 19 });
