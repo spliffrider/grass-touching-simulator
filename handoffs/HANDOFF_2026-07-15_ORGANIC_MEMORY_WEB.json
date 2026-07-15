@@ -1,0 +1,56 @@
+{
+  "date": "2026-07-15",
+  "topic": "Organic Memory Web composition",
+  "currentUserGoal": "Break up the Memory Web's regular repeating layout and make the permanent progression overview feel more varied, organic, and visually engaging.",
+  "workCompleted": [
+    "Replaced the straight helper spine and repeated five-satellite template with an explicit meandering progression path and eight distinct helper-cluster silhouettes.",
+    "Added visual scale hierarchy so helper unlocks, the Field Heir, and capstones read more strongly than numeric rank nodes.",
+    "Added one static Memory contour graphics layer with deterministic irregular colored territories and buds around each helper family.",
+    "Changed straight progression lines into gently curved cached QuadraticBezier paths; hover and purchase refreshes reuse the cached points without allocating.",
+    "Kept every progression connector geometrically uncrossed and every node center at least 105 world units from every other node.",
+    "Added regression coverage for unique cluster silhouettes, node spacing, visual hierarchy, graph bounds, and non-crossing connectors.",
+    "Fixed a compact-height Memory detail overlap found during screenshot verification by moving explanatory copy into the portrait's right-hand column."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemMemoryTree.test.ts",
+    "handoffs/HANDOFF_2026-07-15_ORGANIC_MEMORY_WEB.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 123 Vitest tests across 17 files, strict TypeScript, and the Vite production build.",
+    "The focused EcosystemMemoryTree suite passed five tests covering the 54-node graph, bounds, prerequisites, geometric crossings, distinct silhouettes, minimum spacing, and scale hierarchy.",
+    "The live compact Fit view was screenshot-verified in the in-app browser after forcing Game Over.",
+    "The selected Tiny Sprinkler detail card remained readable with no description/status collision at the compact viewport.",
+    "Browser diagnostics contained no errors or warnings.",
+    "The Memory Grove held 144 FPS with no frame spikes, 741 display objects, and about 0.05 ms average frame work."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "status": "Local ecosystem prototype checkpoint; not pushed, merged into master, or promoted to production."
+  },
+  "currentGitStatus": [
+    "The organic Memory Web implementation, tests, and this handoff belong in one focused local commit on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173."
+  ],
+  "knownIssues": [
+    "Locked late-game clusters remain deliberately subdued at Fit zoom; the user should judge whether their contrast feels mysterious or merely too dark.",
+    "The current 54-node web has room to expand, but every new branch should receive an explicit cluster position instead of reviving generated repeated templates.",
+    "The production sequence is still mostly linear even though its visual route now meanders; future cross-links must be designed carefully to preserve the no-crossing contract."
+  ],
+  "nextRecommendedSteps": [
+    "Have the user hands-on inspect Fit, zoom, pan, hover, and purchase behavior on the new Memory Web.",
+    "If the composition is approved, continue with the first Field Mouse resource-chain objective and visible production activity.",
+    "When adding new Memories, extend the explicit thematic territories and the spacing/crossing tests together."
+  ],
+  "doNotRevert": [
+    "Keep helper families on explicit asymmetric layouts; do not regenerate them from one repeated rank-position template.",
+    "Keep connector paths cached and the territory artwork inside one static Graphics object.",
+    "Keep unlock nodes visually dominant over numeric rank nodes.",
+    "Keep the no-crossing and minimum-spacing regression tests.",
+    "Keep compact Memory detail copy in the right-hand portrait column to avoid vertical overlap."
+  ]
+}

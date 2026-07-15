@@ -1,8 +1,8 @@
 import { HELPER_IDS, HELPERS, type HelperId } from "./EcosystemCatalog";
 import type { PermanentRankKind, PermanentTouchRankKind } from "./EcosystemSystem";
 
-export const ECOSYSTEM_MEMORY_WORLD_WIDTH = 3600;
-export const ECOSYSTEM_MEMORY_WORLD_HEIGHT = 1500;
+export const ECOSYSTEM_MEMORY_WORLD_WIDTH = 3700;
+export const ECOSYSTEM_MEMORY_WORLD_HEIGHT = 1800;
 
 export type EcosystemMemoryNodeKind =
   | "root"
@@ -24,6 +24,7 @@ export interface EcosystemMemoryNodeDefinition {
   iconPath?: string;
   x: number;
   y: number;
+  visualScale?: number;
   prerequisites: readonly string[];
   helperId?: HelperId;
   rankKind?: PermanentRankKind;
@@ -36,8 +37,6 @@ export interface EcosystemMemoryEdge {
 }
 
 const ROOT_ID = "root:field-heir";
-const HELPER_START_X = -1100;
-const HELPER_STEP_X = 360;
 const HELPER_COLORS: Record<HelperId, number> = {
   tinySprinkler: 0x78d9ef,
   fieldMouse: 0x9bd66f,
@@ -47,6 +46,120 @@ const HELPER_COLORS: Record<HelperId, number> = {
   ancientRoots: 0x66c69d,
   sheepLoop: 0xd7d9c8,
   meadowRabbit: 0xd99fc4,
+};
+
+interface HelperMemoryLayout {
+  x: number;
+  y: number;
+  scale: number;
+  mode: { x: number; y: number };
+  ranks: Record<PermanentRankKind, { x: number; y: number }>;
+}
+
+const HELPER_LAYOUTS: Record<HelperId, HelperMemoryLayout> = {
+  tinySprinkler: {
+    x: -1120,
+    y: 0,
+    scale: 1.12,
+    mode: { x: 10, y: -390 },
+    ranks: {
+      throughput: { x: -90, y: -160 },
+      efficiency: { x: 120, y: -220 },
+      storage: { x: -120, y: 160 },
+      startingStock: { x: 60, y: 220 },
+    },
+  },
+  fieldMouse: {
+    x: -770,
+    y: -170,
+    scale: 0.98,
+    mode: { x: 210, y: 190 },
+    ranks: {
+      throughput: { x: -140, y: -150 },
+      efficiency: { x: 100, y: -210 },
+      storage: { x: -200, y: 90 },
+      startingStock: { x: 10, y: 240 },
+    },
+  },
+  beeHive: {
+    x: -390,
+    y: -320,
+    scale: 1.04,
+    mode: { x: 290, y: -160 },
+    ranks: {
+      throughput: { x: -140, y: -180 },
+      efficiency: { x: 130, y: -230 },
+      storage: { x: -200, y: 60 },
+      startingStock: { x: -90, y: 230 },
+    },
+  },
+  chickenPatrol: {
+    x: 30,
+    y: -140,
+    scale: 0.96,
+    mode: { x: 250, y: -120 },
+    ranks: {
+      throughput: { x: -150, y: -160 },
+      efficiency: { x: 140, y: -220 },
+      storage: { x: -220, y: 150 },
+      startingStock: { x: 50, y: 260 },
+    },
+  },
+  earthwormCrew: {
+    x: 430,
+    y: 100,
+    scale: 1.04,
+    mode: { x: 250, y: -120 },
+    ranks: {
+      throughput: { x: -170, y: -150 },
+      efficiency: { x: 140, y: -210 },
+      storage: { x: -220, y: 130 },
+      startingStock: { x: -20, y: 260 },
+    },
+  },
+  ancientRoots: {
+    x: 800,
+    y: 300,
+    scale: 1.16,
+    mode: { x: 250, y: 60 },
+    ranks: {
+      throughput: { x: -150, y: -180 },
+      efficiency: { x: 130, y: -220 },
+      storage: { x: -210, y: 90 },
+      startingStock: { x: -40, y: 260 },
+    },
+  },
+  sheepLoop: {
+    x: 1150,
+    y: 130,
+    scale: 1,
+    mode: { x: 220, y: 300 },
+    ranks: {
+      throughput: { x: -150, y: -160 },
+      efficiency: { x: 120, y: -230 },
+      storage: { x: -220, y: 130 },
+      startingStock: { x: 50, y: 240 },
+    },
+  },
+  meadowRabbit: {
+    x: 1480,
+    y: -100,
+    scale: 0.98,
+    mode: { x: 260, y: 30 },
+    ranks: {
+      throughput: { x: -140, y: -170 },
+      efficiency: { x: 130, y: -240 },
+      storage: { x: -200, y: 140 },
+      startingStock: { x: -10, y: 270 },
+    },
+  },
+};
+
+const RANK_VISUAL_SCALES: Record<PermanentRankKind, number> = {
+  throughput: 0.76,
+  efficiency: 0.72,
+  storage: 0.8,
+  startingStock: 0.7,
 };
 
 const RANK_META: Record<PermanentRankKind, { label: string; description: string; iconKey: string; iconPath: string }> = {
@@ -98,8 +211,9 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       description: "The first remembered touch. Every permanent branch grows from here.",
       color: 0xffe889,
       iconKey: "eco-player",
-      x: -1580,
-      y: 0,
+      x: -1470,
+      y: 40,
+      visualScale: 1.2,
       prerequisites: [],
     },
     {
@@ -111,8 +225,9 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       color: 0xf0cc62,
       iconKey: "memory-icon-fast-touch",
       iconPath: "/assets/ui/skills/mindful-contact.png",
-      x: -1710,
-      y: -270,
+      x: -1670,
+      y: -170,
+      visualScale: 0.92,
       prerequisites: [ROOT_ID],
       touchKind: "fastTouch",
     },
@@ -125,8 +240,9 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       color: 0x8de7ff,
       iconKey: "memory-icon-broad-palm",
       iconPath: "/assets/ui/skills/palm-press.png",
-      x: -1480,
-      y: -250,
+      x: -1450,
+      y: -260,
+      visualScale: 0.96,
       prerequisites: [ROOT_ID],
       touchKind: "broadPalm",
     },
@@ -139,8 +255,9 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       color: 0x8de7ff,
       iconKey: "memory-icon-many-hands",
       iconPath: "/assets/ui/skills/two-handed-technique.png",
-      x: -1480,
+      x: -1340,
       y: -470,
+      visualScale: 0.94,
       prerequisites: ["touch:broadPalm"],
       touchKind: "manyHands",
     },
@@ -153,8 +270,9 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       color: 0xf1a6ce,
       iconKey: "memory-icon-field-embrace",
       iconPath: "/assets/ui/skills/ecosystem-loop.png",
-      x: -1480,
-      y: -680,
+      x: -1430,
+      y: -700,
+      visualScale: 1.1,
       prerequisites: ["touch:manyHands"],
     },
     {
@@ -166,8 +284,9 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       color: 0x9bd66f,
       iconKey: "memory-icon-field-tier",
       iconPath: "/assets/ui/skills/root-network.png",
-      x: -1480,
+      x: -1600,
       y: 420,
+      visualScale: 1.04,
       prerequisites: [ROOT_ID],
     },
   ];
@@ -175,7 +294,8 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
   for (let index = 0; index < HELPER_IDS.length; index += 1) {
     const helperId = HELPER_IDS[index];
     const helper = HELPERS[helperId];
-    const x = HELPER_START_X + index * HELPER_STEP_X;
+    const layout = HELPER_LAYOUTS[helperId];
+    const { x, y } = layout;
     const prerequisite = index === 0 ? ROOT_ID : helperUnlockId(HELPER_IDS[index - 1]);
     nodes.push({
       id: helperUnlockId(helperId),
@@ -186,19 +306,15 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       color: HELPER_COLORS[helperId],
       iconKey: `eco-helper-${helperId}`,
       x,
-      y: 0,
+      y,
+      visualScale: layout.scale,
       prerequisites: [prerequisite],
       helperId,
     });
 
-    const rankPositions: Record<PermanentRankKind, { x: number; y: number }> = {
-      throughput: { x: x - 112, y: -185 },
-      efficiency: { x: x + 112, y: -185 },
-      storage: { x: x - 112, y: 190 },
-      startingStock: { x: x + 112, y: 190 },
-    };
     for (const kind of ["throughput", "efficiency", "storage", "startingStock"] as const) {
       const meta = RANK_META[kind];
+      const offset = layout.ranks[kind];
       nodes.push({
         id: helperRankId(helperId, kind),
         kind: "helperRank",
@@ -208,8 +324,9 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
         color: HELPER_COLORS[helperId],
         iconKey: meta.iconKey,
         iconPath: meta.iconPath,
-        x: rankPositions[kind].x,
-        y: rankPositions[kind].y,
+        x: x + offset.x,
+        y: y + offset.y,
+        visualScale: RANK_VISUAL_SCALES[kind],
         prerequisites: [helperUnlockId(helperId)],
         helperId,
         rankKind: kind,
@@ -226,8 +343,9 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       color: HELPER_COLORS[helperId],
       iconKey: "memory-icon-helper-mode",
       iconPath: "/assets/ui/skills/helper-routes.png",
-      x,
-      y: -360,
+      x: x + layout.mode.x,
+      y: y + layout.mode.y,
+      visualScale: 0.86,
       prerequisites: [helperUnlockId(helperId)],
       helperId,
     });

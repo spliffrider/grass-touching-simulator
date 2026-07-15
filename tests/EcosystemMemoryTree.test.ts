@@ -66,4 +66,33 @@ describe("Ecosystem Memory Tree", () => {
       }
     }
   });
+
+  it("uses distinct organic helper-cluster silhouettes with clear node spacing", () => {
+    const helperUnlocks = ECOSYSTEM_MEMORY_NODES.filter((node) => node.kind === "helperUnlock");
+    expect(new Set(helperUnlocks.map((node) => node.y)).size).toBeGreaterThanOrEqual(6);
+
+    const silhouettes = helperUnlocks.map((unlock) => ECOSYSTEM_MEMORY_NODES
+      .filter((node) => node.helperId === unlock.helperId && node.id !== unlock.id)
+      .map((node) => `${node.kind}:${node.rankKind ?? "mode"}:${node.x - unlock.x},${node.y - unlock.y}`)
+      .sort()
+      .join("|"));
+    expect(new Set(silhouettes).size).toBe(helperUnlocks.length);
+
+    const crowdedPairs: string[] = [];
+    for (let leftIndex = 0; leftIndex < ECOSYSTEM_MEMORY_NODES.length; leftIndex += 1) {
+      const left = ECOSYSTEM_MEMORY_NODES[leftIndex];
+      for (let rightIndex = leftIndex + 1; rightIndex < ECOSYSTEM_MEMORY_NODES.length; rightIndex += 1) {
+        const right = ECOSYSTEM_MEMORY_NODES[rightIndex];
+        if (Math.hypot(right.x - left.x, right.y - left.y) < 105) crowdedPairs.push(`${left.id} / ${right.id}`);
+      }
+    }
+    expect(crowdedPairs).toEqual([]);
+  });
+
+  it("makes unlocks visually dominant over their numeric rank nodes", () => {
+    for (const unlock of ECOSYSTEM_MEMORY_NODES.filter((node) => node.kind === "helperUnlock")) {
+      const ranks = ECOSYSTEM_MEMORY_NODES.filter((node) => node.helperId === unlock.helperId && node.kind === "helperRank");
+      for (const rank of ranks) expect(unlock.visualScale ?? 1).toBeGreaterThan(rank.visualScale ?? 1);
+    }
+  });
 });

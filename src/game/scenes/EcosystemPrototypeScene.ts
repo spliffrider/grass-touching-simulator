@@ -229,6 +229,7 @@ interface MemoryNodeView {
   status: Phaser.GameObjects.Text;
   rankPips: Phaser.GameObjects.Graphics | null;
   rankPipCount: number;
+  rankPipY: number;
 }
 
 interface MemoryTreeDragState {
@@ -376,8 +377,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private memoryCurrencyText!: Phaser.GameObjects.Text;
   private memoryTreeTitle!: Phaser.GameObjects.Text;
   private memoryTreeWorld!: Phaser.GameObjects.Container;
+  private memoryTreeDecor!: Phaser.GameObjects.Graphics;
   private memoryTreeLines!: Phaser.GameObjects.Graphics;
   private memoryTreeMaskShape!: Phaser.GameObjects.Graphics;
+  private readonly memoryConnectorPaths = new Map<string, Phaser.Math.Vector2[]>();
   private memoryNodeViews = new Map<string, MemoryNodeView>();
   private memoryDetailTitle!: Phaser.GameObjects.Text;
   private memoryDetailBranch!: Phaser.GameObjects.Text;
@@ -809,8 +812,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.memoryChrome = this.add.graphics();
     this.memoryTreeMaskShape = this.add.graphics().setVisible(false);
     this.memoryTreeWorld = this.add.container();
+    this.memoryTreeDecor = this.add.graphics();
     this.memoryTreeLines = this.add.graphics();
-    this.memoryTreeWorld.add(this.memoryTreeLines);
+    this.memoryTreeWorld.add([this.memoryTreeDecor, this.memoryTreeLines]);
     this.memoryTreeWorld.setMask(this.memoryTreeMaskShape.createGeometryMask());
     this.memoryTitle = this.createText("Memory Grove", 34, "#fff3c2", "bold");
     this.memorySubtitle = this.createText("The field is still. Spend Grass Touches on what the next run remembers.", 14, "#b8d9a4");
@@ -841,15 +845,29 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.memoryDetailStatus,
     ]);
 
+    this.drawMemoryTreeDecor();
+
     for (const definition of ECOSYSTEM_MEMORY_NODES) {
+      const visualScale = definition.visualScale ?? 1;
+      const frameSize = 88 * visualScale;
+      const iconSize = 46 * visualScale;
+      const titleY = frameSize / 2 + 10;
+      const rankPipY = frameSize / 2 + 4;
       const container = this.add.container(definition.x, definition.y);
-      const hitArea = this.add.rectangle(0, 8, 138, 144, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
-      const glow = this.add.circle(0, 0, 56, definition.color, 0.08).setStrokeStyle(2, definition.color, 0.34);
-      const frame = this.add.image(0, 0, "memory-node-locked").setOrigin(0.5).setDisplaySize(88, 88);
-      const icon = this.add.image(0, 0, definition.iconKey).setOrigin(0.5).setDisplaySize(46, 46);
+      const hitArea = this.add.rectangle(
+        0,
+        8,
+        Math.max(104, 138 * visualScale),
+        Math.max(118, 144 * visualScale),
+        0xffffff,
+        0.001,
+      ).setInteractive({ useHandCursor: true });
+      const glow = this.add.circle(0, 0, 56 * visualScale, definition.color, 0.08).setStrokeStyle(2, definition.color, 0.34);
+      const frame = this.add.image(0, 0, "memory-node-locked").setOrigin(0.5).setDisplaySize(frameSize, frameSize);
+      const icon = this.add.image(0, 0, definition.iconKey).setOrigin(0.5).setDisplaySize(iconSize, iconSize);
       icon.setData("baseScaleX", icon.scaleX).setData("baseScaleY", icon.scaleY);
-      const title = this.createText(definition.label, 14, "#fff3c2", "bold").setOrigin(0.5, 0).setPosition(0, 54).setAlign("center");
-      const status = this.createText("", 10, "#b8d9a4", "bold").setOrigin(0.5, 0).setPosition(0, 76).setAlign("center");
+      const title = this.createText(definition.label, 14, "#fff3c2", "bold").setOrigin(0.5, 0).setPosition(0, titleY).setAlign("center");
+      const status = this.createText("", 10, "#b8d9a4", "bold").setOrigin(0.5, 0).setPosition(0, titleY + 22).setAlign("center");
       const maxRank = this.getMemoryNodeMaxRank(definition);
       const rankPips = maxRank > 1 ? this.add.graphics() : null;
       if (rankPips) rankPips.setData("rank", -1);
@@ -866,6 +884,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         status,
         rankPips,
         rankPipCount: maxRank,
+        rankPipY,
       });
 
       hitArea.on("pointerover", () => this.previewMemoryNode(definition.id));
@@ -1394,7 +1413,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.memoryDetailIcon.setPosition(iconX, iconY).setDisplaySize(40, 40);
       this.memoryDetailTitle.setFontSize(18).setPosition(detailX + 108, detailY + 18).setWordWrapWidth(detailWidth - 122);
       this.memoryDetailBranch.setPosition(detailX + 108, detailY + 48).setWordWrapWidth(detailWidth - 122);
-      this.memoryDetail.setFontSize(10).setPosition(detailX + 18, detailY + 108).setWordWrapWidth(detailWidth - 36);
+      this.memoryDetail.setFontSize(10).setPosition(detailX + 108, detailY + 72).setWordWrapWidth(detailWidth - 122);
       this.memoryDetailStatus.setFontSize(10).setPosition(detailX + 18, detailY + detailHeight - 42).setWordWrapWidth(detailWidth - 36);
     } else {
       const iconX = detailX + detailWidth / 2;
@@ -2648,8 +2667,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const x = (index - (view.rankPipCount - 1) / 2) * 8;
       graphics
         .fillStyle(index < rank ? view.definition.color : 0x11261a, index < rank ? 1 : 0.94)
-        .fillCircle(x, 48, 2.7)
-        .strokeCircle(x, 48, 2.7);
+        .fillCircle(x, view.rankPipY, 2.7)
+        .strokeCircle(x, view.rankPipY, 2.7);
     }
     graphics.setData("rank", rank);
   }
@@ -2664,9 +2683,106 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const active = runtime.complete || runtime.rank > 0;
       const color = active ? to.color : runtime.affordable ? 0xffe889 : runtime.unlocked ? 0x6f8e61 : 0x294033;
       const alpha = active ? 0.82 : runtime.affordable ? 0.72 : runtime.unlocked ? 0.42 : 0.2;
-      this.memoryTreeLines.lineStyle(11, 0x020805, 0.88).lineBetween(from.x, from.y, to.x, to.y);
-      this.memoryTreeLines.lineStyle(active ? 5 : 3, color, alpha).lineBetween(from.x, from.y, to.x, to.y);
+      const bend = this.getMemoryConnectorBend(edge, to);
+      this.strokeMemoryConnector(from, to, bend, 11, 0x020805, 0.88);
+      this.strokeMemoryConnector(from, to, bend, active ? 5 : 3, color, alpha);
     }
+  }
+
+  private drawMemoryTreeDecor(): void {
+    this.memoryTreeDecor.clear();
+    const root = ECOSYSTEM_MEMORY_NODE_BY_ID.get("root:field-heir");
+    if (root) {
+      this.memoryTreeDecor
+        .fillStyle(root.color, 0.025)
+        .fillCircle(root.x, root.y, 148)
+        .lineStyle(3, root.color, 0.13)
+        .strokeCircle(root.x, root.y, 148)
+        .lineStyle(1, root.color, 0.08)
+        .strokeCircle(root.x, root.y, 182);
+    }
+
+    for (let helperIndex = 0; helperIndex < HELPER_IDS.length; helperIndex += 1) {
+      const helperId = HELPER_IDS[helperIndex];
+      const cluster = ECOSYSTEM_MEMORY_NODES.filter((node) => node.helperId === helperId);
+      const unlock = cluster.find((node) => node.kind === "helperUnlock");
+      if (!unlock || cluster.length === 0) continue;
+      const minX = Math.min(...cluster.map((node) => node.x));
+      const maxX = Math.max(...cluster.map((node) => node.x));
+      const minY = Math.min(...cluster.map((node) => node.y));
+      const maxY = Math.max(...cluster.map((node) => node.y));
+      const width = Math.max(310, maxX - minX + 150);
+      const height = Math.max(330, maxY - minY + 150);
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const outerContour: Phaser.Math.Vector2[] = [];
+      const innerContour: Phaser.Math.Vector2[] = [];
+      for (let point = 0; point < 12; point += 1) {
+        const angle = (point / 12) * Math.PI * 2;
+        const outerWobble = 0.9 + ((point * 7 + helperIndex * 3) % 5) * 0.035 + Math.sin(angle * 3 + helperIndex) * 0.035;
+        const innerWobble = 0.68 + ((point * 5 + helperIndex) % 4) * 0.025 + Math.cos(angle * 2 + helperIndex) * 0.025;
+        outerContour.push(new Phaser.Math.Vector2(
+          centerX + Math.cos(angle) * width * 0.5 * outerWobble,
+          centerY + Math.sin(angle) * height * 0.5 * outerWobble,
+        ));
+        innerContour.push(new Phaser.Math.Vector2(
+          centerX + Math.cos(angle + 0.06) * width * 0.5 * innerWobble,
+          centerY + Math.sin(angle + 0.06) * height * 0.5 * innerWobble,
+        ));
+      }
+      this.memoryTreeDecor
+        .fillStyle(unlock.color, 0.03)
+        .fillPoints(outerContour, true)
+        .lineStyle(2, unlock.color, 0.14)
+        .strokePoints(outerContour, true)
+        .lineStyle(1, unlock.color, 0.075)
+        .strokePoints(innerContour, true);
+
+      for (let bud = 0; bud < 5; bud += 1) {
+        const angle = helperIndex * 0.83 + bud * 1.41;
+        const x = centerX + Math.cos(angle) * width * 0.48;
+        const y = centerY + Math.sin(angle) * height * 0.48;
+        this.memoryTreeDecor.fillStyle(unlock.color, 0.32).fillCircle(x, y, bud % 2 === 0 ? 4 : 2.5);
+      }
+    }
+  }
+
+  private getMemoryConnectorBend(edge: { from: string; to: string }, to: EcosystemMemoryNodeDefinition): number {
+    const key = `${edge.from}>${edge.to}`;
+    let hash = 0;
+    for (let index = 0; index < key.length; index += 1) hash = (hash * 31 + key.charCodeAt(index)) | 0;
+    const direction = (hash & 1) === 0 ? 1 : -1;
+    const strength = to.kind === "helperUnlock" ? 28 : to.kind === "capstone" ? 24 : 18;
+    return direction * strength;
+  }
+
+  private strokeMemoryConnector(
+    from: EcosystemMemoryNodeDefinition,
+    to: EcosystemMemoryNodeDefinition,
+    bend: number,
+    width: number,
+    color: number,
+    alpha: number,
+  ): void {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.max(1, Math.hypot(dx, dy));
+    const controlX = (from.x + to.x) / 2 - (dy / length) * bend;
+    const controlY = (from.y + to.y) / 2 + (dx / length) * bend;
+    const key = `${from.id}>${to.id}`;
+    let points = this.memoryConnectorPaths.get(key);
+    if (!points) {
+      const curve = new Phaser.Curves.QuadraticBezier(
+        new Phaser.Math.Vector2(from.x, from.y),
+        new Phaser.Math.Vector2(controlX, controlY),
+        new Phaser.Math.Vector2(to.x, to.y),
+      );
+      points = curve.getPoints(12);
+      this.memoryConnectorPaths.set(key, points);
+    }
+    this.memoryTreeLines
+      .lineStyle(width, color, alpha)
+      .strokePoints(points, false);
   }
 
   private refreshMemoryDetail(): void {
