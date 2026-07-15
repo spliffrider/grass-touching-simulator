@@ -96,6 +96,7 @@ describe("EcosystemSystem", () => {
 
   it("emits one consumable Tiny Sprinkler pulse after a completed production cycle", () => {
     const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
     permanent.unlockedHelpers.tinySprinkler = true;
     const state = createEcosystemState(permanent, { seed: 41 });
     state.helpers.tinySprinkler.count = 1;
@@ -136,6 +137,7 @@ describe("EcosystemSystem", () => {
 
   it("reports each first-automation teaching stage from unlock through Dew upkeep", () => {
     const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
     const state = createEcosystemState(permanent, { seed: 71 });
     expect(getFirstAutomationStatus(state, permanent).stage).toBe("locked");
 
@@ -278,15 +280,27 @@ describe("EcosystemSystem", () => {
   });
 
   it("ends the first manual run as a brief onboarding failure", () => {
-    expect(simulateManualRun(0, 0)).toBeGreaterThanOrEqual(1_500);
-    expect(simulateManualRun(0, 0)).toBeLessThanOrEqual(2_500);
+    expect(simulateManualRun(0, 0)).toBeGreaterThanOrEqual(750);
+    expect(simulateManualRun(0, 0)).toBeLessThanOrEqual(1_250);
   });
 
   it("overpowers a first-run player touching at every legal cooldown", () => {
     const duration = simulateCooldownLimitedManualRun(0, getManualTouchCooldownMs(0));
 
-    expect(duration).toBeGreaterThanOrEqual(1_500);
-    expect(duration).toBeLessThanOrEqual(2_500);
+    expect(duration).toBeGreaterThanOrEqual(750);
+    expect(duration).toBeLessThanOrEqual(1_250);
+  });
+
+  it("keeps Run 1 brutal even when prototype Memories were pre-unlocked", () => {
+    const permanent = createPermanentEcosystemState();
+    unlockAllPrototypeMemories(permanent);
+    const state = createEcosystemState(permanent, { seed: 5_005 });
+
+    while (state.active && state.elapsedMs < 5_000) advanceEcosystem(state, permanent, 250);
+
+    expect(state.runNumber).toBe(1);
+    expect(state.elapsedMs).toBeGreaterThanOrEqual(750);
+    expect(state.elapsedMs).toBeLessThanOrEqual(1_250);
   });
 
   it("does not grant free Scourge relief for repeated losses", () => {

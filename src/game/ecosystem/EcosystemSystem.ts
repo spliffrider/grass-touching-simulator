@@ -21,7 +21,9 @@ import {
 
 export const ECOSYSTEM_PERMANENT_VERSION = 1;
 export const ECOSYSTEM_ACTIVE_VERSION = 1;
-const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.2;
+const FIRST_RUN_SCOURGE_BASE = 4;
+const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.18;
+const PRE_AUTOMATION_SCOURGE_RAMP_SECONDS = 0.2;
 
 export type HelperRankRecord = Record<HelperId, number>;
 export type HelperUnlockRecord = Record<HelperId, boolean>;
@@ -789,16 +791,20 @@ function performRecipe(
 }
 
 function getScourgeDemand(state: EcosystemState, permanent: PermanentEcosystemState): number {
+  const ageSeconds = state.elapsedMs / 1_000;
+  if (state.runNumber === 1) {
+    return FIRST_RUN_SCOURGE_BASE * Math.pow(1 + ageSeconds / FIRST_RUN_SCOURGE_RAMP_SECONDS, 2.12);
+  }
   const unlockedHelperCount = HELPER_IDS.reduce(
     (count, helperId) => count + (permanent.unlockedHelpers[helperId] ? 1 : 0),
     0,
   );
   const rampSeconds = unlockedHelperCount === 0
-    ? FIRST_RUN_SCOURGE_RAMP_SECONDS
+    ? PRE_AUTOMATION_SCOURGE_RAMP_SECONDS
     : unlockedHelperCount <= 5
       ? 44 * Math.pow(2.03, unlockedHelperCount)
       : 1_520 * Math.pow(1.34, unlockedHelperCount - 5);
-  const ageRatio = state.elapsedMs / 1_000 / rampSeconds;
+  const ageRatio = ageSeconds / rampSeconds;
   const tileScale = 1 + Math.log2(state.field.stages.length + 1) * 0.11;
   return 0.72 * tileScale * Math.pow(1 + ageRatio, 2.12);
 }
