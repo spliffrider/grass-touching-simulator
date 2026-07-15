@@ -27,10 +27,10 @@
   "release": {
     "branch": "codex/ecosystem-factory-prototype",
     "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
-    "status": "Verified local balance checkpoint; not pushed, merged into master, or promoted to production."
+    "status": "Verified balance checkpoint committed and pushed to origin; not merged into master or promoted to production."
   },
   "currentGitStatus": [
-    "The balance implementation, tests, and this handoff are intended for one local commit on codex/ecosystem-factory-prototype.",
+    "All intended balance implementation, tests, and handoff files are committed on codex/ecosystem-factory-prototype and pushed to origin.",
     "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
     "The local Vite server remains available at http://127.0.0.1:5173."
   ],
