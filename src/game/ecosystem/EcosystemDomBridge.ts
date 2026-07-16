@@ -1,5 +1,12 @@
 import { HELPER_IDS, HELPERS, PRODUCTION_RESOURCE_IDS, PRODUCTION_RESOURCES, TILE_STAGE_COUNT, TileStage, type HelperId } from "./EcosystemCatalog";
 import {
+  FIRST_ECOSYSTEM_MEMORY_NODE_ID,
+  getHelperModeMemoryId,
+  getHelperRankMemoryId,
+  getHelperUnlockMemoryId,
+  getRevealedEcosystemMemoryNodeIds,
+} from "./EcosystemMemoryTree";
+import {
   canBeginNextEcosystemRun,
   getCultivationCost,
   getDominantChunkStage,
@@ -81,6 +88,8 @@ export class EcosystemDomBridge {
   private readonly worksButton: HTMLButtonElement;
   private readonly optionsButton: HTMLButtonElement;
   private readonly nextRunButton: HTMLButtonElement;
+  private readonly fieldTierButton: HTMLButtonElement;
+  private readonly fieldEmbraceButton: HTMLButtonElement;
   private readonly playtestStatus?: HTMLOutputElement;
   private semanticControlIndex = 0;
 
@@ -165,11 +174,17 @@ export class EcosystemDomBridge {
       this.memoryButtons.push({ element, touchKind });
       return element;
     });
-    memories.append(
-      this.createButton("Unlock next field size", () => this.actions.unlockFieldTier(), "ecosystem-unlock-field"),
-      ...touchButtons,
-      this.createButton("Unlock Field Embrace", () => this.actions.buyFieldEmbrace(), "ecosystem-unlock-field-embrace"),
+    this.fieldTierButton = this.createButton(
+      "Unlock next field size",
+      () => this.actions.unlockFieldTier(),
+      "ecosystem-unlock-field",
     );
+    this.fieldEmbraceButton = this.createButton(
+      "Unlock Field Embrace",
+      () => this.actions.buyFieldEmbrace(),
+      "ecosystem-unlock-field-embrace",
+    );
+    memories.append(this.fieldTierButton, ...touchButtons, this.fieldEmbraceButton);
     this.root.append(memories);
 
     if (playtest) {
@@ -198,7 +213,13 @@ export class EcosystemDomBridge {
     document.documentElement.dataset.grassEcosystemDom = "ready";
   }
 
-  update(state: EcosystemState, permanent: PermanentEcosystemState, worksOpen: boolean, optionsOpen: boolean): void {
+  update(
+    state: EcosystemState,
+    permanent: PermanentEcosystemState,
+    worksOpen: boolean,
+    optionsOpen: boolean,
+    memoryRevealActive = false,
+  ): void {
     const dominantChunks = Array.from({ length: TILE_STAGE_COUNT }, () => 0);
     for (let chunkIndex = 0; chunkIndex < state.field.dirtyChunks.length; chunkIndex += 1) {
       dominantChunks[getDominantChunkStage(state.field, chunkIndex) as TileStage] += 1;
@@ -213,6 +234,9 @@ export class EcosystemDomBridge {
     const automationLine = getAutomationReadableLine(firstAutomation);
     const firstCollapse = isFirstEcosystemCollapse(state, permanent);
     const firstMemoryPending = isFirstCollapseAwaitingSprinkler(state, permanent);
+    const revealedMemoryNodeIds = memoryRevealActive
+      ? new Set([FIRST_ECOSYSTEM_MEMORY_NODE_ID])
+      : getRevealedEcosystemMemoryNodeIds(permanent, firstMemoryPending);
     const equipmentAvailable = isRunEquipmentAvailable(state);
     const worksAvailable = equipmentAvailable && permanent.unlockedHelpers.tinySprinkler;
     const lines = [
@@ -257,7 +281,10 @@ export class EcosystemDomBridge {
       : firstCollapse
         ? "Begin Run 2"
         : "Begin next run");
-    this.setDisabled(this.nextRunButton, !canBeginNextEcosystemRun(state, permanent));
+    this.setDisabled(
+      this.nextRunButton,
+      memoryRevealActive || !canBeginNextEcosystemRun(state, permanent),
+    );
 
     for (const button of this.buyButtons) {
       const helperId = button.helperId!;
@@ -284,6 +311,7 @@ export class EcosystemDomBridge {
     for (const button of this.memoryButtons) {
       if (button.touchKind) {
         const kind = button.touchKind;
+        const nodeId = `touch:${kind}`;
         const rank = kind === "fastTouch"
           ? permanent.fastTouchRank
           : kind === "broadPalm"
@@ -293,7 +321,7 @@ export class EcosystemDomBridge {
         const maxRank = 10;
         const cost = rank >= maxRank ? 0 : getTouchRankCost(kind, rank);
         const label = kind === "fastTouch" ? "Fast Touch" : kind === "broadPalm" ? "Broad Palm" : "Many Hands";
-        this.setHidden(button.element, state.active);
+        this.setHidden(button.element, state.active || !revealedMemoryNodeIds.has(nodeId));
         this.setDisabled(button.element, !unlocked || rank >= maxRank || permanent.grassTouches < cost);
         this.setText(button.element, rank >= maxRank
           ? `${label} ${rank}/${maxRank}; complete`
@@ -302,6 +330,7 @@ export class EcosystemDomBridge {
       }
       const helperId = button.helperId!;
       if (button.rankKind) {
+        const nodeId = getHelperRankMemoryId(helperId, button.rankKind);
         const rank = button.rankKind === "throughput"
           ? permanent.throughputRanks[helperId]
           : button.rankKind === "storage"
@@ -311,21 +340,44 @@ export class EcosystemDomBridge {
               : permanent.startingStockRanks[helperId];
         const maxRank = button.rankKind === "startingStock" ? 5 : 10;
         const cost = getPermanentRankCost(permanent, helperId, button.rankKind);
-        this.setHidden(button.element, state.active || !permanent.unlockedHelpers[helperId]);
+        this.setHidden(
+          button.element,
+          state.active
+          || !revealedMemoryNodeIds.has(nodeId)
+          || !permanent.unlockedHelpers[helperId],
+        );
         this.setDisabled(button.element, rank >= maxRank || permanent.grassTouches < cost);
         this.setText(button.element, `${HELPERS[helperId].label} ${button.rankKind} ${rank}/${maxRank}; next ${cost} GT`);
       } else if (button.modeId) {
+        const nodeId = getHelperModeMemoryId(helperId);
         const owned = permanent.unlockedModes[helperId].includes(button.modeId);
         const cost = getModeUnlockCost(helperId);
-        this.setHidden(button.element, state.active || !permanent.unlockedHelpers[helperId] || owned);
+        this.setHidden(
+          button.element,
+          state.active
+          || !revealedMemoryNodeIds.has(nodeId)
+          || !permanent.unlockedHelpers[helperId]
+          || owned,
+        );
         this.setDisabled(button.element, permanent.grassTouches < cost);
       } else {
+        const nodeId = getHelperUnlockMemoryId(helperId);
         const prerequisite = HELPERS[helperId].unlockRequires;
         const cost = getHelperUnlockCost(helperId);
-        this.setHidden(button.element, state.active || permanent.unlockedHelpers[helperId]);
+        this.setHidden(
+          button.element,
+          state.active
+          || !revealedMemoryNodeIds.has(nodeId)
+          || permanent.unlockedHelpers[helperId],
+        );
         this.setDisabled(button.element, Boolean(prerequisite && !permanent.unlockedHelpers[prerequisite]) || permanent.grassTouches < cost);
       }
     }
+    this.setHidden(this.fieldTierButton, state.active || !revealedMemoryNodeIds.has("field:tier"));
+    this.setHidden(
+      this.fieldEmbraceButton,
+      state.active || !revealedMemoryNodeIds.has("touch:fieldEmbrace"),
+    );
     if (this.playtestStatus) {
       this.setOutput(this.playtestStatus, `HP ${state.hp.toFixed(1)} | RT ${state.runTouches.toFixed(0)} | GT ${permanent.grassTouches.toFixed(0)} | ${state.field.width}x${state.field.height}`);
     }
@@ -345,6 +397,9 @@ export class EcosystemDomBridge {
       grassTouches: Number(permanent.grassTouches.toFixed(3)),
       fastTouchRank: permanent.fastTouchRank,
       firstAutomationStage: firstAutomation.stage,
+      firstMemoryFocus: firstMemoryPending || memoryRevealActive,
+      memoryRevealActive,
+      revealedMemoryNodes: state.active ? 0 : revealedMemoryNodeIds.size,
       equipmentAvailable,
       tinySprinklers: equipmentAvailable ? tinySprinkler.count : 0,
       firstSprinklerCost,

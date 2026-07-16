@@ -3,11 +3,22 @@ import {
   ECOSYSTEM_MEMORY_EDGES,
   ECOSYSTEM_MEMORY_NODES,
   ECOSYSTEM_MEMORY_NODE_BY_ID,
+  ECOSYSTEM_MEMORY_ROOT_ID,
   ECOSYSTEM_MEMORY_WORLD_HEIGHT,
   ECOSYSTEM_MEMORY_WORLD_WIDTH,
+  FIRST_ECOSYSTEM_MEMORY_NODE_ID,
   getEcosystemMemoryNodeVisualRadius,
+  getHelperModeMemoryId,
+  getHelperRankMemoryId,
+  getHelperUnlockMemoryId,
+  getRevealedEcosystemMemoryNodeIds,
 } from "../src/game/ecosystem/EcosystemMemoryTree";
-import { getTouchRankCost } from "../src/game/ecosystem/EcosystemSystem";
+import {
+  createPermanentEcosystemState,
+  getHelperUnlockCost,
+  getTouchRankCost,
+  unlockHelper,
+} from "../src/game/ecosystem/EcosystemSystem";
 
 interface Point {
   x: number;
@@ -153,5 +164,39 @@ describe("Ecosystem Memory Tree", () => {
       const ranks = ECOSYSTEM_MEMORY_NODES.filter((node) => node.helperId === unlock.helperId && node.kind === "helperRank");
       for (const rank of ranks) expect(unlock.visualScale ?? 1).toBeGreaterThan(rank.visualScale ?? 1);
     }
+  });
+
+  it("reveals the first Memory alone, then grows only the next reachable branches", () => {
+    const permanent = createPermanentEcosystemState();
+    const firstFocus = getRevealedEcosystemMemoryNodeIds(permanent, true);
+
+    expect([...firstFocus]).toEqual([FIRST_ECOSYSTEM_MEMORY_NODE_ID]);
+    expect(firstFocus.has(ECOSYSTEM_MEMORY_ROOT_ID)).toBe(false);
+    expect(firstFocus.has(getHelperUnlockMemoryId("fieldMouse"))).toBe(false);
+
+    permanent.grassTouches = getHelperUnlockCost("tinySprinkler");
+    expect(unlockHelper(permanent, "tinySprinkler")).toBe(true);
+    const firstBranches = getRevealedEcosystemMemoryNodeIds(permanent);
+
+    expect(firstBranches.size).toBe(11);
+    expect(firstBranches.has(ECOSYSTEM_MEMORY_ROOT_ID)).toBe(true);
+    expect(firstBranches.has(FIRST_ECOSYSTEM_MEMORY_NODE_ID)).toBe(true);
+    expect(firstBranches.has(getHelperUnlockMemoryId("fieldMouse"))).toBe(true);
+    expect(firstBranches.has(getHelperUnlockMemoryId("beeHive"))).toBe(false);
+    expect(firstBranches.has(getHelperRankMemoryId("tinySprinkler", "throughput"))).toBe(true);
+    expect(firstBranches.has(getHelperModeMemoryId("tinySprinkler"))).toBe(true);
+    expect(firstBranches.has(getHelperRankMemoryId("fieldMouse", "throughput"))).toBe(false);
+    expect(firstBranches.has("touch:fastTouch")).toBe(true);
+    expect(firstBranches.has("touch:broadPalm")).toBe(true);
+    expect(firstBranches.has("touch:manyHands")).toBe(false);
+    expect(firstBranches.has("field:tier")).toBe(true);
+
+    permanent.grassTouches = getHelperUnlockCost("fieldMouse");
+    expect(unlockHelper(permanent, "fieldMouse")).toBe(true);
+    const mouseBranches = getRevealedEcosystemMemoryNodeIds(permanent);
+
+    expect(mouseBranches.has(getHelperUnlockMemoryId("beeHive"))).toBe(true);
+    expect(mouseBranches.has(getHelperRankMemoryId("fieldMouse", "throughput"))).toBe(true);
+    expect(mouseBranches.has(getHelperUnlockMemoryId("chickenPatrol"))).toBe(false);
   });
 });

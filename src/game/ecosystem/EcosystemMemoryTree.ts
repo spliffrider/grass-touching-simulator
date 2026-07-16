@@ -1,5 +1,9 @@
 import { HELPER_IDS, HELPERS, type HelperId } from "./EcosystemCatalog";
-import type { PermanentRankKind, PermanentTouchRankKind } from "./EcosystemSystem";
+import type {
+  PermanentEcosystemState,
+  PermanentRankKind,
+  PermanentTouchRankKind,
+} from "./EcosystemSystem";
 
 const MEMORY_LAYOUT_SCALE = 1.3;
 
@@ -40,7 +44,8 @@ export interface EcosystemMemoryEdge {
   to: string;
 }
 
-const ROOT_ID = "root:field-heir";
+export const ECOSYSTEM_MEMORY_ROOT_ID = "root:field-heir";
+export const FIRST_ECOSYSTEM_MEMORY_NODE_ID = "helper:tinySprinkler:unlock";
 const HELPER_COLORS: Record<HelperId, number> = {
   tinySprinkler: 0x78d9ef,
   fieldMouse: 0x9bd66f,
@@ -216,7 +221,7 @@ function helperModeId(helperId: HelperId): string {
 function buildNodes(): EcosystemMemoryNodeDefinition[] {
   const nodes: EcosystemMemoryNodeDefinition[] = [
     {
-      id: ROOT_ID,
+      id: ECOSYSTEM_MEMORY_ROOT_ID,
       kind: "root",
       label: "Field Heir",
       branch: "Origin",
@@ -240,7 +245,7 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       x: scalePosition(-1670),
       y: scalePosition(-170),
       visualScale: 0.92,
-      prerequisites: [ROOT_ID],
+      prerequisites: [ECOSYSTEM_MEMORY_ROOT_ID],
       touchKind: "fastTouch",
     },
     {
@@ -255,7 +260,7 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       x: scalePosition(-1450),
       y: scalePosition(-260),
       visualScale: 0.96,
-      prerequisites: [ROOT_ID],
+      prerequisites: [ECOSYSTEM_MEMORY_ROOT_ID],
       touchKind: "broadPalm",
     },
     {
@@ -299,7 +304,7 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       x: scalePosition(-1600),
       y: scalePosition(420),
       visualScale: 1.04,
-      prerequisites: [ROOT_ID],
+      prerequisites: [ECOSYSTEM_MEMORY_ROOT_ID],
     },
   ];
 
@@ -309,7 +314,7 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
     const layout = HELPER_LAYOUTS[helperId];
     const x = scalePosition(layout.x);
     const y = scalePosition(layout.y);
-    const prerequisite = index === 0 ? ROOT_ID : helperUnlockId(HELPER_IDS[index - 1]);
+    const prerequisite = index === 0 ? ECOSYSTEM_MEMORY_ROOT_ID : helperUnlockId(HELPER_IDS[index - 1]);
     nodes.push({
       id: helperUnlockId(helperId),
       kind: "helperUnlock",
@@ -388,4 +393,67 @@ export function getHelperRankMemoryId(helperId: HelperId, kind: PermanentRankKin
 
 export function getHelperModeMemoryId(helperId: HelperId): string {
   return helperModeId(helperId);
+}
+
+function isMemoryNodeOwned(
+  node: EcosystemMemoryNodeDefinition,
+  permanent: PermanentEcosystemState,
+): boolean {
+  if (node.kind === "root") return true;
+  if (node.kind === "helperUnlock") return permanent.unlockedHelpers[node.helperId!];
+  if (node.kind === "helperMode") {
+    const alternateMode = HELPERS[node.helperId!].modes[1];
+    return permanent.unlockedModes[node.helperId!].includes(alternateMode.id);
+  }
+  if (node.kind === "helperRank") {
+    const helperId = node.helperId!;
+    if (node.rankKind === "throughput") return permanent.throughputRanks[helperId] > 0;
+    if (node.rankKind === "storage") return permanent.storageRanks[helperId] > 0;
+    if (node.rankKind === "efficiency") return permanent.efficiencyRanks[helperId] > 0;
+    return permanent.startingStockRanks[helperId] > 0;
+  }
+  if (node.kind === "fieldTier") return permanent.maxFieldTier > 0;
+  if (node.kind === "touchRank") {
+    if (node.touchKind === "fastTouch") return permanent.fastTouchRank > 0;
+    if (node.touchKind === "broadPalm") return permanent.broadPalmRank > 0;
+    return permanent.manyHandsRank > 0;
+  }
+  return permanent.fieldEmbrace;
+}
+
+export function isEcosystemMemoryNodeRevealed(
+  node: EcosystemMemoryNodeDefinition,
+  permanent: PermanentEcosystemState,
+  firstMemoryFocus = false,
+): boolean {
+  if (firstMemoryFocus && !permanent.unlockedHelpers.tinySprinkler) {
+    return node.id === FIRST_ECOSYSTEM_MEMORY_NODE_ID;
+  }
+  if (isMemoryNodeOwned(node, permanent)) return true;
+  if (node.kind === "helperUnlock") {
+    const prerequisite = HELPERS[node.helperId!].unlockRequires;
+    return !prerequisite || permanent.unlockedHelpers[prerequisite];
+  }
+  if (node.kind === "helperMode" || node.kind === "helperRank") {
+    return permanent.unlockedHelpers[node.helperId!];
+  }
+  if (node.kind === "fieldTier") return true;
+  if (node.kind === "touchRank") {
+    return node.touchKind !== "manyHands" || permanent.broadPalmRank >= 2;
+  }
+  if (node.kind === "capstone") {
+    return permanent.broadPalmRank >= 10 && permanent.manyHandsRank >= 10;
+  }
+  return true;
+}
+
+export function getRevealedEcosystemMemoryNodeIds(
+  permanent: PermanentEcosystemState,
+  firstMemoryFocus = false,
+): Set<string> {
+  return new Set(
+    ECOSYSTEM_MEMORY_NODES
+      .filter((node) => isEcosystemMemoryNodeRevealed(node, permanent, firstMemoryFocus))
+      .map((node) => node.id),
+  );
 }

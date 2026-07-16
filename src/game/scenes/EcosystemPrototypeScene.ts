@@ -35,13 +35,19 @@ import {
 } from "../ecosystem/EcosystemFieldInput";
 import {
   ECOSYSTEM_MEMORY_EDGES,
+  ECOSYSTEM_MEMORY_ROOT_ID,
   ECOSYSTEM_MEMORY_ICON_ASSETS,
   ECOSYSTEM_MEMORY_NODES,
   ECOSYSTEM_MEMORY_NODE_BY_ID,
   ECOSYSTEM_MEMORY_CONNECTOR_GAP,
   ECOSYSTEM_MEMORY_WORLD_HEIGHT,
   ECOSYSTEM_MEMORY_WORLD_WIDTH,
+  FIRST_ECOSYSTEM_MEMORY_NODE_ID,
   getEcosystemMemoryNodeVisualRadius,
+  getHelperModeMemoryId,
+  getHelperRankMemoryId,
+  getHelperUnlockMemoryId,
+  getRevealedEcosystemMemoryNodeIds,
   type EcosystemMemoryNodeDefinition,
 } from "../ecosystem/EcosystemMemoryTree";
 import { EcosystemPerformanceMonitor } from "../ecosystem/EcosystemPerformanceMonitor";
@@ -178,7 +184,8 @@ const HELPER_ARRIVAL_MS = 760;
 const HELPER_PULSE_ANIMATION_MS = 620;
 const HELPER_SOUND_INTERVAL_MS = 720;
 const TOUCH_READY_FLASH_MS = 220;
-const FIRST_MEMORY_NODE_ID = "helper:tinySprinkler:unlock";
+const FIRST_MEMORY_CELEBRATION_MS = 520;
+const FIRST_MEMORY_REVEAL_MS = 1_050;
 
 const TILE_STAGE_LABELS: Record<TileStage, string> = {
   [TileStage.Dormant]: "Sleeping Soil",
@@ -281,8 +288,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private memoryTreeViewport: FieldViewportBounds = { x: 0, y: 0, width: 1, height: 1 };
   private memoryTreeDragState: MemoryTreeDragState | null = null;
   private memoryTreeClickSuppressed = false;
-  private selectedMemoryNodeId = "helper:tinySprinkler:unlock";
+  private selectedMemoryNodeId = FIRST_ECOSYSTEM_MEMORY_NODE_ID;
   private hoveredMemoryNodeId: string | null = null;
+  private memoryRevealHoldIds: Set<string> | null = null;
+  private memoryRevealSequenceActive = false;
   private dragState: FieldPointerGesture | null = null;
   private saveElapsedMs = 0;
   private domElapsedMs = 0;
@@ -574,6 +583,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     if (!this.state.active && !this.lastGameOverState) {
       this.lastGameOverState = true;
       this.worksOpen = false;
+      this.memoryRevealHoldIds = null;
+      this.memoryRevealSequenceActive = false;
       this.resetTouchRecovery();
       this.audio.play("dormancy");
       this.prepareMemoryGroveView();
@@ -612,7 +623,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     if (this.domElapsedMs >= DOM_REFRESH_MS) {
       this.domElapsedMs %= DOM_REFRESH_MS;
       const domRefreshStart = performance.now();
-      this.domBridge?.update(this.state, this.permanent, this.worksOpen, this.optionsOpen);
+      this.domBridge?.update(
+        this.state,
+        this.permanent,
+        this.worksOpen,
+        this.optionsOpen,
+        this.memoryRevealSequenceActive,
+      );
       uiRefreshMs = Math.max(0, uiRefreshMs) + performance.now() - domRefreshStart;
     }
     if (this.playtest && this.harnessElapsedMs >= HARNESS_REFRESH_MS) {
@@ -981,12 +998,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       toggleWorks: () => this.toggleWorks(),
       toggleOptions: () => this.toggleOptions(),
       beginNextRun: () => this.beginNextRun(),
-      unlockHelper: (helperId) => this.performMemoryPurchase(() => unlockHelper(this.permanent, helperId)),
-      unlockMode: (helperId, modeId) => this.performMemoryPurchase(() => unlockHelperMode(this.permanent, helperId, modeId)),
-      buyRank: (helperId, kind) => this.performMemoryPurchase(() => purchasePermanentRank(this.permanent, helperId, kind)),
-      unlockFieldTier: () => this.performMemoryPurchase(() => unlockNextFieldTier(this.permanent)),
-      buyTouchRank: (kind) => this.performMemoryPurchase(() => purchaseTouchRank(this.permanent, kind)),
-      buyFieldEmbrace: () => this.performMemoryPurchase(() => purchaseFieldEmbrace(this.permanent)),
+      unlockHelper: (helperId) => this.buyMemoryNode(getHelperUnlockMemoryId(helperId)),
+      unlockMode: (helperId) => this.buyMemoryNode(getHelperModeMemoryId(helperId)),
+      buyRank: (helperId, kind) => this.buyMemoryNode(getHelperRankMemoryId(helperId, kind)),
+      unlockFieldTier: () => this.buyMemoryNode("field:tier"),
+      buyTouchRank: (kind) => this.buyMemoryNode(`touch:${kind}`),
+      buyFieldEmbrace: () => this.buyMemoryNode("touch:fieldEmbrace"),
       addPrototypeCurrency: () => {
         this.permanent.grassTouches += 250;
         this.state.runTouches += 250;
@@ -1723,10 +1740,24 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           ? `The first field was overwhelmed. Spend ${getHelperUnlockCost("tinySprinkler")} GT to remember Tiny Sprinkler.`
           : "Tiny Sprinkler is remembered. Run 2 can turn Dew into its first steady Care."
         : "The field is still. Spend Grass Touches on what the next run remembers.");
-      this.setTextIfChanged(this.memoryTreeTitle, firstCollapse ? "First Memory" : "Memory Web");
+      this.setTextIfChanged(
+        this.memoryTreeTitle,
+        firstCollapse && firstMemoryPending ? "First Memory" : "Memory Web",
+      );
       this.beginNextRunButton
-        .setLabel(firstMemoryPending ? "Remember Tiny Sprinkler First" : firstCollapse ? "Begin Run 2" : "Begin Next Run")
-        .setEnabled(canBeginNextEcosystemRun(this.state, this.permanent));
+        .setLabel(
+          this.memoryRevealSequenceActive
+            ? "Memory Web Awakening..."
+            : firstMemoryPending
+              ? "Remember Tiny Sprinkler First"
+              : firstCollapse
+                ? "Begin Run 2"
+                : "Begin Next Run",
+        )
+        .setEnabled(
+          !this.memoryRevealSequenceActive
+          && canBeginNextEcosystemRun(this.state, this.permanent),
+        );
       this.setTextIfChanged(this.memorySummary, summary
         ? firstCollapse
           ? [
@@ -1767,7 +1798,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.optionsSfxButton.setLabel(`SFX volume: ${Math.round(this.sfxVolume * 100)}%`);
     }
     if (force) {
-      this.domBridge?.update(this.state, this.permanent, this.worksOpen, this.optionsOpen);
+      this.domBridge?.update(
+        this.state,
+        this.permanent,
+        this.worksOpen,
+        this.optionsOpen,
+        this.memoryRevealSequenceActive,
+      );
       this.updateHarnessDataset();
       this.syncViewVisibility();
     }
@@ -2574,7 +2611,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private beginNextRun(): void {
-    if (!canBeginNextEcosystemRun(this.state, this.permanent)) {
+    if (
+      this.memoryRevealSequenceActive
+      || !canBeginNextEcosystemRun(this.state, this.permanent)
+    ) {
       this.audio.play("blocked");
       return;
     }
@@ -2582,6 +2622,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.displayedHpRatio = 1;
     this.hpHeartbeatPulse = 0;
     this.firstSprinklerCycleCelebrated = false;
+    this.memoryRevealHoldIds = null;
+    this.memoryRevealSequenceActive = false;
     this.resetTouchRecovery();
     this.lastGameOverState = false;
     this.fieldView = { centerX: 0.5, centerY: 0.5, zoom: 1 };
@@ -2593,16 +2635,18 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.refreshUi(true);
   }
 
-  private performMemoryPurchase(action: () => boolean): void {
-    if (this.state.active) return;
+  private performMemoryPurchase(action: () => boolean): boolean {
+    if (this.state.active) return false;
     if (action()) {
       this.audio.play("unlock");
       savePermanentEcosystemState(this.permanent);
       this.layout(this.scale.width, this.scale.height);
       this.refreshMemoryTree();
       this.refreshUi(true);
+      return true;
     } else {
       this.audio.play("blocked");
+      return false;
     }
   }
 
@@ -2789,11 +2833,30 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     };
   }
 
+  private getRevealedMemoryNodeIds(): Set<string> {
+    if (this.memoryRevealHoldIds) return this.memoryRevealHoldIds;
+    return getRevealedEcosystemMemoryNodeIds(
+      this.permanent,
+      isFirstCollapseAwaitingSprinkler(this.state, this.permanent),
+    );
+  }
+
   private refreshMemoryTree(): void {
     if (!this.memoryTreeWorld) return;
-    if (!ECOSYSTEM_MEMORY_NODE_BY_ID.has(this.selectedMemoryNodeId)) this.selectedMemoryNodeId = "root:field-heir";
+    const revealedNodeIds = this.getRevealedMemoryNodeIds();
+    if (
+      !ECOSYSTEM_MEMORY_NODE_BY_ID.has(this.selectedMemoryNodeId)
+      || !revealedNodeIds.has(this.selectedMemoryNodeId)
+    ) {
+      this.selectedMemoryNodeId = revealedNodeIds.has(FIRST_ECOSYSTEM_MEMORY_NODE_ID)
+        ? FIRST_ECOSYSTEM_MEMORY_NODE_ID
+        : revealedNodeIds.has(ECOSYSTEM_MEMORY_ROOT_ID)
+          ? ECOSYSTEM_MEMORY_ROOT_ID
+          : [...revealedNodeIds][0] ?? ECOSYSTEM_MEMORY_ROOT_ID;
+    }
     this.memoryCurrencyText.setText(`AVAILABLE GT  ${Math.floor(this.permanent.grassTouches)}`);
-    this.drawMemoryTreeConnectors();
+    this.drawMemoryTreeDecor(revealedNodeIds);
+    this.drawMemoryTreeConnectors(revealedNodeIds);
     for (const view of this.memoryNodeViews.values()) {
       const runtime = this.getMemoryNodeRuntime(view.definition);
       const selected = view.definition.id === this.selectedMemoryNodeId;
@@ -2832,9 +2895,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     graphics.setData("rank", rank);
   }
 
-  private drawMemoryTreeConnectors(): void {
+  private drawMemoryTreeConnectors(revealedNodeIds = this.getRevealedMemoryNodeIds()): void {
     this.memoryTreeLines.clear();
     for (const edge of ECOSYSTEM_MEMORY_EDGES) {
+      if (!revealedNodeIds.has(edge.from) || !revealedNodeIds.has(edge.to)) continue;
       const from = ECOSYSTEM_MEMORY_NODE_BY_ID.get(edge.from);
       const to = ECOSYSTEM_MEMORY_NODE_BY_ID.get(edge.to);
       if (!from || !to) continue;
@@ -2847,10 +2911,27 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
   }
 
-  private drawMemoryTreeDecor(): void {
+  private drawMemoryTreeDecor(revealedNodeIds = this.getRevealedMemoryNodeIds()): void {
     this.memoryTreeDecor.clear();
-    const root = ECOSYSTEM_MEMORY_NODE_BY_ID.get("root:field-heir");
-    if (root) {
+    if (
+      revealedNodeIds.size === 1
+      && revealedNodeIds.has(FIRST_ECOSYSTEM_MEMORY_NODE_ID)
+    ) {
+      const firstMemory = ECOSYSTEM_MEMORY_NODE_BY_ID.get(FIRST_ECOSYSTEM_MEMORY_NODE_ID);
+      if (firstMemory) {
+        this.memoryTreeDecor
+          .fillStyle(firstMemory.color, 0.045)
+          .fillCircle(firstMemory.x, firstMemory.y, 116)
+          .lineStyle(3, firstMemory.color, 0.2)
+          .strokeCircle(firstMemory.x, firstMemory.y, 116)
+          .lineStyle(1, firstMemory.color, 0.12)
+          .strokeCircle(firstMemory.x, firstMemory.y, 156);
+      }
+      return;
+    }
+
+    const root = ECOSYSTEM_MEMORY_NODE_BY_ID.get(ECOSYSTEM_MEMORY_ROOT_ID);
+    if (root && revealedNodeIds.has(root.id)) {
       this.memoryTreeDecor
         .fillStyle(root.color, 0.025)
         .fillCircle(root.x, root.y, 148)
@@ -2862,7 +2943,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
     for (let helperIndex = 0; helperIndex < HELPER_IDS.length; helperIndex += 1) {
       const helperId = HELPER_IDS[helperIndex];
-      const cluster = ECOSYSTEM_MEMORY_NODES.filter((node) => node.helperId === helperId);
+      const cluster = ECOSYSTEM_MEMORY_NODES.filter(
+        (node) => node.helperId === helperId && revealedNodeIds.has(node.id),
+      );
       const unlock = cluster.find((node) => node.kind === "helperUnlock");
       if (!unlock || cluster.length === 0) continue;
       const minX = Math.min(...cluster.map((node) => node.x));
@@ -2959,11 +3042,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const rankLine = runtime.maxRank > 1 ? `Rank ${runtime.rank} / ${runtime.maxRank}` : runtime.complete ? "Remembered" : "Single memory";
     this.memoryDetail.setText(`${definition.description}\n\n${rankLine}\n${runtime.effect}`);
     const firstCollapse = isFirstEcosystemCollapse(this.state, this.permanent);
-    if (firstCollapse && definition.id === FIRST_MEMORY_NODE_ID && !runtime.complete) {
+    if (firstCollapse && definition.id === FIRST_ECOSYSTEM_MEMORY_NODE_ID && !runtime.complete) {
       this.memoryDetailStatus
         .setText(`FIRST MEMORY  |  ${runtime.cost} GT\nRemember Tiny Sprinkler to unlock Run 2.`)
         .setColor("#ffe889");
-    } else if (firstCollapse && definition.id === FIRST_MEMORY_NODE_ID && runtime.complete) {
+    } else if (firstCollapse && definition.id === FIRST_ECOSYSTEM_MEMORY_NODE_ID && runtime.complete) {
       this.memoryDetailStatus
         .setText("FIRST MEMORY REMEMBERED\nRun 2 can now begin.")
         .setColor("#9bd66f");
@@ -2983,7 +3066,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private previewMemoryNode(nodeId: string): void {
     const view = this.memoryNodeViews.get(nodeId);
-    if (!view) return;
+    if (!view || !this.getRevealedMemoryNodeIds().has(nodeId)) return;
     this.hoveredMemoryNodeId = nodeId;
     this.selectedMemoryNodeId = nodeId;
     this.tweens.killTweensOf(view.icon);
@@ -3016,7 +3099,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private buyMemoryNode(nodeId: string): void {
     const definition = ECOSYSTEM_MEMORY_NODE_BY_ID.get(nodeId);
-    if (!definition) return;
+    if (
+      !definition
+      || this.memoryRevealSequenceActive
+      || !this.getRevealedMemoryNodeIds().has(nodeId)
+    ) {
+      return;
+    }
     this.selectedMemoryNodeId = nodeId;
     if (definition.kind === "root") {
       this.audio.play("skill_select");
@@ -3029,7 +3118,22 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.refreshMemoryTree();
       return;
     }
-    this.performMemoryPurchase(runtime.action);
+    const firstMemoryUnlock = isFirstCollapseAwaitingSprinkler(this.state, this.permanent)
+      && nodeId === FIRST_ECOSYSTEM_MEMORY_NODE_ID;
+    const previouslyRevealed = this.getRevealedMemoryNodeIds();
+    if (firstMemoryUnlock) {
+      this.memoryRevealSequenceActive = true;
+      this.memoryRevealHoldIds = new Set(previouslyRevealed);
+    }
+    const purchased = this.performMemoryPurchase(runtime.action);
+    if (!purchased) {
+      this.memoryRevealSequenceActive = false;
+      this.memoryRevealHoldIds = null;
+      return;
+    }
+    if (firstMemoryUnlock) {
+      this.playFirstMemoryReveal(previouslyRevealed);
+    }
   }
 
   private adjustMemoryTreeZoom(factor: number, focusX?: number, focusY?: number): void {
@@ -3052,27 +3156,214 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.applyMemoryTreeViewTransform();
   }
 
+  private getMemoryTreeFocus(
+    nodeIds: ReadonlySet<string>,
+    padding = 150,
+    maximumZoom = 8,
+  ): { zoom: number; panX: number; panY: number } {
+    const nodes = [...nodeIds]
+      .map((nodeId) => ECOSYSTEM_MEMORY_NODE_BY_ID.get(nodeId))
+      .filter((node): node is EcosystemMemoryNodeDefinition => Boolean(node));
+    if (nodes.length === 0 || this.memoryTreeFitScale <= 0) {
+      return { zoom: 1, panX: 0, panY: 0 };
+    }
+    const minX = Math.min(...nodes.map((node) => node.x - getEcosystemMemoryNodeVisualRadius(node)));
+    const maxX = Math.max(...nodes.map((node) => node.x + getEcosystemMemoryNodeVisualRadius(node)));
+    const minY = Math.min(...nodes.map((node) => node.y - getEcosystemMemoryNodeVisualRadius(node)));
+    const maxY = Math.max(...nodes.map((node) => node.y + getEcosystemMemoryNodeVisualRadius(node)));
+    const worldWidth = Math.max(1, maxX - minX + padding * 2);
+    const worldHeight = Math.max(1, maxY - minY + padding * 2);
+    const targetScale = Math.min(
+      this.memoryTreeViewport.width / worldWidth,
+      this.memoryTreeViewport.height / worldHeight,
+    ) * 0.9;
+    const zoom = Phaser.Math.Clamp(targetScale / this.memoryTreeFitScale, 1, maximumZoom);
+    const scale = this.memoryTreeFitScale * zoom;
+    return {
+      zoom,
+      panX: -((minX + maxX) / 2) * scale,
+      panY: -((minY + maxY) / 2) * scale,
+    };
+  }
+
   private resetMemoryTreeView(): void {
-    this.memoryTreeZoom = 1;
-    this.memoryTreePanX = 0;
-    this.memoryTreePanY = 0;
+    const focus = this.getMemoryTreeFocus(this.getRevealedMemoryNodeIds());
+    this.memoryTreeZoom = focus.zoom;
+    this.memoryTreePanX = focus.panX;
+    this.memoryTreePanY = focus.panY;
     if (this.memoryTreeWorld) this.applyMemoryTreeViewTransform();
   }
 
   private prepareMemoryGroveView(): void {
     if (!this.memoryTreeWorld || !isFirstEcosystemCollapse(this.state, this.permanent)) return;
-    const node = ECOSYSTEM_MEMORY_NODE_BY_ID.get(FIRST_MEMORY_NODE_ID);
+    const node = ECOSYSTEM_MEMORY_NODE_BY_ID.get(FIRST_ECOSYSTEM_MEMORY_NODE_ID);
     if (!node) return;
-    this.selectedMemoryNodeId = FIRST_MEMORY_NODE_ID;
-    this.memoryTreeZoom = this.scale.width < 760 ? 3.1 : 2.65;
-    const scale = this.memoryTreeFitScale * this.memoryTreeZoom;
-    this.memoryTreePanX = -node.x * scale;
-    this.memoryTreePanY = -node.y * scale;
+    this.selectedMemoryNodeId = FIRST_ECOSYSTEM_MEMORY_NODE_ID;
+    if (isFirstCollapseAwaitingSprinkler(this.state, this.permanent)) {
+      this.memoryTreeZoom = this.scale.width < 760 ? 7.4 : 5.8;
+      const scale = this.memoryTreeFitScale * this.memoryTreeZoom;
+      this.memoryTreePanX = -node.x * scale;
+      this.memoryTreePanY = -node.y * scale;
+    } else {
+      const focus = this.getMemoryTreeFocus(this.getRevealedMemoryNodeIds());
+      this.memoryTreeZoom = focus.zoom;
+      this.memoryTreePanX = focus.panX;
+      this.memoryTreePanY = focus.panY;
+    }
     this.applyMemoryTreeViewTransform();
+  }
+
+  private playFirstMemoryReveal(previouslyRevealed: ReadonlySet<string>): void {
+    const node = ECOSYSTEM_MEMORY_NODE_BY_ID.get(FIRST_ECOSYSTEM_MEMORY_NODE_ID);
+    const view = this.memoryNodeViews.get(FIRST_ECOSYSTEM_MEMORY_NODE_ID);
+    if (!node || !view) {
+      this.memoryRevealHoldIds = null;
+      this.memoryRevealSequenceActive = false;
+      this.refreshMemoryTree();
+      this.refreshUi(true);
+      return;
+    }
+
+    this.tweens.killTweensOf(view.icon);
+    this.tweens.killTweensOf(view.frame);
+    this.tweens.killTweensOf(view.glow);
+    const iconScaleX = Number(view.icon.getData("baseScaleX"));
+    const iconScaleY = Number(view.icon.getData("baseScaleY"));
+    const frameScaleX = view.frame.scaleX;
+    const frameScaleY = view.frame.scaleY;
+    const glowScaleX = view.glow.scaleX;
+    const glowScaleY = view.glow.scaleY;
+    this.tweens.add({
+      targets: view.icon,
+      scaleX: iconScaleX * 1.42,
+      scaleY: iconScaleY * 1.42,
+      duration: 240,
+      yoyo: true,
+      ease: "Back.easeOut",
+    });
+    this.tweens.add({
+      targets: view.frame,
+      scaleX: frameScaleX * 1.2,
+      scaleY: frameScaleY * 1.2,
+      duration: 300,
+      yoyo: true,
+      ease: "Sine.easeInOut",
+    });
+    this.tweens.add({
+      targets: view.glow,
+      scaleX: glowScaleX * 1.8,
+      scaleY: glowScaleY * 1.8,
+      alpha: 0.96,
+      duration: FIRST_MEMORY_CELEBRATION_MS,
+      yoyo: true,
+      ease: "Quad.easeOut",
+    });
+    this.tweens.add({
+      targets: [this.memoryDetailIconFrame, this.memoryDetailIconGlow],
+      alpha: 1,
+      duration: 180,
+      yoyo: true,
+      repeat: 1,
+    });
+
+    for (let index = 0; index < 2; index += 1) {
+      const ring = this.add.circle(
+        node.x,
+        node.y,
+        getEcosystemMemoryNodeVisualRadius(node) + 8,
+        node.color,
+        0,
+      ).setStrokeStyle(index === 0 ? 5 : 2, node.color, 0.92);
+      this.memoryTreeWorld.add(ring);
+      this.tweens.add({
+        targets: ring,
+        scale: index === 0 ? 2.7 : 3.45,
+        alpha: 0,
+        delay: index * 120,
+        duration: 680,
+        ease: "Cubic.easeOut",
+        onComplete: () => ring.destroy(),
+      });
+    }
+
+    this.time.delayedCall(FIRST_MEMORY_CELEBRATION_MS, () => {
+      this.memoryRevealHoldIds = null;
+      const revealedNodeIds = this.getRevealedMemoryNodeIds();
+      const newlyRevealed = [...revealedNodeIds]
+        .filter((nodeId) => !previouslyRevealed.has(nodeId))
+        .sort((leftId, rightId) => {
+          const left = ECOSYSTEM_MEMORY_NODE_BY_ID.get(leftId)!;
+          const right = ECOSYSTEM_MEMORY_NODE_BY_ID.get(rightId)!;
+          return Math.hypot(left.x - node.x, left.y - node.y)
+            - Math.hypot(right.x - node.x, right.y - node.y);
+        });
+      for (const nodeId of newlyRevealed) {
+        this.memoryNodeViews.get(nodeId)?.container.setAlpha(0).setScale(0.72);
+      }
+      this.refreshMemoryTree();
+      this.memoryTreeLines.setAlpha(0);
+      this.memoryTreeDecor.setAlpha(0.35);
+      this.audio.play("milestone");
+
+      const focus = this.getMemoryTreeFocus(revealedNodeIds, this.scale.width < 760 ? 105 : 145, 5);
+      const camera = {
+        zoom: this.memoryTreeZoom,
+        panX: this.memoryTreePanX,
+        panY: this.memoryTreePanY,
+      };
+      this.tweens.add({
+        targets: camera,
+        zoom: focus.zoom,
+        panX: focus.panX,
+        panY: focus.panY,
+        duration: FIRST_MEMORY_REVEAL_MS,
+        ease: "Cubic.easeInOut",
+        onUpdate: () => {
+          this.memoryTreeZoom = camera.zoom;
+          this.memoryTreePanX = camera.panX;
+          this.memoryTreePanY = camera.panY;
+          this.applyMemoryTreeViewTransform();
+        },
+        onComplete: () => {
+          this.memoryTreeZoom = focus.zoom;
+          this.memoryTreePanX = focus.panX;
+          this.memoryTreePanY = focus.panY;
+          this.memoryRevealSequenceActive = false;
+          this.applyMemoryTreeViewTransform();
+          this.refreshUi(true);
+        },
+      });
+      this.tweens.add({
+        targets: this.memoryTreeLines,
+        alpha: 1,
+        duration: 720,
+        ease: "Sine.easeOut",
+      });
+      this.tweens.add({
+        targets: this.memoryTreeDecor,
+        alpha: 1,
+        duration: 900,
+        ease: "Sine.easeOut",
+      });
+      newlyRevealed.forEach((nodeId, index) => {
+        const revealedView = this.memoryNodeViews.get(nodeId);
+        if (!revealedView) return;
+        this.tweens.add({
+          targets: revealedView.container,
+          alpha: 1,
+          scale: 1,
+          delay: 110 + index * 65,
+          duration: 430,
+          ease: "Back.easeOut",
+        });
+      });
+      this.refreshUi(true);
+    });
   }
 
   private applyMemoryTreeViewTransform(): void {
     if (!this.memoryTreeWorld || this.memoryTreeFitScale <= 0) return;
+    const revealedNodeIds = this.getRevealedMemoryNodeIds();
     const scale = this.memoryTreeFitScale * this.memoryTreeZoom;
     const maxPanX = Math.max(0, (ECOSYSTEM_MEMORY_WORLD_WIDTH * scale - this.memoryTreeViewport.width) / 2);
     const maxPanY = Math.max(0, (ECOSYSTEM_MEMORY_WORLD_HEIGHT * scale - this.memoryTreeViewport.height) / 2);
@@ -3088,7 +3379,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const screenX = centerX + this.memoryTreePanX + view.definition.x * scale;
       const screenY = centerY + this.memoryTreePanY + view.definition.y * scale;
       const margin = 100 * scale + 8;
-      const visible = screenX >= this.memoryTreeViewport.x - margin &&
+      const visible = revealedNodeIds.has(view.definition.id) &&
+        screenX >= this.memoryTreeViewport.x - margin &&
         screenX <= this.memoryTreeViewport.x + this.memoryTreeViewport.width + margin &&
         screenY >= this.memoryTreeViewport.y - margin &&
         screenY <= this.memoryTreeViewport.y + this.memoryTreeViewport.height + margin;
@@ -3216,12 +3508,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.displayedHpRatio = 1;
     this.hpHeartbeatPulse = 0;
     this.firstSprinklerCycleCelebrated = false;
+    this.memoryRevealHoldIds = null;
+    this.memoryRevealSequenceActive = false;
     this.resetTouchRecovery();
     this.fieldView = { centerX: 0.5, centerY: 0.5, zoom: 1 };
     this.worksOpen = false;
     this.optionsOpen = false;
     this.lastGameOverState = false;
-    this.selectedMemoryNodeId = "helper:tinySprinkler:unlock";
+    this.selectedMemoryNodeId = FIRST_ECOSYSTEM_MEMORY_NODE_ID;
     this.resetMemoryTreeView();
     this.refreshMemoryTree();
     this.layout(this.scale.width, this.scale.height);

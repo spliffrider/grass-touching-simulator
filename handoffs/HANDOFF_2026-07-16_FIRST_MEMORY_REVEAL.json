@@ -1,0 +1,58 @@
+{
+  "date": "2026-07-16",
+  "topic": "First Tiny Sprinkler Memory reveal",
+  "currentUserGoal": "After the first collapse, show only Tiny Sprinkler, focus the Memory Grove tightly on it, and reveal the next branches with a satisfying animation after purchase.",
+  "workCompleted": [
+    "Added progressive Memory Web visibility so unrevealed nodes, connectors, decorations, hit areas, and semantic controls do not exist in the active presentation.",
+    "Made Tiny Sprinkler the only visible and purchasable Memory immediately after the first run.",
+    "Centered the first Memory Grove view tightly on Tiny Sprinkler on desktop and phone.",
+    "Added a first-purchase celebration with an icon pulse, expanding rings, held branch reveal, staggered node fade-in, connector fade-in, and an animated camera zoom-out.",
+    "Disabled Begin Run 2 until the reveal sequence completes.",
+    "Revealed only the next reachable branches after Tiny Sprinkler is remembered; later helpers and rank clusters remain hidden until their prerequisites are owned.",
+    "Kept visual-node purchases and accessible DOM purchases on the same purchase path so both trigger identical progression and animation behavior.",
+    "Added debug snapshot fields for first-memory focus, reveal activity, and the revealed-node count."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemMemoryTree.test.ts",
+    "handoffs/HANDOFF_2026-07-16_FIRST_MEMORY_REVEAL.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 147 Vitest tests across 19 files, strict TypeScript, and the Vite production build.",
+    "Focused ecosystem Memory Tree, economy-system, and save verification passed 37 tests.",
+    "Desktop browser verification at 1280x720 confirmed exactly one revealed node before purchase, one held node during celebration, and 11 reachable nodes after reveal.",
+    "Phone browser verification at 390x844 confirmed the same progression and responsive framing.",
+    "Begin Run 2 remained disabled during the reveal and enabled after the camera settled.",
+    "Field Mouse and the early numeric branches appeared after Tiny Sprinkler; Bee Hive and later helper branches remained hidden.",
+    "No console errors, page errors, overlap regressions, or whitespace errors were observed."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Verified local checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "The intended first-Memory reveal changes and this handoff are committed on codex/ecosystem-factory-prototype.",
+    "The branch has not been pushed in this slice.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless explicitly requested."
+  ],
+  "knownIssues": [
+    "The playtest debug panel can cover lower UI at small viewport heights; it is not part of the public game surface.",
+    "The current reveal web contains only the existing early Memories; future helper and ecosystem additions still need their own staged reveal topology.",
+    "The reveal animation is intentionally unique to the first Tiny Sprinkler purchase; later purchases keep the normal Memory-node feedback."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test the complete first collapse, Tiny Sprinkler purchase, reveal, and Begin Run 2 transition without debug currency.",
+    "Build the Run 2 Tiny Sprinkler teaching beat so the newly unlocked equipment immediately feels useful.",
+    "Continue expanding the Memory Web in irregular, prerequisite-driven clusters while preserving non-overlapping branches."
+  ],
+  "doNotRevert": [
+    "Do not expose every Memory node immediately after the first collapse.",
+    "Keep semantic controls culled by the same reveal rules as visual nodes.",
+    "Keep Begin Run 2 locked until the first reveal animation finishes.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}
