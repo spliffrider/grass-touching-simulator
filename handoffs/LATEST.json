@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-16",
-  "latestHandoff": "HANDOFF_2026-07-16_FIELD_INPUT_LATENCY.json",
+  "latestHandoff": "HANDOFF_2026-07-16_SCOURGE_POWER_SPIKE.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

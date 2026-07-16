@@ -299,7 +299,7 @@ describe("EcosystemSystem", () => {
     expect(duration).toBe(PRODUCTION_TICK_MS);
   });
 
-  it("allows no manual HP recovery during the unwinnable first run", () => {
+  it("answers the first touch with a near-fatal Scourge strike instead of healing", () => {
     const permanent = createPermanentEcosystemState();
     const state = createEcosystemState(permanent, { seed: 4_004 });
     state.hp = 50;
@@ -307,7 +307,9 @@ describe("EcosystemSystem", () => {
     const result = touchFieldTile(state, permanent, 0);
 
     expect(result?.healedHp).toBe(0);
-    expect(state.hp).toBe(50);
+    expect(state.hp).toBe(1);
+    expect(state.scourgeDemandPerSecond).toBe(10_000_000);
+    expect(state.careDeficitPerSecond).toBe(10_000_000);
     expect(result?.dewGained).toBeGreaterThan(0);
     expect(result?.runTouchesGained).toBeGreaterThan(0);
   });
@@ -339,14 +341,28 @@ describe("EcosystemSystem", () => {
     advanceEcosystem(state, permanent, 250);
 
     expect(state.elapsedMs).toBe(250);
-    expect(state.scourgeDemandPerSecond).toBeGreaterThan(500_000);
+    expect(state.scourgeDemandPerSecond).toBeGreaterThan(50_000_000);
     expect(state.hp).toBe(0);
     expect(state.active).toBe(false);
   });
 
+  it("does not let debug-unlocked Memories soften an unequipped early run", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    unlockAllPrototypeMemories(permanent);
+    const state = createEcosystemState(permanent, { seed: 7_007 });
+    state.helpers.tinySprinkler.count = 1;
+
+    touchFieldTile(state, permanent, 0);
+    advanceEcosystem(state, permanent, 250);
+
+    expect(state.scourgeDemandPerSecond).toBeGreaterThan(4);
+    expect(state.hp).toBeLessThan(100);
+  });
+
   it("does not grant free Scourge relief for repeated losses", () => {
-    expect(simulateManualRun(12, 0)).toBeGreaterThanOrEqual(1_500);
-    expect(simulateManualRun(12, 0)).toBeLessThanOrEqual(2_500);
+    expect(simulateManualRun(12, 0)).toBeGreaterThanOrEqual(500);
+    expect(simulateManualRun(12, 0)).toBeLessThanOrEqual(1_000);
   });
 
   it("turns the first collapse into a required Tiny Sprinkler memory", () => {
@@ -366,10 +382,10 @@ describe("EcosystemSystem", () => {
     expect(canBeginNextEcosystemRun(state, permanent)).toBe(true);
   });
 
-  it("moves the second run into the first multi-minute band", () => {
+  it("makes the second run a short, dangerous first automation attempt", () => {
     const duration = simulateManualRun(1, 1);
-    expect(duration).toBeGreaterThanOrEqual(150_000);
-    expect(duration).toBeLessThanOrEqual(330_000);
+    expect(duration).toBeGreaterThanOrEqual(30_000);
+    expect(duration).toBeLessThanOrEqual(90_000);
   });
 
   it("lets a developed production web reach a sustained thriving state", () => {

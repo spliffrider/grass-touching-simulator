@@ -21,9 +21,11 @@ import {
 
 export const ECOSYSTEM_PERMANENT_VERSION = 1;
 export const ECOSYSTEM_ACTIVE_VERSION = 1;
-const FIRST_RUN_SCOURGE_BASE = 100_000;
+const FIRST_RUN_SCOURGE_BASE = 10_000_000;
+const FIRST_RUN_OPENING_HP = 1;
 const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.18;
 const PRE_AUTOMATION_SCOURGE_RAMP_SECONDS = 0.2;
+const EARLY_SCOURGE_BASE_BY_CAPABILITY = [10, 4.2, 2.4, 1.5, 1.05, 0.82] as const;
 
 export type HelperRankRecord = Record<HelperId, number>;
 export type HelperUnlockRecord = Record<HelperId, boolean>;
@@ -825,14 +827,25 @@ function getScourgeDemand(state: EcosystemState, permanent: PermanentEcosystemSt
     (count, helperId) => count + (permanent.unlockedHelpers[helperId] ? 1 : 0),
     0,
   );
-  const rampSeconds = unlockedHelperCount === 0
+  const activeHelperKinds = HELPER_IDS.reduce(
+    (count, helperId) => count + (state.helpers[helperId].count > 0 ? 1 : 0),
+    0,
+  );
+  const capabilityTier = Math.min(
+    unlockedHelperCount,
+    Math.max(1, activeHelperKinds),
+  );
+  const rampSeconds = capabilityTier === 0
     ? PRE_AUTOMATION_SCOURGE_RAMP_SECONDS
-    : unlockedHelperCount <= 5
-      ? 44 * Math.pow(2.03, unlockedHelperCount)
-      : 1_520 * Math.pow(1.34, unlockedHelperCount - 5);
+    : capabilityTier <= 5
+      ? 30 * Math.pow(1.9, capabilityTier)
+      : 1_520 * Math.pow(1.34, capabilityTier - 5);
   const ageRatio = ageSeconds / rampSeconds;
   const tileScale = 1 + Math.log2(state.field.stages.length + 1) * 0.11;
-  return 0.72 * tileScale * Math.pow(1 + ageRatio, 2.12);
+  const baseDemand = capabilityTier <= 5
+    ? EARLY_SCOURGE_BASE_BY_CAPABILITY[capabilityTier]
+    : 0.72;
+  return baseDemand * tileScale * Math.pow(1 + ageRatio, 2.12);
 }
 
 function advanceRepresentativeTiles(state: EcosystemState): void {
@@ -1041,6 +1054,7 @@ export function touchFieldTile(
     attempts += 1;
   }
 
+  const wakesFirstRunScourge = state.runNumber === 1 && state.manualTouchCount === 0;
   state.manualTouchCount += 1;
   const embraceTriggered = permanent.fieldEmbrace && state.manualTouchCount % 10 === 0;
   if (embraceTriggered) {
@@ -1076,6 +1090,12 @@ export function touchFieldTile(
   const runTouchesGained = totalPower * 0.92;
   state.runTouches += runTouchesGained;
   state.runTouchesEarned += runTouchesGained;
+  if (wakesFirstRunScourge) {
+    state.hp = Math.min(state.hp, FIRST_RUN_OPENING_HP);
+    state.scourgeDemandPerSecond = FIRST_RUN_SCOURGE_BASE;
+    state.careDeficitPerSecond = FIRST_RUN_SCOURGE_BASE;
+    state.bottleneck = "The Scourge has broken through";
+  }
 
   const representativeImpacts = [...impacts.values()].slice(0, MAX_REPRESENTATIVE_IMPACTS);
   return {
