@@ -1,0 +1,50 @@
+{
+  "date": "2026-07-16",
+  "topic": "Title return path and animated title atmosphere",
+  "currentUserGoal": "Make it easy for players to return to the production title screen and give that title screen a richer, polished animated background.",
+  "workCompleted": [
+    "Renamed the production Options action to Save & Return to Title so its save behavior is explicit.",
+    "Added Escape as a quick way to open or close the in-game Options screen from both the active field and Memory Grove.",
+    "Mirrored Save and return to title screen into the semantic DOM controls and only expose it while production Options is open.",
+    "Kept the title-return action intentionally hidden on direct ecosystemPrototype developer routes.",
+    "Expanded the title atmosphere from 14 to 24 pooled pollen and grass motes with separate rising and wind-driven motion.",
+    "Added slow landscape drift, pointer-responsive parallax, and a very small background breathing scale with enough overscan to avoid visible edges.",
+    "Added a restrained title entrance sequence for the landscape, title lockup, save summary, menu panel, buttons, and selectors.",
+    "Removed a possible sideways wrap from rising pollen so motes travel cleanly from below to above the viewport."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "src/game/scenes/EcosystemTitleScene.ts",
+    "handoffs/HANDOFF_2026-07-16_TITLE_RETURN_AND_ATMOSPHERE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 155 Vitest tests across 20 files, strict TypeScript, and the Vite production build.",
+    "git diff --check passed with only expected Windows line-ending warnings.",
+    "The running Vite server returned HTTP 200 for /, /?alpha, and /?redesign&ecosystemPrototype&playtest.",
+    "The landscape title background and pollen effect assets returned HTTP 200 with the expected image content types."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "productionTitleUrl": "http://127.0.0.1:5173/",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "status": "Verified local checkpoint. Not merged into master or deployed by this slice."
+  },
+  "knownIssues": [
+    "The title motion and full title to game to title loop still deserve the user's subjective in-app browser pass on desktop and phone.",
+    "No browser-control surface was available in this task, so visual animation verification was not automated.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless explicitly requested."
+  ],
+  "nextRecommendedSteps": [
+    "Open the bare local URL and judge the landscape drift, pollen layers, entrance timing, and text readability.",
+    "Continue a field, press Escape, choose Save & Return to Title, and confirm the title Continue summary reflects the saved field.",
+    "Repeat the title and return flow at a phone viewport before promoting the branch to master."
+  ],
+  "doNotRevert": [
+    "Do not route the bare production URL directly into active gameplay or Memory Grove.",
+    "Do not expose Return to Title on direct ecosystemPrototype developer routes.",
+    "Keep title and gameplay semantic DOM controls intact.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

@@ -33,6 +33,7 @@ export interface EcosystemDomActions {
   buyCultivation(): void;
   toggleWorks(): void;
   toggleOptions(): void;
+  returnToTitle(): void;
   beginNextRun(): void;
   unlockHelper(helperId: HelperId): void;
   unlockMode(helperId: HelperId, modeId: string): void;
@@ -87,13 +88,19 @@ export class EcosystemDomBridge {
   private readonly cultivateButton: HTMLButtonElement;
   private readonly worksButton: HTMLButtonElement;
   private readonly optionsButton: HTMLButtonElement;
+  private readonly titleButton: HTMLButtonElement;
   private readonly nextRunButton: HTMLButtonElement;
   private readonly fieldTierButton: HTMLButtonElement;
   private readonly fieldEmbraceButton: HTMLButtonElement;
   private readonly playtestStatus?: HTMLOutputElement;
   private semanticControlIndex = 0;
 
-  constructor(private readonly actions: EcosystemDomActions, playtest: boolean, showPlaytestPanel = false) {
+  constructor(
+    private readonly actions: EcosystemDomActions,
+    playtest: boolean,
+    showPlaytestPanel = false,
+    private readonly returnToTitleAvailable = false,
+  ) {
     this.root = document.createElement("div");
     this.root.className = "ecosystem-agent-layer";
     this.root.dataset.testid = "ecosystem-agent-layer";
@@ -117,8 +124,21 @@ export class EcosystemDomBridge {
     this.cultivateButton = this.createButton("Buy Cultivation", () => this.actions.buyCultivation(), "ecosystem-cultivate");
     this.worksButton = this.createButton("Open Ecosystem Works", () => this.actions.toggleWorks(), "ecosystem-toggle-works");
     this.optionsButton = this.createButton("Open Options", () => this.actions.toggleOptions(), "ecosystem-toggle-options");
+    this.titleButton = this.createButton(
+      "Save and return to title screen",
+      () => this.actions.returnToTitle(),
+      "ecosystem-return-title",
+    );
+    this.titleButton.hidden = true;
+    this.titleButton.disabled = true;
     this.nextRunButton = this.createButton("Begin next run", () => this.actions.beginNextRun(), "ecosystem-next-run");
-    controls.append(this.cultivateButton, this.worksButton, this.optionsButton, this.nextRunButton);
+    controls.append(
+      this.cultivateButton,
+      this.worksButton,
+      this.optionsButton,
+      this.titleButton,
+      this.nextRunButton,
+    );
 
     for (const helperId of HELPER_IDS) {
       const buyButton = this.createButton(`Buy ${HELPERS[helperId].label}`, () => this.actions.buyHelper(helperId), `ecosystem-buy-${helperId}`);
@@ -276,6 +296,8 @@ export class EcosystemDomBridge {
     this.setHidden(this.worksButton, !worksAvailable);
     this.setDisabled(this.worksButton, !worksAvailable);
     this.setText(this.optionsButton, optionsOpen ? "Close Options" : "Open Options");
+    this.setHidden(this.titleButton, !this.returnToTitleAvailable || !optionsOpen);
+    this.setDisabled(this.titleButton, !this.returnToTitleAvailable || !optionsOpen);
     this.setText(this.nextRunButton, firstMemoryPending
       ? "Remember Tiny Sprinkler first"
       : firstCollapse

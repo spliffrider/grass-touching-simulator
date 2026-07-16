@@ -1059,7 +1059,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.optionsCopy = this.createText("The ecosystem is completely paused while this screen is open.", 14, "#dff6ca");
     this.optionsRoot.add([this.optionsChrome, this.optionsTitle, this.optionsCopy]);
     this.optionsResumeButton = this.createButton(this.optionsRoot, "Resume", () => this.toggleOptions(), 0x397a3f);
-    this.optionsTitleButton = this.createButton(this.optionsRoot, "Return to Title", () => this.returnToTitle(), 0x234558);
+    this.optionsTitleButton = this.createButton(
+      this.optionsRoot,
+      "Save & Return to Title",
+      () => this.returnToTitle(),
+      0x234558,
+    );
     this.optionsMusicButton = this.createButton(this.optionsRoot, "", () => this.cycleMusicVolume());
     this.optionsSfxButton = this.createButton(this.optionsRoot, "", () => this.cycleSfxVolume());
     this.optionsTitleButton.setVisible(this.returnToTitleAvailable);
@@ -1073,6 +1078,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       buyCultivation: () => this.buyCultivation(),
       toggleWorks: () => this.toggleWorks(),
       toggleOptions: () => this.toggleOptions(),
+      returnToTitle: () => this.returnToTitle(),
       beginNextRun: () => this.beginNextRun(),
       unlockHelper: (helperId) => this.buyMemoryNode(getHelperUnlockMemoryId(helperId)),
       unlockMode: (helperId) => this.buyMemoryNode(getHelperModeMemoryId(helperId)),
@@ -1117,7 +1123,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       },
       resetPrototypeSave: () => this.resetPrototypeSave(),
     };
-    this.domBridge = new EcosystemDomBridge(actions, this.playtest, this.showDebugPanel);
+    this.domBridge = new EcosystemDomBridge(
+      actions,
+      this.playtest,
+      this.showDebugPanel,
+      this.returnToTitleAvailable,
+    );
   }
 
   private bindInput(): void {
@@ -1205,6 +1216,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-PLUS", () => this.state.active ? this.adjustFieldZoom(1.28) : this.adjustMemoryTreeZoom(1.35));
     this.input.keyboard?.on("keydown-MINUS", () => this.state.active ? this.adjustFieldZoom(0.78) : this.adjustMemoryTreeZoom(1 / 1.35));
     this.input.keyboard?.on("keydown-ZERO", () => this.state.active ? this.resetFieldView() : this.resetMemoryTreeView());
+    this.input.keyboard?.on("keydown-ESC", () => this.toggleOptions());
   }
 
   private layout(width: number, height: number): void {

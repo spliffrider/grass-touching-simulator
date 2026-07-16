@@ -15,7 +15,7 @@ import { AudioSystem } from "../systems/AudioSystem";
 
 const TITLE_BACKGROUND_LANDSCAPE = "ecosystem-title-landscape";
 const TITLE_BACKGROUND_PORTRAIT = "ecosystem-title-portrait";
-const TITLE_MOTE_COUNT = 14;
+const TITLE_MOTE_COUNT = 24;
 const NEW_FIELD_CONFIRM_MS = 4_500;
 
 type MenuAction = "continue" | "newField" | "options" | "credits";
@@ -79,6 +79,16 @@ export class EcosystemTitleScene extends Phaser.Scene {
   private readonly motes: Phaser.GameObjects.Image[] = [];
   private readonly motePhases = new Float32Array(TITLE_MOTE_COUNT);
   private readonly moteSpeeds = new Float32Array(TITLE_MOTE_COUNT);
+  private readonly moteLanes = new Float32Array(TITLE_MOTE_COUNT);
+  private readonly moteDepthFactors = new Float32Array(TITLE_MOTE_COUNT);
+  private readonly moteModes = new Uint8Array(TITLE_MOTE_COUNT);
+  private backgroundBaseX = 0;
+  private backgroundBaseY = 0;
+  private backgroundBaseScale = 1;
+  private parallaxX = 0;
+  private parallaxY = 0;
+  private parallaxTargetX = 0;
+  private parallaxTargetY = 0;
   private readonly audio = new AudioSystem();
   private music?: Phaser.Sound.BaseSound;
   private musicVolume = 0;
@@ -127,6 +137,10 @@ export class EcosystemTitleScene extends Phaser.Scene {
     this.semanticCreditsBack = undefined;
     this.semanticMusicRange = undefined;
     this.semanticSfxRange = undefined;
+    this.parallaxX = 0;
+    this.parallaxY = 0;
+    this.parallaxTargetX = 0;
+    this.parallaxTargetY = 0;
     this.saveSummary = getEcosystemSaveSummary();
     this.musicVolume = readStoredMusicVolume();
     this.sfxVolume = readStoredSfxVolume();
@@ -180,6 +194,7 @@ export class EcosystemTitleScene extends Phaser.Scene {
     this.selectButton(this.selectedButtonIndex);
     this.bindInput();
     this.layout(this.scale.width, this.scale.height);
+    this.playTitleEntrance();
 
     this.queueMenuMusic();
     this.cameras.main.fadeIn(320, 3, 12, 7);
@@ -189,14 +204,39 @@ export class EcosystemTitleScene extends Phaser.Scene {
   }
 
   update(time: number): void {
+    this.parallaxX = Phaser.Math.Linear(this.parallaxX, this.parallaxTargetX, 0.035);
+    this.parallaxY = Phaser.Math.Linear(this.parallaxY, this.parallaxTargetY, 0.035);
+    const landscapeDriftX = Math.sin(time * 0.000055) * this.scale.width * 0.006;
+    const landscapeDriftY = Math.cos(time * 0.000043) * this.scale.height * 0.004;
+    const backgroundBreath = 1 + Math.sin(time * 0.00018) * 0.0025;
+    this.background
+      .setPosition(
+        this.backgroundBaseX + landscapeDriftX + this.parallaxX * 16,
+        this.backgroundBaseY + landscapeDriftY + this.parallaxY * 10,
+      )
+      .setScale(this.backgroundBaseScale * backgroundBreath);
+
     for (let index = 0; index < this.motes.length; index += 1) {
       const mote = this.motes[index];
       const phase = this.motePhases[index];
-      const travel = (time * this.moteSpeeds[index] + phase) % 1;
-      mote.x = this.scale.width * (0.08 + ((index * 0.137 + travel * 0.26) % 0.84));
-      mote.y = this.scale.height * (0.92 - travel * 0.78);
-      mote.rotation = phase + time * (0.00012 + (index % 4) * 0.00003);
-      mote.alpha = 0.12 + Math.sin(time * 0.0015 + phase) * 0.06 + (index % 3) * 0.035;
+      const travel = (time * this.moteSpeeds[index] + phase / (Math.PI * 2)) % 1;
+      const depthFactor = this.moteDepthFactors[index];
+      if (this.moteModes[index] === 0) {
+        mote.x = this.scale.width * (0.1 + this.moteLanes[index] * 1.05)
+          + Math.sin(time * 0.00075 + phase) * 18 * depthFactor
+          + this.parallaxX * 10 * depthFactor;
+        mote.y = this.scale.height * (1.08 - travel * 1.22)
+          + Math.sin(time * 0.0009 + phase) * 14 * depthFactor
+          + this.parallaxY * 7 * depthFactor;
+      } else {
+        mote.x = -42 + travel * (this.scale.width + 84)
+          + this.parallaxX * 14 * depthFactor;
+        mote.y = this.scale.height * this.moteLanes[index]
+          + Math.sin(time * 0.001 + phase) * 18 * depthFactor
+          + this.parallaxY * 8 * depthFactor;
+      }
+      mote.rotation = phase + time * (0.0001 + (index % 5) * 0.000025);
+      mote.alpha = 0.1 + depthFactor * 0.12 + (Math.sin(time * 0.0014 + phase) + 1) * 0.035;
     }
     if (!this.modalOpen) {
       const pulse = 1 + Math.sin(time * 0.004) * 0.035;
@@ -210,12 +250,20 @@ export class EcosystemTitleScene extends Phaser.Scene {
       const texture = index % 3 === 0 ? "ecosystem-title-grass" : "ecosystem-title-pollen";
       const mote = this.add.image(0, 0, texture)
         .setOrigin(0.5)
-        .setDepth(2)
+        .setDepth(index % 4 === 0 ? 5 : 2)
         .setBlendMode(Phaser.BlendModes.ADD);
-      const size = 8 + (index % 5) * 3;
+      const depthFactor = 0.58 + (index % 5) * 0.105;
+      const size = 7 + depthFactor * 13;
       mote.setDisplaySize(size, size);
       this.motePhases[index] = (index / TITLE_MOTE_COUNT) * Math.PI * 2;
-      this.moteSpeeds[index] = 0.000015 + (index % 5) * 0.0000025;
+      this.moteSpeeds[index] = index % 3 === 0
+        ? 0.000018 + (index % 5) * 0.000002
+        : 0.000027 + (index % 6) * 0.0000025;
+      this.moteLanes[index] = index % 3 === 0
+        ? (index * 0.173) % 0.74
+        : 0.42 + ((index * 0.119) % 0.5);
+      this.moteDepthFactors[index] = depthFactor;
+      this.moteModes[index] = index % 3 === 0 ? 0 : 1;
       this.motes.push(mote);
     }
   }
@@ -449,6 +497,8 @@ export class EcosystemTitleScene extends Phaser.Scene {
 
   private bindInput(): void {
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      this.parallaxTargetX = Phaser.Math.Clamp(pointer.x / Math.max(1, this.scale.width) - 0.5, -0.5, 0.5);
+      this.parallaxTargetY = Phaser.Math.Clamp(pointer.y / Math.max(1, this.scale.height) - 0.5, -0.5, 0.5);
       if (this.draggingSlider) this.setSliderFromPointer(this.draggingSlider, pointer.x);
     });
     this.input.on("pointerup", () => {
@@ -715,8 +765,12 @@ export class EcosystemTitleScene extends Phaser.Scene {
     const backgroundKey = portrait ? TITLE_BACKGROUND_PORTRAIT : TITLE_BACKGROUND_LANDSCAPE;
     if (this.background.texture.key !== backgroundKey) this.background.setTexture(backgroundKey);
     const coverScale = Math.max(width / this.background.width, height / this.background.height);
-    this.background.setDisplaySize(this.background.width * coverScale, this.background.height * coverScale);
-    this.background.setPosition(width / 2, height / 2);
+    this.backgroundBaseScale = coverScale * 1.045;
+    this.backgroundBaseX = width / 2;
+    this.backgroundBaseY = height / 2;
+    this.background
+      .setScale(this.backgroundBaseScale)
+      .setPosition(this.backgroundBaseX, this.backgroundBaseY);
 
     this.shade.clear();
     this.shade.fillStyle(0x031009, portrait ? 0.24 : 0.18).fillRect(0, 0, width, height);
@@ -761,6 +815,64 @@ export class EcosystemTitleScene extends Phaser.Scene {
     this.buildLabel.setPosition(width - 12, height - 10);
     this.layoutModals(width, height, mobile);
     this.layoutSemanticControls();
+  }
+
+  private playTitleEntrance(): void {
+    this.background.setAlpha(0.74);
+    this.tweens.add({ targets: this.background, alpha: 1, duration: 700, ease: "Sine.easeOut" });
+
+    const titleTargets = [this.titleTop, this.titleBottom, this.chapterTitle, this.alphaLabel];
+    for (let index = 0; index < titleTargets.length; index += 1) {
+      const target = titleTargets[index];
+      const targetY = target.y;
+      target.setAlpha(0).setY(targetY - 12);
+      this.tweens.add({
+        targets: target,
+        alpha: 1,
+        y: targetY,
+        duration: 360,
+        delay: 80 + index * 65,
+        ease: "Cubic.easeOut",
+      });
+    }
+
+    this.menuPanel.setAlpha(0).setScale(0.985);
+    this.tweens.add({
+      targets: this.menuPanel,
+      alpha: 0.95,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 360,
+      delay: 230,
+      ease: "Back.easeOut",
+    });
+    for (const target of [this.saveStateText, this.saveDetailText]) {
+      target.setAlpha(0);
+      this.tweens.add({ targets: target, alpha: 1, duration: 260, delay: 350, ease: "Sine.easeOut" });
+    }
+    for (let index = 0; index < this.buttons.length; index += 1) {
+      const button = this.buttons[index];
+      const targetAlpha = button.enabled ? 1 : 0.36;
+      button.container.setScale(0.94).setAlpha(0);
+      this.tweens.add({
+        targets: button.container,
+        alpha: targetAlpha,
+        scaleX: 1,
+        scaleY: 1,
+        duration: 260,
+        delay: 320 + index * 55,
+        ease: "Back.easeOut",
+      });
+    }
+    this.selectorLeft.setAlpha(0);
+    this.selectorRight.setAlpha(0);
+    this.tweens.add({
+      targets: [this.selectorLeft, this.selectorRight],
+      alpha: 1,
+      duration: 220,
+      delay: 560,
+      ease: "Sine.easeOut",
+    });
   }
 
   private layoutSelectors(): void {
