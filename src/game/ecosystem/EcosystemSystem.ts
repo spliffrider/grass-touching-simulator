@@ -308,7 +308,11 @@ function createField(sizeIndex: number, seed: number): EcosystemFieldState {
   return field;
 }
 
-function createResourceBuffers(permanent: PermanentEcosystemState, field: EcosystemFieldState): ProductionBufferRecord {
+function createResourceBuffers(
+  permanent: PermanentEcosystemState,
+  field: EcosystemFieldState,
+  helpersEnabled: boolean,
+): ProductionBufferRecord {
   const buffers = {} as ProductionBufferRecord;
   for (const resourceId of PRODUCTION_RESOURCE_IDS) {
     buffers[resourceId] = {
@@ -320,7 +324,7 @@ function createResourceBuffers(permanent: PermanentEcosystemState, field: Ecosys
   }
 
   for (const helperId of HELPER_IDS) {
-    if (!permanent.unlockedHelpers[helperId]) {
+    if (!helpersEnabled || !permanent.unlockedHelpers[helperId]) {
       continue;
     }
     const resourceId = STARTING_STOCK_RESOURCE[helperId];
@@ -370,7 +374,7 @@ export function createEcosystemState(
     manualTouchCount: 0,
     manualCareTotal: 0,
     helperPurchaseCount: 0,
-    resources: createResourceBuffers(permanent, field),
+    resources: createResourceBuffers(permanent, field, runNumber > 1),
     rates: createRateRecord(),
     helpers: createHelperRuntime(),
     helperPulses: createHelperNumberRecord(),
@@ -383,6 +387,26 @@ export function createEcosystemState(
 export function getHelperPurchaseCost(state: EcosystemState, helperId: HelperId): number {
   const definition = HELPERS[helperId];
   return Math.ceil(definition.baseCost * Math.pow(definition.costGrowth, state.helpers[helperId].count));
+}
+
+export function isRunEquipmentAvailable(state: Pick<EcosystemState, "active" | "runNumber">): boolean {
+  return state.active && state.runNumber > 1;
+}
+
+export function enforceRunOneBareHands(state: EcosystemState): void {
+  if (state.runNumber > 1) {
+    return;
+  }
+  state.helperPurchaseCount = 0;
+  for (const helperId of HELPER_IDS) {
+    const helper = state.helpers[helperId];
+    helper.count = 0;
+    helper.modeId = HELPERS[helperId].modes[0].id;
+    helper.reconfigureRemainingMs = 0;
+    helper.pulseProgress = 0;
+    helper.lastPauseReason = null;
+    state.helperPulses[helperId] = 0;
+  }
 }
 
 export function getFirstAutomationStatus(
@@ -400,7 +424,9 @@ export function getFirstAutomationStatus(
     pauseReason: sprinkler.lastPauseReason,
   };
 
-  if (!permanent.unlockedHelpers.tinySprinkler) return { stage: "locked", ...common };
+  if (!isRunEquipmentAvailable(state) || !permanent.unlockedHelpers.tinySprinkler) {
+    return { stage: "locked", ...common };
+  }
   if (sprinkler.count <= 0) {
     return { stage: state.runTouches >= purchaseCost ? "ready" : "gather", ...common };
   }
@@ -413,7 +439,7 @@ export function getFirstAutomationStatus(
 }
 
 export function buyHelper(state: EcosystemState, permanent: PermanentEcosystemState, helperId: HelperId): boolean {
-  if (!state.active || !permanent.unlockedHelpers[helperId]) {
+  if (!isRunEquipmentAvailable(state) || !permanent.unlockedHelpers[helperId]) {
     return false;
   }
   const cost = getHelperPurchaseCost(state, helperId);
@@ -434,7 +460,7 @@ export function switchHelperMode(
 ): boolean {
   const helper = state.helpers[helperId];
   if (
-    !state.active ||
+    !isRunEquipmentAvailable(state) ||
     helper.count <= 0 ||
     helper.modeId === modeId ||
     helper.reconfigureRemainingMs > 0 ||
@@ -918,6 +944,9 @@ function finishRun(state: EcosystemState, permanent: PermanentEcosystemState): v
 }
 
 function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState): void {
+  if (state.runNumber === 1) {
+    enforceRunOneBareHands(state);
+  }
   if (state.runNumber === 1 && state.manualTouchCount === 0) {
     state.scourgeDemandPerSecond = 0;
     state.careDeficitPerSecond = 0;
@@ -928,9 +957,17 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
   state.elapsedMs += PRODUCTION_TICK_MS;
   state.fixedTicks += 1;
   const producedThisTick = createRateRecord();
+  const equipmentAvailable = isRunEquipmentAvailable(state);
 
   for (const helperId of HELPER_IDS) {
     const helper = state.helpers[helperId];
+    if (!equipmentAvailable) {
+      helper.reconfigureRemainingMs = 0;
+      helper.pulseProgress = 0;
+      helper.lastPauseReason = null;
+      state.helperPulses[helperId] = 0;
+      continue;
+    }
     helper.reconfigureRemainingMs = Math.max(0, helper.reconfigureRemainingMs - PRODUCTION_TICK_MS);
     helper.lastPauseReason = helper.reconfigureRemainingMs > 0 ? "Reconfiguring" : null;
   }
@@ -938,6 +975,9 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
   const fieldScale = Math.max(1, Math.sqrt(state.field.stages.length));
   for (const recipe of PRODUCTION_RECIPES) {
     if (recipe.helperId) {
+      if (!equipmentAvailable) {
+        continue;
+      }
       const helper = state.helpers[recipe.helperId];
       if (helper.count <= 0 || helper.modeId !== recipe.modeId || helper.reconfigureRemainingMs > 0) {
         continue;
@@ -1111,7 +1151,9 @@ export function touchFieldTile(
 }
 
 export function consumeHelperPulses(state: EcosystemState): HelperRankRecord {
-  const pulses = { ...state.helperPulses };
+  const pulses = isRunEquipmentAvailable(state)
+    ? { ...state.helperPulses }
+    : createHelperNumberRecord();
   for (const helperId of HELPER_IDS) {
     state.helperPulses[helperId] = 0;
   }

@@ -94,6 +94,7 @@ import {
   getTouchRankCost,
   isFirstCollapseAwaitingSprinkler,
   isFirstEcosystemCollapse,
+  isRunEquipmentAvailable,
   purchaseFieldEmbrace,
   purchasePermanentRank,
   purchaseTouchRank,
@@ -513,7 +514,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.fieldView = { centerX: 0.5, centerY: 0.5, zoom: 1 };
     }
     this.lastGameOverState = !this.state.active;
-    this.firstSprinklerCycleCelebrated = this.state.helpers.tinySprinkler.count > 0
+    this.firstSprinklerCycleCelebrated = isRunEquipmentAvailable(this.state)
+      && this.state.helpers.tinySprinkler.count > 0
       && getFirstAutomationStatus(this.state, this.permanent).careProduced >= 0.3;
 
     this.musicVolume = readStoredMusicVolume();
@@ -1114,7 +1116,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private layout(width: number, height: number): void {
     const mobile = width < 760;
-    const ledgerUnlocked = this.permanent.unlockedHelpers.tinySprinkler;
+    const ledgerUnlocked = isRunEquipmentAvailable(this.state)
+      && this.permanent.unlockedHelpers.tinySprinkler;
     const contentWidth = mobile ? width - 16 : Math.min(MAX_SCENE_CONTENT_WIDTH, width - 44);
     const contentX = (width - contentWidth) / 2;
     const backgroundScale = Math.max(width / this.background.width, height / this.background.height);
@@ -1515,6 +1518,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private refreshUi(force: boolean): void {
     this.uiRefreshRequested = false;
     const readout = getEcosystemReadout(this.state);
+    const equipmentAvailable = isRunEquipmentAvailable(this.state);
     if (this.state.active && !this.worksOpen) {
       const awaitingFirstTouch = this.state.runNumber === 1 && this.state.manualTouchCount === 0;
       const elapsedSeconds = Math.floor(readout.elapsedMs / 1_000);
@@ -1655,7 +1659,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           : `${HELPERS[helperId].label} x${helper.count}  Buy ${cost} RT${pause}`;
         this.helperBuyButtons[helperId]
           .setLabel(label)
-          .setEnabled(this.state.runTouches >= cost);
+          .setEnabled(equipmentAvailable && this.state.runTouches >= cost);
         const actor = this.helperActors[helperId];
         if (helper.count > 0) {
           this.setTextIfChanged(actor.countText, helper.lastPauseReason ? `x${helper.count}  |  PAUSED` : `x${helper.count}`);
@@ -1682,7 +1686,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       for (const helperId of HELPER_IDS) {
         const helper = this.state.helpers[helperId];
         const cost = getHelperPurchaseCost(this.state, helperId);
-        const unlocked = this.permanent.unlockedHelpers[helperId];
+        const unlocked = equipmentAvailable && this.permanent.unlockedHelpers[helperId];
         this.factoryHelperButtons[helperId]
           .setVisible(unlocked)
           .setLabel(`${HELPERS[helperId].label} x${helper.count} | Buy ${cost} RT`)
@@ -1977,7 +1981,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private layoutHelperActors(): void {
-    const owned = HELPER_IDS.filter((helperId) => this.state.helpers[helperId].count > 0);
+    const owned = isRunEquipmentAvailable(this.state)
+      ? HELPER_IDS.filter((helperId) => this.state.helpers[helperId].count > 0)
+      : [];
     const singlePlot = this.state.field.stages.length === 1 && this.projection?.lod === "near";
     const singlePlotSize = singlePlot
       ? Math.min(420, this.projection.cellSize * 0.86, this.fieldBounds.height * 0.72)
@@ -2546,7 +2552,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private toggleWorks(): void {
-    if (!this.state.active || !this.permanent.unlockedHelpers.tinySprinkler || this.optionsOpen) return;
+    if (
+      !isRunEquipmentAvailable(this.state)
+      || !this.permanent.unlockedHelpers.tinySprinkler
+      || this.optionsOpen
+    ) {
+      return;
+    }
     this.worksOpen = !this.worksOpen;
     this.audio.play("skill_select");
     this.syncViewVisibility();
@@ -3181,6 +3193,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private syncViewVisibility(): void {
+    if (!isRunEquipmentAvailable(this.state)) {
+      this.worksOpen = false;
+    }
     this.fieldRoot.setVisible(this.state.active && !this.worksOpen);
     this.factoryRoot.setVisible(this.state.active && this.worksOpen);
     this.memoryRoot.setVisible(!this.state.active);

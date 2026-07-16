@@ -26,6 +26,7 @@ import {
   getTouchRankCost,
   isFirstCollapseAwaitingSprinkler,
   isFirstEcosystemCollapse,
+  isRunEquipmentAvailable,
   normalizePermanentEcosystemState,
   purchaseTouchRank,
   setPrototypeFieldSize,
@@ -165,6 +166,34 @@ describe("EcosystemSystem", () => {
 
     state.resources.dew.amount = 0;
     expect(getFirstAutomationStatus(state, permanent).stage).toBe("dry");
+  });
+
+  it("keeps Run 1 bare-hands-only even when helper Memories and RT are injected", () => {
+    const permanent = createPermanentEcosystemState();
+    unlockAllPrototypeMemories(permanent);
+    permanent.startingStockRanks.tinySprinkler = 5;
+    permanent.startingStockRanks.fieldMouse = 5;
+    const state = createEcosystemState(permanent, { seed: 7_171 });
+    state.runTouches = 100_000;
+    state.helpers.tinySprinkler.count = 4;
+    state.helpers.fieldMouse.count = 3;
+    state.resources.dew.amount = state.resources.dew.capacity;
+
+    expect(isRunEquipmentAvailable(state)).toBe(false);
+    expect(state.resources.moisture.amount).toBe(0);
+    expect(state.resources.seeds.amount).toBe(0);
+    expect(getFirstAutomationStatus(state, permanent).stage).toBe("locked");
+    expect(buyHelper(state, permanent, "tinySprinkler")).toBe(false);
+    expect(buyHelper(state, permanent, "fieldMouse")).toBe(false);
+    expect(switchHelperMode(state, permanent, "tinySprinkler", "cultivator")).toBe(false);
+
+    touchFieldTile(state, permanent, 0);
+    advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+
+    expect(state.helpers.tinySprinkler.count).toBe(0);
+    expect(state.helpers.fieldMouse.count).toBe(0);
+    expect(state.resources.care.producedTotal).toBeLessThan(0.001);
+    expect(Object.values(consumeHelperPulses(state))).toEqual(HELPER_IDS.map(() => 0));
   });
 
   it("never overfills a buffer or creates negative stock", () => {
@@ -383,6 +412,11 @@ describe("EcosystemSystem", () => {
   });
 
   it("makes the second run a short, dangerous first automation attempt", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    const state = createEcosystemState(permanent);
+    expect(isRunEquipmentAvailable(state)).toBe(true);
+
     const duration = simulateManualRun(1, 1);
     expect(duration).toBeGreaterThanOrEqual(30_000);
     expect(duration).toBeLessThanOrEqual(90_000);

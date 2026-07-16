@@ -10,6 +10,7 @@ import {
   ECOSYSTEM_PERMANENT_VERSION,
   createEcosystemState,
   createPermanentEcosystemState,
+  enforceRunOneBareHands,
   normalizePermanentEcosystemState,
   rebuildChunkStageCounts,
   type EcosystemRunSummary,
@@ -239,6 +240,7 @@ export function restoreActiveFieldSnapshot(
     state.helpers[helperId].pulseProgress = finiteNumber(source.pulseProgress, 0, 0);
     state.helpers[helperId].lastPauseReason = typeof source.lastPauseReason === "string" ? source.lastPauseReason : null;
   }
+  enforceRunOneBareHands(state);
 
   state.field.stages.set(stages);
   state.field.cultivationRank = Math.max(0, Math.min(10, Math.floor(finiteNumber(input.field.cultivationRank, 0, 0))));

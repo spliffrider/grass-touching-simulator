@@ -11,6 +11,7 @@ import {
   getTouchRankCost,
   isFirstCollapseAwaitingSprinkler,
   isFirstEcosystemCollapse,
+  isRunEquipmentAvailable,
   type EcosystemState,
   type FirstAutomationStatus,
   type PermanentEcosystemState,
@@ -212,6 +213,8 @@ export class EcosystemDomBridge {
     const automationLine = getAutomationReadableLine(firstAutomation);
     const firstCollapse = isFirstEcosystemCollapse(state, permanent);
     const firstMemoryPending = isFirstCollapseAwaitingSprinkler(state, permanent);
+    const equipmentAvailable = isRunEquipmentAvailable(state);
+    const worksAvailable = equipmentAvailable && permanent.unlockedHelpers.tinySprinkler;
     const lines = [
       `Ecosystem prototype | Run ${state.runNumber} | ${state.active ? "active" : "Game Over"}`,
       ...(firstCollapse
@@ -230,11 +233,15 @@ export class EcosystemDomBridge {
         const buffer = state.resources[resourceId];
         return `${PRODUCTION_RESOURCES[resourceId].label}: ${buffer.amount.toFixed(1)}/${buffer.capacity.toFixed(1)} (+${state.rates[resourceId].toFixed(2)}/s)`;
       }),
-      "Helpers:",
-      ...HELPER_IDS.filter((helperId) => permanent.unlockedHelpers[helperId]).map((helperId) => {
-        const helper = state.helpers[helperId];
-        return `${HELPERS[helperId].label}: ${helper.count}, ${helper.modeId}${helper.lastPauseReason ? `, ${helper.lastPauseReason}` : ""}`;
-      }),
+      ...(equipmentAvailable
+        ? [
+          "Helpers:",
+          ...HELPER_IDS.filter((helperId) => permanent.unlockedHelpers[helperId]).map((helperId) => {
+            const helper = state.helpers[helperId];
+            return `${HELPERS[helperId].label}: ${helper.count}, ${helper.modeId}${helper.lastPauseReason ? `, ${helper.lastPauseReason}` : ""}`;
+          }),
+        ]
+        : ["Equipment: unavailable during Run 1"]),
     ];
     this.setOutput(this.readable, lines.join("\n"));
     this.setInputMax(this.xInput, `${Math.max(0, state.field.width - 1)}`);
@@ -242,6 +249,8 @@ export class EcosystemDomBridge {
     this.setDisabled(this.cultivateButton, !state.active || state.resources.growth.amount < getCultivationCost(state));
     this.setText(this.cultivateButton, `Buy Cultivation ${Math.min(10, state.field.cultivationRank + 1)}/10 for ${getCultivationCost(state)} Growth`);
     this.setText(this.worksButton, worksOpen ? "Close Ecosystem Works" : "Open Ecosystem Works");
+    this.setHidden(this.worksButton, !worksAvailable);
+    this.setDisabled(this.worksButton, !worksAvailable);
     this.setText(this.optionsButton, optionsOpen ? "Close Options" : "Open Options");
     this.setText(this.nextRunButton, firstMemoryPending
       ? "Remember Tiny Sprinkler first"
@@ -254,8 +263,8 @@ export class EcosystemDomBridge {
       const helperId = button.helperId!;
       const unlocked = permanent.unlockedHelpers[helperId];
       const cost = getHelperPurchaseCost(state, helperId);
-      this.setHidden(button.element, !unlocked);
-      this.setDisabled(button.element, !state.active || state.runTouches < cost);
+      this.setHidden(button.element, !equipmentAvailable || !unlocked);
+      this.setDisabled(button.element, !equipmentAvailable || state.runTouches < cost);
       this.setText(button.element, helperId === "tinySprinkler" && state.helpers.tinySprinkler.count === 0
         ? state.runTouches >= cost
           ? `Buy first Tiny Sprinkler for ${cost} RT`
@@ -266,8 +275,11 @@ export class EcosystemDomBridge {
       const helperId = button.helperId!;
       const helper = state.helpers[helperId];
       const unlocked = permanent.unlockedModes[helperId].includes(button.modeId!);
-      this.setHidden(button.element, !unlocked);
-      this.setDisabled(button.element, !state.active || helper.count <= 0 || helper.modeId === button.modeId || helper.reconfigureRemainingMs > 0);
+      this.setHidden(button.element, !equipmentAvailable || !unlocked);
+      this.setDisabled(
+        button.element,
+        !equipmentAvailable || helper.count <= 0 || helper.modeId === button.modeId || helper.reconfigureRemainingMs > 0,
+      );
     }
     for (const button of this.memoryButtons) {
       if (button.touchKind) {
@@ -333,9 +345,12 @@ export class EcosystemDomBridge {
       grassTouches: Number(permanent.grassTouches.toFixed(3)),
       fastTouchRank: permanent.fastTouchRank,
       firstAutomationStage: firstAutomation.stage,
-      tinySprinklers: tinySprinkler.count,
+      equipmentAvailable,
+      tinySprinklers: equipmentAvailable ? tinySprinkler.count : 0,
       firstSprinklerCost,
-      firstSprinklerProgress: tinySprinkler.count > 0
+      firstSprinklerProgress: !equipmentAvailable
+        ? 0
+        : tinySprinkler.count > 0
         ? 1
         : Number(Math.min(1, state.runTouches / firstSprinklerCost).toFixed(3)),
       carePerSecond: Number(state.rates.care.toFixed(4)),

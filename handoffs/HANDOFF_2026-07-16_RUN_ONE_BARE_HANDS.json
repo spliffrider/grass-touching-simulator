@@ -1,0 +1,57 @@
+{
+  "date": "2026-07-16",
+  "topic": "Run 1 bare-hands-only equipment lock",
+  "currentUserGoal": "Ensure Tiny Sprinkler, Field Mouse, and every other helper are never available during the first run.",
+  "workCompleted": [
+    "Added one shared run-equipment availability rule: active equipment begins on Run 2, never Run 1.",
+    "Blocked helper purchases and helper mode changes at the deterministic economy-model level during Run 1.",
+    "Disabled helper recipes, pulses, runtime actors, starting stock, automation guidance, the Living Ledger, and Ecosystem Works during Run 1.",
+    "Hid all helper purchase and mode controls in the accessible DOM during Run 1 while retaining a readable hands-only status.",
+    "Sanitized contradictory legacy active saves so injected Run 1 helper counts, modes, cooldowns, and pulses are removed on restore.",
+    "Kept permanent helper Memories intact so unlocked equipment appears normally when Run 2 begins."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/ecosystem/EcosystemSave.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSystem.test.ts",
+    "tests/EcosystemSave.test.ts",
+    "handoffs/HANDOFF_2026-07-16_RUN_ONE_BARE_HANDS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 146 Vitest tests across 19 files, strict TypeScript, and the Vite production build.",
+    "Focused EcosystemSystem and EcosystemSave verification passed 29 tests.",
+    "Desktop browser verification at 1280x720 reset the prototype, used Unlock all during Run 1, and confirmed Tiny Sprinkler, Field Mouse, and Ecosystem Works remained hidden and unavailable.",
+    "Phone browser verification at 390x844 repeated the same Run 1 lock successfully.",
+    "Both browser checks collapsed Run 1, began Run 2, and confirmed unlocked helper controls appeared only then.",
+    "No console errors, page errors, or visible layout regressions were observed."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Verified local checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "The intended ecosystem changes and this handoff are committed on codex/ecosystem-factory-prototype.",
+    "The branch remains ahead of origin and has not been pushed in this slice.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless explicitly requested."
+  ],
+  "knownIssues": [
+    "The playtest-only Unlock all control still grants debug currency and touch Memories during Run 1; helper equipment remains locked as required.",
+    "Run 1 intentionally still has natural field fallback production, but no helper recipe can contribute.",
+    "The debug panel can overlap normal panels at small desktop heights; it is not part of the public game surface."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on reload the prototype and verify the actual saved first-run experience now shows no equipment panel.",
+    "Play through the first collapse and required Tiny Sprinkler Memory into Run 2 without debug unlocks.",
+    "Continue tuning the Run 2 first-automation teaching sequence after the transition feels correct."
+  ],
+  "doNotRevert": [
+    "Run 1 equipment availability must not depend only on permanent helper Memories.",
+    "Keep the model-level purchase and production guards; UI hiding alone is insufficient.",
+    "Keep contradictory Run 1 active saves sanitized on restore.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

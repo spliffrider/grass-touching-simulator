@@ -17,6 +17,7 @@ import {
 describe("EcosystemSave", () => {
   it("round-trips exact active state without offline advancement", () => {
     const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
     unlockAllPrototypeMemories(permanent);
     const state = createEcosystemState(permanent, { seed: 321 });
     setPrototypeFieldSize(state, permanent, 32);
@@ -38,6 +39,24 @@ describe("EcosystemSave", () => {
     expect(loaded?.state.helpers).toEqual(state.helpers);
     expect([...loaded!.state.field.stages]).toEqual([...state.field.stages]);
     expect(loaded?.view).toEqual({ centerX: 0.62, centerY: 0.41, zoom: 3.2 });
+  });
+
+  it("strips equipment from contradictory old Run 1 saves", () => {
+    const permanent = createPermanentEcosystemState();
+    unlockAllPrototypeMemories(permanent);
+    const state = createEcosystemState(permanent, { seed: 808 });
+    state.helpers.tinySprinkler.count = 5;
+    state.helpers.fieldMouse.count = 3;
+    state.helpers.tinySprinkler.pulseProgress = 0.75;
+    state.helperPulses.tinySprinkler = 2;
+
+    const loaded = restoreActiveFieldSnapshot(createActiveFieldSnapshot(state), permanent);
+
+    expect(loaded?.state.runNumber).toBe(1);
+    expect(loaded?.state.helpers.tinySprinkler.count).toBe(0);
+    expect(loaded?.state.helpers.fieldMouse.count).toBe(0);
+    expect(loaded?.state.helpers.tinySprinkler.pulseProgress).toBe(0);
+    expect(loaded?.state.helperPulses.tinySprinkler).toBe(0);
   });
 
   it("rejects tile payloads whose dimensions do not match", () => {
