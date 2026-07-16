@@ -25,7 +25,8 @@ const FIRST_RUN_SCOURGE_BASE = 10_000_000;
 const FIRST_RUN_OPENING_HP = 1;
 const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.18;
 const PRE_AUTOMATION_SCOURGE_RAMP_SECONDS = 0.2;
-const EARLY_SCOURGE_BASE_BY_CAPABILITY = [10, 4.2, 2.4, 1.5, 1.05, 0.82] as const;
+const FIRST_AUTOMATION_SCOURGE_RAMP_SECONDS = 40;
+const EARLY_SCOURGE_BASE_BY_CAPABILITY = [12, 12, 2.4, 1.5, 1.05, 0.82] as const;
 
 export type HelperRankRecord = Record<HelperId, number>;
 export type HelperUnlockRecord = Record<HelperId, boolean>;
@@ -357,7 +358,7 @@ export function createEcosystemState(
   const fieldSizeIndex = Math.min(permanent.maxFieldTier, options.fieldSizeIndex ?? 0);
   const field = createField(fieldSizeIndex, seed);
   const runNumber = permanent.completedRuns + 1;
-  return {
+  const state: EcosystemState = {
     version: ECOSYSTEM_ACTIVE_VERSION,
     active: true,
     runNumber,
@@ -367,7 +368,7 @@ export function createEcosystemState(
     rngState: seed,
     hp: 100,
     maxHp: 100,
-    scourgeDemandPerSecond: runNumber === 1 ? 0 : 0.7,
+    scourgeDemandPerSecond: 0,
     careDeficitPerSecond: 0,
     runTouches: 0,
     runTouchesEarned: 0,
@@ -382,6 +383,11 @@ export function createEcosystemState(
     bottleneck: runNumber === 1 ? "Touch the field to wake the Scourge" : "Manual Care",
     endedSummary: null,
   };
+  if (runNumber > 1) {
+    state.scourgeDemandPerSecond = getScourgeDemand(state, permanent);
+    state.careDeficitPerSecond = state.scourgeDemandPerSecond;
+  }
+  return state;
 }
 
 export function getHelperPurchaseCost(state: EcosystemState, helperId: HelperId): number {
@@ -863,6 +869,8 @@ function getScourgeDemand(state: EcosystemState, permanent: PermanentEcosystemSt
   );
   const rampSeconds = capabilityTier === 0
     ? PRE_AUTOMATION_SCOURGE_RAMP_SECONDS
+    : capabilityTier === 1
+      ? FIRST_AUTOMATION_SCOURGE_RAMP_SECONDS
     : capabilityTier <= 5
       ? 30 * Math.pow(1.9, capabilityTier)
       : 1_520 * Math.pow(1.34, capabilityTier - 5);

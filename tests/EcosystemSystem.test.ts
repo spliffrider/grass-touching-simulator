@@ -67,6 +67,48 @@ describe("EcosystemSystem", () => {
     return state.elapsedMs;
   }
 
+  function simulateFirstAutomationRunAtFullTouchRate(): {
+    durationMs: number;
+    initialScourgeDemandPerSecond: number;
+    sprinklerPurchasedAtMs: number | null;
+    hpAtPurchase: number | null;
+  } {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    const state = createEcosystemState(permanent, { seed: 9_009 });
+    const initialScourgeDemandPerSecond = state.scourgeDemandPerSecond;
+    const touchCooldownMs = getManualTouchCooldownMs(0);
+    let wallElapsedMs = 0;
+    let nextTouchAtMs = 0;
+    let sprinklerPurchasedAtMs: number | null = null;
+    let hpAtPurchase: number | null = null;
+
+    while (state.active && wallElapsedMs < 120_000) {
+      if (wallElapsedMs >= nextTouchAtMs) {
+        touchFieldTile(state, permanent, 0);
+        nextTouchAtMs += touchCooldownMs;
+      }
+      if (
+        sprinklerPurchasedAtMs === null &&
+        state.runTouches >= getHelperPurchaseCost(state, "tinySprinkler") &&
+        buyHelper(state, permanent, "tinySprinkler")
+      ) {
+        sprinklerPurchasedAtMs = wallElapsedMs;
+        hpAtPurchase = state.hp;
+      }
+      advanceEcosystem(state, permanent, 10);
+      wallElapsedMs += 10;
+    }
+
+    return {
+      durationMs: state.elapsedMs,
+      initialScourgeDemandPerSecond,
+      sprinklerPurchasedAtMs,
+      hpAtPurchase,
+    };
+  }
+
   it("advances identical seeds deterministically", () => {
     const permanentA = createPermanentEcosystemState();
     const permanentB = createPermanentEcosystemState();
@@ -411,15 +453,18 @@ describe("EcosystemSystem", () => {
     expect(canBeginNextEcosystemRun(state, permanent)).toBe(true);
   });
 
-  it("makes the second run a short, dangerous first automation attempt", () => {
-    const permanent = createPermanentEcosystemState();
-    permanent.completedRuns = 1;
-    const state = createEcosystemState(permanent);
-    expect(isRunEquipmentAvailable(state)).toBe(true);
+  it("makes the second run dangerous even at the full legal touch rate", () => {
+    const result = simulateFirstAutomationRunAtFullTouchRate();
 
-    const duration = simulateManualRun(1, 1);
-    expect(duration).toBeGreaterThanOrEqual(30_000);
-    expect(duration).toBeLessThanOrEqual(90_000);
+    expect(result.initialScourgeDemandPerSecond).toBeGreaterThan(13);
+    expect(result.initialScourgeDemandPerSecond).toBeLessThan(14);
+    expect(result.sprinklerPurchasedAtMs).toBeGreaterThanOrEqual(5_500);
+    expect(result.sprinklerPurchasedAtMs).toBeLessThanOrEqual(6_000);
+    expect(result.hpAtPurchase).not.toBeNull();
+    expect(result.hpAtPurchase!).toBeLessThan(92);
+    expect(result.durationMs).toBeGreaterThanOrEqual(15_000);
+    expect(result.durationMs).toBeLessThanOrEqual(30_000);
+    expect(result.durationMs - result.sprinklerPurchasedAtMs!).toBeGreaterThanOrEqual(10_000);
   });
 
   it("lets a developed production web reach a sustained thriving state", () => {

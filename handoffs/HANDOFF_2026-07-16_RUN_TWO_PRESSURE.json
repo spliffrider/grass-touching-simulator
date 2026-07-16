@@ -1,0 +1,53 @@
+{
+  "date": "2026-07-16",
+  "topic": "Run 2 Scourge pressure calibration",
+  "currentUserGoal": "Keep the authored Run 1 collapse intact while making Ancient HP drain much faster and more visibly threatening during the second run.",
+  "workCompleted": [
+    "Separated the first-automation Scourge ramp from both the disposable Run 1 curve and later ecosystem capability tiers.",
+    "Raised the first-automation base demand and reshaped its ramp so optimal manual touching begins losing the HP race almost immediately.",
+    "Initialized later runs with their real calculated Scourge demand instead of briefly displaying the obsolete 0.7 Care/s placeholder.",
+    "Replaced the old 750 ms Run 2 balance fixture with a realistic strongest-player fixture that touches every legal 380 ms cooldown.",
+    "Made the fixture buy Tiny Sprinkler immediately when 14 RT is available, so the test covers the actual Run 2 opening rather than granting equipment at time zero.",
+    "Kept Run 1 constants and its first-touch collapse behavior unchanged."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-16_RUN_TWO_PRESSURE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 147 Vitest tests across 19 files, strict TypeScript, and the Vite production build.",
+    "Focused ecosystem system, save, and HP-visual verification passed 34 tests.",
+    "The deterministic optimal-input Run 2 now begins at approximately 13.32 Care/s on a 1x1 field.",
+    "The fixture purchases Tiny Sprinkler at 5.7 seconds with approximately 91.16 Ancient HP remaining.",
+    "The same fixture collapses at 16.0 seconds despite touching every legal cooldown.",
+    "The local ecosystem prototype route responded successfully on port 5173."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Verified local balance checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "The intended Run 2 balance changes and this handoff are committed on codex/ecosystem-factory-prototype.",
+    "The branch has not been pushed in this slice.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless explicitly requested."
+  ],
+  "knownIssues": [
+    "The 16-second Run 2 target is intentionally aggressive and needs the user's hands-on feel test before further tuning.",
+    "Tiny Sprinkler currently provides only a modest steady Care contribution; this slice calibrates Scourge pressure rather than redesigning the helper's output.",
+    "Automated browser control was not available in this session, so the deterministic model and full project gate were verified while final visual feel remains a hands-on check."
+  ],
+  "nextRecommendedSteps": [
+    "Play a clean Run 2 while continuously touching and buy Tiny Sprinkler as soon as it becomes available.",
+    "Judge separately whether the opening HP movement is threatening enough and whether the post-purchase sprinkler window is long enough to understand.",
+    "If pressure feels right, tune Tiny Sprinkler's immediate payoff without weakening the new Run 2 danger contract."
+  ],
+  "doNotRevert": [
+    "Do not weaken or otherwise retune the authored Run 1 collapse while adjusting Run 2.",
+    "Keep the Run 2 regression based on the real 380 ms legal cooldown rather than the obsolete 750 ms fixture.",
+    "Keep later-run initial HUD demand derived from the live Scourge formula.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}
