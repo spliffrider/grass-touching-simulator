@@ -12,6 +12,7 @@ import {
   advanceEcosystem,
   buyCultivationRank,
   buyHelper,
+  canBeginNextEcosystemRun,
   consumeHelperPulses,
   createEcosystemState,
   createPermanentEcosystemState,
@@ -23,6 +24,8 @@ import {
   getHelperPurchaseCost,
   getHelperUnlockCost,
   getTouchRankCost,
+  isFirstCollapseAwaitingSprinkler,
+  isFirstEcosystemCollapse,
   normalizePermanentEcosystemState,
   purchaseTouchRank,
   setPrototypeFieldSize,
@@ -346,16 +349,21 @@ describe("EcosystemSystem", () => {
     expect(simulateManualRun(12, 0)).toBeLessThanOrEqual(2_500);
   });
 
-  it("guarantees enough first-run GT to remember the first Broad Palm rank", () => {
+  it("turns the first collapse into a required Tiny Sprinkler memory", () => {
     const permanent = createPermanentEcosystemState();
     const state = createEcosystemState(permanent, { seed: 19 });
-    const firstSkillCost = getTouchRankCost("broadPalm", 0);
+    const firstMemoryCost = getHelperUnlockCost("tinySprinkler");
 
     forceGameOver(state, permanent);
 
-    expect(state.endedSummary?.grassTouchesAwarded).toBeGreaterThanOrEqual(firstSkillCost);
-    expect(permanent.grassTouches).toBeGreaterThanOrEqual(firstSkillCost);
-    expect(purchaseTouchRank(permanent, "broadPalm")).toBe(true);
+    expect(state.endedSummary?.grassTouchesAwarded).toBeGreaterThanOrEqual(firstMemoryCost);
+    expect(isFirstEcosystemCollapse(state, permanent)).toBe(true);
+    expect(isFirstCollapseAwaitingSprinkler(state, permanent)).toBe(true);
+    expect(canBeginNextEcosystemRun(state, permanent)).toBe(false);
+
+    expect(unlockHelper(permanent, "tinySprinkler")).toBe(true);
+    expect(isFirstCollapseAwaitingSprinkler(state, permanent)).toBe(false);
+    expect(canBeginNextEcosystemRun(state, permanent)).toBe(true);
   });
 
   it("moves the second run into the first multi-minute band", () => {

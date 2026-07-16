@@ -476,6 +476,31 @@ export function getHelperUnlockCost(helperId: HelperId): number {
   return HELPERS[helperId].unlockCost;
 }
 
+export function isFirstEcosystemCollapse(
+  state: EcosystemState,
+  permanent: PermanentEcosystemState,
+): boolean {
+  return !state.active &&
+    state.runNumber === 1 &&
+    state.endedSummary !== null &&
+    permanent.completedRuns >= 1;
+}
+
+export function isFirstCollapseAwaitingSprinkler(
+  state: EcosystemState,
+  permanent: PermanentEcosystemState,
+): boolean {
+  return isFirstEcosystemCollapse(state, permanent) &&
+    !permanent.unlockedHelpers.tinySprinkler;
+}
+
+export function canBeginNextEcosystemRun(
+  state: EcosystemState,
+  permanent: PermanentEcosystemState,
+): boolean {
+  return !state.active && !isFirstCollapseAwaitingSprinkler(state, permanent);
+}
+
 export function unlockHelper(permanent: PermanentEcosystemState, helperId: HelperId): boolean {
   if (permanent.unlockedHelpers[helperId]) {
     return false;
@@ -855,7 +880,10 @@ function finishRun(state: EcosystemState, permanent: PermanentEcosystemState): v
   state.hp = 0;
   const careProduced = state.resources.care.producedTotal;
   const minimumAward = permanent.completedRuns === 0
-    ? getTouchRankCost("broadPalm", 0)
+    ? Math.max(
+      getHelperUnlockCost("tinySprinkler"),
+      getTouchRankCost("broadPalm", 0),
+    )
     : 5;
   const award = Math.max(
     minimumAward,

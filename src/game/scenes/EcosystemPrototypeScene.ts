@@ -69,6 +69,7 @@ import {
   advanceEcosystem,
   buyCultivationRank,
   buyHelper,
+  canBeginNextEcosystemRun,
   clearDirtyChunks,
   consumeHelperPulses,
   createEcosystemState,
@@ -85,6 +86,8 @@ import {
   getModeUnlockCost,
   getPermanentRankCost,
   getTouchRankCost,
+  isFirstCollapseAwaitingSprinkler,
+  isFirstEcosystemCollapse,
   purchaseFieldEmbrace,
   purchasePermanentRank,
   purchaseTouchRank,
@@ -168,6 +171,7 @@ const HELPER_ARRIVAL_MS = 760;
 const HELPER_PULSE_ANIMATION_MS = 620;
 const HELPER_SOUND_INTERVAL_MS = 720;
 const TOUCH_READY_FLASH_MS = 220;
+const FIRST_MEMORY_NODE_ID = "helper:tinySprinkler:unlock";
 
 const TILE_STAGE_LABELS: Record<TileStage, string> = {
   [TileStage.Dormant]: "Sleeping Soil",
@@ -502,6 +506,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       setPrototypeFieldSize(this.state, this.permanent, requestedField);
       this.fieldView = { centerX: 0.5, centerY: 0.5, zoom: 1 };
     }
+    this.lastGameOverState = !this.state.active;
     this.firstSprinklerCycleCelebrated = this.state.helpers.tinySprinkler.count > 0
       && getFirstAutomationStatus(this.state, this.permanent).careProduced >= 0.3;
 
@@ -521,6 +526,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.createDomBridge();
     this.bindInput();
     this.layout(this.scale.width, this.scale.height);
+    this.prepareMemoryGroveView();
     this.refreshMemoryTree();
     this.refreshUi(true);
     this.renderField(true);
@@ -528,6 +534,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
     this.scale.on(Phaser.Scale.Events.RESIZE, (gameSize: Phaser.Structs.Size) => {
       this.layout(gameSize.width, gameSize.height);
+      this.prepareMemoryGroveView();
       this.renderField(true);
     });
     window.addEventListener("pagehide", this.handlePageHide);
@@ -561,11 +568,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.worksOpen = false;
       this.resetTouchRecovery();
       this.audio.play("dormancy");
-      clearActiveField();
-      savePermanentEcosystemState(this.permanent);
+      this.prepareMemoryGroveView();
       this.refreshMemoryTree();
       this.syncViewVisibility();
       this.refreshUi(true);
+      this.persistAll();
       this.uiRefreshRequested = false;
       this.fieldRenderRequested = false;
     }
@@ -1682,19 +1689,50 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
     if (!this.state.active && force) {
       const summary = this.state.endedSummary;
+      const firstCollapse = isFirstEcosystemCollapse(this.state, this.permanent);
+      const firstMemoryPending = isFirstCollapseAwaitingSprinkler(this.state, this.permanent);
+      this.setTextIfChanged(this.memoryTitle, "Memory Grove");
+      this.setTextIfChanged(this.memorySubtitle, firstCollapse
+        ? firstMemoryPending
+          ? `The first field was overwhelmed. Spend ${getHelperUnlockCost("tinySprinkler")} GT to remember Tiny Sprinkler.`
+          : "Tiny Sprinkler is remembered. Run 2 can turn Dew into its first steady Care."
+        : "The field is still. Spend Grass Touches on what the next run remembers.");
+      this.setTextIfChanged(this.memoryTreeTitle, firstCollapse ? "First Memory" : "Memory Web");
+      this.beginNextRunButton
+        .setLabel(firstMemoryPending ? "Remember Tiny Sprinkler First" : firstCollapse ? "Begin Run 2" : "Begin Next Run")
+        .setEnabled(canBeginNextEcosystemRun(this.state, this.permanent));
       this.setTextIfChanged(this.memorySummary, summary
-        ? [
-          `+${summary.grassTouchesAwarded} Grass Touches`,
-          "",
-          `Field reached: ${summary.fieldSize}x${summary.fieldSize}`,
-          `Cultivation: ${summary.cultivationRank}/10`,
-          `Care produced: ${summary.careProduced.toFixed(1)}`,
-          `Manual Care: ${summary.manualCare.toFixed(1)}`,
-          `Helpers bought: ${summary.helpersBought}`,
-          `Manual touches: ${summary.touches}`,
-          "",
-          `Available GT: ${this.permanent.grassTouches.toFixed(0)}`,
-        ].join("\n")
+        ? firstCollapse
+          ? [
+            "THE FIRST FIELD FELL",
+            "",
+            "Bare hands gathered Dew and Run Touches, but could not create enough Care to stop the Scourge.",
+            "",
+            `+${summary.grassTouchesAwarded} GT REMEMBERED`,
+            "",
+            firstMemoryPending
+              ? `NEXT: Tiny Sprinkler  |  ${getHelperUnlockCost("tinySprinkler")} GT`
+              : "TINY SPRINKLER REMEMBERED",
+            firstMemoryPending
+              ? "Select the glowing Memory in the web."
+              : "Run 2: gather 14 RT, install it, and keep it supplied with Dew.",
+            "",
+            `Collapse: ${(summary.durationMs / 1_000).toFixed(2)}s`,
+            `Manual touches: ${summary.touches}`,
+            `Available GT: ${this.permanent.grassTouches.toFixed(0)}`,
+          ].join("\n")
+          : [
+            `+${summary.grassTouchesAwarded} Grass Touches`,
+            "",
+            `Field reached: ${summary.fieldSize}x${summary.fieldSize}`,
+            `Cultivation: ${summary.cultivationRank}/10`,
+            `Care produced: ${summary.careProduced.toFixed(1)}`,
+            `Manual Care: ${summary.manualCare.toFixed(1)}`,
+            `Helpers bought: ${summary.helpersBought}`,
+            `Manual touches: ${summary.touches}`,
+            "",
+            `Available GT: ${this.permanent.grassTouches.toFixed(0)}`,
+          ].join("\n")
         : `Available GT: ${this.permanent.grassTouches.toFixed(0)}`);
       this.refreshMemoryTree();
     }
@@ -2490,7 +2528,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private beginNextRun(): void {
-    if (this.state.active) return;
+    if (!canBeginNextEcosystemRun(this.state, this.permanent)) {
+      this.audio.play("blocked");
+      return;
+    }
     this.state = createNextEcosystemRun(this.permanent);
     this.displayedHpRatio = 1;
     this.hpHeartbeatPulse = 0;
@@ -2871,7 +2912,16 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.memoryDetailBranch.setText(`${definition.branch.toUpperCase()} MEMORY`);
     const rankLine = runtime.maxRank > 1 ? `Rank ${runtime.rank} / ${runtime.maxRank}` : runtime.complete ? "Remembered" : "Single memory";
     this.memoryDetail.setText(`${definition.description}\n\n${rankLine}\n${runtime.effect}`);
-    if (definition.kind === "root") {
+    const firstCollapse = isFirstEcosystemCollapse(this.state, this.permanent);
+    if (firstCollapse && definition.id === FIRST_MEMORY_NODE_ID && !runtime.complete) {
+      this.memoryDetailStatus
+        .setText(`FIRST MEMORY  |  ${runtime.cost} GT\nRemember Tiny Sprinkler to unlock Run 2.`)
+        .setColor("#ffe889");
+    } else if (firstCollapse && definition.id === FIRST_MEMORY_NODE_ID && runtime.complete) {
+      this.memoryDetailStatus
+        .setText("FIRST MEMORY REMEMBERED\nRun 2 can now begin.")
+        .setColor("#9bd66f");
+    } else if (definition.kind === "root") {
       this.memoryDetailStatus.setText("Every permanent branch begins here.").setColor("#b8d9a4");
     } else if (runtime.complete) {
       this.memoryDetailStatus.setText("REMEMBERED\nThis memory is active in future runs.").setColor("#9bd66f");
@@ -2963,6 +3013,18 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     if (this.memoryTreeWorld) this.applyMemoryTreeViewTransform();
   }
 
+  private prepareMemoryGroveView(): void {
+    if (!this.memoryTreeWorld || !isFirstEcosystemCollapse(this.state, this.permanent)) return;
+    const node = ECOSYSTEM_MEMORY_NODE_BY_ID.get(FIRST_MEMORY_NODE_ID);
+    if (!node) return;
+    this.selectedMemoryNodeId = FIRST_MEMORY_NODE_ID;
+    this.memoryTreeZoom = this.scale.width < 760 ? 3.1 : 2.65;
+    const scale = this.memoryTreeFitScale * this.memoryTreeZoom;
+    this.memoryTreePanX = -node.x * scale;
+    this.memoryTreePanY = -node.y * scale;
+    this.applyMemoryTreeViewTransform();
+  }
+
   private applyMemoryTreeViewTransform(): void {
     if (!this.memoryTreeWorld || this.memoryTreeFitScale <= 0) return;
     const scale = this.memoryTreeFitScale * this.memoryTreeZoom;
@@ -3043,7 +3105,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       .setScale(baseScaleX * (1 + pulse * 0.035), baseScaleY * (1 + pulse * 0.035))
       .setAngle(pulse * 1.5);
     this.memoryDetailIconGlow.setScale(1 + pulse * 0.035).setAlpha(0.88 + pulse * 0.1);
-    this.beginNextRunButton.container.setScale(1 + Math.sin(now * 0.004) * 0.018);
+    this.beginNextRunButton.container.setScale(
+      this.beginNextRunButton.enabled ? 1 + Math.sin(now * 0.004) * 0.018 : 1,
+    );
   }
 
   private adjustFieldZoom(factor: number): void {
@@ -3091,12 +3155,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private persistAll(): void {
     savePermanentEcosystemState(this.permanent);
-    if (this.state.active) {
-      const view: ActiveFieldViewSnapshot = { ...this.fieldView };
-      saveActiveField(this.state, view);
-    } else {
-      clearActiveField();
-    }
+    const view: ActiveFieldViewSnapshot = { ...this.fieldView };
+    saveActiveField(this.state, view);
   }
 
   private resetPrototypeSave(): void {

@@ -8,6 +8,7 @@ import {
   advanceEcosystem,
   createEcosystemState,
   createPermanentEcosystemState,
+  forceGameOver,
   setPrototypeFieldSize,
   touchFieldTile,
   unlockAllPrototypeMemories,
@@ -47,5 +48,19 @@ describe("EcosystemSave", () => {
     snapshot.field.height = 100;
 
     expect(restoreActiveFieldSnapshot(snapshot, permanent)).toBeNull();
+  });
+
+  it("round-trips an ended field so Memory Grove survives a reload", () => {
+    const permanent = createPermanentEcosystemState();
+    const state = createEcosystemState(permanent, { seed: 2026 });
+    touchFieldTile(state, permanent, 0);
+    forceGameOver(state, permanent);
+
+    const loaded = restoreActiveFieldSnapshot(createActiveFieldSnapshot(state), permanent);
+
+    expect(loaded?.state.active).toBe(false);
+    expect(loaded?.state.runNumber).toBe(1);
+    expect(loaded?.state.endedSummary).toEqual(state.endedSummary);
+    expect(loaded?.state.endedSummary?.grassTouchesAwarded).toBe(7);
   });
 });

@@ -1,5 +1,6 @@
 import { HELPER_IDS, HELPERS, PRODUCTION_RESOURCE_IDS, PRODUCTION_RESOURCES, TILE_STAGE_COUNT, TileStage, type HelperId } from "./EcosystemCatalog";
 import {
+  canBeginNextEcosystemRun,
   getCultivationCost,
   getDominantChunkStage,
   getFirstAutomationStatus,
@@ -8,6 +9,8 @@ import {
   getModeUnlockCost,
   getPermanentRankCost,
   getTouchRankCost,
+  isFirstCollapseAwaitingSprinkler,
+  isFirstEcosystemCollapse,
   type EcosystemState,
   type FirstAutomationStatus,
   type PermanentEcosystemState,
@@ -207,8 +210,15 @@ export class EcosystemDomBridge {
     const firstSprinklerCost = getHelperPurchaseCost(state, "tinySprinkler");
     const firstAutomation = getFirstAutomationStatus(state, permanent);
     const automationLine = getAutomationReadableLine(firstAutomation);
+    const firstCollapse = isFirstEcosystemCollapse(state, permanent);
+    const firstMemoryPending = isFirstCollapseAwaitingSprinkler(state, permanent);
     const lines = [
       `Ecosystem prototype | Run ${state.runNumber} | ${state.active ? "active" : "Game Over"}`,
+      ...(firstCollapse
+        ? [firstMemoryPending
+          ? "First collapse complete: remember Tiny Sprinkler before beginning Run 2"
+          : "First memory complete: Run 2 can now build Care automation"]
+        : []),
       `Ancient HP ${state.hp.toFixed(1)} / ${state.maxHp.toFixed(0)}`,
       `Scourge demand ${state.scourgeDemandPerSecond.toFixed(2)} Care/s | Care production ${state.rates.care.toFixed(2)}/s`,
       `Field ${state.field.width}x${state.field.height} | Cultivation ${state.field.cultivationRank}/10 | RT ${state.runTouches.toFixed(1)} | GT ${permanent.grassTouches.toFixed(0)}`,
@@ -233,7 +243,12 @@ export class EcosystemDomBridge {
     this.setText(this.cultivateButton, `Buy Cultivation ${Math.min(10, state.field.cultivationRank + 1)}/10 for ${getCultivationCost(state)} Growth`);
     this.setText(this.worksButton, worksOpen ? "Close Ecosystem Works" : "Open Ecosystem Works");
     this.setText(this.optionsButton, optionsOpen ? "Close Options" : "Open Options");
-    this.setDisabled(this.nextRunButton, state.active);
+    this.setText(this.nextRunButton, firstMemoryPending
+      ? "Remember Tiny Sprinkler first"
+      : firstCollapse
+        ? "Begin Run 2"
+        : "Begin next run");
+    this.setDisabled(this.nextRunButton, !canBeginNextEcosystemRun(state, permanent));
 
     for (const button of this.buyButtons) {
       const helperId = button.helperId!;
