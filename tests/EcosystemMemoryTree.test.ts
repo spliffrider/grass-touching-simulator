@@ -7,6 +7,7 @@ import {
   ECOSYSTEM_MEMORY_WORLD_HEIGHT,
   ECOSYSTEM_MEMORY_WORLD_WIDTH,
   FIRST_ECOSYSTEM_MEMORY_NODE_ID,
+  getEcosystemMemoryEntryNodeId,
   getEcosystemMemoryNodeVisualRadius,
   getHelperModeMemoryId,
   getHelperRankMemoryId,
@@ -198,5 +199,20 @@ describe("Ecosystem Memory Tree", () => {
     expect(mouseBranches.has(getHelperUnlockMemoryId("beeHive"))).toBe(true);
     expect(mouseBranches.has(getHelperRankMemoryId("fieldMouse", "throughput"))).toBe(true);
     expect(mouseBranches.has(getHelperUnlockMemoryId("chickenPatrol"))).toBe(false);
+  });
+
+  it("returns to the most recently purchased visible Memory on every entry", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.lastPurchasedMemoryNodeId = getHelperRankMemoryId("tinySprinkler", "throughput");
+
+    expect(getEcosystemMemoryEntryNodeId(permanent, true)).toBe(FIRST_ECOSYSTEM_MEMORY_NODE_ID);
+
+    permanent.unlockedHelpers.tinySprinkler = true;
+    expect(getEcosystemMemoryEntryNodeId(permanent)).toBe(
+      getHelperRankMemoryId("tinySprinkler", "throughput"),
+    );
+
+    permanent.lastPurchasedMemoryNodeId = "missing:memory";
+    expect(getEcosystemMemoryEntryNodeId(permanent)).toBe(ECOSYSTEM_MEMORY_ROOT_ID);
   });
 });

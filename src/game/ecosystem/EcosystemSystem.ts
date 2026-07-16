@@ -50,6 +50,7 @@ export interface PermanentEcosystemState {
   broadPalmRank: number;
   manyHandsRank: number;
   fieldEmbrace: boolean;
+  lastPurchasedMemoryNodeId: string | null;
 }
 
 export interface HelperRuntimeState {
@@ -237,6 +238,7 @@ export function createPermanentEcosystemState(): PermanentEcosystemState {
     broadPalmRank: 0,
     manyHandsRank: 0,
     fieldEmbrace: false,
+    lastPurchasedMemoryNodeId: null,
   };
 }
 
@@ -255,6 +257,10 @@ export function normalizePermanentEcosystemState(input: unknown): PermanentEcosy
   normalized.broadPalmRank = clampRank(Number(source.broadPalmRank), 10);
   normalized.manyHandsRank = clampRank(Number(source.manyHandsRank), 10);
   normalized.fieldEmbrace = source.fieldEmbrace === true;
+  normalized.lastPurchasedMemoryNodeId = typeof source.lastPurchasedMemoryNodeId === "string"
+    && source.lastPurchasedMemoryNodeId.length <= 128
+    ? source.lastPurchasedMemoryNodeId
+    : null;
 
   for (const helperId of HELPER_IDS) {
     normalized.unlockedHelpers[helperId] = source.unlockedHelpers?.[helperId] === true;

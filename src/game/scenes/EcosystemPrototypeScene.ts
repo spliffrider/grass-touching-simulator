@@ -43,6 +43,7 @@ import {
   ECOSYSTEM_MEMORY_WORLD_HEIGHT,
   ECOSYSTEM_MEMORY_WORLD_WIDTH,
   FIRST_ECOSYSTEM_MEMORY_NODE_ID,
+  getEcosystemMemoryEntryNodeId,
   getEcosystemMemoryNodeVisualRadius,
   getHelperModeMemoryId,
   getHelperRankMemoryId,
@@ -544,7 +545,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.createDomBridge();
     this.bindInput();
     this.layout(this.scale.width, this.scale.height);
-    this.prepareMemoryGroveView();
+    this.prepareMemoryGroveView(!this.state.active);
     this.refreshMemoryTree();
     this.refreshUi(true);
     this.renderField(true);
@@ -2638,9 +2639,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.refreshUi(true);
   }
 
-  private performMemoryPurchase(action: () => boolean): boolean {
+  private performMemoryPurchase(nodeId: string, action: () => boolean): boolean {
     if (this.state.active) return false;
     if (action()) {
+      this.permanent.lastPurchasedMemoryNodeId = nodeId;
       this.audio.play("unlock");
       savePermanentEcosystemState(this.permanent);
       this.layout(this.scale.width, this.scale.height);
@@ -3130,7 +3132,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.memoryRevealSequenceActive = true;
       this.memoryRevealHoldIds = new Set(previouslyRevealed);
     }
-    const purchased = this.performMemoryPurchase(runtime.action);
+    const purchased = this.performMemoryPurchase(nodeId, runtime.action);
     if (!purchased) {
       this.memoryRevealSequenceActive = false;
       this.memoryRevealHoldIds = null;
@@ -3201,63 +3203,62 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private prepareMemoryGroveView(animateEntry = false): void {
     if (!this.memoryTreeWorld || this.state.active) return;
-    const node = ECOSYSTEM_MEMORY_NODE_BY_ID.get(FIRST_ECOSYSTEM_MEMORY_NODE_ID);
-    if (!node) return;
     const firstMemoryPending = isFirstMemoryPending(this.state, this.permanent);
-    if (!firstMemoryPending && !isFirstEcosystemCollapse(this.state, this.permanent)) return;
+    const targetNodeId = getEcosystemMemoryEntryNodeId(this.permanent, firstMemoryPending);
+    const node = ECOSYSTEM_MEMORY_NODE_BY_ID.get(targetNodeId);
+    if (!node) return;
     this.memoryEntryTween?.stop();
     this.memoryEntryTween = null;
-    this.selectedMemoryNodeId = FIRST_ECOSYSTEM_MEMORY_NODE_ID;
-    if (firstMemoryPending) {
-      const targetZoom = this.scale.width < 760 ? 7.4 : 5.8;
-      const targetScale = this.memoryTreeFitScale * targetZoom;
-      const targetPanX = -node.x * targetScale;
-      const targetPanY = -node.y * targetScale;
-      if (animateEntry) {
-        const entryZoom = this.scale.width < 760 ? 2.4 : 2;
-        const entryScale = this.memoryTreeFitScale * entryZoom;
-        const camera = {
-          zoom: entryZoom,
-          panX: -node.x * entryScale,
-          panY: -node.y * entryScale,
-        };
-        this.memoryTreeZoom = camera.zoom;
-        this.memoryTreePanX = camera.panX;
-        this.memoryTreePanY = camera.panY;
-        this.applyMemoryTreeViewTransform();
-        this.memoryEntryTween = this.tweens.add({
-          targets: camera,
-          zoom: targetZoom,
-          panX: targetPanX,
-          panY: targetPanY,
-          delay: 90,
-          duration: 720,
-          ease: "Cubic.easeOut",
-          onUpdate: () => {
-            this.memoryTreeZoom = camera.zoom;
-            this.memoryTreePanX = camera.panX;
-            this.memoryTreePanY = camera.panY;
-            this.applyMemoryTreeViewTransform();
-          },
-          onComplete: () => {
-            this.memoryTreeZoom = targetZoom;
-            this.memoryTreePanX = targetPanX;
-            this.memoryTreePanY = targetPanY;
-            this.memoryEntryTween = null;
-            this.applyMemoryTreeViewTransform();
-          },
-        });
-        return;
-      }
-      this.memoryTreeZoom = targetZoom;
-      this.memoryTreePanX = targetPanX;
-      this.memoryTreePanY = targetPanY;
-    } else {
-      const focus = this.getMemoryTreeFocus(this.getRevealedMemoryNodeIds());
-      this.memoryTreeZoom = focus.zoom;
-      this.memoryTreePanX = focus.panX;
-      this.memoryTreePanY = focus.panY;
+    this.selectedMemoryNodeId = targetNodeId;
+    const mobile = this.scale.width < 760;
+    const targetZoom = firstMemoryPending
+      ? mobile ? 7.4 : 5.8
+      : mobile ? 5.2 : 3.8;
+    const targetScale = this.memoryTreeFitScale * targetZoom;
+    const targetPanX = -node.x * targetScale;
+    const targetPanY = -node.y * targetScale;
+    if (animateEntry) {
+      const entryFocus = this.getMemoryTreeFocus(
+        this.getRevealedMemoryNodeIds(),
+        mobile ? 110 : 150,
+        firstMemoryPending ? mobile ? 2.4 : 2 : targetZoom * 0.55,
+      );
+      const camera = {
+        zoom: entryFocus.zoom,
+        panX: entryFocus.panX,
+        panY: entryFocus.panY,
+      };
+      this.memoryTreeZoom = camera.zoom;
+      this.memoryTreePanX = camera.panX;
+      this.memoryTreePanY = camera.panY;
+      this.applyMemoryTreeViewTransform();
+      this.memoryEntryTween = this.tweens.add({
+        targets: camera,
+        zoom: targetZoom,
+        panX: targetPanX,
+        panY: targetPanY,
+        delay: 90,
+        duration: 720,
+        ease: "Cubic.easeOut",
+        onUpdate: () => {
+          this.memoryTreeZoom = camera.zoom;
+          this.memoryTreePanX = camera.panX;
+          this.memoryTreePanY = camera.panY;
+          this.applyMemoryTreeViewTransform();
+        },
+        onComplete: () => {
+          this.memoryTreeZoom = targetZoom;
+          this.memoryTreePanX = targetPanX;
+          this.memoryTreePanY = targetPanY;
+          this.memoryEntryTween = null;
+          this.applyMemoryTreeViewTransform();
+        },
+      });
+      return;
     }
+    this.memoryTreeZoom = targetZoom;
+    this.memoryTreePanX = targetPanX;
+    this.memoryTreePanY = targetPanY;
     this.applyMemoryTreeViewTransform();
   }
 
@@ -3588,6 +3589,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       firstMemoryPending: isFirstMemoryPending(this.state, this.permanent),
       memoryTreeZoom: Number(this.memoryTreeZoom.toFixed(3)),
       selectedMemoryNodeId: this.selectedMemoryNodeId,
+      lastPurchasedMemoryNodeId: this.permanent.lastPurchasedMemoryNodeId,
       elapsedMs: Math.round(this.state.elapsedMs),
       field: `${this.state.field.width}x${this.state.field.height}`,
       logicalTiles: readout.logicalTiles,

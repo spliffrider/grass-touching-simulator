@@ -322,6 +322,25 @@ describe("EcosystemSystem", () => {
     expect(getManualTouchCooldownMs(legacy.fastTouchRank)).toBe(356);
   });
 
+  it("safely normalizes the most recently purchased Memory node", () => {
+    const legacy = normalizePermanentEcosystemState({
+      version: 1,
+      grassTouches: 12,
+    });
+    const remembered = normalizePermanentEcosystemState({
+      version: 1,
+      lastPurchasedMemoryNodeId: "helper:tinySprinkler:throughput",
+    });
+    const malformed = normalizePermanentEcosystemState({
+      version: 1,
+      lastPurchasedMemoryNodeId: "x".repeat(129),
+    });
+
+    expect(legacy.lastPurchasedMemoryNodeId).toBeNull();
+    expect(remembered.lastPurchasedMemoryNodeId).toBe("helper:tinySprinkler:throughput");
+    expect(malformed.lastPurchasedMemoryNodeId).toBeNull();
+  });
+
   it("holds ten thousand real tile states at 100x100", () => {
     const permanent = createPermanentEcosystemState();
     const state = createEcosystemState(permanent);

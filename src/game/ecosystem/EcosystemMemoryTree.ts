@@ -457,3 +457,25 @@ export function getRevealedEcosystemMemoryNodeIds(
       .map((node) => node.id),
   );
 }
+
+export function getEcosystemMemoryEntryNodeId(
+  permanent: PermanentEcosystemState,
+  firstMemoryFocus = false,
+): string {
+  if (firstMemoryFocus && !permanent.unlockedHelpers.tinySprinkler) {
+    return FIRST_ECOSYSTEM_MEMORY_NODE_ID;
+  }
+  const lastPurchasedNodeId = permanent.lastPurchasedMemoryNodeId;
+  if (
+    lastPurchasedNodeId
+    && ECOSYSTEM_MEMORY_NODE_BY_ID.has(lastPurchasedNodeId)
+    && isEcosystemMemoryNodeRevealed(
+      ECOSYSTEM_MEMORY_NODE_BY_ID.get(lastPurchasedNodeId)!,
+      permanent,
+      false,
+    )
+  ) {
+    return lastPurchasedNodeId;
+  }
+  return ECOSYSTEM_MEMORY_ROOT_ID;
+}
