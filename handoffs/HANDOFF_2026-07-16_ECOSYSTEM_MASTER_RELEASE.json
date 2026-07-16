@@ -1,0 +1,45 @@
+{
+  "date": "2026-07-16",
+  "topic": "Ecosystem redesign master release",
+  "currentUserGoal": "Promote the approved Ancient Grass ecosystem redesign to master, deploy it to production, and synchronize the Mac mini.",
+  "workCompleted": [
+    "Confirmed local master, origin/master, and the Mac mini were all clean at d5bbeb7 before promotion.",
+    "Confirmed codex/ecosystem-factory-prototype was a direct descendant of master with no conflicting history.",
+    "Fast-forwarded local master to the approved ecosystem redesign at 732e18b.",
+    "Preserved the complete redesign history, including the ecosystem economy, Memory Web, first-run progression, performance work, production title flow, and repaired title layout.",
+    "Kept docs/CODEX_GITHUB_SETUP_GUIDE.md untracked and outside the release."
+  ],
+  "filesChanged": [
+    "handoffs/HANDOFF_2026-07-16_ECOSYSTEM_MASTER_RELEASE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed on master: ESLint, 159 Vitest tests across 21 files, strict TypeScript, and the Vite production build.",
+    "The bare production-title route and direct ecosystem playtest route both returned HTTP 200 locally.",
+    "Vercel CLI authentication was verified as spliffrider.",
+    "The linked Vercel project is grass-touching-simulator in the sensitech scope.",
+    "The previous production deployment was Ready before replacement."
+  ],
+  "release": {
+    "branch": "master",
+    "releaseCandidate": "732e18b",
+    "productionUrl": "https://grasstouchingsimulator.com",
+    "status": "Master promotion verified locally. Push, production deployment, and Mac handoff are the immediate release actions following this handoff commit."
+  },
+  "knownIssues": [
+    "The game remains explicitly alpha and will continue to receive gameplay, balance, Memory Web, visual, and performance iteration.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless explicitly requested."
+  ],
+  "nextRecommendedSteps": [
+    "Push master to GitHub.",
+    "Deploy the linked Vercel project to production and verify grasstouchingsimulator.com.",
+    "Run the desktop-to-Mac handoff with a Mac-side production build.",
+    "Begin the next gameplay slice from master after players have exercised the live alpha."
+  ],
+  "doNotRevert": [
+    "Do not route the bare production URL directly into active gameplay or Memory Grove.",
+    "Do not restore hardcoded title coordinates, native-size selector pulsing, or startup opacity hiding.",
+    "Do not cite the legacy 1200-tile harness as ecosystem performance evidence.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}
