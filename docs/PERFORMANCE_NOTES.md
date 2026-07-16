@@ -157,3 +157,27 @@ Measured on `?redesign&ecosystemPrototype&playtest&debugPanel`:
 
 These figures come from the ecosystem redesign harness. The legacy 1,200-tile
 `GameScene` harness was not used and is not evidence for this architecture.
+
+## 2026-07-16 Pre-Main Startup And Animation Budget
+
+The production ecosystem title and field music are now loaded after each scene
+has built its first usable visual state. Multi-megabyte audio no longer blocks
+the title screen or the first playable field from appearing.
+
+Near-field motion also has explicit per-frame budgets:
+
+- Desktop: at most 144 representative tile transforms.
+- Phone: at most 72 representative tile transforms.
+
+The sample is distributed across the visible tile pool, while every rendered
+tile keeps real state and is reset to a stable transform when the projection is
+redrawn. Far fields continue to use at most 100 summarized chunk views.
+
+The redesign debug snapshot now reports `animatedTileViews`. Its heavier object
+count and JSON snapshot refresh runs twice per second instead of four times per
+second. The first-sprinkler attention animation also consumes a cached
+affordability flag rather than recomputing purchase cost every frame.
+
+These changes are structural guardrails, not new benchmark claims. Re-run the
+ecosystem-specific desktop and phone harness after hands-on title/gameplay
+verification before merging to `master`.

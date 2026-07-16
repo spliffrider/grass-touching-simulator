@@ -83,6 +83,20 @@ export interface LoadedActiveField {
   view: ActiveFieldViewSnapshot;
 }
 
+export interface EcosystemSaveSummary {
+  hasSave: boolean;
+  hasActiveField: boolean;
+  active: boolean;
+  runNumber: number;
+  fieldSize: number;
+  hp: number;
+  maxHp: number;
+  elapsedMs: number;
+  manualTouchCount: number;
+  permanentGrassTouches: number;
+  completedRuns: number;
+}
+
 function finiteNumber(value: unknown, fallback = 0, minimum = Number.NEGATIVE_INFINITY): number {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? Math.max(minimum, numeric) : fallback;
@@ -323,5 +337,42 @@ export function clearActiveField(storage: Storage = localStorage): void {
     storage.removeItem(ECOSYSTEM_ACTIVE_SAVE_KEY);
   } catch {
     // Storage can be unavailable in privacy modes; the active in-memory run remains valid.
+  }
+}
+
+export function getEcosystemSaveSummary(storage: Storage = localStorage): EcosystemSaveSummary {
+  let hasPermanentSave = false;
+  let hasActiveSave = false;
+  try {
+    hasPermanentSave = storage.getItem(ECOSYSTEM_PERMANENT_SAVE_KEY) !== null;
+    hasActiveSave = storage.getItem(ECOSYSTEM_ACTIVE_SAVE_KEY) !== null;
+  } catch {
+    // Treat unavailable storage as a clean start.
+  }
+
+  const permanent = loadPermanentEcosystemState(storage);
+  const loaded = loadActiveField(permanent, storage);
+  const state = loaded?.state;
+  return {
+    hasSave: hasPermanentSave || loaded !== null,
+    hasActiveField: loaded !== null && hasActiveSave,
+    active: state?.active ?? false,
+    runNumber: state?.runNumber ?? Math.max(1, permanent.completedRuns + 1),
+    fieldSize: state?.field.width ?? 1,
+    hp: state?.hp ?? 100,
+    maxHp: state?.maxHp ?? 100,
+    elapsedMs: state?.elapsedMs ?? 0,
+    manualTouchCount: state?.manualTouchCount ?? 0,
+    permanentGrassTouches: permanent.grassTouches,
+    completedRuns: permanent.completedRuns,
+  };
+}
+
+export function clearEcosystemProgress(storage: Storage = localStorage): void {
+  try {
+    storage.removeItem(ECOSYSTEM_ACTIVE_SAVE_KEY);
+    storage.removeItem(ECOSYSTEM_PERMANENT_SAVE_KEY);
+  } catch {
+    // A fresh in-memory field can still start when persistence is unavailable.
   }
 }

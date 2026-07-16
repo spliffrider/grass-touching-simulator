@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ECOSYSTEM_ACTIVE_SAVE_KEY,
+  ECOSYSTEM_PERMANENT_SAVE_KEY,
+  clearEcosystemProgress,
   createActiveFieldSnapshot,
+  getEcosystemSaveSummary,
   restoreActiveFieldSnapshot,
+  saveActiveField,
+  savePermanentEcosystemState,
 } from "../src/game/ecosystem/EcosystemSave";
 import {
   advanceEcosystem,
@@ -13,6 +19,34 @@ import {
   touchFieldTile,
   unlockAllPrototypeMemories,
 } from "../src/game/ecosystem/EcosystemSystem";
+
+class MemoryStorage implements Storage {
+  private readonly values = new Map<string, string>();
+
+  get length(): number {
+    return this.values.size;
+  }
+
+  clear(): void {
+    this.values.clear();
+  }
+
+  getItem(key: string): string | null {
+    return this.values.get(key) ?? null;
+  }
+
+  key(index: number): string | null {
+    return [...this.values.keys()][index] ?? null;
+  }
+
+  removeItem(key: string): void {
+    this.values.delete(key);
+  }
+
+  setItem(key: string, value: string): void {
+    this.values.set(key, value);
+  }
+}
 
 describe("EcosystemSave", () => {
   it("round-trips exact active state without offline advancement", () => {
@@ -81,5 +115,52 @@ describe("EcosystemSave", () => {
     expect(loaded?.state.runNumber).toBe(1);
     expect(loaded?.state.endedSummary).toEqual(state.endedSummary);
     expect(loaded?.state.endedSummary?.grassTouchesAwarded).toBe(7);
+  });
+
+  it("summarizes active fields and ended Memory Grove saves for the title screen", () => {
+    const storage = new MemoryStorage();
+    const permanent = createPermanentEcosystemState();
+    permanent.grassTouches = 14;
+    permanent.completedRuns = 2;
+    const state = createEcosystemState(permanent, { seed: 77 });
+    state.runNumber = 3;
+    state.hp = 42;
+    state.elapsedMs = 12_345;
+    state.manualTouchCount = 9;
+    savePermanentEcosystemState(permanent, storage);
+    saveActiveField(state, { centerX: 0.5, centerY: 0.5, zoom: 1 }, storage);
+
+    expect(getEcosystemSaveSummary(storage)).toEqual({
+      hasSave: true,
+      hasActiveField: true,
+      active: true,
+      runNumber: 3,
+      fieldSize: 1,
+      hp: 42,
+      maxHp: 100,
+      elapsedMs: 12_345,
+      manualTouchCount: 9,
+      permanentGrassTouches: 14,
+      completedRuns: 2,
+    });
+
+    forceGameOver(state, permanent);
+    savePermanentEcosystemState(permanent, storage);
+    saveActiveField(state, { centerX: 0.5, centerY: 0.5, zoom: 1 }, storage);
+    const ended = getEcosystemSaveSummary(storage);
+    expect(ended.active).toBe(false);
+    expect(ended.runNumber).toBe(3);
+    expect(ended.permanentGrassTouches).toBeGreaterThanOrEqual(14);
+  });
+
+  it("clears both ecosystem save surfaces for a confirmed new field", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(ECOSYSTEM_PERMANENT_SAVE_KEY, "{}");
+    storage.setItem(ECOSYSTEM_ACTIVE_SAVE_KEY, "{}");
+
+    clearEcosystemProgress(storage);
+
+    expect(storage.length).toBe(0);
+    expect(getEcosystemSaveSummary(storage).hasSave).toBe(false);
   });
 });

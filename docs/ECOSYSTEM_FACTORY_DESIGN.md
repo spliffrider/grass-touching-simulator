@@ -2,15 +2,24 @@
 
 ## Prototype Boundary
 
-The ecosystem prototype runs only at:
+The ecosystem implementation has two entry surfaces:
 
 ```text
+/
+?alpha
 ?redesign&ecosystemPrototype
 ```
 
-The public Ancient Grass alpha and the legacy `GameScene` remain separate. The
-prototype owns separate permanent and active-run saves, browser diagnostics,
-and performance harnesses. It must not read or migrate either existing save.
+The bare production URL and `?alpha` open the dedicated ecosystem title screen.
+Players explicitly choose Continue or Begin New Field before the ecosystem
+scene loads. `?redesign&ecosystemPrototype` remains the direct developer route
+for playtests and harnesses. The older redesign remains available through
+`?redesign`, while `?legacy` and the legacy harness parameters still select the
+old `GameScene`.
+
+The ecosystem owns separate permanent and active-run saves, browser
+diagnostics, and performance harnesses. It must not read or migrate either
+existing save.
 
 ## Player Promise
 
@@ -210,7 +219,8 @@ on phones, with object counts bounded by viewport size.
 
 ## Promotion Gate
 
-The prototype is not the public alpha merely because it builds. Promotion
-requires deterministic tests, save/resume checks, desktop and phone browser
-passes, measured 32x32/50x50/100x100 harness results, and hands-on approval that
-the production decisions are enjoyable.
+The ecosystem may own the production entry route on its release branch without
+being ready to merge. Promotion to `master` still requires deterministic tests,
+save/resume checks, desktop and phone browser passes, measured
+32x32/50x50/100x100 harness results, and hands-on approval that the production
+decisions are enjoyable.

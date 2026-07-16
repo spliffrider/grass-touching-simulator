@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { resolveGameRoute } from "./game/routing/GameRoute";
 import { GameScene } from "./game/scenes/GameScene";
 import { EcosystemPrototypeScene } from "./game/scenes/EcosystemPrototypeScene";
+import { EcosystemTitleScene } from "./game/scenes/EcosystemTitleScene";
 import { RedesignPrototypeScene } from "./game/scenes/RedesignPrototypeScene";
 import { TitleScene } from "./game/scenes/TitleScene";
 import "./style.css";
@@ -45,8 +46,14 @@ function syncViewportCss(viewport: ViewportSize): void {
 syncViewportCss(initialViewport);
 const bootStartedAt = performance.now();
 document.documentElement.dataset.grassBootStarted = `${Math.round(bootStartedAt)}`;
-const { publicAlphaRoute, useRedesignPrototype, useEcosystemPrototype } = resolveGameRoute(window.location.search);
-if (useRedesignPrototype || useEcosystemPrototype) {
+const {
+  publicAlphaRoute,
+  useEcosystemTitle,
+  useRedesignPrototype,
+  useEcosystemPrototype,
+} = resolveGameRoute(window.location.search);
+const useEcosystemVisuals = useEcosystemTitle || useEcosystemPrototype;
+if (useRedesignPrototype || useEcosystemVisuals) {
   document.documentElement.classList.add("grass-redesign-route");
 }
 if (useEcosystemPrototype) {
@@ -54,7 +61,7 @@ if (useEcosystemPrototype) {
 }
 if (publicAlphaRoute) {
   document.documentElement.classList.add("grass-public-alpha-route");
-  document.title = "Grass Touching Simulator: Ancient Grass Alpha Test";
+  document.title = "Grass Touching Simulator: Ancient Grass Ecosystem";
 }
 
 let appReadyMarked = false;
@@ -79,16 +86,18 @@ const config: Phaser.Types.Core.GameConfig = {
     height: initialViewport.height,
   },
   render: {
-    pixelArt: !(useRedesignPrototype || useEcosystemPrototype),
-    antialias: useRedesignPrototype || useEcosystemPrototype,
-    roundPixels: !(useRedesignPrototype || useEcosystemPrototype),
-    powerPreference: useEcosystemPrototype ? "high-performance" : "default",
+    pixelArt: !(useRedesignPrototype || useEcosystemVisuals),
+    antialias: useRedesignPrototype || useEcosystemVisuals,
+    roundPixels: !(useRedesignPrototype || useEcosystemVisuals),
+    powerPreference: useEcosystemVisuals ? "high-performance" : "default",
   },
   scene: useEcosystemPrototype
     ? [EcosystemPrototypeScene]
-    : useRedesignPrototype
-      ? [RedesignPrototypeScene]
-      : [TitleScene, GameScene],
+    : useEcosystemTitle
+      ? [EcosystemTitleScene, EcosystemPrototypeScene]
+      : useRedesignPrototype
+        ? [RedesignPrototypeScene]
+        : [TitleScene, GameScene],
 };
 
 const game = new Phaser.Game(config);

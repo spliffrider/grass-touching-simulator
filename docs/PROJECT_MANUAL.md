@@ -47,14 +47,19 @@ Performance reference:
 
 ## Runtime Architecture
 
-The game has two scenes:
+The bootstrap currently preserves three separate game surfaces:
 
-- `TitleScene`: title screen, menu buttons, credits, menu music, title options.
-- `GameScene`: main game board, HUD, panels, input handling, visual feedback, and system orchestration.
+- Production ecosystem: `EcosystemTitleScene` -> `EcosystemPrototypeScene`.
+- Internal previous redesign: `RedesignPrototypeScene` through `?redesign`.
+- Legacy game: `TitleScene` -> `GameScene` through `?legacy` and legacy harness parameters.
 
-The important rule:
+The bare URL and `?alpha` always open `EcosystemTitleScene`; they never resume
+directly into a field or Memory Grove. `?redesign&ecosystemPrototype` remains a
+deliberate title-bypass route for development and performance checks.
 
-`GameScene` should coordinate, while systems should own gameplay behavior.
+The important orchestration rule applies to every gameplay scene:
+
+Gameplay scenes should coordinate, while systems should own gameplay behavior.
 
 Good responsibilities for `GameScene`:
 

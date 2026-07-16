@@ -1,5 +1,6 @@
 export interface GameRouteMode {
   publicAlphaRoute: boolean;
+  useEcosystemTitle: boolean;
   useRedesignPrototype: boolean;
   useEcosystemPrototype: boolean;
 }
@@ -18,11 +19,16 @@ export function resolveGameRoute(search: string): GameRouteMode {
   const explicitPublicAlpha = params.has("alpha");
   const developerRedesignRoute = hasAnyParam(params, REDESIGN_DEVELOPER_PARAMS);
   const legacyHarnessRoute = hasAnyParam(params, LEGACY_HARNESS_PARAMS);
-  const useRedesignPrototype = !useEcosystemPrototype && !forceLegacy && (explicitPublicAlpha || developerRedesignRoute || !legacyHarnessRoute);
+  const useRedesignPrototype = !useEcosystemPrototype && !forceLegacy && developerRedesignRoute;
+  const useEcosystemTitle = !useEcosystemPrototype
+    && !useRedesignPrototype
+    && !forceLegacy
+    && (explicitPublicAlpha || !legacyHarnessRoute);
 
   return {
+    useEcosystemTitle,
     useEcosystemPrototype,
     useRedesignPrototype,
-    publicAlphaRoute: useRedesignPrototype && !developerRedesignRoute,
+    publicAlphaRoute: useEcosystemTitle,
   };
 }

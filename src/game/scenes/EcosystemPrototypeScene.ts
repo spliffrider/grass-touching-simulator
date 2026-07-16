@@ -17,6 +17,10 @@ import {
   type ProductionResourceId,
   type TouchBatchResult,
 } from "../ecosystem/EcosystemCatalog";
+import {
+  getAnimatedTileCount,
+  getAnimatedTileIndex,
+} from "../ecosystem/EcosystemAnimationBudget";
 import { EcosystemDomBridge, type EcosystemDomActions } from "../ecosystem/EcosystemDomBridge";
 import {
   createEcosystemHeroTileTextures,
@@ -176,7 +180,7 @@ const HELPER_PULSE_COPY: Record<HelperId, string> = {
 
 const SAVE_INTERVAL_MS = 15_000;
 const DOM_REFRESH_MS = 1_000;
-const HARNESS_REFRESH_MS = 250;
+const HARNESS_REFRESH_MS = 500;
 const MAX_EFFECTS = 24;
 const MAX_CHUNK_VIEWS = 100;
 const AMBIENT_MOTE_COUNT = 18;
@@ -310,12 +314,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private touchInputBlocked = 0;
   private touchInputLatencyTotalMs = 0;
   private touchInputLatencyMaxMs = 0;
-  private readonly performanceMonitor = new EcosystemPerformanceMonitor();
+  private performanceMonitor = new EcosystemPerformanceMonitor();
   private renderedTileViews = 0;
   private renderedChunkViews = 0;
   private displayObjectCount = 0;
   private lastGameOverState = false;
   private firstSprinklerCycleCelebrated = false;
+  private firstSprinklerReadyForPurchase = false;
+  private returnToTitleAvailable = false;
 
   private background!: Phaser.GameObjects.Image;
   private fieldRoot!: Phaser.GameObjects.Container;
@@ -436,6 +442,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private optionsTitle!: Phaser.GameObjects.Text;
   private optionsCopy!: Phaser.GameObjects.Text;
   private optionsResumeButton!: SceneButton;
+  private optionsTitleButton!: SceneButton;
   private optionsMusicButton!: SceneButton;
   private optionsSfxButton!: SceneButton;
 
@@ -484,13 +491,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.load.image("memory-node-owned", "/assets/ui/skill-node-owned.png");
     this.load.image("memory-node-selected", "/assets/ui/skill-node-selected.png");
     for (const asset of ECOSYSTEM_MEMORY_ICON_ASSETS) this.load.image(asset.key, asset.path);
-    this.load.audio("eco-music", "/assets/music/lucid-field-theme.wav");
   }
 
   create(): void {
+    this.resetRuntimeForCreate();
     const params = new URLSearchParams(window.location.search);
     this.playtest = params.has("playtest");
     this.showDebugPanel = params.has("debugPanel");
+    this.returnToTitleAvailable = !params.has("ecosystemPrototype");
     createEcosystemHeroTileTextures(this);
     const pixelTextures = new Set([
       ...Object.values(TILE_VARIANTS).flat(),
@@ -533,8 +541,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.sfxVolume = readStoredSfxVolume();
     this.audio.prepare();
     this.audio.setVolume(this.sfxVolume);
-    this.music = this.sound.add("eco-music", { loop: true, volume: this.musicVolume });
-    this.music.play();
+    this.sound.setVolume(this.musicVolume);
+    this.queueFieldMusic();
 
     this.createSceneLayers();
     this.createFieldView();
@@ -550,6 +558,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.refreshUi(true);
     this.renderField(true);
     this.syncViewVisibility();
+    this.cameras.main.fadeIn(240, 3, 12, 7);
+    this.playRootEntrance(this.state.active ? this.fieldRoot : this.memoryRoot);
 
     this.scale.on(Phaser.Scale.Events.RESIZE, (gameSize: Phaser.Structs.Size) => {
       this.layout(gameSize.width, gameSize.height);
@@ -559,6 +569,67 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     window.addEventListener("pagehide", this.handlePageHide);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.shutdownScene());
     window.__grassAppReady?.();
+  }
+
+  private resetRuntimeForCreate(): void {
+    this.fieldView = { centerX: 0.5, centerY: 0.5, zoom: 1 };
+    this.worksOpen = false;
+    this.optionsOpen = false;
+    this.memoryTreeZoom = 1;
+    this.memoryTreePanX = 0;
+    this.memoryTreePanY = 0;
+    this.memoryTreeFitScale = 1;
+    this.memoryTreeDragState = null;
+    this.memoryTreeClickSuppressed = false;
+    this.selectedMemoryNodeId = FIRST_ECOSYSTEM_MEMORY_NODE_ID;
+    this.hoveredMemoryNodeId = null;
+    this.memoryRevealHoldIds = null;
+    this.memoryRevealSequenceActive = false;
+    this.memoryEntryTween = null;
+    this.dragState = null;
+    this.saveElapsedMs = 0;
+    this.domElapsedMs = 0;
+    this.harnessElapsedMs = 0;
+    this.uiRefreshRequested = false;
+    this.fieldRenderRequested = false;
+    this.latestFrameDeltaMs = 0;
+    this.maxFrameDeltaMs = 0;
+    this.frameSpikes = 0;
+    this.fieldPointerDowns = 0;
+    this.fieldPointerDrags = 0;
+    this.touchInputAttempts = 0;
+    this.touchInputAccepted = 0;
+    this.touchInputBlocked = 0;
+    this.touchInputLatencyTotalMs = 0;
+    this.touchInputLatencyMaxMs = 0;
+    this.performanceMonitor = new EcosystemPerformanceMonitor();
+    this.renderedTileViews = 0;
+    this.renderedChunkViews = 0;
+    this.displayObjectCount = 0;
+    this.lastGameOverState = false;
+    this.firstSprinklerCycleCelebrated = false;
+    this.firstSprinklerReadyForPurchase = false;
+    this.openingPanelsVisible = false;
+    this.displayedHpRatio = 1;
+    this.hpHeartbeatPulse = 0;
+    this.tilePool.length = 0;
+    this.chunkPool.length = 0;
+    this.impactPool.length = 0;
+    this.effectPool.length = 0;
+    this.ambientMotes.length = 0;
+    this.touchCooldowns.clear();
+    this.touchRecoveryVisual = null;
+    this.memoryNodeViews.clear();
+    this.helperActors = {} as Record<HelperId, HelperActorView>;
+    this.helperFeedbackTexts = {} as Record<HelperId, Phaser.GameObjects.Text>;
+    this.helperIcons = {} as Record<HelperId, Phaser.GameObjects.Image>;
+    this.helperBuyButtons = {} as Record<HelperId, SceneButton>;
+    this.factoryHelperButtons = {} as Record<HelperId, SceneButton>;
+    this.factoryModeButtons = {} as Record<HelperId, SceneButton>;
+    this.factoryResourceTexts = {} as Record<ProductionResourceId, Phaser.GameObjects.Text>;
+    this.factoryResourceBacks = {} as Record<ProductionResourceId, Phaser.GameObjects.Rectangle>;
+    this.music = undefined;
+    this.domBridge = undefined;
   }
 
   update(_time: number, delta: number): void {
@@ -592,6 +663,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.prepareMemoryGroveView(true);
       this.refreshMemoryTree();
       this.syncViewVisibility();
+      this.playRootEntrance(this.memoryRoot, 300);
       this.refreshUi(true);
       this.persistAll();
       this.uiRefreshRequested = false;
@@ -987,8 +1059,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.optionsCopy = this.createText("The ecosystem is completely paused while this screen is open.", 14, "#dff6ca");
     this.optionsRoot.add([this.optionsChrome, this.optionsTitle, this.optionsCopy]);
     this.optionsResumeButton = this.createButton(this.optionsRoot, "Resume", () => this.toggleOptions(), 0x397a3f);
+    this.optionsTitleButton = this.createButton(this.optionsRoot, "Return to Title", () => this.returnToTitle(), 0x234558);
     this.optionsMusicButton = this.createButton(this.optionsRoot, "", () => this.cycleMusicVolume());
     this.optionsSfxButton = this.createButton(this.optionsRoot, "", () => this.cycleSfxVolume());
+    this.optionsTitleButton.setVisible(this.returnToTitleAvailable);
   }
 
   private createDomBridge(): void {
@@ -1523,7 +1597,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.optionsChrome.clear();
     this.optionsChrome.fillStyle(0x020805, 0.76).fillRect(0, 0, width, height);
     const panelWidth = Math.min(mobile ? width - 32 : 520, width - 24);
-    const panelHeight = mobile ? 310 : 330;
+    const panelHeight = this.returnToTitleAvailable ? (mobile ? 370 : 390) : (mobile ? 310 : 330);
     const x = (width - panelWidth) / 2;
     const y = (height - panelHeight) / 2;
     this.drawPanel(this.optionsChrome, x, y, panelWidth, panelHeight, 0.98);
@@ -1531,6 +1605,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.optionsCopy.setOrigin(0.5, 0).setPosition(width / 2, y + 74).setWordWrapWidth(panelWidth - 60).setAlign("center");
     this.optionsMusicButton.setPosition(x + 34, y + 126).setSize(panelWidth - 68, 40);
     this.optionsSfxButton.setPosition(x + 34, y + 174).setSize(panelWidth - 68, 40);
+    this.optionsTitleButton
+      .setVisible(this.returnToTitleAvailable)
+      .setPosition(x + 34, y + 222)
+      .setSize(panelWidth - 68, 40);
     this.optionsResumeButton.setPosition(x + 34, y + panelHeight - 68).setSize(panelWidth - 68, 44);
   }
 
@@ -1613,6 +1691,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       }
 
       const firstAutomation = getFirstAutomationStatus(this.state, this.permanent);
+      this.firstSprinklerReadyForPurchase = this.state.helpers.tinySprinkler.count === 0
+        && this.state.runTouches >= firstAutomation.purchaseCost;
       let automationProgress = 0;
       let automationColor: number;
       let automationCopy: string;
@@ -1899,7 +1979,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           : variants[(tileIndex * 17 + stage * 3) % variants.length]);
         const screenX = this.projection.originX + (x + 0.5) * this.projection.cellSize;
         const screenY = this.projection.originY + (y + 0.5) * this.projection.cellSize;
-        image.setPosition(screenX, screenY).setDisplaySize(visualSize, visualSize).setVisible(true).setAlpha(0.94);
+        image
+          .setPosition(screenX, screenY)
+          .setRotation(0)
+          .setDisplaySize(visualSize, visualSize)
+          .setVisible(true)
+          .setAlpha(0.94);
         this.tileBaseYs[poolIndex] = screenY;
         if (singlePlot) {
           this.fieldGrid.lineStyle(3, 0xd8b66a, 0.82).strokeRoundedRect(
@@ -2082,7 +2167,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private animateLivingField(now: number): void {
     if (!this.fieldRoot.visible || this.optionsOpen) return;
-    for (let index = 0; index < this.renderedTileViews; index += 1) {
+    const animatedTileCount = getAnimatedTileCount(this.renderedTileViews, this.scale.width < 760);
+    for (let sampleIndex = 0; sampleIndex < animatedTileCount; sampleIndex += 1) {
+      const index = getAnimatedTileIndex(sampleIndex, this.renderedTileViews, animatedTileCount);
       const image = this.tilePool[index];
       const phase = this.tileAnimationPhases[index];
       const baseY = this.tileBaseYs[index];
@@ -2113,9 +2200,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.scourgeCore.setScale(1 + Math.sin(now * 0.0031 + 0.8) * 0.09);
     }
     if (this.automationGoalText.visible) {
-      const firstSprinklerCost = getHelperPurchaseCost(this.state, "tinySprinkler");
-      const readyForFirstSprinkler = this.state.helpers.tinySprinkler.count === 0 && this.state.runTouches >= firstSprinklerCost;
-      this.automationGoalText.setAlpha(readyForFirstSprinkler ? 0.82 + (Math.sin(now * 0.006) + 1) * 0.09 : 1);
+      this.automationGoalText.setAlpha(this.firstSprinklerReadyForPurchase
+        ? 0.82 + (Math.sin(now * 0.006) + 1) * 0.09
+        : 1);
     }
     for (const helperId of HELPER_IDS) {
       const actor = this.helperActors[helperId];
@@ -2601,6 +2688,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.worksOpen = !this.worksOpen;
     this.audio.play("skill_select");
     this.syncViewVisibility();
+    this.playRootEntrance(this.worksOpen ? this.factoryRoot : this.fieldRoot, 180);
     this.refreshUi(true);
     this.persistAll();
   }
@@ -2609,6 +2697,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.optionsOpen = !this.optionsOpen;
     this.audio.play("skill_select");
     this.syncViewVisibility();
+    if (this.optionsOpen) this.playRootEntrance(this.optionsRoot, 160);
     this.refreshUi(true);
   }
 
@@ -2634,9 +2723,21 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.audio.play("milestone");
     this.layout(this.scale.width, this.scale.height);
     this.syncViewVisibility();
+    this.playRootEntrance(this.fieldRoot, 280);
     this.renderField(true);
     this.persistAll();
     this.refreshUi(true);
+  }
+
+  private returnToTitle(): void {
+    if (!this.returnToTitleAvailable) return;
+    this.persistAll();
+    this.audio.play("skill_select");
+    this.cameras.main.fadeOut(260, 3, 12, 7);
+    this.time.delayedCall(270, () => {
+      this.music?.stop();
+      this.scene.start("EcosystemTitleScene");
+    });
   }
 
   private performMemoryPurchase(nodeId: string, action: () => boolean): boolean {
@@ -3511,6 +3612,24 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.renderField(true);
   }
 
+  private queueFieldMusic(): void {
+    if (this.cache.audio.exists("eco-music")) {
+      this.createFieldMusic();
+      return;
+    }
+    this.load.audio("eco-music", "/assets/music/lucid-field-theme.wav");
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      if (this.sys.isActive()) this.createFieldMusic();
+    });
+    this.load.start();
+  }
+
+  private createFieldMusic(): void {
+    if (this.music) return;
+    this.music = this.sound.add("eco-music", { loop: true, volume: this.musicVolume });
+    this.music.play();
+  }
+
   private cycleMusicVolume(): void {
     this.musicVolume = this.nextVolume(this.musicVolume);
     writeStoredMusicVolume(this.musicVolume);
@@ -3595,6 +3714,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       logicalTiles: readout.logicalTiles,
       lod: this.projection?.lod ?? "near",
       renderedTileViews: this.renderedTileViews,
+      animatedTileViews: getAnimatedTileCount(this.renderedTileViews, this.scale.width < 760),
       renderedChunkViews: this.renderedChunkViews,
       pooledTileViews: this.tilePool.length,
       pooledChunkViews: this.chunkPool.length,
@@ -3723,6 +3843,19 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     if (target.text !== value) target.setText(value);
   }
 
+  private playRootEntrance(root: Phaser.GameObjects.Container, duration = 220): void {
+    this.tweens.killTweensOf(root);
+    root.setAlpha(0.25).setScale(0.988);
+    this.tweens.add({
+      targets: root,
+      alpha: 1,
+      scaleX: 1,
+      scaleY: 1,
+      duration,
+      ease: "Cubic.easeOut",
+    });
+  }
+
   private createButton(
     parent: Phaser.GameObjects.Container,
     label: string,
@@ -3738,6 +3871,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const syncAppearance = (): void => {
       container.setVisible(button.visible).setAlpha(button.enabled ? 1 : 0.46);
       bg.setFillStyle(fillColor, button.enabled ? 0.98 : 0.76);
+      bg.setStrokeStyle(2, button.enabled ? 0xd8b66a : 0x756a55, button.enabled ? 0.82 : 0.45);
+      if (!button.enabled) container.setScale(1);
     };
     Object.assign(button, {
       container,
@@ -3776,15 +3911,32 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       },
     });
     bg.on("pointerover", () => {
-      if (button.enabled) bg.setFillStyle(0x2f6c42, 1).setStrokeStyle(2, 0xffe889, 1);
+      if (!button.enabled) return;
+      bg.setFillStyle(0x2f6c42, 1).setStrokeStyle(2, 0xffe889, 1);
+      this.tweens.killTweensOf(container);
+      this.tweens.add({ targets: container, scale: 1.018, duration: 90, ease: "Quad.easeOut" });
     });
-    bg.on("pointerout", () => syncAppearance());
+    bg.on("pointerout", () => {
+      syncAppearance();
+      this.tweens.killTweensOf(container);
+      this.tweens.add({ targets: container, scale: 1, duration: 90, ease: "Quad.easeOut" });
+    });
     bg.on("pointerdown", () => {
-      if (button.enabled) container.setScale(0.975);
+      if (!button.enabled) return;
+      this.tweens.killTweensOf(container);
+      container.setScale(0.972);
     });
     bg.on("pointerup", () => {
-      container.setScale(1);
-      if (button.enabled && button.visible) onClick();
+      if (!button.enabled || !button.visible) return;
+      this.tweens.killTweensOf(container);
+      this.tweens.add({
+        targets: container,
+        scale: 1.035,
+        duration: 80,
+        yoyo: true,
+        ease: "Quad.easeOut",
+      });
+      onClick();
     });
     syncAppearance();
     return button;

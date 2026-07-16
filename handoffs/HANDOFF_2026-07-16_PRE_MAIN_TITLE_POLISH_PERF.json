@@ -1,0 +1,73 @@
+{
+  "date": "2026-07-16",
+  "topic": "Pre-main ecosystem title, visual polish, and performance guardrails",
+  "currentUserGoal": "Prepare the ecosystem redesign for a possible master promotion by always starting the real game at a title screen, offering Continue and New Field choices, polishing presentation, and tightening performance without changing the direct developer playtest route.",
+  "workCompleted": [
+    "Changed the bare production URL and ?alpha alias to register EcosystemTitleScene before EcosystemPrototypeScene.",
+    "Kept ?redesign&ecosystemPrototype as a direct title-bypass developer route, kept ?redesign on the previous redesign, and preserved ?legacy plus legacy harness routing.",
+    "Built a responsive ecosystem title screen using the established landscape and portrait title art, emerald nine-slice panels and buttons, title selectors, lightweight ambient field motes, ALPHA identity, options, credits, and polished transitions.",
+    "Added Continue Field and Return to Memory Grove labels based on the saved active-field state.",
+    "Added a two-step confirmed Begin New Field action that clears only ecosystem permanent and active saves.",
+    "Added title-screen save summaries for run number, field size, HP, elapsed time, touches, completed runs, and permanent GT.",
+    "Added working music and SFX sliders to the title options screen and mirrored title actions and sliders into real semantic HTML controls for agent and keyboard accessibility.",
+    "Kept the ecosystem on lucid-field-theme.wav instead of restoring the obsolete legacy menu soundtrack.",
+    "Deferred the multi-megabyte Lucid music load until the title or field has rendered its first usable visual state; the decoded audio cache is shared by both scenes.",
+    "Added a production-only Return to Title action to the ecosystem Options screen. The direct ecosystemPrototype route intentionally hides it.",
+    "Added subtle root entrance transitions for field, Memory Grove, Ecosystem Works, Options, and next-run transitions, plus improved shared button hover, press, disabled, and stroke feedback.",
+    "Hardened title and ecosystem scene restarts so returning to the title and continuing again clears stale pooled display-object references, DOM controls, music references, timers, and performance counters.",
+    "Bound near-field per-frame motion to 144 representative tile transforms on desktop and 72 on phone while distributing the sample across visible pooled tiles.",
+    "Reset rendered tile transforms during projection redraws, cached first-sprinkler affordability for its attention animation, reduced heavy playtest snapshot refreshes from four to two per second, and exposed animatedTileViews in the ecosystem harness.",
+    "Updated the ecosystem design, project manual, and performance notes for the new production route and guardrails."
+  ],
+  "filesChanged": [
+    "src/main.ts",
+    "src/style.css",
+    "src/game/routing/GameRoute.ts",
+    "src/game/scenes/EcosystemTitleScene.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "src/game/ecosystem/EcosystemSave.ts",
+    "src/game/ecosystem/EcosystemAnimationBudget.ts",
+    "tests/GameRoute.test.ts",
+    "tests/EcosystemSave.test.ts",
+    "tests/EcosystemAnimationBudget.test.ts",
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "docs/PROJECT_MANUAL.md",
+    "docs/PERFORMANCE_NOTES.md",
+    "handoffs/HANDOFF_2026-07-16_PRE_MAIN_TITLE_POLISH_PERF.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 155 Vitest tests across 20 files, strict TypeScript, and the Vite production build.",
+    "Focused route, ecosystem save, and animation-budget suites passed 24 tests.",
+    "git diff --check passed with only expected Windows line-ending warnings.",
+    "The local server returned HTTP 200 for /, /?alpha, and /?redesign&ecosystemPrototype&playtest.",
+    "No external or headless Chrome process was launched. Final visual feel still needs the user's in-app hands-on pass."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "productionTitleUrl": "http://127.0.0.1:5173/",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "debugUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Verified branch checkpoint. Not merged into master, pushed as this slice, or promoted to production yet."
+  },
+  "knownIssues": [
+    "Desktop and 390x844 visual placement, title audio autoplay behavior, and the full title -> game -> title -> game loop need a hands-on browser pass before master promotion.",
+    "New numeric performance claims were not recorded in this session. The structural animation and startup guardrails should be rechecked through the ecosystem-specific debug harness after the visual test.",
+    "The title and field intentionally share the Lucid track. A distinct new-canon title composition can replace it later without changing the startup flow.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless explicitly requested."
+  ],
+  "nextRecommendedSteps": [
+    "Open the bare local URL and verify that it always starts at the title, even when the active save is currently in Memory Grove.",
+    "Test Continue Field, Return to Memory Grove, the two-step New Field confirmation, both title audio sliders, and Return to Title from in-game Options.",
+    "Check the title and game at 1280x720 and 390x844, then use the ecosystem debug route to compare ordinary 1x1 and 100x100 animation/frame metrics.",
+    "If the hands-on pass is approved, push this branch, merge it into master, deploy production, and run the Mac handoff workflow."
+  ],
+  "doNotRevert": [
+    "Do not route the bare production URL directly into active gameplay or Memory Grove.",
+    "Do not restore epic_menu_theme_mellow.wav to the ecosystem redesign.",
+    "Keep the direct ecosystemPrototype route available for developer and performance testing.",
+    "Keep title and gameplay semantic DOM controls intact.",
+    "Do not cite the legacy 1,200-tile harness as ecosystem performance evidence.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

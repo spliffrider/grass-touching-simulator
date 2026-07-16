@@ -319,6 +319,53 @@ canvas {
   outline-offset: 1px;
 }
 
+.ecosystem-title-semantic-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 28;
+  pointer-events: none;
+}
+
+.ecosystem-title-semantic-button,
+.ecosystem-title-semantic-range {
+  position: fixed;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  opacity: 0.001;
+  pointer-events: auto;
+}
+
+.ecosystem-title-semantic-button {
+  font: 700 16px "Trebuchet MS", Arial, sans-serif;
+  cursor: pointer;
+}
+
+.ecosystem-title-semantic-button:disabled {
+  cursor: default;
+}
+
+.ecosystem-title-semantic-button:focus-visible,
+.ecosystem-title-semantic-range:focus-visible {
+  opacity: 1;
+  border: 3px solid #ffe889;
+  outline: 2px solid #06190f;
+  outline-offset: 2px;
+  background: rgba(6, 25, 15, 0.82);
+}
+
+.ecosystem-title-semantic-button:focus-visible {
+  color: #fff3c2;
+}
+
+.ecosystem-title-semantic-range {
+  appearance: none;
+  cursor: pointer;
+}
+
 @media (max-width: 520px) {
   .ecosystem-playtest-panel {
     grid-template-columns: repeat(3, minmax(0, 1fr));
