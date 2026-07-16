@@ -1,0 +1,56 @@
+{
+  "date": "2026-07-16",
+  "topic": "Immediate field input and reliable cooldown taps",
+  "currentUserGoal": "Remove the sluggish delay between pressing the field and receiving touch feedback, and stop valid off-cooldown clicks from being silently dropped.",
+  "workCompleted": [
+    "Moved mouse and pen field touches from pointer release to pointer press so model registration, visual feedback, and grass-touch audio begin in the same interaction.",
+    "Kept large-field touchscreen panning usable while making the one-tile touchscreen field react immediately.",
+    "Replaced the old per-event 3 px drag test with total-displacement gesture tracking and separate 8 px mouse and 14 px touch thresholds.",
+    "Made cooldown checks use the current input timestamp instead of the previous render frame timestamp.",
+    "Added redesign harness counters for pointer downs, real drags, touch attempts, accepted touches, blocked touches, and input latency.",
+    "Kept the pointer-move path allocation-free so the gesture fix does not add drag-time garbage collection pressure."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemFieldInput.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemFieldInput.test.ts",
+    "handoffs/HANDOFF_2026-07-16_FIELD_INPUT_LATENCY.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 143 Vitest tests across 19 files, strict TypeScript, and the Vite production build.",
+    "Desktop 1280x720 browser verification accepted a touch while the mouse button was still held, with 0.1 ms maximum measured input latency.",
+    "Desktop browser instrumentation scheduled grass-touch audio approximately 2.5 ms after pointer press.",
+    "A 6 px desktop pointer wobble remained a valid tap with zero false drags.",
+    "Phone 390x844 browser verification accepted the one-tile touch before release, accepted a small multi-tile touch wobble, and classified a deliberate swipe as one pan.",
+    "No browser warnings, console errors, or page errors were observed in the final desktop or phone passes."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest",
+    "status": "Verified local input checkpoint; not merged into master or promoted to production."
+  },
+  "currentGitStatus": [
+    "The branch already contains one local collapse-presentation commit that is ahead of origin.",
+    "This field-input slice is ready for a local checkpoint commit on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless the user explicitly requests it.",
+    "The local Vite server remains available at http://127.0.0.1:5173."
+  ],
+  "knownIssues": [
+    "On multi-tile touchscreen fields, touch actions intentionally commit on release so a swipe can pan without firing an accidental touch; the measured synthetic tap latency was still below 35 ms.",
+    "Mouse and pen pans begin with one beneficial field touch because immediate click feedback is prioritized over suppressing the first touch of a drag.",
+    "The current input metrics are cumulative for the scene lifetime and are intended for playtest diagnosis rather than player-facing telemetry."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test repeated rank-zero taps around the 380 ms recovery boundary with normal audio volume.",
+    "Decide later whether large-field touch devices should gain a dedicated pan mode if release-time touch confirmation ever feels too soft.",
+    "Continue the surviving-phase gameplay slice after input responsiveness is approved."
+  ],
+  "doNotRevert": [
+    "Do not move desktop field touches back to pointer release.",
+    "Do not restore the old per-pointermove 3 px Manhattan drag threshold.",
+    "Keep field gesture tracking allocation-free on pointermove.",
+    "Keep cooldown timing and cooldown presentation on the same performance-time basis.",
+    "Do not use the legacy 1,200-tile harness as evidence for ecosystemPrototype performance."
+  ]
+}

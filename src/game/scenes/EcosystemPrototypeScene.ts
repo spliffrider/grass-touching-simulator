@@ -28,6 +28,12 @@ import {
   smoothHealthRatio,
 } from "../ecosystem/EcosystemHealthVisual";
 import {
+  beginFieldPointerGesture,
+  shouldAttemptFieldTouchOnPointerDown,
+  updateFieldPointerGesture,
+  type FieldPointerGesture,
+} from "../ecosystem/EcosystemFieldInput";
+import {
   ECOSYSTEM_MEMORY_EDGES,
   ECOSYSTEM_MEMORY_ICON_ASSETS,
   ECOSYSTEM_MEMORY_NODES,
@@ -249,13 +255,6 @@ interface MemoryTreeDragState {
   moved: boolean;
 }
 
-interface DragState {
-  pointerId: number;
-  lastX: number;
-  lastY: number;
-  moved: boolean;
-}
-
 interface TouchRecoveryVisualState {
   tileIndex: number;
   startedAtMs: number;
@@ -283,7 +282,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private memoryTreeClickSuppressed = false;
   private selectedMemoryNodeId = "helper:tinySprinkler:unlock";
   private hoveredMemoryNodeId: string | null = null;
-  private dragState: DragState | null = null;
+  private dragState: FieldPointerGesture | null = null;
   private saveElapsedMs = 0;
   private domElapsedMs = 0;
   private harnessElapsedMs = 0;
@@ -292,6 +291,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private latestFrameDeltaMs = 0;
   private maxFrameDeltaMs = 0;
   private frameSpikes = 0;
+  private fieldPointerDowns = 0;
+  private fieldPointerDrags = 0;
+  private touchInputAttempts = 0;
+  private touchInputAccepted = 0;
+  private touchInputBlocked = 0;
+  private touchInputLatencyTotalMs = 0;
+  private touchInputLatencyMaxMs = 0;
   private readonly performanceMonitor = new EcosystemPerformanceMonitor();
   private renderedTileViews = 0;
   private renderedChunkViews = 0;
@@ -1028,8 +1034,22 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     });
     this.fieldSurface.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (!this.state.active || this.worksOpen || this.optionsOpen) return;
+      const startedAtMs = performance.now();
+      const touchOnDown = shouldAttemptFieldTouchOnPointerDown(
+        pointer.wasTouch,
+        this.state.field.stages.length,
+      );
       this.audio.unlock();
-      this.dragState = { pointerId: pointer.id, lastX: pointer.x, lastY: pointer.y, moved: false };
+      this.fieldPointerDowns += 1;
+      this.dragState = beginFieldPointerGesture(
+        pointer.id,
+        pointer.wasTouch,
+        pointer.x,
+        pointer.y,
+        startedAtMs,
+        touchOnDown,
+      );
+      if (touchOnDown) this.touchScreenPoint(pointer.x, pointer.y, startedAtMs);
     });
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
       if (this.memoryTreeDragState && pointer.id === this.memoryTreeDragState.pointerId && pointer.isDown) {
@@ -1049,15 +1069,18 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         return;
       }
       if (!this.dragState || pointer.id !== this.dragState.pointerId || !pointer.isDown) return;
-      const dx = pointer.x - this.dragState.lastX;
-      const dy = pointer.y - this.dragState.lastY;
-      if (Math.abs(dx) + Math.abs(dy) > 3) this.dragState.moved = true;
+      if (updateFieldPointerGesture(this.dragState, pointer.x, pointer.y)) {
+        this.fieldPointerDrags += 1;
+      }
       if (this.dragState.moved && this.projection && this.state.field.stages.length > 1) {
-        this.fieldView = panFieldViewport(this.fieldView, this.projection, dx, dy);
+        this.fieldView = panFieldViewport(
+          this.fieldView,
+          this.projection,
+          this.dragState.deltaX,
+          this.dragState.deltaY,
+        );
         this.renderField(true);
       }
-      this.dragState.lastX = pointer.x;
-      this.dragState.lastY = pointer.y;
     });
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
       if (this.memoryTreeDragState && pointer.id === this.memoryTreeDragState.pointerId) {
@@ -1068,11 +1091,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         return;
       }
       if (!this.dragState || pointer.id !== this.dragState.pointerId) return;
-      const moved = this.dragState.moved;
+      const gesture = this.dragState;
       this.dragState = null;
-      if (!moved && this.pointInField(pointer.x, pointer.y)) {
-        const tile = screenPointToTile(this.projection, pointer.x, pointer.y);
-        if (tile) this.touchTile(tile.index);
+      if (!gesture.moved && !gesture.touchAttemptedOnDown) {
+        this.touchScreenPoint(pointer.x, pointer.y, gesture.startedAtMs);
       }
     });
     this.input.on("wheel", (pointer: Phaser.Input.Pointer, _objects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
@@ -2405,13 +2427,24 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.touchTile(tileY * this.state.field.width + tileX);
   }
 
-  private touchTile(tileIndex: number): void {
+  private touchScreenPoint(x: number, y: number, inputStartedAtMs: number): void {
+    if (!this.pointInField(x, y)) return;
+    const tile = screenPointToTile(this.projection, x, y);
+    if (tile) this.touchTile(tile.index, inputStartedAtMs);
+  }
+
+  private touchTile(tileIndex: number, inputStartedAtMs = performance.now()): void {
     if (!this.state.active || this.worksOpen || this.optionsOpen) return;
     const touchStart = performance.now();
-    const now = this.time.now;
+    const inputLatencyMs = Math.max(0, touchStart - inputStartedAtMs);
+    this.touchInputAttempts += 1;
+    this.touchInputLatencyTotalMs += inputLatencyMs;
+    this.touchInputLatencyMaxMs = Math.max(this.touchInputLatencyMaxMs, inputLatencyMs);
+    const now = touchStart;
     const cooldownMs = getManualTouchCooldownMs(this.permanent.fastTouchRank);
     const cooldown = tryStartTouchCooldown(this.touchCooldowns, tileIndex, now, cooldownMs);
     if (!cooldown.accepted) {
+      this.touchInputBlocked += 1;
       this.touchRecoveryVisual = {
         tileIndex,
         startedAtMs: cooldown.readyAtMs - cooldownMs,
@@ -2424,6 +2457,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.animateTouchRecovery(now);
       return;
     }
+    this.touchInputAccepted += 1;
     this.touchRecoveryVisual = {
       tileIndex,
       startedAtMs: now,
@@ -3237,12 +3271,21 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       averageSaveMs: Number(performanceSnapshot.averageSaveMs.toFixed(3)),
       maxSaveMs: Number(performanceSnapshot.maxSaveMs.toFixed(3)),
       touchActions: performanceSnapshot.touchActions,
+      fieldPointerDowns: this.fieldPointerDowns,
+      fieldPointerDrags: this.fieldPointerDrags,
+      touchInputAttempts: this.touchInputAttempts,
+      touchInputAccepted: this.touchInputAccepted,
+      touchInputBlocked: this.touchInputBlocked,
+      averageTouchInputLatencyMs: this.touchInputAttempts > 0
+        ? Number((this.touchInputLatencyTotalMs / this.touchInputAttempts).toFixed(3))
+        : 0,
+      maxTouchInputLatencyMs: Number(this.touchInputLatencyMaxMs.toFixed(3)),
       manualTouchCooldownMs: getManualTouchCooldownMs(this.permanent.fastTouchRank),
       displayedHpRatio: Number(this.displayedHpRatio.toFixed(4)),
       hpHeartbeatPulse: Number(this.hpHeartbeatPulse.toFixed(4)),
       trackedTouchCooldowns: this.touchCooldowns.size,
       touchCooldownRemainingMs: this.touchRecoveryVisual
-        ? Math.max(0, Math.round(this.touchRecoveryVisual.readyAtMs - this.time.now))
+        ? Math.max(0, Math.round(this.touchRecoveryVisual.readyAtMs - performance.now()))
         : 0,
       averageTouchActionMs: Number(performanceSnapshot.averageTouchActionMs.toFixed(3)),
       maxTouchActionMs: Number(performanceSnapshot.maxTouchActionMs.toFixed(3)),
