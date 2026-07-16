@@ -16,8 +16,8 @@ import {
   getModeUnlockCost,
   getPermanentRankCost,
   getTouchRankCost,
-  isFirstCollapseAwaitingSprinkler,
   isFirstEcosystemCollapse,
+  isFirstMemoryPending,
   isRunEquipmentAvailable,
   type EcosystemState,
   type FirstAutomationStatus,
@@ -233,7 +233,7 @@ export class EcosystemDomBridge {
     const firstAutomation = getFirstAutomationStatus(state, permanent);
     const automationLine = getAutomationReadableLine(firstAutomation);
     const firstCollapse = isFirstEcosystemCollapse(state, permanent);
-    const firstMemoryPending = isFirstCollapseAwaitingSprinkler(state, permanent);
+    const firstMemoryPending = isFirstMemoryPending(state, permanent);
     const revealedMemoryNodeIds = memoryRevealActive
       ? new Set([FIRST_ECOSYSTEM_MEMORY_NODE_ID])
       : getRevealedEcosystemMemoryNodeIds(permanent, firstMemoryPending);
@@ -241,10 +241,10 @@ export class EcosystemDomBridge {
     const worksAvailable = equipmentAvailable && permanent.unlockedHelpers.tinySprinkler;
     const lines = [
       `Ecosystem prototype | Run ${state.runNumber} | ${state.active ? "active" : "Game Over"}`,
-      ...(firstCollapse
-        ? [firstMemoryPending
-          ? "First collapse complete: remember Tiny Sprinkler before beginning Run 2"
-          : "First memory complete: Run 2 can now build Care automation"]
+      ...(firstMemoryPending
+        ? ["First collapse complete: remember Tiny Sprinkler before beginning Run 2"]
+        : firstCollapse
+          ? ["First memory complete: Run 2 can now build Care automation"]
         : []),
       `Ancient HP ${state.hp.toFixed(1)} / ${state.maxHp.toFixed(0)}`,
       `Scourge demand ${state.scourgeDemandPerSecond.toFixed(2)} Care/s | Care production ${state.rates.care.toFixed(2)}/s`,

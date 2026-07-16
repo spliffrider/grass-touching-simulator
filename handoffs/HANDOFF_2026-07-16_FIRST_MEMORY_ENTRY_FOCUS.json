@@ -1,0 +1,56 @@
+{
+  "date": "2026-07-16",
+  "topic": "First Memory entry focus and progression lock",
+  "currentUserGoal": "Make the first Memory Grove visit clearly zoom in on Tiny Sprinkler, show only that required first Memory, and prevent stale or resumed saves from bypassing the intended Run 1 to Run 2 progression.",
+  "workCompleted": [
+    "Found that the first-Memory presentation depended on an exact Run 1 collapse signature, so stale, resumed, or debug saves with Tiny Sprinkler still unowned could fall through to the full Memory Web.",
+    "Added a firstMemoryPending invariant for every inactive field where Tiny Sprinkler has not yet been remembered.",
+    "Blocked Begin Next Run whenever firstMemoryPending is true, regardless of the saved run number.",
+    "Restricted the visible Memory Web to Tiny Sprinkler while that first Memory remains pending.",
+    "Centered and selected Tiny Sprinkler automatically on entry.",
+    "Added a visible entry camera animation from 2.0x to 5.8x on desktop and 2.4x to 7.4x on phone.",
+    "Kept reloaded inactive saves at the final focused zoom so the first Memory remains immediately legible.",
+    "Added debug snapshot fields for firstMemoryPending, memoryTreeZoom, and selectedMemoryNodeId.",
+    "Added a regression test covering an inconsistent later-run save where Tiny Sprinkler is still unowned."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-16_FIRST_MEMORY_ENTRY_FOCUS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "Focused EcosystemSystem, EcosystemMemoryTree, and EcosystemSave suites passed 38 tests.",
+    "npx tsc --noEmit passed.",
+    "npm run check passed: ESLint, 148 Vitest tests across 19 files, strict TypeScript, and the Vite production build.",
+    "git diff --check passed.",
+    "The local ecosystem prototype route responds on port 5173."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "prototypeUrl": "http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel",
+    "status": "Verified local checkpoint; not pushed, merged into master, or promoted to production."
+  },
+  "currentGitStatus": [
+    "The intended first-Memory focus changes and this handoff are ready to commit on codex/ecosystem-factory-prototype.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless explicitly requested."
+  ],
+  "knownIssues": [
+    "Final camera feel still needs the user's hands-on test after a fresh Run 1 collapse.",
+    "No external browser visual automation was used for final verification after an isolated headless Chrome launch failed; the temporary isolated profile was removed and the user's normal Chrome profile was never used.",
+    "A save that already owns Tiny Sprinkler correctly skips this first-Memory lock and shows the normal revealed Memory Web."
+  ],
+  "nextRecommendedSteps": [
+    "Refresh the prototype and test a clean Run 1 collapse into Memory Grove.",
+    "Confirm that only Tiny Sprinkler is visible, the camera visibly closes in on it, and Begin Next Run remains unavailable until it is remembered.",
+    "After buying Tiny Sprinkler, confirm the existing reveal animation zooms back out to expose the next branches."
+  ],
+  "doNotRevert": [
+    "Keep firstMemoryPending based on inactive state plus Tiny Sprinkler ownership rather than exact run-number metadata.",
+    "Do not allow Begin Next Run while Tiny Sprinkler remains unowned.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction.",
+    "Do not launch another external or headless Chrome process for this checkpoint unless the user explicitly requests it."
+  ]
+}

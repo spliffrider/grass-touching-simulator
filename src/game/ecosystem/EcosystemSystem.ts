@@ -528,11 +528,18 @@ export function isFirstCollapseAwaitingSprinkler(
     !permanent.unlockedHelpers.tinySprinkler;
 }
 
+export function isFirstMemoryPending(
+  state: Pick<EcosystemState, "active">,
+  permanent: PermanentEcosystemState,
+): boolean {
+  return !state.active && !permanent.unlockedHelpers.tinySprinkler;
+}
+
 export function canBeginNextEcosystemRun(
   state: EcosystemState,
   permanent: PermanentEcosystemState,
 ): boolean {
-  return !state.active && !isFirstCollapseAwaitingSprinkler(state, permanent);
+  return !state.active && !isFirstMemoryPending(state, permanent);
 }
 
 export function unlockHelper(permanent: PermanentEcosystemState, helperId: HelperId): boolean {

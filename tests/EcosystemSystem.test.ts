@@ -26,6 +26,7 @@ import {
   getTouchRankCost,
   isFirstCollapseAwaitingSprinkler,
   isFirstEcosystemCollapse,
+  isFirstMemoryPending,
   isRunEquipmentAvailable,
   normalizePermanentEcosystemState,
   purchaseTouchRank,
@@ -450,6 +451,24 @@ describe("EcosystemSystem", () => {
 
     expect(unlockHelper(permanent, "tinySprinkler")).toBe(true);
     expect(isFirstCollapseAwaitingSprinkler(state, permanent)).toBe(false);
+    expect(canBeginNextEcosystemRun(state, permanent)).toBe(true);
+  });
+
+  it("keeps an unremembered Tiny Sprinkler save focused on the required first Memory", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 4;
+    const state = createEcosystemState(permanent, { seed: 4_404 });
+
+    forceGameOver(state, permanent);
+
+    expect(isFirstEcosystemCollapse(state, permanent)).toBe(false);
+    expect(isFirstCollapseAwaitingSprinkler(state, permanent)).toBe(false);
+    expect(isFirstMemoryPending(state, permanent)).toBe(true);
+    expect(canBeginNextEcosystemRun(state, permanent)).toBe(false);
+
+    permanent.grassTouches = getHelperUnlockCost("tinySprinkler");
+    expect(unlockHelper(permanent, "tinySprinkler")).toBe(true);
+    expect(isFirstMemoryPending(state, permanent)).toBe(false);
     expect(canBeginNextEcosystemRun(state, permanent)).toBe(true);
   });
 

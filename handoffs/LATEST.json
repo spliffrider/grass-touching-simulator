@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-16",
-  "latestHandoff": "HANDOFF_2026-07-16_RUN_TWO_PRESSURE.json",
+  "latestHandoff": "HANDOFF_2026-07-16_FIRST_MEMORY_ENTRY_FOCUS.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",
