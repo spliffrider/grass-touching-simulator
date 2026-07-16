@@ -1,0 +1,51 @@
+{
+  "date": "2026-07-16",
+  "topic": "Production title-screen layout repair",
+  "currentUserGoal": "Repair the visibly broken production title screen shown at a medium desktop viewport and make the result genuinely presentable.",
+  "workCompleted": [
+    "Added the missing OPTIONS and CREDITS menu labels and supporting copy.",
+    "Replaced hardcoded title and menu positioning with a reusable responsive layout calculation.",
+    "Added overlap guards, edge bounds, text fitting, compact desktop composition, phone composition, and stable button spacing.",
+    "Reduced the medium-desktop title scale and moved the menu below the complete title and chapter lockup.",
+    "Fixed the selector pulse so it preserves an intentional display size instead of restoring each texture to its enormous native size.",
+    "Set selectors to a readable compact size after the initial correction made them too small.",
+    "Removed startup opacity and camera fades that could leave important title controls blank in throttled or backgrounded rendering.",
+    "Replaced large gray grass-fleck squares with 18 small colored pollen glints.",
+    "Removed the hard horizontal shade seam and replaced it with one continuous readability veil.",
+    "Added title-layout regression tests for the reported 1047x727 viewport, 1280x720 desktop, and 390x844 phone."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemTitleLayout.ts",
+    "src/game/scenes/EcosystemTitleScene.ts",
+    "tests/EcosystemTitleLayout.test.ts",
+    "handoffs/HANDOFF_2026-07-16_TITLE_LAYOUT_REPAIR.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed with ESLint, 159 Vitest tests across 21 files, strict TypeScript, and the Vite production build.",
+    "The focused title-layout suite passed all four checks.",
+    "An isolated headless Chrome capture at 1047x727 verified no title/menu overlap, all four labels, bounded selectors, and a continuous background.",
+    "The true 390x844 geometry was verified in the pure layout test; command-line Chrome imposes a 500-CSS-pixel minimum, so its cropped phone image was not treated as valid visual evidence.",
+    "Temporary QA screenshots were removed from the workspace."
+  ],
+  "release": {
+    "branch": "codex/ecosystem-factory-prototype",
+    "productionTitleUrl": "http://127.0.0.1:5173/",
+    "status": "Locally repaired and verified. Not merged into master or deployed by this slice."
+  },
+  "knownIssues": [
+    "The user's in-app browser remains the final subjective check for animation feel and the saved Memory Grove label at their exact browser chrome dimensions.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md remains an unrelated untracked file and must stay untouched unless explicitly requested."
+  ],
+  "nextRecommendedSteps": [
+    "Reload the bare local URL and compare it against the reported broken screenshot.",
+    "Check the title with the existing Memory Grove save, then enter the game and return through Options.",
+    "If approved, continue the broader pre-main polish and promotion checklist."
+  ],
+  "doNotRevert": [
+    "Do not restore hardcoded title/menu coordinates.",
+    "Do not animate selector scale with setScale because it restores the native texture dimensions.",
+    "Do not hide the primary menu behind startup opacity tweens.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

@@ -11,11 +11,12 @@ import {
   getEcosystemSaveSummary,
   type EcosystemSaveSummary,
 } from "../ecosystem/EcosystemSave";
+import { getEcosystemTitleLayout } from "../ecosystem/EcosystemTitleLayout";
 import { AudioSystem } from "../systems/AudioSystem";
 
 const TITLE_BACKGROUND_LANDSCAPE = "ecosystem-title-landscape";
 const TITLE_BACKGROUND_PORTRAIT = "ecosystem-title-portrait";
-const TITLE_MOTE_COUNT = 24;
+const TITLE_MOTE_COUNT = 18;
 const NEW_FIELD_CONFIRM_MS = 4_500;
 
 type MenuAction = "continue" | "newField" | "options" | "credits";
@@ -56,6 +57,7 @@ export class EcosystemTitleScene extends Phaser.Scene {
   private saveDetailText!: Phaser.GameObjects.Text;
   private selectorLeft!: Phaser.GameObjects.Image;
   private selectorRight!: Phaser.GameObjects.Image;
+  private selectorDisplaySize = 24;
   private readonly buttons: TitleMenuButton[] = [];
   private selectedButtonIndex = 0;
   private saveSummary!: EcosystemSaveSummary;
@@ -118,7 +120,6 @@ export class EcosystemTitleScene extends Phaser.Scene {
     this.load.image("ecosystem-title-selector-left", "/assets/title-selector-leaf.png");
     this.load.image("ecosystem-title-selector-right", "/assets/title-selector-flower.png");
     this.load.image("ecosystem-title-pollen", "/assets/effects/pollen-fleck.png");
-    this.load.image("ecosystem-title-grass", "/assets/tiles/grass-fleck.png");
   }
 
   create(): void {
@@ -194,10 +195,8 @@ export class EcosystemTitleScene extends Phaser.Scene {
     this.selectButton(this.selectedButtonIndex);
     this.bindInput();
     this.layout(this.scale.width, this.scale.height);
-    this.playTitleEntrance();
 
     this.queueMenuMusic();
-    this.cameras.main.fadeIn(320, 3, 12, 7);
     this.scale.on(Phaser.Scale.Events.RESIZE, this.resizeHandler);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.shutdownScene());
     window.__grassAppReady?.();
@@ -240,30 +239,31 @@ export class EcosystemTitleScene extends Phaser.Scene {
     }
     if (!this.modalOpen) {
       const pulse = 1 + Math.sin(time * 0.004) * 0.035;
-      this.selectorLeft.setScale(pulse);
-      this.selectorRight.setScale(pulse);
+      const size = this.selectorDisplaySize * pulse;
+      this.selectorLeft.setDisplaySize(size, size);
+      this.selectorRight.setDisplaySize(size, size);
     }
   }
 
   private createMotes(): void {
     for (let index = 0; index < TITLE_MOTE_COUNT; index += 1) {
-      const texture = index % 3 === 0 ? "ecosystem-title-grass" : "ecosystem-title-pollen";
-      const mote = this.add.image(0, 0, texture)
+      const mote = this.add.image(0, 0, "ecosystem-title-pollen")
         .setOrigin(0.5)
         .setDepth(index % 4 === 0 ? 5 : 2)
-        .setBlendMode(Phaser.BlendModes.ADD);
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setTint(index % 5 === 0 ? 0x8de7ff : index % 3 === 0 ? 0xc9f89d : 0xffdf74);
       const depthFactor = 0.58 + (index % 5) * 0.105;
-      const size = 7 + depthFactor * 13;
+      const size = 4 + depthFactor * 6;
       mote.setDisplaySize(size, size);
       this.motePhases[index] = (index / TITLE_MOTE_COUNT) * Math.PI * 2;
-      this.moteSpeeds[index] = index % 3 === 0
+      this.moteSpeeds[index] = index % 2 === 0
         ? 0.000018 + (index % 5) * 0.000002
         : 0.000027 + (index % 6) * 0.0000025;
-      this.moteLanes[index] = index % 3 === 0
+      this.moteLanes[index] = index % 2 === 0
         ? (index * 0.173) % 0.74
         : 0.42 + ((index * 0.119) % 0.5);
       this.moteDepthFactors[index] = depthFactor;
-      this.moteModes[index] = index % 3 === 0 ? 0 : 1;
+      this.moteModes[index] = index % 2 === 0 ? 0 : 1;
       this.motes.push(mote);
     }
   }
@@ -521,6 +521,8 @@ export class EcosystemTitleScene extends Phaser.Scene {
   private refreshSavePresentation(): void {
     const continueButton = this.buttons.find((button) => button.id === "continue")!;
     const newButton = this.buttons.find((button) => button.id === "newField")!;
+    const optionsButton = this.buttons.find((button) => button.id === "options")!;
+    const creditsButton = this.buttons.find((button) => button.id === "credits")!;
     continueButton.enabled = this.saveSummary.hasSave;
     if (this.saveSummary.hasSave) {
       continueButton.setLabel(
@@ -546,6 +548,8 @@ export class EcosystemTitleScene extends Phaser.Scene {
       this.confirmingNewField ? "CONFIRM NEW FIELD" : "BEGIN NEW FIELD",
       this.confirmingNewField ? "Erase the current ecosystem save" : "Start again from the first touch",
     );
+    optionsButton.setLabel("OPTIONS", "Music and sound");
+    creditsButton.setLabel("CREDITS", "The people behind the grass");
     for (const button of this.buttons) {
       const semantic = this.semanticMenuButtons.get(button.id);
       if (!semantic) continue;
@@ -760,7 +764,8 @@ export class EcosystemTitleScene extends Phaser.Scene {
   }
 
   private layout(width: number, height: number): void {
-    const mobile = width < 760;
+    const titleLayout = getEcosystemTitleLayout(width, height, this.buttons.length);
+    const mobile = titleLayout.phone;
     const portrait = height > width * 1.08;
     const backgroundKey = portrait ? TITLE_BACKGROUND_PORTRAIT : TITLE_BACKGROUND_LANDSCAPE;
     if (this.background.texture.key !== backgroundKey) this.background.setTexture(backgroundKey);
@@ -773,106 +778,84 @@ export class EcosystemTitleScene extends Phaser.Scene {
       .setPosition(this.backgroundBaseX, this.backgroundBaseY);
 
     this.shade.clear();
-    this.shade.fillStyle(0x031009, portrait ? 0.24 : 0.18).fillRect(0, 0, width, height);
-    if (mobile) {
-      this.shade.fillStyle(0x031009, 0.64).fillRect(0, 0, width, height * 0.39);
-      this.shade.fillStyle(0x031009, 0.48).fillRect(0, height * 0.39, width, height * 0.61);
-    } else {
-      this.shade.fillStyle(0x031009, 0.48).fillRect(0, 0, Math.min(width * 0.58, 780), height);
-    }
+    this.shade
+      .fillStyle(0x031009, portrait ? 0.3 : titleLayout.centered ? 0.25 : 0.22)
+      .fillRect(0, 0, width, height);
 
-    const titleX = mobile ? width / 2 : Math.min(width * 0.31, 560);
-    const titleTopY = mobile ? 70 : Math.max(74, height * 0.12);
-    this.titleTop.setFontSize(mobile ? 38 : 66).setPosition(titleX, titleTopY);
-    this.titleBottom.setFontSize(mobile ? 37 : 64).setPosition(titleX, titleTopY + (mobile ? 43 : 67));
-    this.chapterTitle.setFontSize(mobile ? 13 : 19).setPosition(titleX, titleTopY + (mobile ? 86 : 133));
-    this.alphaLabel.setFontSize(mobile ? 10 : 13).setPosition(titleX, titleTopY + (mobile ? 113 : 166));
+    this.fitTextToWidth(
+      this.titleTop,
+      titleLayout.titleMaxWidth,
+      titleLayout.titleTopFontSize,
+      Math.max(28, titleLayout.titleTopFontSize - 18),
+    );
+    this.fitTextToWidth(
+      this.titleBottom,
+      titleLayout.titleMaxWidth * 0.82,
+      titleLayout.titleBottomFontSize,
+      Math.max(27, titleLayout.titleBottomFontSize - 16),
+    );
+    this.titleTop
+      .setStroke("#06190f", mobile ? 4 : 5)
+      .setPosition(titleLayout.titleX, titleLayout.titleTopY);
+    this.titleBottom
+      .setStroke("#06190f", mobile ? 4 : 5)
+      .setPosition(titleLayout.titleX, titleLayout.titleBottomY);
+    this.alphaLabel
+      .setOrigin(0, 0.5)
+      .setFontSize(titleLayout.alphaFontSize);
+    this.chapterTitle
+      .setOrigin(0, 0.5);
+    this.fitTextToWidth(
+      this.chapterTitle,
+      titleLayout.titleMaxWidth - this.alphaLabel.width - 16,
+      titleLayout.chapterFontSize,
+      10,
+    );
+    const chapterGroupWidth = this.chapterTitle.width + 12 + this.alphaLabel.width;
+    const chapterStartX = titleLayout.titleX - chapterGroupWidth / 2;
+    this.chapterTitle.setPosition(chapterStartX, titleLayout.chapterY);
+    this.alphaLabel.setPosition(
+      chapterStartX + this.chapterTitle.width + 12,
+      titleLayout.chapterY,
+    );
 
-    const panelWidth = mobile ? Math.min(width - 24, 430) : 500;
-    const panelHeight = mobile ? Math.min(420, height * 0.52) : 430;
-    const panelX = mobile ? width / 2 : titleX;
-    const panelY = mobile ? height - panelHeight / 2 - 16 : Math.min(height - panelHeight / 2 - 24, height * 0.66);
-    this.menuPanel.setPosition(panelX, panelY).setSize(panelWidth, panelHeight);
-    this.saveStateText.setFontSize(mobile ? 13 : 16).setPosition(panelX, panelY - panelHeight / 2 + 35);
-    this.saveDetailText.setFontSize(mobile ? 10 : 12).setPosition(panelX, panelY - panelHeight / 2 + 59);
+    this.menuPanel
+      .setPosition(titleLayout.panelX, titleLayout.panelY)
+      .setSize(titleLayout.panelWidth, titleLayout.panelHeight);
+    this.saveStateText.setFontSize(mobile ? 13 : 15);
+    this.fitTextToWidth(
+      this.saveStateText,
+      titleLayout.panelWidth - 36,
+      mobile ? 13 : 15,
+      10,
+    );
+    this.saveStateText.setPosition(titleLayout.panelX, titleLayout.saveStateY);
+    this.saveDetailText
+      .setFontSize(mobile ? 10 : 11)
+      .setPosition(titleLayout.panelX, titleLayout.saveDetailY);
 
-    const buttonWidth = panelWidth - (mobile ? 44 : 70);
-    const buttonHeight = mobile ? 54 : 58;
-    const firstButtonOffset = mobile ? 110 : 118;
-    const firstButtonY = panelY - panelHeight / 2 + firstButtonOffset;
-    const fittedGap = (panelHeight - firstButtonOffset - buttonHeight / 2 - 22) / Math.max(1, this.buttons.length - 1);
-    const gap = mobile ? Phaser.Math.Clamp(fittedGap, 44, 66) : 68;
     for (let index = 0; index < this.buttons.length; index += 1) {
       const button = this.buttons[index];
-      const y = firstButtonY + index * gap;
-      button.container.setPosition(panelX, y);
-      button.back.setSize(buttonWidth, buttonHeight);
-      button.hit.setSize(buttonWidth, buttonHeight);
-      button.label.setFontSize(mobile ? 19 : 23).setPosition(0, -7);
-      button.detail.setFontSize(mobile ? 9 : 10).setPosition(0, 17);
+      const y = titleLayout.buttonFirstY + index * titleLayout.buttonStep;
+      button.container.setPosition(titleLayout.panelX, y);
+      button.back.setSize(titleLayout.buttonWidth, titleLayout.buttonHeight);
+      button.hit.setSize(titleLayout.buttonWidth, titleLayout.buttonHeight);
+      this.fitTextToWidth(
+        button.label,
+        titleLayout.buttonWidth - 28,
+        titleLayout.buttonLabelFontSize,
+        14,
+      );
+      button.label.setPosition(0, mobile ? -6 : -7);
+      button.detail
+        .setFontSize(titleLayout.buttonDetailFontSize)
+        .setPosition(0, mobile ? 15 : 16);
     }
+    this.selectorDisplaySize = titleLayout.selectorSize;
     this.layoutSelectors();
     this.buildLabel.setPosition(width - 12, height - 10);
     this.layoutModals(width, height, mobile);
     this.layoutSemanticControls();
-  }
-
-  private playTitleEntrance(): void {
-    this.background.setAlpha(0.74);
-    this.tweens.add({ targets: this.background, alpha: 1, duration: 700, ease: "Sine.easeOut" });
-
-    const titleTargets = [this.titleTop, this.titleBottom, this.chapterTitle, this.alphaLabel];
-    for (let index = 0; index < titleTargets.length; index += 1) {
-      const target = titleTargets[index];
-      const targetY = target.y;
-      target.setAlpha(0).setY(targetY - 12);
-      this.tweens.add({
-        targets: target,
-        alpha: 1,
-        y: targetY,
-        duration: 360,
-        delay: 80 + index * 65,
-        ease: "Cubic.easeOut",
-      });
-    }
-
-    this.menuPanel.setAlpha(0).setScale(0.985);
-    this.tweens.add({
-      targets: this.menuPanel,
-      alpha: 0.95,
-      scaleX: 1,
-      scaleY: 1,
-      duration: 360,
-      delay: 230,
-      ease: "Back.easeOut",
-    });
-    for (const target of [this.saveStateText, this.saveDetailText]) {
-      target.setAlpha(0);
-      this.tweens.add({ targets: target, alpha: 1, duration: 260, delay: 350, ease: "Sine.easeOut" });
-    }
-    for (let index = 0; index < this.buttons.length; index += 1) {
-      const button = this.buttons[index];
-      const targetAlpha = button.enabled ? 1 : 0.36;
-      button.container.setScale(0.94).setAlpha(0);
-      this.tweens.add({
-        targets: button.container,
-        alpha: targetAlpha,
-        scaleX: 1,
-        scaleY: 1,
-        duration: 260,
-        delay: 320 + index * 55,
-        ease: "Back.easeOut",
-      });
-    }
-    this.selectorLeft.setAlpha(0);
-    this.selectorRight.setAlpha(0);
-    this.tweens.add({
-      targets: [this.selectorLeft, this.selectorRight],
-      alpha: 1,
-      duration: 220,
-      delay: 560,
-      ease: "Sine.easeOut",
-    });
   }
 
   private layoutSelectors(): void {
@@ -885,11 +868,11 @@ export class EcosystemTitleScene extends Phaser.Scene {
     const selectorOffset = button.back.displayWidth / 2 + 25;
     this.selectorLeft
       .setVisible(true)
-      .setDisplaySize(26, 26)
+      .setDisplaySize(this.selectorDisplaySize, this.selectorDisplaySize)
       .setPosition(button.container.x - selectorOffset, button.container.y);
     this.selectorRight
       .setVisible(true)
-      .setDisplaySize(26, 26)
+      .setDisplaySize(this.selectorDisplaySize, this.selectorDisplaySize)
       .setPosition(button.container.x + selectorOffset, button.container.y);
   }
 
@@ -1011,6 +994,20 @@ export class EcosystemTitleScene extends Phaser.Scene {
       strokeThickness: fontSize >= 20 ? 6 : 3,
       letterSpacing: 0,
     });
+  }
+
+  private fitTextToWidth(
+    text: Phaser.GameObjects.Text,
+    maxWidth: number,
+    preferredSize: number,
+    minSize: number,
+  ): void {
+    let size = preferredSize;
+    text.setFontSize(size);
+    while (text.width > maxWidth && size > minSize) {
+      size -= 1;
+      text.setFontSize(size);
+    }
   }
 
   private shutdownScene(): void {
