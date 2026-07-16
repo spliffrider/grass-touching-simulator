@@ -26,7 +26,7 @@ const FIRST_RUN_OPENING_HP = 1;
 const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.18;
 const PRE_AUTOMATION_SCOURGE_RAMP_SECONDS = 0.2;
 const FIRST_AUTOMATION_SCOURGE_RAMP_SECONDS = 40;
-const EARLY_SCOURGE_BASE_BY_CAPABILITY = [12, 12, 2.4, 1.5, 1.05, 0.82] as const;
+const EARLY_SCOURGE_BASE_BY_CAPABILITY = [12, 6, 2.4, 1.5, 1.05, 0.82] as const;
 
 export type HelperRankRecord = Record<HelperId, number>;
 export type HelperUnlockRecord = Record<HelperId, boolean>;

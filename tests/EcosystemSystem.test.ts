@@ -472,18 +472,18 @@ describe("EcosystemSystem", () => {
     expect(canBeginNextEcosystemRun(state, permanent)).toBe(true);
   });
 
-  it("makes the second run dangerous even at the full legal touch rate", () => {
+  it("keeps the second run threatening without overwhelming its opening", () => {
     const result = simulateFirstAutomationRunAtFullTouchRate();
 
-    expect(result.initialScourgeDemandPerSecond).toBeGreaterThan(13);
-    expect(result.initialScourgeDemandPerSecond).toBeLessThan(14);
+    expect(result.initialScourgeDemandPerSecond).toBeGreaterThan(6.5);
+    expect(result.initialScourgeDemandPerSecond).toBeLessThan(7);
     expect(result.sprinklerPurchasedAtMs).toBeGreaterThanOrEqual(5_500);
     expect(result.sprinklerPurchasedAtMs).toBeLessThanOrEqual(6_000);
     expect(result.hpAtPurchase).not.toBeNull();
-    expect(result.hpAtPurchase!).toBeLessThan(92);
-    expect(result.durationMs).toBeGreaterThanOrEqual(15_000);
-    expect(result.durationMs).toBeLessThanOrEqual(30_000);
-    expect(result.durationMs - result.sprinklerPurchasedAtMs!).toBeGreaterThanOrEqual(10_000);
+    expect(result.hpAtPurchase!).toBeGreaterThanOrEqual(95);
+    expect(result.durationMs).toBeGreaterThanOrEqual(30_000);
+    expect(result.durationMs).toBeLessThanOrEqual(45_000);
+    expect(result.durationMs - result.sprinklerPurchasedAtMs!).toBeGreaterThanOrEqual(25_000);
   });
 
   it("lets a developed production web reach a sustained thriving state", () => {
