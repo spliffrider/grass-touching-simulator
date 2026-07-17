@@ -84,6 +84,24 @@ Care cycle celebrates at the water impact; subsequent cycles retain the meter
 and Dew-reserve instruction without repeatedly interrupting play. Both Phaser
 and the semantic browser layer derive their copy from the same objective state.
 
+### First Seed Runner
+
+After the first Care cycle is online, an unlocked Field Mouse becomes the next
+guided production chapter. The Ledger tracks RT toward its first purchase, then
+switches to the mouse's planting cycle, Seed reserve, Growth output, and any
+blocked or starved state.
+
+The first Field Mouse bought in each run discovers a three-Seed starter cache.
+This guarantees an immediate planting demonstration without bypassing the
+long-term Seed economy. Later mice do not create more starter stock. Spread mode
+plants quickly for stronger Growth and RT throughput; Cache mode works more
+slowly while spending fewer Seeds.
+
+On the field, the pooled mouse actor visibly picks up a Seed, scurries to a
+representative patch, plants it, and returns to its parked status badge. One
+pooled carried-Seed sprite and the existing impact pool represent the action;
+additional simultaneous cycles are summarized by the same bounded animation.
+
 ## Fixed-Tick Simulation
 
 Production runs on deterministic 250 ms ticks. Frame rendering never executes

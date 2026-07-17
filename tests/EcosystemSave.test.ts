@@ -93,6 +93,19 @@ describe("EcosystemSave", () => {
     expect(loaded?.state.helperPulses.tinySprinkler).toBe(0);
   });
 
+  it("loads active saves created before helper cycle totals were recorded", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 2;
+    permanent.unlockedHelpers.fieldMouse = true;
+    const state = createEcosystemState(permanent, { seed: 8_153 });
+    const snapshot = createActiveFieldSnapshot(state);
+    delete (snapshot.helpers.fieldMouse as { cyclesCompleted?: number }).cyclesCompleted;
+
+    const loaded = restoreActiveFieldSnapshot(snapshot, permanent);
+
+    expect(loaded?.state.helpers.fieldMouse.cyclesCompleted).toBe(0);
+  });
+
   it("rejects tile payloads whose dimensions do not match", () => {
     const permanent = createPermanentEcosystemState();
     const state = createEcosystemState(permanent);

@@ -83,6 +83,7 @@ import {
   type FieldViewportState,
 } from "../ecosystem/EcosystemViewport";
 import {
+  FIELD_MOUSE_STARTER_SEEDS,
   advanceEcosystem,
   buyCultivationRank,
   buyHelper,
@@ -96,6 +97,7 @@ import {
   getCultivationCost,
   getDominantChunkStage,
   getEcosystemReadout,
+  getFieldMouseStatus,
   getFieldTierUnlockCost,
   getFirstAutomationStatus,
   getHelperPurchaseCost,
@@ -188,6 +190,8 @@ const MAX_SCENE_CONTENT_WIDTH = 1680;
 const HELPER_ARRIVAL_MS = 760;
 const HELPER_PULSE_ANIMATION_MS = 620;
 const HELPER_SOUND_INTERVAL_MS = 720;
+const FIELD_MOUSE_SCURRY_MS = 1_080;
+const FIELD_MOUSE_PLANT_RATIO = 0.62;
 const TOUCH_READY_FLASH_MS = 220;
 const FIRST_MEMORY_CELEBRATION_MS = 520;
 const FIRST_MEMORY_REVEAL_MS = 1_050;
@@ -220,6 +224,7 @@ interface SceneButton {
 
 interface HelperActorView {
   image: Phaser.GameObjects.Image;
+  carryImage: Phaser.GameObjects.Image | null;
   badgeBack: Phaser.GameObjects.Rectangle;
   progressFill: Phaser.GameObjects.Rectangle;
   countText: Phaser.GameObjects.Text;
@@ -232,6 +237,11 @@ interface HelperActorView {
   phase: number;
   arrivalStartedAt: number;
   pulseStartedAt: number;
+  scurryStartedAt: number;
+  scurryTargetX: number;
+  scurryTargetY: number;
+  scurryPulseCount: number;
+  scurryPlanted: boolean;
 }
 
 interface MemoryNodeRuntime {
@@ -847,12 +857,17 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.fieldRoot.add(icon);
       this.helperBuyButtons[helperId] = this.createButton(this.fieldRoot, "", () => this.buyHelperFromUi(helperId), 0x1b4f2c);
       const actorImage = this.add.image(0, 0, `eco-helper-${helperId}`).setOrigin(0.5);
+      const carryImage = helperId === "fieldMouse"
+        ? this.add.image(0, 0, "eco-effect-seed").setOrigin(0.5).setVisible(false)
+        : null;
       const badgeBack = this.add.rectangle(0, 0, 92, 20, 0x06190f, 0.92).setStrokeStyle(1, 0xd8b66a, 0.68);
       const progressFill = this.add.rectangle(0, 0, 1, 3, 0x8de7ff, 0.88).setOrigin(0, 0.5);
       const countText = this.createText("", 10, "#fff3c2", "bold").setOrigin(0.5);
       this.helperLayer.add([actorImage, badgeBack, progressFill, countText]);
+      if (carryImage) this.helperLayer.add(carryImage);
       this.helperActors[helperId] = {
         image: actorImage,
+        carryImage,
         badgeBack,
         progressFill,
         countText,
@@ -865,6 +880,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         phase: HELPER_IDS.indexOf(helperId) * 1.17,
         arrivalStartedAt: -Infinity,
         pulseStartedAt: -Infinity,
+        scurryStartedAt: -Infinity,
+        scurryTargetX: 0,
+        scurryTargetY: 0,
+        scurryPulseCount: 0,
+        scurryPlanted: false,
       };
     }
 
@@ -1703,39 +1723,74 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       }
 
       const firstAutomation = getFirstAutomationStatus(this.state, this.permanent);
-      this.firstSprinklerReadyForPurchase = this.state.helpers.tinySprinkler.count === 0
-        && this.state.runTouches >= firstAutomation.purchaseCost;
+      const fieldMouse = getFieldMouseStatus(this.state, this.permanent);
+      const showFieldMouseChapter = fieldMouse.stage !== "locked" && firstAutomation.stage === "sustain";
+      this.firstSprinklerReadyForPurchase = showFieldMouseChapter
+        ? fieldMouse.stage === "ready"
+        : this.state.helpers.tinySprinkler.count === 0 && this.state.runTouches >= firstAutomation.purchaseCost;
       let automationProgress = 0;
       let automationColor: number;
       let automationCopy: string;
-      switch (firstAutomation.stage) {
-        case "ready":
-          automationProgress = 1;
-          automationColor = 0xffe889;
-          automationCopy = `FIRST AUTOMATION READY  |  Buy Tiny Sprinkler for ${firstAutomation.purchaseCost} RT`;
-          break;
-        case "firstCycle":
-          automationProgress = firstAutomation.cycleProgress;
-          automationColor = 0x8de7ff;
-          automationCopy = "FIRST SPRAY  |  Watch Dew become Moisture + Care";
-          break;
-        case "sustain":
-          automationProgress = firstAutomation.cycleProgress;
-          automationColor = 0x83d765;
-          automationCopy = `CARE ONLINE  |  Keep Dew supplied (${Math.floor(firstAutomation.dewAmount)} Dew)`;
-          break;
-        case "dry":
-          automationColor = 0xe8616a;
-          automationCopy = "SPRINKLER DRY  |  Touch the field to gather Dew";
-          break;
-        case "paused":
-          automationColor = 0xe8616a;
-          automationCopy = `SPRINKLER PAUSED  |  ${firstAutomation.pauseReason ?? "Check its buffers"}`;
-          break;
-        default:
-          automationProgress = firstAutomation.purchaseProgress;
-          automationColor = 0x8de7ff;
-          automationCopy = `FIRST AUTOMATION  |  Gather RT ${Math.floor(this.state.runTouches)} / ${firstAutomation.purchaseCost}`;
+      if (showFieldMouseChapter) {
+        switch (fieldMouse.stage) {
+          case "ready":
+            automationProgress = 1;
+            automationColor = 0xffe889;
+            automationCopy = `FIELD MOUSE READY  |  Invite it for ${fieldMouse.purchaseCost} RT`;
+            break;
+          case "firstTrip":
+            automationProgress = fieldMouse.cycleProgress;
+            automationColor = HELPER_EFFECT_COLOR.fieldMouse;
+            automationCopy = `STARTER CACHE  |  ${FIELD_MOUSE_STARTER_SEEDS} Seeds found - watch the first planting`;
+            break;
+          case "working":
+            automationProgress = fieldMouse.cycleProgress;
+            automationColor = HELPER_EFFECT_COLOR.fieldMouse;
+            automationCopy = `SEED RUN ACTIVE  |  ${fieldMouse.seedAmount.toFixed(1)} Seeds  |  ${fieldMouse.growthAmount.toFixed(1)} Growth`;
+            break;
+          case "starved":
+            automationColor = 0xe8616a;
+            automationCopy = "MOUSE SEARCHING  |  Seed cache empty - keep the ecosystem growing";
+            break;
+          case "blocked":
+            automationColor = 0xe8616a;
+            automationCopy = `MOUSE WAITING  |  ${fieldMouse.pauseReason ?? "Check its buffers"}`;
+            break;
+          default:
+            automationProgress = fieldMouse.purchaseProgress;
+            automationColor = HELPER_EFFECT_COLOR.fieldMouse;
+            automationCopy = `FIELD MOUSE  |  Gather RT ${Math.floor(this.state.runTouches)} / ${fieldMouse.purchaseCost}`;
+        }
+      } else {
+        switch (firstAutomation.stage) {
+          case "ready":
+            automationProgress = 1;
+            automationColor = 0xffe889;
+            automationCopy = `FIRST AUTOMATION READY  |  Buy Tiny Sprinkler for ${firstAutomation.purchaseCost} RT`;
+            break;
+          case "firstCycle":
+            automationProgress = firstAutomation.cycleProgress;
+            automationColor = 0x8de7ff;
+            automationCopy = "FIRST SPRAY  |  Watch Dew become Moisture + Care";
+            break;
+          case "sustain":
+            automationProgress = firstAutomation.cycleProgress;
+            automationColor = 0x83d765;
+            automationCopy = `CARE ONLINE  |  Keep Dew supplied (${Math.floor(firstAutomation.dewAmount)} Dew)`;
+            break;
+          case "dry":
+            automationColor = 0xe8616a;
+            automationCopy = "SPRINKLER DRY  |  Touch the field to gather Dew";
+            break;
+          case "paused":
+            automationColor = 0xe8616a;
+            automationCopy = `SPRINKLER PAUSED  |  ${firstAutomation.pauseReason ?? "Check its buffers"}`;
+            break;
+          default:
+            automationProgress = firstAutomation.purchaseProgress;
+            automationColor = 0x8de7ff;
+            automationCopy = `FIRST AUTOMATION  |  Gather RT ${Math.floor(this.state.runTouches)} / ${firstAutomation.purchaseCost}`;
+        }
       }
       this.setTextIfChanged(this.automationGoalText, automationCopy);
       const automationHex = `#${automationColor.toString(16).padStart(6, "0")}`;
@@ -1767,6 +1822,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           ? this.state.runTouches >= cost
             ? `Buy first Tiny Sprinkler  |  ${cost} RT`
             : `Tiny Sprinkler  |  ${Math.floor(this.state.runTouches)} / ${cost} RT`
+          : helperId === "fieldMouse" && helper.count === 0
+            ? this.state.runTouches >= cost
+              ? `Invite Field Mouse  |  ${cost} RT`
+              : `Field Mouse  |  ${Math.floor(this.state.runTouches)} / ${cost} RT`
           : `${HELPERS[helperId].label} x${helper.count}  Buy ${cost} RT${pause}`;
         this.helperBuyButtons[helperId]
           .setLabel(label)
@@ -2148,7 +2207,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       actor.badgeBack.setVisible(visible);
       actor.progressFill.setVisible(visible);
       actor.countText.setVisible(visible);
-      if (!visible) continue;
+      if (!visible) {
+        actor.carryImage?.setVisible(false);
+        actor.scurryStartedAt = -Infinity;
+        actor.scurryPulseCount = 0;
+        actor.scurryPlanted = false;
+        continue;
+      }
       const fraction = (index + 1) / (owned.length + 1);
       actor.baseX = singlePlot
         ? singlePlotCenterX - singlePlotSize / 2 + actorSize * 0.8 + fraction * (singlePlotSize - actorSize * 1.6)
@@ -2233,15 +2298,70 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         : 0;
       const idleX = Math.sin(now * 0.0011 + actor.phase) * 4;
       const idleY = Math.sin(now * 0.0017 + actor.phase) * 3;
-      actor.image.x = actor.baseX + idleX;
-      actor.image.y = actor.baseY + idleY - Math.sin(pulseRatio * Math.PI) * actor.actorSize * 0.08;
-      actor.image.rotation = Math.sin(now * 0.0013 + actor.phase) * 0.05 + pulseKick;
-      actor.image.setScale(actor.baseScaleX * arrivalScale * pulseScale, actor.baseScaleY * arrivalScale * pulseScale);
+      let actorX = actor.baseX + idleX;
+      let actorY = actor.baseY + idleY - Math.sin(pulseRatio * Math.PI) * actor.actorSize * 0.08;
+      let actorRotation = Math.sin(now * 0.0013 + actor.phase) * 0.05 + pulseKick;
+      let scurryScale = 1;
+      let scurryActive = false;
+      if (helperId === "fieldMouse" && Number.isFinite(actor.scurryStartedAt)) {
+        const scurryRatio = Phaser.Math.Clamp((now - actor.scurryStartedAt) / FIELD_MOUSE_SCURRY_MS, 0, 1);
+        if (scurryRatio >= FIELD_MOUSE_PLANT_RATIO && !actor.scurryPlanted) {
+          actor.scurryPlanted = true;
+          actor.carryImage?.setVisible(false);
+          this.completeHelperEffect("fieldMouse", actor.scurryTargetX, actor.scurryTargetY, actor.scurryPulseCount, false, false);
+        }
+        if (scurryRatio >= 1) {
+          actor.scurryStartedAt = -Infinity;
+          actor.scurryPulseCount = 0;
+          actor.scurryPlanted = false;
+          actor.image.setFlipX(false);
+          actor.carryImage?.setVisible(false);
+        } else {
+          scurryActive = true;
+          if (scurryRatio < 0.16) {
+            const pickupRatio = scurryRatio / 0.16;
+            actorY -= Math.sin(pickupRatio * Math.PI) * actor.actorSize * 0.13;
+            actorRotation += Math.sin(pickupRatio * Math.PI * 2) * 0.11;
+          } else if (scurryRatio < FIELD_MOUSE_PLANT_RATIO) {
+            const travelRatio = (scurryRatio - 0.16) / (FIELD_MOUSE_PLANT_RATIO - 0.16);
+            const eased = 1 - Math.pow(1 - travelRatio, 3);
+            actorX = actor.baseX + (actor.scurryTargetX - actor.baseX) * eased;
+            actorY = actor.baseY + (actor.scurryTargetY - actor.baseY) * eased - Math.sin(travelRatio * Math.PI * 5) * actor.actorSize * 0.12;
+            actorRotation = Math.sin(travelRatio * Math.PI * 10) * 0.09;
+            actor.image.setFlipX(actor.scurryTargetX < actor.baseX);
+          } else if (scurryRatio < 0.74) {
+            const plantRatio = (scurryRatio - FIELD_MOUSE_PLANT_RATIO) / (0.74 - FIELD_MOUSE_PLANT_RATIO);
+            actorX = actor.scurryTargetX + Math.sin(plantRatio * Math.PI * 5) * actor.actorSize * 0.05;
+            actorY = actor.scurryTargetY + Math.sin(plantRatio * Math.PI) * actor.actorSize * 0.08;
+            actorRotation = Math.sin(plantRatio * Math.PI * 6) * 0.16;
+            scurryScale = 1 - Math.sin(plantRatio * Math.PI) * 0.12;
+          } else {
+            const returnRatio = (scurryRatio - 0.74) / 0.26;
+            const eased = 1 - Math.pow(1 - returnRatio, 3);
+            actorX = actor.scurryTargetX + (actor.baseX - actor.scurryTargetX) * eased;
+            actorY = actor.scurryTargetY + (actor.baseY - actor.scurryTargetY) * eased - Math.sin(returnRatio * Math.PI * 4) * actor.actorSize * 0.1;
+            actorRotation = Math.sin(returnRatio * Math.PI * 8) * 0.08;
+            actor.image.setFlipX(actor.baseX < actor.scurryTargetX);
+          }
+          const carryVisible = scurryRatio >= 0.08 && scurryRatio < FIELD_MOUSE_PLANT_RATIO;
+          actor.carryImage
+            ?.setVisible(carryVisible)
+            .setPosition(actorX + (actor.image.flipX ? -1 : 1) * actor.actorSize * 0.18, actorY - actor.actorSize * 0.28)
+            .setRotation(now * 0.006)
+            .setAlpha(carryVisible ? 0.96 : 0);
+        }
+      }
+      actor.image.setPosition(actorX, actorY).setRotation(actorRotation);
+      actor.image.setScale(
+        actor.baseScaleX * arrivalScale * pulseScale * scurryScale,
+        actor.baseScaleY * arrivalScale * pulseScale * scurryScale,
+      );
       actor.image.setAlpha(arrivalRatio);
-      const badgeY = actor.image.y + actor.actorSize * 0.53;
-      actor.badgeBack.setPosition(actor.image.x, badgeY).setAlpha(arrivalRatio);
-      actor.progressFill.setPosition(actor.image.x - actor.badgeWidth / 2 + 2, badgeY + 7).setAlpha(arrivalRatio * 0.9);
-      actor.countText.setPosition(actor.image.x, badgeY - 1).setAlpha(arrivalRatio);
+      const badgeX = scurryActive ? actor.baseX : actor.image.x;
+      const badgeY = (scurryActive ? actor.baseY : actor.image.y) + actor.actorSize * 0.53;
+      actor.badgeBack.setPosition(badgeX, badgeY).setAlpha(arrivalRatio);
+      actor.progressFill.setPosition(badgeX - actor.badgeWidth / 2 + 2, badgeY + 7).setAlpha(arrivalRatio * 0.9);
+      actor.countText.setPosition(badgeX, badgeY - 1).setAlpha(arrivalRatio);
     }
     this.animateTouchRecovery(now);
   }
@@ -2345,6 +2465,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const actor = this.helperActors[helperId];
     if (!actor.image.visible || !this.state.active || this.worksOpen) return;
     actor.pulseStartedAt = this.time.now;
+    if (helperId === "fieldMouse") {
+      if (!priming) this.spawnFieldMouseScurry(actor, pulseCount);
+      return;
+    }
     if (helperId === "tinySprinkler" && this.time.now - this.lastHelperSoundAt >= HELPER_SOUND_INTERVAL_MS) {
       this.lastHelperSoundAt = this.time.now;
       this.audio.play("sprinkler");
@@ -2405,6 +2529,42 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
   }
 
+  private spawnFieldMouseScurry(actor: HelperActorView, pulseCount: number): void {
+    if (this.time.now - actor.scurryStartedAt < FIELD_MOUSE_SCURRY_MS) {
+      actor.scurryPulseCount += pulseCount;
+      return;
+    }
+    const singlePlot = this.state.field.stages.length === 1 && this.projection.lod === "near";
+    const centerX = this.projection.originX + this.projection.worldWidth / 2;
+    const centerY = this.projection.originY + this.projection.worldHeight / 2;
+    const singlePlotSize = singlePlot
+      ? Math.min(420, this.projection.cellSize * 0.86, this.fieldBounds.height * 0.72)
+      : 0;
+    actor.scurryTargetX = singlePlot
+      ? centerX + (Math.random() - 0.5) * singlePlotSize * 0.42
+      : Phaser.Math.Clamp(
+        this.projection.originX + Math.random() * this.projection.worldWidth,
+        this.fieldBounds.x + actor.actorSize,
+        this.fieldBounds.x + this.fieldBounds.width - actor.actorSize,
+      );
+    actor.scurryTargetY = singlePlot
+      ? centerY + (Math.random() - 0.5) * singlePlotSize * 0.32
+      : Phaser.Math.Clamp(
+        this.projection.originY + Math.random() * this.projection.worldHeight,
+        this.fieldBounds.y + 64,
+        this.fieldBounds.y + this.fieldBounds.height - actor.actorSize * 1.4,
+      );
+    actor.scurryStartedAt = this.time.now;
+    actor.scurryPulseCount = Math.max(1, pulseCount);
+    actor.scurryPlanted = false;
+    const carrySize = Phaser.Math.Clamp(actor.actorSize * 0.34, 12, 22);
+    actor.carryImage
+      ?.setDisplaySize(carrySize, carrySize)
+      .setPosition(actor.baseX, actor.baseY - actor.actorSize * 0.22)
+      .setAlpha(0)
+      .setVisible(true);
+  }
+
   private completeHelperEffect(
     helperId: HelperId,
     x: number,
@@ -2414,6 +2574,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     celebrateFirstCare: boolean,
   ): void {
     const color = HELPER_EFFECT_COLOR[helperId];
+    if (!priming && helperId === "fieldMouse" && this.time.now - this.lastHelperSoundAt >= HELPER_SOUND_INTERVAL_MS) {
+      this.lastHelperSoundAt = this.time.now;
+      this.audio.play("seed");
+    }
     const impact = this.impactPool.find((candidate) => !candidate.visible);
     if (impact) {
       impact.setPosition(x, y).setRadius(14).setFillStyle(color, 0.1).setStrokeStyle(3, color, 0.9).setAlpha(1).setScale(0.4).setVisible(true);
@@ -2514,7 +2678,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
 
     this.helperAnnouncementText
-      .setText(helperId === "tinySprinkler" ? "FIRST SPRINKLER ONLINE" : `${HELPERS[helperId].label.toUpperCase()} ONLINE`)
+      .setText(helperId === "tinySprinkler"
+        ? "FIRST SPRINKLER ONLINE"
+        : helperId === "fieldMouse"
+          ? `FIELD MOUSE ONLINE  |  +${FIELD_MOUSE_STARTER_SEEDS} SEEDS`
+          : `${HELPERS[helperId].label.toUpperCase()} ONLINE`)
       .setColor(`#${color.toString(16).padStart(6, "0")}`)
       .setPosition(actor.baseX, actor.baseY - actor.actorSize * 0.95)
       .setAlpha(1)

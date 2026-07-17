@@ -21,6 +21,7 @@ import {
 
 export const ECOSYSTEM_PERMANENT_VERSION = 1;
 export const ECOSYSTEM_ACTIVE_VERSION = 1;
+export const FIELD_MOUSE_STARTER_SEEDS = 3;
 const FIRST_RUN_SCOURGE_BASE = 10_000_000;
 const FIRST_RUN_OPENING_HP = 1;
 const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.18;
@@ -58,6 +59,7 @@ export interface HelperRuntimeState {
   modeId: string;
   reconfigureRemainingMs: number;
   pulseProgress: number;
+  cyclesCompleted: number;
   lastPauseReason: string | null;
 }
 
@@ -149,6 +151,19 @@ export interface FirstAutomationStatus {
   cycleProgress: number;
   dewAmount: number;
   careProduced: number;
+  pauseReason: string | null;
+}
+
+export type FieldMouseStage = "locked" | "gather" | "ready" | "firstTrip" | "working" | "starved" | "blocked";
+
+export interface FieldMouseStatus {
+  stage: FieldMouseStage;
+  purchaseCost: number;
+  purchaseProgress: number;
+  cycleProgress: number;
+  cyclesCompleted: number;
+  seedAmount: number;
+  growthAmount: number;
   pauseReason: string | null;
 }
 
@@ -350,6 +365,7 @@ function createHelperRuntime(): HelperRuntimeRecord {
         modeId: HELPERS[helperId].modes[0].id,
         reconfigureRemainingMs: 0,
         pulseProgress: 0,
+        cyclesCompleted: 0,
         lastPauseReason: null,
       },
     ]),
@@ -416,6 +432,7 @@ export function enforceRunOneBareHands(state: EcosystemState): void {
     helper.modeId = HELPERS[helperId].modes[0].id;
     helper.reconfigureRemainingMs = 0;
     helper.pulseProgress = 0;
+    helper.cyclesCompleted = 0;
     helper.lastPauseReason = null;
     state.helperPulses[helperId] = 0;
   }
@@ -450,6 +467,40 @@ export function getFirstAutomationStatus(
   return { stage: "sustain", ...common };
 }
 
+export function getFieldMouseStatus(
+  state: EcosystemState,
+  permanent: PermanentEcosystemState,
+): FieldMouseStatus {
+  const mouse = state.helpers.fieldMouse;
+  const purchaseCost = getHelperPurchaseCost(state, "fieldMouse");
+  const common = {
+    purchaseCost,
+    purchaseProgress: Math.min(1, Math.max(0, state.runTouches / purchaseCost)),
+    cycleProgress: Math.min(1, Math.max(0, mouse.pulseProgress)),
+    cyclesCompleted: mouse.cyclesCompleted,
+    seedAmount: state.resources.seeds.amount,
+    growthAmount: state.resources.growth.amount,
+    pauseReason: mouse.lastPauseReason,
+  };
+
+  if (!isRunEquipmentAvailable(state) || !permanent.unlockedHelpers.fieldMouse) {
+    return { stage: "locked", ...common };
+  }
+  if (mouse.count <= 0) {
+    return { stage: state.runTouches >= purchaseCost ? "ready" : "gather", ...common };
+  }
+  if (mouse.lastPauseReason?.startsWith("Needs seeds") || state.resources.seeds.amount < EPSILON) {
+    return { stage: "starved", ...common };
+  }
+  if (mouse.lastPauseReason) {
+    return { stage: "blocked", ...common };
+  }
+  if (mouse.cyclesCompleted < 1) {
+    return { stage: "firstTrip", ...common };
+  }
+  return { stage: "working", ...common };
+}
+
 export function buyHelper(state: EcosystemState, permanent: PermanentEcosystemState, helperId: HelperId): boolean {
   if (!isRunEquipmentAvailable(state) || !permanent.unlockedHelpers[helperId]) {
     return false;
@@ -459,7 +510,11 @@ export function buyHelper(state: EcosystemState, permanent: PermanentEcosystemSt
     return false;
   }
   state.runTouches -= cost;
+  const firstFieldMouse = helperId === "fieldMouse" && state.helpers.fieldMouse.count === 0;
   state.helpers[helperId].count += 1;
+  if (firstFieldMouse) {
+    addResource(state, "seeds", FIELD_MOUSE_STARTER_SEEDS);
+  }
   state.helperPurchaseCount += 1;
   return true;
 }
@@ -852,6 +907,7 @@ function performRecipe(
   }
   if (recipe.helperId) {
     const helper = state.helpers[recipe.helperId];
+    helper.cyclesCompleted += cycles;
     helper.pulseProgress += cycles;
     const pulses = Math.floor(helper.pulseProgress);
     if (pulses > 0) {
@@ -985,6 +1041,7 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
     if (!equipmentAvailable) {
       helper.reconfigureRemainingMs = 0;
       helper.pulseProgress = 0;
+      helper.cyclesCompleted = 0;
       helper.lastPauseReason = null;
       state.helperPulses[helperId] = 0;
       continue;

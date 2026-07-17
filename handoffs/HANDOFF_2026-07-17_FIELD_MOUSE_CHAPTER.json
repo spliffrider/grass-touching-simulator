@@ -1,0 +1,56 @@
+{
+  "date": "2026-07-17",
+  "topic": "Field Mouse production chapter",
+  "currentUserGoal": "Make the Field Mouse the first ecosystem helper after Tiny Sprinkler: visibly carry Seeds to the field, convert them into Growth and RT, and teach the next production-chain step without adding scalable rendering cost.",
+  "workCompleted": [
+    "Added an explicit Field Mouse objective state covering locked, RT gathering, ready, first trip, working, Seed-starved, and output-blocked stages.",
+    "The first Field Mouse purchased in each run discovers exactly three starter Seeds so its first planting demonstration begins immediately; additional mice do not create free Seeds.",
+    "Recorded helper cycle totals in active-field saves with backward-compatible loading for older snapshots.",
+    "Advanced the Living Ledger from first-sprinkler sustain into a guided Field Mouse chapter with RT progress, starter-cache copy, cycle progress, Seed reserves, Growth output, and actionable pause reasons.",
+    "Added semantic controls and exported DOM/debug state for agent and accessibility testing, including a clearly named Invite first Field Mouse action.",
+    "Added a bounded presentation sequence using one existing pooled mouse actor and one pooled carried-Seed sprite: pickup, scurry, bury, field impact, and return. Concurrent pulses are summarized by the same actor.",
+    "Documented the First Seed Runner chapter in docs/ECOSYSTEM_FACTORY_DESIGN.md and added focused model/save regression coverage."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemSave.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSave.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-17_FIELD_MOUSE_CHAPTER.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 162 Vitest tests across 21 files, strict TypeScript, and the Vite production build.",
+    "Desktop browser verification covered the guided purchase, exactly +3 starter Seeds, first planting trip, ongoing production, and the resulting Memory Grove.",
+    "Phone verification at 390x844 covered Options, Cultivation purchase, Tiny Sprinkler purchase, Field Mouse invitation, the visible Seed-carrying trip, and Memory Grove without overlap.",
+    "The active phone sample reported 144 FPS, zero frame spikes, zero full-field scans, 748 total display objects, 82 visible objects, and three active tweens during the mouse presentation.",
+    "Browser console verification found no errors or warnings, and the temporary phone viewport was reset afterward.",
+    "git diff --check passed apart from the repository's existing Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Field Mouse chapter and handoff committed; docs/CODEX_GITHUB_SETUP_GUIDE.md remains the only unrelated untracked file.",
+    "pushRequested": false
+  },
+  "knownIssues": [
+    "Field Mouse costs and throughput still need hands-on balance feedback in the intended early-run progression rather than the accelerated debug save used for browser staging.",
+    "The later Bee Hive and downstream resource chapters remain functional scaffolding rather than equally guided, animated gameplay chapters.",
+    "The game remains explicitly alpha.",
+    "docs/CODEX_GITHUB_SETUP_GUIDE.md is unrelated and remains untracked."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test the Tiny Sprinkler to Field Mouse transition on a clean early-game save and tune RT cost, Seed consumption, Growth output, and Scourge pacing from feel.",
+    "Build the Bee Hive as the next guided production chapter only after the Field Mouse loop feels satisfying.",
+    "Continue keeping every helper presentation pooled and bounded before scaling field dimensions."
+  ],
+  "doNotRevert": [
+    "Do not make Field Mouse visible or purchasable before its permanent Memory is unlocked and first-sprinkler sustain is established.",
+    "Do not grant starter Seeds for the second or later Field Mouse in a run.",
+    "Do not create one display actor, projectile, or tween per helper cycle; preserve the bounded pooled presentation.",
+    "Do not cite the legacy 1200-tile harness as ecosystem performance evidence.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

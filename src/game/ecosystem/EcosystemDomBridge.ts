@@ -10,6 +10,7 @@ import {
   canBeginNextEcosystemRun,
   getCultivationCost,
   getDominantChunkStage,
+  getFieldMouseStatus,
   getFirstAutomationStatus,
   getHelperPurchaseCost,
   getHelperUnlockCost,
@@ -20,6 +21,7 @@ import {
   isFirstMemoryPending,
   isRunEquipmentAvailable,
   type EcosystemState,
+  type FieldMouseStatus,
   type FirstAutomationStatus,
   type PermanentEcosystemState,
   type PermanentRankKind,
@@ -74,6 +76,25 @@ function getAutomationReadableLine(status: FirstAutomationStatus): string | null
       return "Tiny Sprinkler dry: touch the field to gather Dew";
     case "paused":
       return `Tiny Sprinkler paused: ${status.pauseReason ?? "check its buffers"}`;
+  }
+}
+
+function getFieldMouseReadableLine(status: FieldMouseStatus): string | null {
+  switch (status.stage) {
+    case "locked":
+      return null;
+    case "gather":
+      return `Field Mouse invitation: ${Math.floor(status.purchaseProgress * status.purchaseCost)} / ${status.purchaseCost} RT`;
+    case "ready":
+      return `Field Mouse ready: invite it for ${status.purchaseCost} RT; its first cache contains three Seeds`;
+    case "firstTrip":
+      return `Field Mouse first trip: carrying a cached Seed to the field, cycle ${Math.floor(status.cycleProgress * 100)}%`;
+    case "working":
+      return `Field Mouse working: ${status.seedAmount.toFixed(1)} Seeds available, ${status.growthAmount.toFixed(1)} Growth stored`;
+    case "starved":
+      return "Field Mouse searching: Seed cache empty; keep Dew, Moisture, and Growth moving";
+    case "blocked":
+      return `Field Mouse waiting: ${status.pauseReason ?? "check its buffers"}`;
   }
 }
 
@@ -252,6 +273,8 @@ export class EcosystemDomBridge {
     const firstSprinklerCost = getHelperPurchaseCost(state, "tinySprinkler");
     const firstAutomation = getFirstAutomationStatus(state, permanent);
     const automationLine = getAutomationReadableLine(firstAutomation);
+    const fieldMouse = getFieldMouseStatus(state, permanent);
+    const fieldMouseLine = getFieldMouseReadableLine(fieldMouse);
     const firstCollapse = isFirstEcosystemCollapse(state, permanent);
     const firstMemoryPending = isFirstMemoryPending(state, permanent);
     const revealedMemoryNodeIds = memoryRevealActive
@@ -270,6 +293,7 @@ export class EcosystemDomBridge {
       `Scourge demand ${state.scourgeDemandPerSecond.toFixed(2)} Care/s | Care production ${state.rates.care.toFixed(2)}/s`,
       `Field ${state.field.width}x${state.field.height} | Cultivation ${state.field.cultivationRank}/10 | RT ${state.runTouches.toFixed(1)} | GT ${permanent.grassTouches.toFixed(0)}`,
       ...(automationLine ? [automationLine] : []),
+      ...(fieldMouseLine ? [fieldMouseLine] : []),
       `Bottleneck: ${state.bottleneck}`,
       `Chunks: ${state.field.dirtyChunks.length} total; ${chunkSummary}`,
       "Stocks:",
@@ -318,6 +342,10 @@ export class EcosystemDomBridge {
         ? state.runTouches >= cost
           ? `Buy first Tiny Sprinkler for ${cost} RT`
           : `First Tiny Sprinkler: ${Math.floor(state.runTouches)} / ${cost} RT`
+        : helperId === "fieldMouse" && state.helpers.fieldMouse.count === 0
+          ? state.runTouches >= cost
+            ? `Invite first Field Mouse for ${cost} RT`
+            : `First Field Mouse: ${Math.floor(state.runTouches)} / ${cost} RT`
         : `Buy ${HELPERS[helperId].label} for ${cost} RT`);
     }
     for (const button of this.modeButtons) {
@@ -419,6 +447,11 @@ export class EcosystemDomBridge {
       grassTouches: Number(permanent.grassTouches.toFixed(3)),
       fastTouchRank: permanent.fastTouchRank,
       firstAutomationStage: firstAutomation.stage,
+      fieldMouseStage: fieldMouse.stage,
+      fieldMice: equipmentAvailable ? state.helpers.fieldMouse.count : 0,
+      fieldMouseCycles: Number(fieldMouse.cyclesCompleted.toFixed(3)),
+      fieldMouseCycleProgress: Number(fieldMouse.cycleProgress.toFixed(3)),
+      seedCache: Number(fieldMouse.seedAmount.toFixed(3)),
       firstMemoryFocus: firstMemoryPending || memoryRevealActive,
       memoryRevealActive,
       revealedMemoryNodes: state.active ? 0 : revealedMemoryNodeIds.size,

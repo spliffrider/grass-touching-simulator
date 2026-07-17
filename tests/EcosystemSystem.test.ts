@@ -9,6 +9,7 @@ import {
 } from "../src/game/ecosystem/EcosystemCatalog";
 import { getManualTouchCooldownMs } from "../src/game/ecosystem/EcosystemTouchCooldown";
 import {
+  FIELD_MOUSE_STARTER_SEEDS,
   advanceEcosystem,
   buyCultivationRank,
   buyHelper,
@@ -20,6 +21,7 @@ import {
   getBroadPalmPower,
   getBroadPalmRadius,
   getFirstAutomationStatus,
+  getFieldMouseStatus,
   getManyHandsPower,
   getHelperPurchaseCost,
   getHelperUnlockCost,
@@ -209,6 +211,46 @@ describe("EcosystemSystem", () => {
 
     state.resources.dew.amount = 0;
     expect(getFirstAutomationStatus(state, permanent).stage).toBe("dry");
+  });
+
+  it("turns the first Field Mouse purchase into an immediate seed-to-Growth chapter", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 2;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    permanent.unlockedHelpers.fieldMouse = true;
+    const state = createEcosystemState(permanent, { seed: 8_151 });
+    state.runTouches = getHelperPurchaseCost(state, "fieldMouse");
+
+    expect(getFieldMouseStatus(state, permanent).stage).toBe("ready");
+    expect(buyHelper(state, permanent, "fieldMouse")).toBe(true);
+    expect(state.resources.seeds.amount).toBe(FIELD_MOUSE_STARTER_SEEDS);
+    expect(getFieldMouseStatus(state, permanent).stage).toBe("firstTrip");
+
+    for (let step = 0; step < 20; step += 1) advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+
+    expect(state.helpers.fieldMouse.cyclesCompleted).toBeGreaterThanOrEqual(1);
+    expect(state.resources.seeds.consumedTotal).toBeGreaterThanOrEqual(1);
+    expect(state.resources.growth.producedTotal).toBeGreaterThan(1);
+    expect(state.runTouches).toBeGreaterThan(0);
+    expect(getFieldMouseStatus(state, permanent).stage).toBe("working");
+    expect(consumeHelperPulses(state).fieldMouse).toBeGreaterThanOrEqual(1);
+  });
+
+  it("grants one starter cache per run and reports a seed-starved mouse", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 2;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    permanent.unlockedHelpers.fieldMouse = true;
+    const state = createEcosystemState(permanent, { seed: 8_152 });
+    state.runTouches = getHelperPurchaseCost(state, "fieldMouse");
+
+    expect(buyHelper(state, permanent, "fieldMouse")).toBe(true);
+    state.resources.seeds.amount = 0;
+    expect(getFieldMouseStatus(state, permanent).stage).toBe("starved");
+
+    state.runTouches = getHelperPurchaseCost(state, "fieldMouse");
+    expect(buyHelper(state, permanent, "fieldMouse")).toBe(true);
+    expect(state.resources.seeds.amount).toBe(0);
   });
 
   it("keeps Run 1 bare-hands-only even when helper Memories and RT are injected", () => {

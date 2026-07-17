@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-16",
-  "latestHandoff": "HANDOFF_2026-07-16_ECOSYSTEM_MASTER_RELEASE.json",
+  "updatedAt": "2026-07-17",
+  "latestHandoff": "HANDOFF_2026-07-17_FIELD_MOUSE_CHAPTER.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

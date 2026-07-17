@@ -39,6 +39,7 @@ interface HelperRuntimeSnapshot {
   modeId: string;
   reconfigureRemainingMs: number;
   pulseProgress: number;
+  cyclesCompleted: number;
   lastPauseReason: string | null;
 }
 
@@ -252,6 +253,7 @@ export function restoreActiveFieldSnapshot(
     state.helpers[helperId].modeId = allowedModes.includes(source.modeId) ? source.modeId : allowedModes[0];
     state.helpers[helperId].reconfigureRemainingMs = finiteNumber(source.reconfigureRemainingMs, 0, 0);
     state.helpers[helperId].pulseProgress = finiteNumber(source.pulseProgress, 0, 0);
+    state.helpers[helperId].cyclesCompleted = finiteNumber(source.cyclesCompleted, 0, 0);
     state.helpers[helperId].lastPauseReason = typeof source.lastPauseReason === "string" ? source.lastPauseReason : null;
   }
   enforceRunOneBareHands(state);
