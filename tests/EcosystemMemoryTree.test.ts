@@ -167,6 +167,16 @@ describe("Ecosystem Memory Tree", () => {
     }
   });
 
+  it("leads progression descriptions with their gameplay effect", () => {
+    const progressionNodes = ECOSYSTEM_MEMORY_NODES.filter((node) =>
+      node.kind === "helperRank" || node.kind === "touchRank" || node.kind === "fieldTier",
+    );
+
+    for (const node of progressionNodes) {
+      expect(node.description, node.id).not.toMatch(/^(?:Ten|Five)\b/);
+    }
+  });
+
   it("reveals the first Memory alone, then grows only the next reachable branches", () => {
     const permanent = createPermanentEcosystemState();
     const firstFocus = getRevealedEcosystemMemoryNodeIds(permanent, true);
