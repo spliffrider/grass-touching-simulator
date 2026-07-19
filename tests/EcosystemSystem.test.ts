@@ -303,6 +303,70 @@ describe("EcosystemSystem", () => {
     expect(consumeHelperPulses(state).fieldMouse).toBeGreaterThanOrEqual(1);
   });
 
+  it("links Tiny Sprinkler Moisture into bonus Growth and Care on Field Mouse trips", () => {
+    const createMouseRun = (withSprinkler: boolean) => {
+      const permanent = createPermanentEcosystemState();
+      permanent.completedRuns = 2;
+      permanent.unlockedHelpers.tinySprinkler = true;
+      permanent.unlockedHelpers.fieldMouse = true;
+      const state = createEcosystemState(permanent, { seed: 9_151 });
+      state.maxHp = 1_000_000;
+      state.hp = state.maxHp;
+      state.helpers.fieldMouse.count = 1;
+      state.helpers.tinySprinkler.count = withSprinkler ? 1 : 0;
+      state.helpers.tinySprinkler.reconfigureRemainingMs = 60_000;
+      state.resources.seeds.amount = 10;
+      state.resources.moisture.amount = 10;
+      state.resources.dew.amount = 0;
+      return { permanent, state };
+    };
+
+    const solo = createMouseRun(false);
+    const linked = createMouseRun(true);
+    expect(getFieldMouseStatus(solo.state, solo.permanent).dampFurrowsLinked).toBe(false);
+    expect(getFieldMouseStatus(linked.state, linked.permanent)).toMatchObject({
+      dampFurrowsLinked: true,
+      dampFurrowsFlowing: true,
+    });
+
+    for (let step = 0; step < 12; step += 1) {
+      advanceEcosystem(solo.state, solo.permanent, PRODUCTION_TICK_MS);
+      advanceEcosystem(linked.state, linked.permanent, PRODUCTION_TICK_MS);
+    }
+
+    expect(linked.state.resources.moisture.consumedTotal).toBeGreaterThan(solo.state.resources.moisture.consumedTotal + 0.1);
+    expect(linked.state.resources.growth.producedTotal).toBeGreaterThan(solo.state.resources.growth.producedTotal + 0.2);
+    expect(linked.state.resources.care.producedTotal).toBeGreaterThan(solo.state.resources.care.producedTotal + 0.1);
+  });
+
+  it("keeps ordinary Field Mouse trips running when Damp Furrows have no Moisture", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 2;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    permanent.unlockedHelpers.fieldMouse = true;
+    const state = createEcosystemState(permanent, { seed: 9_152 });
+    state.maxHp = 1_000_000;
+    state.hp = state.maxHp;
+    state.helpers.tinySprinkler.count = 1;
+    state.helpers.tinySprinkler.reconfigureRemainingMs = 60_000;
+    state.helpers.fieldMouse.count = 1;
+    state.resources.dew.amount = 0;
+    state.resources.moisture.amount = 0;
+    state.resources.seeds.amount = 3;
+
+    expect(getFieldMouseStatus(state, permanent)).toMatchObject({
+      dampFurrowsLinked: true,
+      dampFurrowsFlowing: false,
+    });
+    for (let step = 0; step < 16; step += 1) {
+      advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+    }
+
+    expect(state.helpers.fieldMouse.cyclesCompleted).toBeGreaterThanOrEqual(1);
+    expect(state.resources.seeds.consumedTotal).toBeGreaterThanOrEqual(1);
+    expect(state.resources.growth.producedTotal).toBeGreaterThan(1);
+  });
+
   it("grants one starter cache per run and reports a seed-starved mouse", () => {
     const permanent = createPermanentEcosystemState();
     permanent.completedRuns = 2;

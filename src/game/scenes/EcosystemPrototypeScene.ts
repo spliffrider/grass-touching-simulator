@@ -117,6 +117,7 @@ import {
   getTouchRankCost,
   isFirstEcosystemCollapse,
   isFirstMemoryPending,
+  isDampFurrowsFlowing,
   isRunEquipmentAvailable,
   purchaseFieldEmbrace,
   purchasePermanentRank,
@@ -380,6 +381,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private helperActors = {} as Record<HelperId, HelperActorView>;
   private helperFeedbackTexts = {} as Record<HelperId, Phaser.GameObjects.Text>;
   private helperAnnouncementText!: Phaser.GameObjects.Text;
+  private helperLinkAnnouncementText!: Phaser.GameObjects.Text;
   private touchCooldownShade!: Phaser.GameObjects.Rectangle;
   private touchCooldownBarBack!: Phaser.GameObjects.Rectangle;
   private touchCooldownBarFill!: Phaser.GameObjects.Rectangle;
@@ -937,6 +939,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       .setBackgroundColor("#06190f")
       .setPadding(10, 5, 10, 5)
       .setVisible(false);
+    this.helperLinkAnnouncementText = this.createText("", 15, "#8de7c5", "bold")
+      .setOrigin(0.5)
+      .setBackgroundColor("#06190f")
+      .setPadding(10, 5, 10, 5)
+      .setVisible(false);
     this.touchCooldownShade = this.add.rectangle(0, 0, 1, 1, 0x07130d, 0.34)
       .setStrokeStyle(3, 0x8de7ff, 0.86)
       .setVisible(false);
@@ -957,6 +964,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.touchCooldownBarFill,
       this.touchCooldownText,
       this.helperAnnouncementText,
+      this.helperLinkAnnouncementText,
     ]);
 
     this.fieldSurface = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0.001).setOrigin(0).setInteractive({ useHandCursor: true });
@@ -1811,12 +1819,18 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           case "firstTrip":
             automationProgress = fieldMouse.cycleProgress;
             automationColor = HELPER_EFFECT_COLOR.fieldMouse;
-            automationCopy = `STARTER CACHE  |  ${FIELD_MOUSE_STARTER_SEEDS} Seeds found - watch the first planting`;
+            automationCopy = fieldMouse.dampFurrowsLinked
+              ? "DAMP FURROWS  |  First watered planting"
+              : `STARTER CACHE  |  ${FIELD_MOUSE_STARTER_SEEDS} Seeds found - watch the first planting`;
             break;
           case "working":
             automationProgress = fieldMouse.cycleProgress;
-            automationColor = HELPER_EFFECT_COLOR.fieldMouse;
-            automationCopy = `SEED RUN ACTIVE  |  ${fieldMouse.seedAmount.toFixed(1)} Seeds  |  ${fieldMouse.growthAmount.toFixed(1)} Growth`;
+            automationColor = fieldMouse.dampFurrowsFlowing ? 0x8de7c5 : HELPER_EFFECT_COLOR.fieldMouse;
+            automationCopy = fieldMouse.dampFurrowsFlowing
+              ? `DAMP FURROWS FLOWING  |  ${fieldMouse.moistureAmount.toFixed(1)} Moisture  |  bonus Growth + Care`
+              : fieldMouse.dampFurrowsLinked
+                ? "DAMP FURROWS WAITING  |  Supply Moisture and clear Growth + Care storage"
+                : `SEED RUN ACTIVE  |  ${fieldMouse.seedAmount.toFixed(1)} Seeds  |  ${fieldMouse.growthAmount.toFixed(1)} Growth`;
             break;
           case "starved":
             automationColor = 0xe8616a;
@@ -2748,7 +2762,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     priming: boolean,
     celebrateFirstCare: boolean,
   ): void {
-    const color = HELPER_EFFECT_COLOR[helperId];
+    const dampFurrowsPulse = helperId === "fieldMouse" && isDampFurrowsFlowing(this.state);
+    const color = dampFurrowsPulse ? 0x8de7c5 : HELPER_EFFECT_COLOR[helperId];
     if (!priming
       && (helperId === "fieldMouse" || helperId === "beeHive")
       && this.time.now - this.lastHelperSoundAt >= HELPER_SOUND_INTERVAL_MS) {
@@ -2771,9 +2786,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
     if (!priming) {
       const feedback = this.helperFeedbackTexts[helperId];
-      const modeCopy = helperId === "tinySprinkler" && this.state.helpers.tinySprinkler.modeId === "cultivator"
-        ? "MOISTURE + GROWTH"
-        : HELPER_PULSE_COPY[helperId];
+      const modeCopy = dampFurrowsPulse
+        ? "DAMP FURROWS + GROWTH + CARE"
+        : helperId === "tinySprinkler" && this.state.helpers.tinySprinkler.modeId === "cultivator"
+          ? "MOISTURE + GROWTH"
+          : HELPER_PULSE_COPY[helperId];
       feedback
         .setText(`${modeCopy}${pulseCount > 1 ? ` x${pulseCount}` : ""}`)
         .setColor(`#${color.toString(16).padStart(6, "0")}`)
@@ -2877,6 +2894,78 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       onComplete: () => this.helperAnnouncementText.setVisible(false),
     });
     this.spawnHelperEffect(helperId, 1, true);
+  }
+
+  private showDampFurrowsLinked(): void {
+    if (!this.state.active || this.worksOpen || this.optionsOpen) return;
+    const sprinkler = this.helperActors.tinySprinkler;
+    const mouse = this.helperActors.fieldMouse;
+    if (!sprinkler.image.visible || !mouse.image.visible) return;
+
+    sprinkler.pulseStartedAt = this.time.now;
+    mouse.pulseStartedAt = this.time.now;
+    this.audio.play("milestone");
+
+    const bead = this.effectPool.find((candidate) => !candidate.visible);
+    if (bead) {
+      bead
+        .setTexture("eco-effect-water")
+        .setPosition(sprinkler.image.x, sprinkler.image.y - sprinkler.actorSize * 0.2)
+        .setDisplaySize(22, 22)
+        .setScale(0.7)
+        .setAlpha(1)
+        .setVisible(true);
+      this.tweens.killTweensOf(bead);
+      this.tweens.add({
+        targets: bead,
+        x: mouse.image.x,
+        y: mouse.image.y - mouse.actorSize * 0.2,
+        rotation: Math.PI * 2,
+        scale: 1.1,
+        duration: 680,
+        ease: "Sine.easeInOut",
+        onComplete: () => {
+          bead.setVisible(false);
+          const impact = this.impactPool.find((candidate) => !candidate.visible);
+          if (!impact) return;
+          impact
+            .setPosition(mouse.image.x, mouse.image.y)
+            .setRadius(Math.max(16, mouse.actorSize * 0.38))
+            .setFillStyle(0x8de7c5, 0.1)
+            .setStrokeStyle(3, 0x8de7c5, 0.92)
+            .setScale(0.35)
+            .setAlpha(1)
+            .setVisible(true);
+          this.tweens.add({
+            targets: impact,
+            scale: 2.2,
+            alpha: 0,
+            duration: 620,
+            ease: "Cubic.easeOut",
+            onComplete: () => impact.setVisible(false),
+          });
+        },
+      });
+    }
+
+    const linkX = (sprinkler.baseX + mouse.baseX) / 2;
+    const linkY = Math.min(sprinkler.baseY, mouse.baseY) - Math.max(sprinkler.actorSize, mouse.actorSize) * 1.8;
+    this.helperLinkAnnouncementText
+      .setText("DAMP FURROWS LINKED")
+      .setColor("#8de7c5")
+      .setPosition(linkX, linkY)
+      .setAlpha(1)
+      .setVisible(true);
+    this.tweens.killTweensOf(this.helperLinkAnnouncementText);
+    this.tweens.add({
+      targets: this.helperLinkAnnouncementText,
+      y: linkY - 34,
+      alpha: 0,
+      delay: 520,
+      duration: 1_100,
+      ease: "Cubic.easeOut",
+      onComplete: () => this.helperLinkAnnouncementText.setVisible(false),
+    });
   }
 
   private showTouchImpacts(result: TouchBatchResult): void {
@@ -2983,6 +3072,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const previousCount = this.state.helpers[helperId].count;
     if (buyHelper(this.state, this.permanent, helperId)) {
       const firstSprinkler = helperId === "tinySprinkler" && previousCount === 0;
+      const firstDampFurrowsLink = previousCount === 0 && (
+        (helperId === "fieldMouse" && this.state.helpers.tinySprinkler.count > 0)
+        || (helperId === "tinySprinkler" && this.state.helpers.fieldMouse.count > 0)
+      );
       this.audio.play(firstSprinkler ? "milestone" : previousCount === 0 ? "unlock" : "upgrade");
       const button = this.worksOpen ? this.factoryHelperButtons[helperId] : this.helperBuyButtons[helperId];
       this.tweens.add({ targets: button.container, scale: 1.06, yoyo: true, duration: 110 });
@@ -2991,7 +3084,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         this.tweens.add({ targets: this.automationGoalText, scale: 1.06, yoyo: true, duration: 180, ease: "Back.easeOut" });
       }
       this.layoutHelperActors();
-      if (previousCount === 0 && !this.worksOpen) this.showHelperArrival(helperId);
+      if (previousCount === 0 && !this.worksOpen) {
+        this.showHelperArrival(helperId);
+        if (firstDampFurrowsLink) {
+          this.time.delayedCall(1_300, () => this.showDampFurrowsLinked());
+        }
+      }
       this.persistAll();
       this.refreshUi(false);
     } else {

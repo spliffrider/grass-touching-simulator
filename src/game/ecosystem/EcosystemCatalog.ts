@@ -122,8 +122,8 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     unlockRequires: "tinySprinkler",
     modes: modes(
       "fieldMouse",
-      ["spread", "Spread", `Turns Seeds into Growth and finds a few ${RUN_TOUCHES_LABEL}.`],
-      ["cache", "Cache", "Works more slowly while spending fewer Seeds."],
+      ["spread", "Spread", `Turns Seeds into Growth and finds a few ${RUN_TOUCHES_LABEL}. Sprinkler Moisture waters Damp Furrows for bonus Growth and Care.`],
+      ["cache", "Cache", "Works more slowly while spending fewer Seeds. Damp Furrows still boost each watered trip."],
     ),
   },
   beeHive: {

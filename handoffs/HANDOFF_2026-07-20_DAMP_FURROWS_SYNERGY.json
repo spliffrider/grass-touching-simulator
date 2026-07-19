@@ -1,0 +1,62 @@
+{
+  "date": "2026-07-20",
+  "topic": "Damp Furrows sprinkler and field mouse synergy",
+  "currentUserGoal": "Add one more meaningful gameplay slice by making Tiny Sprinkler and Field Mouse interact as the ecosystem's first visible production-chain synergy.",
+  "workCompleted": [
+    "Added Damp Furrows: when Tiny Sprinkler and Field Mouse are both installed, each completed mouse cycle can spend 0.3 Moisture to produce 0.45 bonus Growth and 0.22 Care.",
+    "Kept the Field Mouse's ordinary Seed trip independent, so missing Moisture or full output buffers only pause the synergy bonus.",
+    "Added shared link and flowing-state helpers to the deterministic ecosystem model and exposed those states through the semantic debug snapshot.",
+    "Added player-facing Damp Furrows explanations to the Living Ledger, helper modes, Field Mouse Memory, and automation status copy.",
+    "Added a first-link presentation with a water bead traveling from the sprinkler to the mouse, an aqua impact, and a dedicated DAMP FURROWS LINKED announcement.",
+    "Separated helper-link announcements from ordinary helper-arrival announcements and positioned their lanes so DAMP FURROWS LINKED, MOISTURE + CARE, and CARE ONLINE do not overlap.",
+    "Added deterministic tests for successful paired production and for dry synergy conditions preserving normal mouse production.",
+    "Restored the browser playtest to a clean active Run 1 after live verification."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-20_DAMP_FURROWS_SYNERGY.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 175 Vitest tests across 21 files, strict TypeScript, and the Vite production build.",
+    "The focused EcosystemSystem suite passed all 37 tests before the final full project check.",
+    "Live browser QA installed the first Tiny Sprinkler and Field Mouse pair and confirmed Damp Furrows consumed Moisture while adding Growth and Care production.",
+    "The semantic snapshot reported dampFurrowsLinked and dampFurrowsFlowing accurately, and the browser console had no warnings or errors.",
+    "Final visual QA confirmed the water-link milestone and helper feedback use separate readable lanes without overlap.",
+    "The final browser state is clean Run 1 with 100 HP, zero Run Touches, zero Grass Touches, a 1x1 field, and no console warnings or errors.",
+    "git diff --check passed apart from the repository's existing Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Damp Furrows checkpoint committed locally; master is eight commits ahead of origin/master and has not been pushed.",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The selected in-app browser exposes no viewport override capability, so exact 390x844 live verification was unavailable for this slice.",
+    "The Damp Furrows production values are an initial playable balance and still need hands-on natural-progression tuning.",
+    "The synergy currently unlocks automatically when both helpers are installed; dedicated link Memories can deepen it later.",
+    "Chicken Patrol and later helper chapters remain functional scaffolding rather than guided animated chapters.",
+    "The game remains explicitly alpha."
+  ],
+  "nextRecommendedSteps": [
+    "Play through naturally to the Field Mouse and judge whether the first linked production payoff is legible and satisfying without debug grants.",
+    "Tune Damp Furrows Moisture cost and Growth/Care output against real Run 2 and early-midgame pacing.",
+    "Add a dedicated Damp Furrows Memory or operating-mode branch if the base synergy proves enjoyable.",
+    "Design the next non-generic ecosystem relationship, likely Field Mouse into Bee Hive flower production.",
+    "Push local master only when the user requests a GitHub, production, or Mac sync."
+  ],
+  "doNotRevert": [
+    "Do not make Damp Furrows a prerequisite for the Field Mouse's normal Seed recipe; dry or capacity-blocked synergy must never deadlock the helper.",
+    "Do not merge helper-link and helper-arrival announcement channels; their independent timing prevents text collisions.",
+    "Do not remove the semantic Damp Furrows state because it makes the new interaction directly testable by agents.",
+    "Do not change the approved fresh Run 1 pacing while tuning this later-run synergy.",
+    "Do not cite the legacy 1200-tile harness as ecosystem performance evidence.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

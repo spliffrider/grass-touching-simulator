@@ -475,7 +475,9 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       kind: "helperUnlock",
       label: helper.label,
       branch: "Production chain",
-      description: `Awakens ${helper.label}, reveals it in the Living Ledger, and adds its recipes to Ecosystem Works.`,
+      description: helperId === "fieldMouse"
+        ? "Awakens Field Mouse and its Seed routes. When a Tiny Sprinkler is installed, Moisture waters Damp Furrows for bonus Growth and Care."
+        : `Awakens ${helper.label}, reveals it in the Living Ledger, and adds its recipes to Ecosystem Works.`,
       color: HELPER_COLORS[helperId],
       iconKey: `eco-helper-${helperId}`,
       x,

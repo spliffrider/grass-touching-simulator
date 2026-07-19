@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-19",
-  "latestHandoff": "HANDOFF_2026-07-19_READABLE_MEMORY_CURRENCIES.json",
+  "updatedAt": "2026-07-20",
+  "latestHandoff": "HANDOFF_2026-07-20_DAMP_FURROWS_SYNERGY.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

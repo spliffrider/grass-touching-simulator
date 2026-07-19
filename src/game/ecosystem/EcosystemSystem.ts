@@ -25,6 +25,9 @@ export const FIELD_MOUSE_STARTER_SEEDS = 3;
 export const BEE_HIVE_STARTER_FLOWERS = 4;
 export const MANUAL_TOUCH_POWER_PER_MEMORY = 0.01;
 export const HELPER_THROUGHPUT_PER_RANK = 0.12;
+export const DAMP_FURROWS_MOISTURE_PER_CYCLE = 0.3;
+export const DAMP_FURROWS_GROWTH_PER_CYCLE = 0.45;
+export const DAMP_FURROWS_CARE_PER_CYCLE = 0.22;
 const FIRST_RUN_SCOURGE_BASE = 10_000_000;
 const FIRST_RUN_OPENING_HP = 1;
 const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.18;
@@ -166,7 +169,10 @@ export interface FieldMouseStatus {
   cycleProgress: number;
   cyclesCompleted: number;
   seedAmount: number;
+  moistureAmount: number;
   growthAmount: number;
+  dampFurrowsLinked: boolean;
+  dampFurrowsFlowing: boolean;
   pauseReason: string | null;
 }
 
@@ -537,6 +543,19 @@ export function getHelperCycleIntervalMs(
   return 1_000 / (recipe.cyclesPerSecond * getHelperThroughputMultiplier(throughputRank));
 }
 
+export function hasDampFurrowsLink(state: Pick<EcosystemState, "helpers">): boolean {
+  return state.helpers.tinySprinkler.count > 0 && state.helpers.fieldMouse.count > 0;
+}
+
+export function isDampFurrowsFlowing(
+  state: Pick<EcosystemState, "helpers" | "resources">,
+): boolean {
+  if (!hasDampFurrowsLink(state)) return false;
+  return state.resources.moisture.amount > EPSILON
+    && state.resources.growth.amount < state.resources.growth.capacity - EPSILON
+    && state.resources.care.amount < state.resources.care.capacity - EPSILON;
+}
+
 export function getFieldMouseStatus(
   state: EcosystemState,
   permanent: PermanentEcosystemState,
@@ -549,7 +568,10 @@ export function getFieldMouseStatus(
     cycleProgress: Math.min(1, Math.max(0, mouse.pulseProgress)),
     cyclesCompleted: mouse.cyclesCompleted,
     seedAmount: state.resources.seeds.amount,
+    moistureAmount: state.resources.moisture.amount,
     growthAmount: state.resources.growth.amount,
+    dampFurrowsLinked: hasDampFurrowsLink(state),
+    dampFurrowsFlowing: isDampFurrowsFlowing(state),
     pauseReason: mouse.lastPauseReason,
   };
 
@@ -953,6 +975,32 @@ function consumeResource(state: EcosystemState, resourceId: ProductionResourceId
   return consumed;
 }
 
+function performDampFurrows(
+  state: EcosystemState,
+  requestedCycles: number,
+  producedThisTick: ProductionRateRecord,
+): number {
+  if (!hasDampFurrowsLink(state) || requestedCycles <= EPSILON) return 0;
+
+  const growthRoom = state.resources.growth.capacity - state.resources.growth.amount;
+  const careRoom = state.resources.care.capacity - state.resources.care.amount;
+  const cycles = Math.max(0, Math.min(
+    requestedCycles,
+    state.resources.moisture.amount / DAMP_FURROWS_MOISTURE_PER_CYCLE,
+    growthRoom / DAMP_FURROWS_GROWTH_PER_CYCLE,
+    careRoom / DAMP_FURROWS_CARE_PER_CYCLE,
+  ));
+  if (cycles <= EPSILON) return 0;
+
+  consumeResource(state, "moisture", DAMP_FURROWS_MOISTURE_PER_CYCLE * cycles);
+  const growthAdded = addResource(state, "growth", DAMP_FURROWS_GROWTH_PER_CYCLE * cycles);
+  const careAdded = addResource(state, "care", DAMP_FURROWS_CARE_PER_CYCLE * cycles);
+  producedThisTick.growth += growthAdded;
+  producedThisTick.care += careAdded;
+  state.field.stageProgress += cycles * 0.24;
+  return cycles;
+}
+
 function getRecipeInputMultiplier(permanent: PermanentEcosystemState, recipe: ProductionRecipe): number {
   if (!recipe.helperId) {
     return 1;
@@ -1170,7 +1218,10 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
       }
       const throughput = getHelperThroughputMultiplier(permanent.throughputRanks[recipe.helperId]);
       const requested = recipe.cyclesPerSecond * helper.count * throughput * tickSeconds;
-      performRecipe(state, permanent, recipe, requested, producedThisTick);
+      const completedCycles = performRecipe(state, permanent, recipe, requested, producedThisTick);
+      if (recipe.helperId === "fieldMouse") {
+        performDampFurrows(state, completedCycles, producedThisTick);
+      }
       continue;
     }
     const naturalScale = recipe.id === "natural-dew"

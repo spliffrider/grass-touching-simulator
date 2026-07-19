@@ -102,8 +102,16 @@ function getFieldMouseReadableLine(status: FieldMouseStatus): string | null {
     case "ready":
       return `Field Mouse ready: invite it for ${status.purchaseCost} ${RUN_TOUCHES_LABEL}; its first cache contains three Seeds`;
     case "firstTrip":
-      return `Field Mouse first trip: carrying a cached Seed to the field, cycle ${Math.floor(status.cycleProgress * 100)}%`;
+      return status.dampFurrowsLinked
+        ? `Field Mouse first trip: carrying a cached Seed through Damp Furrows, cycle ${Math.floor(status.cycleProgress * 100)}%`
+        : `Field Mouse first trip: carrying a cached Seed to the field, cycle ${Math.floor(status.cycleProgress * 100)}%`;
     case "working":
+      if (status.dampFurrowsFlowing) {
+        return `Damp Furrows flowing: ${status.moistureAmount.toFixed(1)} Moisture boosts mouse trips into Growth and Care`;
+      }
+      if (status.dampFurrowsLinked) {
+        return "Damp Furrows linked: waiting for Moisture and open Growth and Care storage";
+      }
       return `Field Mouse working: ${status.seedAmount.toFixed(1)} Seeds available, ${status.growthAmount.toFixed(1)} Growth stored`;
     case "starved":
       return "Field Mouse searching: Seed cache empty; keep Dew, Moisture, and Growth moving";
@@ -497,6 +505,8 @@ export class EcosystemDomBridge {
       fieldMice: equipmentAvailable ? state.helpers.fieldMouse.count : 0,
       fieldMouseCycles: Number(fieldMouse.cyclesCompleted.toFixed(3)),
       fieldMouseCycleProgress: Number(fieldMouse.cycleProgress.toFixed(3)),
+      dampFurrowsLinked: fieldMouse.dampFurrowsLinked,
+      dampFurrowsFlowing: fieldMouse.dampFurrowsFlowing,
       seedCache: Number(fieldMouse.seedAmount.toFixed(3)),
       beeHiveStage: beeHive.stage,
       beeHives: equipmentAvailable ? state.helpers.beeHive.count : 0,
