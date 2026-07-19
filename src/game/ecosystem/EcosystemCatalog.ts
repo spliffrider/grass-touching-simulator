@@ -12,6 +12,9 @@ export const PRODUCTION_RESOURCE_IDS = [
   "care",
 ] as const;
 
+export const RUN_TOUCHES_LABEL = "Run Touches";
+export const GRASS_TOUCHES_LABEL = "Grass Touches";
+
 export type ProductionResourceId = (typeof PRODUCTION_RESOURCE_IDS)[number];
 
 export interface ProductionResource {
@@ -119,7 +122,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     unlockRequires: "tinySprinkler",
     modes: modes(
       "fieldMouse",
-      ["spread", "Spread", "Turns Seeds into Growth and finds a little RT."],
+      ["spread", "Spread", `Turns Seeds into Growth and finds a few ${RUN_TOUCHES_LABEL}.`],
       ["cache", "Cache", "Works more slowly while spending fewer Seeds."],
     ),
   },
@@ -147,7 +150,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     unlockRequires: "beeHive",
     modes: modes(
       "chickenPatrol",
-      ["scratch", "Scratch", "Turns Clippings into Compost and uncovers RT."],
+      ["scratch", "Scratch", `Turns Clippings into Compost and uncovers ${RUN_TOUCHES_LABEL}.`],
       ["forage", "Forage", "Cuts Growth into Clippings before composting."],
     ),
   },

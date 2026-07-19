@@ -1,0 +1,60 @@
+{
+  "date": "2026-07-19",
+  "topic": "Readable ecosystem currencies and Memory Web labels",
+  "currentUserGoal": "Replace the unexplained RT and GT abbreviations with full currency names and keep Memory Grove node text readable when the large web is zoomed out.",
+  "workCompleted": [
+    "Introduced shared Run Touches and Grass Touches labels for the ecosystem game.",
+    "Replaced RT and GT abbreviations throughout the ecosystem HUD, helper purchases, run summaries, Memory Grove, title screen, debug controls, and semantic DOM bridge.",
+    "Raised the base font sizes for Memory Web node names and statuses.",
+    "Added inverse text scaling so node names remain at least 13 screen pixels and statuses remain at least 11 screen pixels when the Memory Web is visually scaled down.",
+    "Delayed dense status text and rank pips until closer zoom levels so preserving legibility does not create a wall of overlapping copy.",
+    "Split rank and cost statuses across two lines and dynamically positioned status text below enlarged node names.",
+    "Restored the browser playtest to a clean active Run 1 after visual QA."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "src/game/scenes/EcosystemTitleScene.ts",
+    "tests/EcosystemMemoryTree.test.ts",
+    "handoffs/HANDOFF_2026-07-19_READABLE_MEMORY_CURRENCIES.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 173 Vitest tests across 21 files, strict TypeScript, and the Vite production build.",
+    "The focused EcosystemMemoryTree suite passed all 12 tests, including minimum on-screen text sizing.",
+    "A literal abbreviation search found no remaining standalone RT or GT copy in current ecosystem modules or scenes.",
+    "Live browser QA confirmed full currency names in the Run 1 HUD, Memory Grove summary, debug controls, node accessibility labels, and purchase descriptions.",
+    "The live Memory Grove overview kept node names readable while hiding secondary rank and cost copy until a closer zoom.",
+    "The final browser state is clean Run 1 with 100 HP, zero Run Touches, zero Grass Touches, a 1x1 field, and no console warnings or errors.",
+    "git diff --check passed apart from the repository's existing Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Currency and Memory Web readability checkpoint committed locally; master is six commits ahead of origin/master and has not been pushed.",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The selected in-app browser exposes no viewport override capability, so exact 390x844 live verification was unavailable for this slice.",
+    "Very dense branches intentionally reveal status copy only at closer zoom; selected and hovered nodes always reveal their details.",
+    "Chicken Patrol and later helper chapters remain functional scaffolding rather than guided animated chapters.",
+    "The game remains explicitly alpha."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test the clean first collapse and verify the full currency wording remains comfortable during rapid play.",
+    "Check the stacked mobile currency HUD at an exact 390x844 viewport when responsive viewport control is available.",
+    "Continue progression feel testing from Tiny Sprinkler unlock into Run 2.",
+    "Design the first unusual Tiny Sprinkler and Field Mouse synergy after the readability pass is approved.",
+    "Push local master only when the user requests a GitHub, production, or Mac sync."
+  ],
+  "doNotRevert": [
+    "Do not reintroduce RT or GT abbreviations into current ecosystem player-facing copy.",
+    "Do not remove minimum screen-space scaling from Memory Web labels; the large world otherwise shrinks them below readable size.",
+    "Do not reveal every status and rank label at the widest overview because it creates visual collisions.",
+    "Do not change the approved fresh Run 1 pacing while working on Memory Grove readability.",
+    "Do not cite the legacy 1200-tile harness as ecosystem performance evidence.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

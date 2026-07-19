@@ -7,11 +7,13 @@ import {
 } from "../data/audio-settings";
 import {
   FIELD_SIZE_LADDER,
+  GRASS_TOUCHES_LABEL,
   HELPER_IDS,
   HELPERS,
   PRODUCTION_TICK_MS,
   PRODUCTION_RESOURCE_IDS,
   PRODUCTION_RESOURCES,
+  RUN_TOUCHES_LABEL,
   TileStage,
   type HelperId,
   type ProductionResourceId,
@@ -44,11 +46,14 @@ import {
   ECOSYSTEM_MEMORY_NODES,
   ECOSYSTEM_MEMORY_NODE_BY_ID,
   ECOSYSTEM_MEMORY_CONNECTOR_GAP,
+  ECOSYSTEM_MEMORY_MIN_STATUS_SCREEN_PX,
+  ECOSYSTEM_MEMORY_MIN_TITLE_SCREEN_PX,
   ECOSYSTEM_MEMORY_WORLD_HEIGHT,
   ECOSYSTEM_MEMORY_WORLD_WIDTH,
   FIRST_ECOSYSTEM_MEMORY_NODE_ID,
   getEcosystemMemoryEntryNodeId,
   getEcosystemMemoryNodeVisualRadius,
+  getEcosystemMemoryTextScale,
   getHelperModeMemoryId,
   getHelperRankMemoryId,
   getHelperUnlockMemoryId,
@@ -176,9 +181,9 @@ const HELPER_EFFECT_COLOR: Record<HelperId, number> = {
 
 const HELPER_PULSE_COPY: Record<HelperId, string> = {
   tinySprinkler: "MOISTURE + CARE",
-  fieldMouse: "GROWTH + RT",
+  fieldMouse: "GROWTH + RUN TOUCHES",
   beeHive: "POLLINATED BLOOMS",
-  chickenPatrol: "COMPOST + RT",
+  chickenPatrol: "COMPOST + RUN TOUCHES",
   earthwormCrew: "HUMUS",
   ancientRoots: "ROOT ENERGY + CARE",
   sheepLoop: "CLIPPINGS + CARE",
@@ -274,6 +279,10 @@ interface MemoryNodeView {
   icon: Phaser.GameObjects.Image;
   title: Phaser.GameObjects.Text;
   status: Phaser.GameObjects.Text;
+  titleBaseFontSize: number;
+  statusBaseFontSize: number;
+  titleBaseY: number;
+  statusBaseY: number;
   rankPips: Phaser.GameObjects.Graphics | null;
   rankPipCount: number;
   rankPipY: number;
@@ -1033,9 +1042,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const frame = this.add.image(0, 0, "memory-node-locked").setOrigin(0.5).setDisplaySize(frameSize, frameSize);
       const icon = this.add.image(0, 0, definition.iconKey).setOrigin(0.5).setDisplaySize(iconSize, iconSize);
       icon.setData("baseScaleX", icon.scaleX).setData("baseScaleY", icon.scaleY);
-      const titleFontSize = definition.kind === "helperRank" ? 11 : 14;
+      const titleFontSize = definition.kind === "helperRank" ? 15 : 16;
+      const statusFontSize = 12;
+      const statusY = titleY + 24;
       const title = this.createText(definition.label, titleFontSize, "#fff3c2", "bold").setOrigin(0.5, 0).setPosition(0, titleY).setAlign("center");
-      const status = this.createText("", 10, "#b8d9a4", "bold").setOrigin(0.5, 0).setPosition(0, titleY + 22).setAlign("center");
+      const status = this.createText("", statusFontSize, "#b8d9a4", "bold").setOrigin(0.5, 0).setPosition(0, statusY).setAlign("center");
       const maxRank = this.getMemoryNodeMaxRank(definition);
       const rankPips = maxRank > 1 ? this.add.graphics() : null;
       if (rankPips) rankPips.setData("rank", -1);
@@ -1050,6 +1061,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         icon,
         title,
         status,
+        titleBaseFontSize: titleFontSize,
+        statusBaseFontSize: statusFontSize,
+        titleBaseY: titleY,
+        statusBaseY: statusY,
         rankPips,
         rankPipCount: maxRank,
         rankPipY,
@@ -1273,7 +1288,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.hpBarHeartbeatGlow.setPosition(header.x + 17, header.y + 64).setSize(header.width - 156, 12);
       this.hpText.setFontSize(12).setPosition(header.x + 18, header.y + 52);
       this.pressureText.setFontSize(10).setPosition(header.x + 18, header.y + 78);
-      this.currencyText.setFontSize(11).setOrigin(1, 0).setPosition(header.x + header.width - 12, header.y + 53);
+      this.currencyText.setFontSize(10).setLineSpacing(1).setOrigin(1, 0).setPosition(header.x + header.width - 12, header.y + 53);
       this.optionsButton.setPosition(header.x + header.width - 90, header.y + 8);
       this.optionsButton.setSize(78, 28);
     } else {
@@ -1286,7 +1301,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.hpBarHeartbeatGlow.setPosition(barX + 3, header.y + 39).setSize(barWidth - 6, 18);
       this.hpText.setFontSize(15).setPosition(barX + 9, header.y + 25);
       this.pressureText.setFontSize(13).setPosition(barX + 9, header.y + 65);
-      this.currencyText.setFontSize(15).setOrigin(1, 0).setPosition(header.x + header.width - 116, header.y + 59);
+      this.currencyText.setFontSize(15).setLineSpacing(0).setOrigin(1, 0).setPosition(header.x + header.width - 116, header.y + 59);
       this.optionsButton.setPosition(header.x + header.width - 104, header.y + 14);
       this.optionsButton.setSize(86, 36);
     }
@@ -1683,7 +1698,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.setTextIfChanged(this.pressureText, awaitingFirstTouch
         ? "Scourge dormant  |  Touch the grass to begin"
         : `Scourge ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s  |  produced ${readout.careProductionPerSecond.toFixed(2)}/s`);
-      this.setTextIfChanged(this.currencyText, `RT ${readout.runTouches.toFixed(0)}   GT ${this.permanent.grassTouches.toFixed(0)}`);
+      const currencySeparator = this.scale.width < 760 ? "\n" : "   ";
+      this.setTextIfChanged(
+        this.currencyText,
+        `${RUN_TOUCHES_LABEL} ${readout.runTouches.toFixed(0)}${currencySeparator}${GRASS_TOUCHES_LABEL} ${this.permanent.grassTouches.toFixed(0)}`,
+      );
       this.setTextIfChanged(this.fieldLabelText, this.scale.width < 760
         ? `${readout.fieldSize}x${readout.fieldSize} | Cultivation ${readout.cultivationRank}/10`
         : `${readout.fieldSize}x${readout.fieldSize} Living Field  |  Cultivation ${readout.cultivationRank}/10`);
@@ -1761,7 +1780,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           case "ready":
             automationProgress = 1;
             automationColor = 0xffe889;
-            automationCopy = `BEE HIVE READY  |  Establish it for ${beeHive.purchaseCost} RT`;
+            automationCopy = `BEE HIVE READY  |  Establish it for ${beeHive.purchaseCost} ${RUN_TOUCHES_LABEL}`;
             break;
           case "firstFlight":
             automationProgress = beeHive.cycleProgress;
@@ -1784,14 +1803,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           default:
             automationProgress = beeHive.purchaseProgress;
             automationColor = HELPER_EFFECT_COLOR.beeHive;
-            automationCopy = `BEE HIVE  |  Gather RT ${Math.floor(this.state.runTouches)} / ${beeHive.purchaseCost}`;
+            automationCopy = `BEE HIVE  |  ${RUN_TOUCHES_LABEL} ${Math.floor(this.state.runTouches)} / ${beeHive.purchaseCost}`;
         }
       } else if (showFieldMouseChapter) {
         switch (fieldMouse.stage) {
           case "ready":
             automationProgress = 1;
             automationColor = 0xffe889;
-            automationCopy = `FIELD MOUSE READY  |  Invite it for ${fieldMouse.purchaseCost} RT`;
+            automationCopy = `FIELD MOUSE READY  |  Invite it for ${fieldMouse.purchaseCost} ${RUN_TOUCHES_LABEL}`;
             break;
           case "firstTrip":
             automationProgress = fieldMouse.cycleProgress;
@@ -1814,14 +1833,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           default:
             automationProgress = fieldMouse.purchaseProgress;
             automationColor = HELPER_EFFECT_COLOR.fieldMouse;
-            automationCopy = `FIELD MOUSE  |  Gather RT ${Math.floor(this.state.runTouches)} / ${fieldMouse.purchaseCost}`;
+            automationCopy = `FIELD MOUSE  |  ${RUN_TOUCHES_LABEL} ${Math.floor(this.state.runTouches)} / ${fieldMouse.purchaseCost}`;
         }
       } else {
         switch (firstAutomation.stage) {
           case "ready":
             automationProgress = 1;
             automationColor = 0xffe889;
-            automationCopy = `FIRST AUTOMATION READY  |  Buy Tiny Sprinkler for ${firstAutomation.purchaseCost} RT`;
+            automationCopy = `FIRST AUTOMATION READY  |  Buy Tiny Sprinkler for ${firstAutomation.purchaseCost} ${RUN_TOUCHES_LABEL}`;
             break;
           case "firstCycle":
             automationProgress = firstAutomation.cycleProgress;
@@ -1844,7 +1863,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           default:
             automationProgress = firstAutomation.purchaseProgress;
             automationColor = 0x8de7ff;
-            automationCopy = `FIRST AUTOMATION  |  Gather RT ${Math.floor(this.state.runTouches)} / ${firstAutomation.purchaseCost}`;
+            automationCopy = `FIRST AUTOMATION  |  ${RUN_TOUCHES_LABEL} ${Math.floor(this.state.runTouches)} / ${firstAutomation.purchaseCost}`;
         }
       }
       this.setTextIfChanged(this.automationGoalText, automationCopy);
@@ -1875,17 +1894,17 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         const pause = helper.lastPauseReason ? ` | ${helper.lastPauseReason}` : "";
         const label = helperId === "tinySprinkler" && helper.count === 0
           ? this.state.runTouches >= cost
-            ? `Buy first Tiny Sprinkler  |  ${cost} RT`
-            : `Tiny Sprinkler  |  ${Math.floor(this.state.runTouches)} / ${cost} RT`
+            ? `Buy first Tiny Sprinkler  |  ${cost} ${RUN_TOUCHES_LABEL}`
+            : `Tiny Sprinkler  |  ${Math.floor(this.state.runTouches)} / ${cost} ${RUN_TOUCHES_LABEL}`
           : helperId === "fieldMouse" && helper.count === 0
             ? this.state.runTouches >= cost
-              ? `Invite Field Mouse  |  ${cost} RT`
-              : `Field Mouse  |  ${Math.floor(this.state.runTouches)} / ${cost} RT`
+              ? `Invite Field Mouse  |  ${cost} ${RUN_TOUCHES_LABEL}`
+              : `Field Mouse  |  ${Math.floor(this.state.runTouches)} / ${cost} ${RUN_TOUCHES_LABEL}`
           : helperId === "beeHive" && helper.count === 0
             ? this.state.runTouches >= cost
-              ? `Establish Bee Hive  |  ${cost} RT`
-              : `Bee Hive  |  ${Math.floor(this.state.runTouches)} / ${cost} RT`
-          : `${HELPERS[helperId].label} x${helper.count}  Buy ${cost} RT${pause}`;
+              ? `Establish Bee Hive  |  ${cost} ${RUN_TOUCHES_LABEL}`
+              : `Bee Hive  |  ${Math.floor(this.state.runTouches)} / ${cost} ${RUN_TOUCHES_LABEL}`
+          : `${HELPERS[helperId].label} x${helper.count}  Buy ${cost} ${RUN_TOUCHES_LABEL}${pause}`;
         this.helperBuyButtons[helperId]
           .setLabel(label)
           .setEnabled(equipmentAvailable && this.state.runTouches >= cost);
@@ -1918,7 +1937,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         const unlocked = equipmentAvailable && this.permanent.unlockedHelpers[helperId];
         this.factoryHelperButtons[helperId]
           .setVisible(unlocked)
-          .setLabel(`${HELPERS[helperId].label} x${helper.count} | Buy ${cost} RT`)
+          .setLabel(`${HELPERS[helperId].label} x${helper.count} | Buy ${cost} ${RUN_TOUCHES_LABEL}`)
           .setEnabled(this.state.runTouches >= cost);
         const mode = HELPERS[helperId].modes.find((candidate) => candidate.id === helper.modeId)!;
         const availableModes = HELPERS[helperId].modes.filter((candidate) => this.permanent.unlockedModes[helperId].includes(candidate.id));
@@ -1948,7 +1967,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const firstMemoryPending = isFirstMemoryPending(this.state, this.permanent);
       this.setTextIfChanged(this.memoryTitle, "Memory Grove");
       this.setTextIfChanged(this.memorySubtitle, firstMemoryPending
-        ? `The first field was overwhelmed. Spend ${getHelperUnlockCost("tinySprinkler")} GT to remember Tiny Sprinkler.`
+        ? `The first field was overwhelmed. Spend ${getHelperUnlockCost("tinySprinkler")} ${GRASS_TOUCHES_LABEL} to remember Tiny Sprinkler.`
         : firstCollapse
           ? "Tiny Sprinkler is remembered. Run 2 can turn Dew into its first steady Care."
           : "The field is still. Spend Grass Touches on what the next run remembers.");
@@ -1977,18 +1996,18 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
             "",
             "Bare hands gathered Dew and Run Touches, but could not create enough Care to stop the Scourge.",
             "",
-            `+${summary.grassTouchesAwarded} GT REMEMBERED`,
+            `+${summary.grassTouchesAwarded} ${GRASS_TOUCHES_LABEL.toUpperCase()} REMEMBERED`,
             "",
             firstMemoryPending
-              ? `NEXT: Tiny Sprinkler  |  ${getHelperUnlockCost("tinySprinkler")} GT`
+              ? `NEXT: Tiny Sprinkler  |  ${getHelperUnlockCost("tinySprinkler")} ${GRASS_TOUCHES_LABEL}`
               : "TINY SPRINKLER REMEMBERED",
             firstMemoryPending
               ? "Select the glowing Memory in the web."
-              : "Run 2: gather 14 RT, install it, and keep it supplied with Dew.",
+              : `Run 2: gather 14 ${RUN_TOUCHES_LABEL}, install it, and keep it supplied with Dew.`,
             "",
             `Collapse: ${(summary.durationMs / 1_000).toFixed(2)}s`,
             `Manual touches: ${summary.touches}`,
-            `Available GT: ${this.permanent.grassTouches.toFixed(0)}`,
+            `Available ${GRASS_TOUCHES_LABEL}: ${this.permanent.grassTouches.toFixed(0)}`,
           ].join("\n")
           : [
             `+${summary.grassTouchesAwarded} Grass Touches`,
@@ -2000,9 +2019,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
             `Helpers bought: ${summary.helpersBought}`,
             `Manual touches: ${summary.touches}`,
             "",
-            `Available GT: ${this.permanent.grassTouches.toFixed(0)}`,
+            `Available ${GRASS_TOUCHES_LABEL}: ${this.permanent.grassTouches.toFixed(0)}`,
           ].join("\n")
-        : `Available GT: ${this.permanent.grassTouches.toFixed(0)}`);
+        : `Available ${GRASS_TOUCHES_LABEL}: ${this.permanent.grassTouches.toFixed(0)}`);
       this.refreshMemoryTree();
     }
     if (this.optionsOpen || force) {
@@ -2891,7 +2910,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       });
     }
     this.touchSummaryText.setText(
-      `${result.affectedTileCount} tile${result.affectedTileCount === 1 ? "" : "s"} cared for  |  +${result.dewGained.toFixed(1)} Dew  +${result.runTouchesGained.toFixed(1)} RT`,
+      `${result.affectedTileCount} tile${result.affectedTileCount === 1 ? "" : "s"} cared for  |  +${result.dewGained.toFixed(1)} Dew  +${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}`,
     ).setAlpha(1).setY(this.fieldBounds.y + 56);
     this.tweens.killTweensOf(this.touchSummaryText);
     this.tweens.add({ targets: this.touchSummaryText, y: this.fieldBounds.y + 39, alpha: 0, duration: 1_100, ease: "Cubic.easeOut" });
@@ -3145,7 +3164,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         unlocked,
         affordable: unlocked && !complete && availableGt >= cost,
         action: () => unlockHelper(this.permanent, helperId),
-        status: complete ? "Remembered" : unlocked ? `${cost} GT` : "Locked",
+        status: complete ? "Remembered" : unlocked ? `${cost} ${GRASS_TOUCHES_LABEL}` : "Locked",
         effect: complete
           ? `${HELPERS[helperId].label} and its recipes are available in every run.`
           : `Reveals ${HELPERS[helperId].label}, its equipment purchases, and its production recipes.`,
@@ -3167,7 +3186,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         unlocked,
         affordable: unlocked && !complete && availableGt >= cost,
         action: () => unlockHelperMode(this.permanent, helperId, alternateMode.id),
-        status: complete ? "Remembered" : unlocked ? `${cost} GT` : "Locked",
+        status: complete ? "Remembered" : unlocked ? `${cost} ${GRASS_TOUCHES_LABEL}` : "Locked",
         effect: `${alternateMode.label}: ${alternateMode.description}`,
         requirement: unlocked ? "" : `Awaken ${HELPERS[helperId].label} first.`,
       };
@@ -3210,7 +3229,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         unlocked,
         affordable: unlocked && !complete && availableGt >= cost,
         action: () => purchasePermanentRank(this.permanent, helperId, kind),
-        status: complete ? `${rank}/${maxRank} complete` : unlocked ? `${rank}/${maxRank} | ${cost} GT` : "Locked",
+        status: complete ? `${rank}/${maxRank} complete` : unlocked ? `${rank}/${maxRank}\n${cost} ${GRASS_TOUCHES_LABEL}` : "Locked",
         effect: effects[kind],
         requirement: unlocked ? "" : `Awaken ${HELPERS[helperId].label} first.`,
       };
@@ -3231,7 +3250,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         unlocked: true,
         affordable: !complete && availableGt >= cost,
         action: () => unlockNextFieldTier(this.permanent),
-        status: complete ? "100x100 remembered" : `${currentSize}x${currentSize} | ${cost} GT`,
+        status: complete ? "100x100 remembered" : `${currentSize}x${currentSize}\n${cost} ${GRASS_TOUCHES_LABEL}`,
         effect: complete
           ? "Cultivation may expand a run all the way to 100x100."
           : `Current maximum ${currentSize}x${currentSize}; next memory permits ${nextSize}x${nextSize}.`,
@@ -3275,7 +3294,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         unlocked,
         affordable: unlocked && !complete && availableGt >= cost,
         action: () => purchaseTouchRank(this.permanent, kind),
-        status: complete ? "10/10 complete" : unlocked ? `${rank}/10 | ${cost} GT` : "Locked",
+        status: complete ? "10/10 complete" : unlocked ? `${rank}/10\n${cost} ${GRASS_TOUCHES_LABEL}` : "Locked",
         effect,
         requirement: unlocked ? "" : "Requires Broad Palm rank 2.",
       };
@@ -3292,7 +3311,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       unlocked,
       affordable: unlocked && !complete && availableGt >= cost,
       action: () => purchaseFieldEmbrace(this.permanent),
-      status: complete ? "Remembered" : unlocked ? `${cost} GT` : "Capstone locked",
+      status: complete ? "Remembered" : unlocked ? `${cost} ${GRASS_TOUCHES_LABEL}` : "Capstone locked",
       effect: "Every tenth manual touch sends a half-strength wave to one tile in every 10x10 field chunk.",
       requirement: unlocked ? "" : "Requires Broad Palm 10/10 and Many Hands 10/10.",
     };
@@ -3319,7 +3338,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           ? ECOSYSTEM_MEMORY_ROOT_ID
           : [...revealedNodeIds][0] ?? ECOSYSTEM_MEMORY_ROOT_ID;
     }
-    this.memoryCurrencyText.setText(`AVAILABLE GT  ${Math.floor(this.permanent.grassTouches)}`);
+    this.memoryCurrencyText.setText(`AVAILABLE ${GRASS_TOUCHES_LABEL.toUpperCase()}  ${Math.floor(this.permanent.grassTouches)}`);
     this.drawMemoryTreeDecor(revealedNodeIds);
     this.drawMemoryTreeConnectors(revealedNodeIds);
     for (const view of this.memoryNodeViews.values()) {
@@ -3513,7 +3532,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const firstCollapse = isFirstEcosystemCollapse(this.state, this.permanent);
     if (firstMemoryPending && definition.id === FIRST_ECOSYSTEM_MEMORY_NODE_ID && !runtime.complete) {
       this.memoryDetailStatus
-        .setText(`FIRST MEMORY  |  ${runtime.cost} GT\nRemember Tiny Sprinkler to unlock Run 2.`)
+        .setText(`FIRST MEMORY  |  ${runtime.cost} ${GRASS_TOUCHES_LABEL}\nRemember Tiny Sprinkler to unlock Run 2.`)
         .setColor("#ffe889");
     } else if (firstCollapse && definition.id === FIRST_ECOSYSTEM_MEMORY_NODE_ID && runtime.complete) {
       this.memoryDetailStatus
@@ -3526,10 +3545,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     } else if (!runtime.unlocked) {
       this.memoryDetailStatus.setText(`LOCKED\n${runtime.requirement}`).setColor("#f1a6ce");
     } else if (runtime.affordable) {
-      this.memoryDetailStatus.setText(`READY TO REMEMBER  |  ${runtime.cost} GT\nClick the node to purchase.`).setColor("#ffe889");
+      this.memoryDetailStatus.setText(`READY TO REMEMBER  |  ${runtime.cost} ${GRASS_TOUCHES_LABEL}\nClick the node to purchase.`).setColor("#ffe889");
     } else {
       const short = Math.max(0, Math.ceil(runtime.cost - this.permanent.grassTouches));
-      this.memoryDetailStatus.setText(`COST ${runtime.cost} GT  |  AVAILABLE ${Math.floor(this.permanent.grassTouches)}\nNeed ${short} more GT.`).setColor("#f1a6ce");
+      this.memoryDetailStatus.setText(`COST ${runtime.cost} ${GRASS_TOUCHES_LABEL.toUpperCase()}  |  AVAILABLE ${Math.floor(this.permanent.grassTouches)}\nNeed ${short} more ${GRASS_TOUCHES_LABEL}.`).setColor("#f1a6ce");
     }
   }
 
@@ -3884,9 +3903,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const centerX = this.memoryTreeViewport.x + this.memoryTreeViewport.width / 2;
     const centerY = this.memoryTreeViewport.y + this.memoryTreeViewport.height / 2;
     this.memoryTreeWorld.setPosition(centerX + this.memoryTreePanX, centerY + this.memoryTreePanY).setScale(scale);
-    const showLabels = this.memoryTreeZoom >= 1.75;
-    const showStatus = this.memoryTreeZoom >= 3.25;
-    const showPips = this.memoryTreeZoom >= 1.45;
+    const showLabels = this.memoryTreeZoom >= 2.65;
+    const showStatus = this.memoryTreeZoom >= 4;
+    const showPips = this.memoryTreeZoom >= 2.4;
     for (const view of this.memoryNodeViews.values()) {
       const screenX = centerX + this.memoryTreePanX + view.definition.x * scale;
       const screenY = centerY + this.memoryTreePanY + view.definition.y * scale;
@@ -3897,8 +3916,25 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         screenY >= this.memoryTreeViewport.y - margin &&
         screenY <= this.memoryTreeViewport.y + this.memoryTreeViewport.height + margin;
       const highlighted = view.definition.id === this.selectedMemoryNodeId || view.definition.id === this.hoveredMemoryNodeId;
+      const titleScale = getEcosystemMemoryTextScale(
+        scale,
+        view.titleBaseFontSize,
+        ECOSYSTEM_MEMORY_MIN_TITLE_SCREEN_PX,
+      );
+      const statusScale = getEcosystemMemoryTextScale(
+        scale,
+        view.statusBaseFontSize,
+        ECOSYSTEM_MEMORY_MIN_STATUS_SCREEN_PX,
+      );
+      const titleLocalHeight = view.titleBaseFontSize * titleScale * 1.12;
+      const statusY = Math.max(
+        view.statusBaseY,
+        view.titleBaseY + titleLocalHeight + 4 / scale,
+      );
       view.container.setVisible(visible);
       if (view.hitArea.input) view.hitArea.input.enabled = visible;
+      view.title.setScale(titleScale).setY(view.titleBaseY);
+      view.status.setScale(statusScale).setY(statusY);
       view.title.setVisible(visible && (showLabels || highlighted));
       view.status.setVisible(visible && (showStatus || highlighted));
       view.rankPips?.setVisible(visible && (showPips || highlighted));

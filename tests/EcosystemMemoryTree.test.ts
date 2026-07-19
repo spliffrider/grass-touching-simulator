@@ -6,9 +6,12 @@ import {
   ECOSYSTEM_MEMORY_ROOT_ID,
   ECOSYSTEM_MEMORY_WORLD_HEIGHT,
   ECOSYSTEM_MEMORY_WORLD_WIDTH,
+  ECOSYSTEM_MEMORY_MIN_STATUS_SCREEN_PX,
+  ECOSYSTEM_MEMORY_MIN_TITLE_SCREEN_PX,
   FIRST_ECOSYSTEM_MEMORY_NODE_ID,
   getEcosystemMemoryEntryNodeId,
   getEcosystemMemoryNodeVisualRadius,
+  getEcosystemMemoryTextScale,
   getHelperModeMemoryId,
   getHelperRankMemoryId,
   getHelperRankMemoryLabel,
@@ -166,6 +169,16 @@ describe("Ecosystem Memory Tree", () => {
       const ranks = ECOSYSTEM_MEMORY_NODES.filter((node) => node.helperId === unlock.helperId && node.kind === "helperRank");
       for (const rank of ranks) expect(unlock.visualScale ?? 1).toBeGreaterThan(rank.visualScale ?? 1);
     }
+  });
+
+  it("keeps web labels readable when the large Memory world is visually scaled down", () => {
+    const worldScale = 0.42;
+    const titleScale = getEcosystemMemoryTextScale(worldScale, 15, ECOSYSTEM_MEMORY_MIN_TITLE_SCREEN_PX);
+    const statusScale = getEcosystemMemoryTextScale(worldScale, 12, ECOSYSTEM_MEMORY_MIN_STATUS_SCREEN_PX);
+
+    expect(15 * worldScale * titleScale).toBeCloseTo(ECOSYSTEM_MEMORY_MIN_TITLE_SCREEN_PX);
+    expect(12 * worldScale * statusScale).toBeCloseTo(ECOSYSTEM_MEMORY_MIN_STATUS_SCREEN_PX);
+    expect(getEcosystemMemoryTextScale(1.2, 15, ECOSYSTEM_MEMORY_MIN_TITLE_SCREEN_PX)).toBe(1);
   });
 
   it("gives every helper rank a distinct, helper-specific identity", () => {

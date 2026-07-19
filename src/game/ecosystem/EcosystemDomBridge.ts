@@ -1,4 +1,14 @@
-import { HELPER_IDS, HELPERS, PRODUCTION_RESOURCE_IDS, PRODUCTION_RESOURCES, TILE_STAGE_COUNT, TileStage, type HelperId } from "./EcosystemCatalog";
+import {
+  GRASS_TOUCHES_LABEL,
+  HELPER_IDS,
+  HELPERS,
+  PRODUCTION_RESOURCE_IDS,
+  PRODUCTION_RESOURCES,
+  RUN_TOUCHES_LABEL,
+  TILE_STAGE_COUNT,
+  TileStage,
+  type HelperId,
+} from "./EcosystemCatalog";
 import {
   FIRST_ECOSYSTEM_MEMORY_NODE_ID,
   getHelperModeMemoryId,
@@ -69,9 +79,9 @@ function getAutomationReadableLine(status: FirstAutomationStatus): string | null
     case "locked":
       return null;
     case "gather":
-      return `First automation: ${Math.floor(status.purchaseProgress * status.purchaseCost)} / ${status.purchaseCost} RT toward Tiny Sprinkler`;
+      return `First automation: ${Math.floor(status.purchaseProgress * status.purchaseCost)} / ${status.purchaseCost} ${RUN_TOUCHES_LABEL} toward Tiny Sprinkler`;
     case "ready":
-      return `First automation ready: buy Tiny Sprinkler for ${status.purchaseCost} RT`;
+      return `First automation ready: buy Tiny Sprinkler for ${status.purchaseCost} ${RUN_TOUCHES_LABEL}`;
     case "firstCycle":
       return `First sprinkler cycle: Dew is becoming Moisture and Care, cycle ${Math.floor(status.cycleProgress * 100)}%`;
     case "sustain":
@@ -88,9 +98,9 @@ function getFieldMouseReadableLine(status: FieldMouseStatus): string | null {
     case "locked":
       return null;
     case "gather":
-      return `Field Mouse invitation: ${Math.floor(status.purchaseProgress * status.purchaseCost)} / ${status.purchaseCost} RT`;
+      return `Field Mouse invitation: ${Math.floor(status.purchaseProgress * status.purchaseCost)} / ${status.purchaseCost} ${RUN_TOUCHES_LABEL}`;
     case "ready":
-      return `Field Mouse ready: invite it for ${status.purchaseCost} RT; its first cache contains three Seeds`;
+      return `Field Mouse ready: invite it for ${status.purchaseCost} ${RUN_TOUCHES_LABEL}; its first cache contains three Seeds`;
     case "firstTrip":
       return `Field Mouse first trip: carrying a cached Seed to the field, cycle ${Math.floor(status.cycleProgress * 100)}%`;
     case "working":
@@ -107,9 +117,9 @@ function getBeeHiveReadableLine(status: BeeHiveStatus): string | null {
     case "locked":
       return null;
     case "gather":
-      return `Bee Hive foundation: ${Math.floor(status.purchaseProgress * status.purchaseCost)} / ${status.purchaseCost} RT`;
+      return `Bee Hive foundation: ${Math.floor(status.purchaseProgress * status.purchaseCost)} / ${status.purchaseCost} ${RUN_TOUCHES_LABEL}`;
     case "ready":
-      return `Bee Hive ready: establish it for ${status.purchaseCost} RT; nearby wildflowers provide four Flowers`;
+      return `Bee Hive ready: establish it for ${status.purchaseCost} ${RUN_TOUCHES_LABEL}; nearby wildflowers provide four Flowers`;
     case "firstFlight":
       return `First pollination flight: a bee is carrying pollen across the field, cycle ${Math.floor(status.cycleProgress * 100)}%`;
     case "working":
@@ -261,7 +271,7 @@ export class EcosystemDomBridge {
       const buttonClass = showPlaytestPanel ? "ecosystem-playtest-button" : "";
       panel.append(
         this.playtestStatus,
-        this.createButton("+250 GT and RT", () => this.actions.addPrototypeCurrency(), "ecosystem-debug-currency", buttonClass),
+        this.createButton(`+250 ${GRASS_TOUCHES_LABEL} and ${RUN_TOUCHES_LABEL}`, () => this.actions.addPrototypeCurrency(), "ecosystem-debug-currency", buttonClass),
         this.createButton("Unlock all", () => this.actions.unlockPrototype(), "ecosystem-debug-unlock", buttonClass),
         this.createButton("Toggle Works", () => this.actions.toggleWorks(), "ecosystem-debug-works", buttonClass),
         this.createButton("Begin next run", () => this.actions.beginNextRun(), "ecosystem-debug-next-run", buttonClass),
@@ -319,7 +329,7 @@ export class EcosystemDomBridge {
         : []),
       `Ancient HP ${state.hp.toFixed(1)} / ${state.maxHp.toFixed(0)}`,
       `Scourge demand ${state.scourgeDemandPerSecond.toFixed(2)} Care/s | Care production ${state.rates.care.toFixed(2)}/s`,
-      `Field ${state.field.width}x${state.field.height} | Cultivation ${state.field.cultivationRank}/10 | RT ${state.runTouches.toFixed(1)} | GT ${permanent.grassTouches.toFixed(0)}`,
+      `Field ${state.field.width}x${state.field.height} | Cultivation ${state.field.cultivationRank}/10 | ${RUN_TOUCHES_LABEL} ${state.runTouches.toFixed(1)} | ${GRASS_TOUCHES_LABEL} ${permanent.grassTouches.toFixed(0)}`,
       `Remembered Touch +${getManualTouchPowerBonusPercent(permanent)}% manual power`,
       ...(automationLine ? [automationLine] : []),
       ...(fieldMouseLine ? [fieldMouseLine] : []),
@@ -370,17 +380,17 @@ export class EcosystemDomBridge {
       this.setDisabled(button.element, !equipmentAvailable || state.runTouches < cost);
       this.setText(button.element, helperId === "tinySprinkler" && state.helpers.tinySprinkler.count === 0
         ? state.runTouches >= cost
-          ? `Buy first Tiny Sprinkler for ${cost} RT`
-          : `First Tiny Sprinkler: ${Math.floor(state.runTouches)} / ${cost} RT`
+          ? `Buy first Tiny Sprinkler for ${cost} ${RUN_TOUCHES_LABEL}`
+          : `First Tiny Sprinkler: ${Math.floor(state.runTouches)} / ${cost} ${RUN_TOUCHES_LABEL}`
         : helperId === "fieldMouse" && state.helpers.fieldMouse.count === 0
           ? state.runTouches >= cost
-            ? `Invite first Field Mouse for ${cost} RT`
-            : `First Field Mouse: ${Math.floor(state.runTouches)} / ${cost} RT`
+            ? `Invite first Field Mouse for ${cost} ${RUN_TOUCHES_LABEL}`
+            : `First Field Mouse: ${Math.floor(state.runTouches)} / ${cost} ${RUN_TOUCHES_LABEL}`
         : helperId === "beeHive" && state.helpers.beeHive.count === 0
           ? state.runTouches >= cost
-            ? `Establish first Bee Hive for ${cost} RT`
-            : `First Bee Hive: ${Math.floor(state.runTouches)} / ${cost} RT`
-        : `Buy ${HELPERS[helperId].label} for ${cost} RT`);
+            ? `Establish first Bee Hive for ${cost} ${RUN_TOUCHES_LABEL}`
+            : `First Bee Hive: ${Math.floor(state.runTouches)} / ${cost} ${RUN_TOUCHES_LABEL}`
+        : `Buy ${HELPERS[helperId].label} for ${cost} ${RUN_TOUCHES_LABEL}`);
     }
     for (const button of this.modeButtons) {
       const helperId = button.helperId!;
@@ -409,7 +419,7 @@ export class EcosystemDomBridge {
         this.setDisabled(button.element, !unlocked || rank >= maxRank || permanent.grassTouches < cost);
         this.setText(button.element, rank >= maxRank
           ? `${label} ${rank}/${maxRank}; complete`
-          : `${label} ${rank}/${maxRank}; next ${cost} GT`);
+          : `${label} ${rank}/${maxRank}; next ${cost} ${GRASS_TOUCHES_LABEL}`);
         continue;
       }
       const helperId = button.helperId!;
@@ -432,7 +442,7 @@ export class EcosystemDomBridge {
         );
         this.setDisabled(button.element, rank >= maxRank || permanent.grassTouches < cost);
         const memoryLabel = getHelperRankMemoryLabel(helperId, button.rankKind);
-        this.setText(button.element, `${memoryLabel} (${HELPERS[helperId].label}) ${rank}/${maxRank}; next ${cost} GT`);
+        this.setText(button.element, `${memoryLabel} (${HELPERS[helperId].label}) ${rank}/${maxRank}; next ${cost} ${GRASS_TOUCHES_LABEL}`);
       } else if (button.modeId) {
         const nodeId = getHelperModeMemoryId(helperId);
         const owned = permanent.unlockedModes[helperId].includes(button.modeId);
@@ -464,7 +474,7 @@ export class EcosystemDomBridge {
       state.active || !revealedMemoryNodeIds.has("touch:fieldEmbrace"),
     );
     if (this.playtestStatus) {
-      this.setOutput(this.playtestStatus, `HP ${state.hp.toFixed(1)} | RT ${state.runTouches.toFixed(0)} | GT ${permanent.grassTouches.toFixed(0)} | ${state.field.width}x${state.field.height}`);
+      this.setOutput(this.playtestStatus, `HP ${state.hp.toFixed(1)} | ${RUN_TOUCHES_LABEL} ${state.runTouches.toFixed(0)} | ${GRASS_TOUCHES_LABEL} ${permanent.grassTouches.toFixed(0)} | ${state.field.width}x${state.field.height}`);
     }
 
     this.setDataset(this.root, "state", state.active ? "active" : "memory");

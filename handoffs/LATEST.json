@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-19",
-  "latestHandoff": "HANDOFF_2026-07-19_FIELD_INPUT_HIT_AREA.json",
+  "latestHandoff": "HANDOFF_2026-07-19_READABLE_MEMORY_CURRENCIES.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

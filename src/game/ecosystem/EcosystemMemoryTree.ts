@@ -11,6 +11,8 @@ export const ECOSYSTEM_MEMORY_WORLD_WIDTH = 3700 * MEMORY_LAYOUT_SCALE;
 export const ECOSYSTEM_MEMORY_WORLD_HEIGHT = 1800 * MEMORY_LAYOUT_SCALE;
 export const ECOSYSTEM_MEMORY_NODE_GLOW_RADIUS = 56;
 export const ECOSYSTEM_MEMORY_CONNECTOR_GAP = 10;
+export const ECOSYSTEM_MEMORY_MIN_TITLE_SCREEN_PX = 13;
+export const ECOSYSTEM_MEMORY_MIN_STATUS_SCREEN_PX = 11;
 
 export type EcosystemMemoryNodeKind =
   | "root"
@@ -71,6 +73,15 @@ function scalePosition(value: number): number {
 
 export function getEcosystemMemoryNodeVisualRadius(node: EcosystemMemoryNodeDefinition): number {
   return ECOSYSTEM_MEMORY_NODE_GLOW_RADIUS * (node.visualScale ?? 1);
+}
+
+export function getEcosystemMemoryTextScale(
+  worldScale: number,
+  baseFontSize: number,
+  minimumScreenSize: number,
+): number {
+  if (worldScale <= 0 || baseFontSize <= 0 || minimumScreenSize <= 0) return 1;
+  return Math.max(1, minimumScreenSize / (worldScale * baseFontSize));
 }
 
 const HELPER_LAYOUTS: Record<HelperId, HelperMemoryLayout> = {
