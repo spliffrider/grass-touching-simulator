@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   MOUSE_FIELD_DRAG_THRESHOLD_PX,
   TOUCH_FIELD_DRAG_THRESHOLD_PX,
+  FieldPointerGestureRegistry,
   beginFieldPointerGesture,
+  resizeFieldInputHitArea,
   shouldAttemptFieldTouchOnPointerDown,
   updateFieldPointerGesture,
 } from "../src/game/ecosystem/EcosystemFieldInput";
@@ -49,5 +51,32 @@ describe("EcosystemFieldInput", () => {
 
     const becameDrag = updateFieldPointerGesture(gesture, 50 + TOUCH_FIELD_DRAG_THRESHOLD_PX + 1, 52);
     expect(becameDrag).toBe(true);
+  });
+
+  it("keeps overlapping pointer gestures independent", () => {
+    const gestures = new FieldPointerGestureRegistry();
+    const first = gestures.begin(1, true, 50, 50, 10, false);
+    const second = gestures.begin(2, true, 80, 80, 20, false);
+
+    expect(gestures.size).toBe(2);
+    expect(gestures.end(1)).toBe(first);
+    expect(gestures.get(2)).toBe(second);
+    expect(gestures.size).toBe(1);
+  });
+
+  it("resizes the actual Phaser hit area with the visible field surface", () => {
+    const hitArea = {
+      x: 4,
+      y: 7,
+      width: 1,
+      height: 1,
+      setTo(x: number, y: number, width: number, height: number) {
+        Object.assign(this, { x, y, width, height });
+      },
+    };
+
+    expect(resizeFieldInputHitArea(hitArea, 720, 480)).toBe(true);
+    expect(hitArea).toMatchObject({ x: 0, y: 0, width: 720, height: 480 });
+    expect(resizeFieldInputHitArea(null, 720, 480)).toBe(false);
   });
 });

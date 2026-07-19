@@ -32,10 +32,10 @@ import {
   smoothHealthRatio,
 } from "../ecosystem/EcosystemHealthVisual";
 import {
-  beginFieldPointerGesture,
+  FieldPointerGestureRegistry,
+  resizeFieldInputHitArea,
   shouldAttemptFieldTouchOnPointerDown,
   updateFieldPointerGesture,
-  type FieldPointerGesture,
 } from "../ecosystem/EcosystemFieldInput";
 import {
   ECOSYSTEM_MEMORY_EDGES,
@@ -316,7 +316,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private memoryRevealHoldIds: Set<string> | null = null;
   private memoryRevealSequenceActive = false;
   private memoryEntryTween: Phaser.Tweens.Tween | null = null;
-  private dragState: FieldPointerGesture | null = null;
+  private readonly fieldPointerGestures = new FieldPointerGestureRegistry();
   private saveElapsedMs = 0;
   private domElapsedMs = 0;
   private harnessElapsedMs = 0;
@@ -606,7 +606,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.memoryRevealHoldIds = null;
     this.memoryRevealSequenceActive = false;
     this.memoryEntryTween = null;
-    this.dragState = null;
+    this.fieldPointerGestures.clear();
     this.saveElapsedMs = 0;
     this.domElapsedMs = 0;
     this.harnessElapsedMs = 0;
@@ -1180,7 +1180,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       );
       this.audio.unlock();
       this.fieldPointerDowns += 1;
-      this.dragState = beginFieldPointerGesture(
+      this.fieldPointerGestures.begin(
         pointer.id,
         pointer.wasTouch,
         pointer.x,
@@ -1207,16 +1207,17 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         this.memoryTreeDragState.lastY = pointer.y;
         return;
       }
-      if (!this.dragState || pointer.id !== this.dragState.pointerId || !pointer.isDown) return;
-      if (updateFieldPointerGesture(this.dragState, pointer.x, pointer.y)) {
+      const gesture = this.fieldPointerGestures.get(pointer.id);
+      if (!gesture || !pointer.isDown) return;
+      if (updateFieldPointerGesture(gesture, pointer.x, pointer.y)) {
         this.fieldPointerDrags += 1;
       }
-      if (this.dragState.moved && this.projection && this.state.field.stages.length > 1) {
+      if (gesture.moved && this.projection && this.state.field.stages.length > 1) {
         this.fieldView = panFieldViewport(
           this.fieldView,
           this.projection,
-          this.dragState.deltaX,
-          this.dragState.deltaY,
+          gesture.deltaX,
+          gesture.deltaY,
         );
         this.renderField(true);
       }
@@ -1229,9 +1230,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         });
         return;
       }
-      if (!this.dragState || pointer.id !== this.dragState.pointerId) return;
-      const gesture = this.dragState;
-      this.dragState = null;
+      const gesture = this.fieldPointerGestures.end(pointer.id);
+      if (!gesture) return;
       if (!gesture.moved && !gesture.touchAttemptedOnDown) {
         this.touchScreenPoint(pointer.x, pointer.y, gesture.startedAtMs);
       }
@@ -1361,7 +1361,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.fieldBounds.width - 12,
       this.fieldBounds.height - 48,
     );
-    this.fieldSurface.setPosition(this.fieldBounds.x + 6, this.fieldBounds.y + 42).setSize(this.fieldBounds.width - 12, this.fieldBounds.height - 48);
+    const fieldSurfaceWidth = this.fieldBounds.width - 12;
+    const fieldSurfaceHeight = this.fieldBounds.height - 48;
+    this.fieldSurface
+      .setPosition(this.fieldBounds.x + 6, this.fieldBounds.y + 42)
+      .setSize(fieldSurfaceWidth, fieldSurfaceHeight);
+    resizeFieldInputHitArea(this.fieldSurface.input?.hitArea, fieldSurfaceWidth, fieldSurfaceHeight);
     this.fieldLabelText.setFontSize(mobile ? 12 : 16).setPosition(this.fieldBounds.x + 16, this.fieldBounds.y + (mobile ? 13 : 10));
     const fieldCanZoom = this.state.field.width > 1 || this.state.field.height > 1;
     this.fieldHintText.setVisible(!mobile && fieldCanZoom).setOrigin(1, 0).setPosition(this.fieldBounds.x + this.fieldBounds.width - 150, this.fieldBounds.y + 15);
@@ -4117,6 +4122,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       touchInputAttempts: this.touchInputAttempts,
       touchInputAccepted: this.touchInputAccepted,
       touchInputBlocked: this.touchInputBlocked,
+      activeFieldPointerGestures: this.fieldPointerGestures.size,
+      fieldInputWidth: Math.round(this.fieldSurface.width),
+      fieldInputHeight: Math.round(this.fieldSurface.height),
+      fieldInputHitAreaWidth: Math.round(Number(this.fieldSurface.input?.hitArea?.width ?? 0)),
+      fieldInputHitAreaHeight: Math.round(Number(this.fieldSurface.input?.hitArea?.height ?? 0)),
       averageTouchInputLatencyMs: this.touchInputAttempts > 0
         ? Number((this.touchInputLatencyTotalMs / this.touchInputAttempts).toFixed(3))
         : 0,

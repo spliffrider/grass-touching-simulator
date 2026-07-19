@@ -1,0 +1,55 @@
+{
+  "date": "2026-07-19",
+  "topic": "Reliable ecosystem field input and clean Run 1 playtest",
+  "currentUserGoal": "Stop valid grass touches from being dropped and leave the ecosystem playtest on a genuinely clean first run instead of opening in Memory Grove.",
+  "workCompleted": [
+    "Found the recurring missed-touch bug in the Phaser input geometry: the field surface was made interactive while it was still 1x1, and later visual resizing did not resize Phaser's frozen hit area.",
+    "Added an explicit hit-area resize helper and now synchronize the real rectangular input area whenever the visible field surface is laid out.",
+    "Replaced the scene's single shared pointer gesture with a per-pointer registry so overlapping or rapid pointer sequences cannot overwrite one another.",
+    "Exposed field surface and hit-area dimensions plus active pointer gesture count in the ecosystem harness for repeatable regression checks.",
+    "Added focused regression tests for resized Phaser hit areas and independent simultaneous pointer gestures.",
+    "Cleared the prototype save and reopened the playtest on active Run 1 with 100 HP, 0 RT, 0 GT, one tile, no Memories, and zero prior touch attempts."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemFieldInput.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemFieldInput.test.ts",
+    "handoffs/HANDOFF_2026-07-19_FIELD_INPUT_HIT_AREA.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 172 Vitest tests across 21 files, strict TypeScript, and the Vite production build.",
+    "The focused EcosystemFieldInput suite passed all 7 tests.",
+    "A live pointer click near the edge of the visible one-tile field registered one attempt and one accepted touch, proving the input is no longer limited to the original 1x1 hit area.",
+    "After the live regression click, the prototype was reset again and reopened as a clean active Run 1.",
+    "The final live harness reported a 716x522 visible field surface and a matching 716x522 hit area, zero active gestures, zero attempts, and approximately 144 FPS in the sampled desktop window.",
+    "The final browser console contained no warnings or errors.",
+    "git diff --check passed apart from the repository's existing Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Field input reliability checkpoint committed locally; master is five commits ahead of origin/master and has not been pushed.",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The selected in-app browser exposes no viewport override capability, so this focused slice could not repeat the live interaction check at an exact 390x844 viewport.",
+    "The intentionally lethal fresh Run 1 ends on the first accepted touch; this is authored balance and was kept separate from the input regression.",
+    "Chicken Patrol and later helper chapters remain functional scaffolding rather than guided animated chapters.",
+    "The game remains explicitly alpha."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on spam-click the clean one-tile Run 1 and confirm every off-cooldown press now gives immediate visual and audio feedback.",
+    "Repeat the edge-click regression at a 390x844 phone viewport when a browser with responsive viewport control is available.",
+    "Continue progression feel testing from the clean first collapse into Tiny Sprinkler unlock and Run 2.",
+    "Design the first unusual Tiny Sprinkler and Field Mouse synergy after input reliability is approved.",
+    "Push local master only when the user requests a GitHub, production, or Mac sync."
+  ],
+  "doNotRevert": [
+    "Do not remove explicit field hit-area synchronization; Phaser does not resize an existing hit area when GameObject.setSize is called.",
+    "Do not restore one shared drag gesture for all pointers.",
+    "Do not change the approved fresh Run 1 pacing while investigating input handling.",
+    "Do not cite the legacy 1200-tile harness as ecosystem performance evidence.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

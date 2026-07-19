@@ -15,6 +15,59 @@ export interface FieldPointerGesture {
   touchAttemptedOnDown: boolean;
 }
 
+export class FieldPointerGestureRegistry {
+  private readonly gestures = new Map<number, FieldPointerGesture>();
+
+  get size(): number {
+    return this.gestures.size;
+  }
+
+  begin(
+    pointerId: number,
+    pointerWasTouch: boolean,
+    x: number,
+    y: number,
+    startedAtMs: number,
+    touchAttemptedOnDown: boolean,
+  ): FieldPointerGesture {
+    const gesture = beginFieldPointerGesture(
+      pointerId,
+      pointerWasTouch,
+      x,
+      y,
+      startedAtMs,
+      touchAttemptedOnDown,
+    );
+    this.gestures.set(pointerId, gesture);
+    return gesture;
+  }
+
+  get(pointerId: number): FieldPointerGesture | null {
+    return this.gestures.get(pointerId) ?? null;
+  }
+
+  end(pointerId: number): FieldPointerGesture | null {
+    const gesture = this.gestures.get(pointerId) ?? null;
+    this.gestures.delete(pointerId);
+    return gesture;
+  }
+
+  clear(): void {
+    this.gestures.clear();
+  }
+}
+
+export function resizeFieldInputHitArea(
+  hitArea: unknown,
+  width: number,
+  height: number,
+): boolean {
+  const rectangle = hitArea as { setTo?: (x: number, y: number, width: number, height: number) => unknown } | null;
+  if (typeof rectangle?.setTo !== "function") return false;
+  rectangle.setTo(0, 0, width, height);
+  return true;
+}
+
 export function shouldAttemptFieldTouchOnPointerDown(pointerWasTouch: boolean, logicalTiles: number): boolean {
   return !pointerWasTouch || logicalTiles <= 1;
 }
