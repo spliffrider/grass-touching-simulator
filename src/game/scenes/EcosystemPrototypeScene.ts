@@ -449,7 +449,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private memoryCurrencyText!: Phaser.GameObjects.Text;
   private memoryTreeTitle!: Phaser.GameObjects.Text;
   private memoryTreeWorld!: Phaser.GameObjects.Container;
-  private memoryTreeDecor!: Phaser.GameObjects.Graphics;
   private memoryTreeLines!: Phaser.GameObjects.Graphics;
   private memoryTreeMaskShape!: Phaser.GameObjects.Graphics;
   private memoryNodeViews = new Map<string, MemoryNodeView>();
@@ -988,9 +987,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.memoryChrome = this.add.graphics();
     this.memoryTreeMaskShape = this.add.graphics().setVisible(false);
     this.memoryTreeWorld = this.add.container();
-    this.memoryTreeDecor = this.add.graphics();
     this.memoryTreeLines = this.add.graphics();
-    this.memoryTreeWorld.add([this.memoryTreeDecor, this.memoryTreeLines]);
+    this.memoryTreeWorld.add(this.memoryTreeLines);
     this.memoryTreeWorld.setMask(this.memoryTreeMaskShape.createGeometryMask());
     this.memoryTitle = this.createText("Memory Grove", 34, "#fff3c2", "bold");
     this.memorySubtitle = this.createText("The field is still. Spend Grass Touches on what the next run remembers.", 14, "#b8d9a4");
@@ -1020,8 +1018,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.memoryDetail,
       this.memoryDetailStatus,
     ]);
-
-    this.drawMemoryTreeDecor();
 
     for (const definition of ECOSYSTEM_MEMORY_NODES) {
       const visualScale = definition.visualScale ?? 1;
@@ -3339,7 +3335,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           : [...revealedNodeIds][0] ?? ECOSYSTEM_MEMORY_ROOT_ID;
     }
     this.memoryCurrencyText.setText(`AVAILABLE ${GRASS_TOUCHES_LABEL.toUpperCase()}  ${Math.floor(this.permanent.grassTouches)}`);
-    this.drawMemoryTreeDecor(revealedNodeIds);
     this.drawMemoryTreeConnectors(revealedNodeIds);
     for (const view of this.memoryNodeViews.values()) {
       const runtime = this.getMemoryNodeRuntime(view.definition);
@@ -3392,83 +3387,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const alpha = active ? 0.82 : runtime.affordable ? 0.72 : runtime.unlocked ? 0.42 : 0.2;
       this.strokeMemoryConnector(from, to, 11, 0x020805, 0.88);
       this.strokeMemoryConnector(from, to, active ? 5 : 3, color, alpha);
-    }
-  }
-
-  private drawMemoryTreeDecor(revealedNodeIds = this.getRevealedMemoryNodeIds()): void {
-    this.memoryTreeDecor.clear();
-    if (
-      revealedNodeIds.size === 1
-      && revealedNodeIds.has(FIRST_ECOSYSTEM_MEMORY_NODE_ID)
-    ) {
-      const firstMemory = ECOSYSTEM_MEMORY_NODE_BY_ID.get(FIRST_ECOSYSTEM_MEMORY_NODE_ID);
-      if (firstMemory) {
-        this.memoryTreeDecor
-          .fillStyle(firstMemory.color, 0.045)
-          .fillCircle(firstMemory.x, firstMemory.y, 116)
-          .lineStyle(3, firstMemory.color, 0.2)
-          .strokeCircle(firstMemory.x, firstMemory.y, 116)
-          .lineStyle(1, firstMemory.color, 0.12)
-          .strokeCircle(firstMemory.x, firstMemory.y, 156);
-      }
-      return;
-    }
-
-    const root = ECOSYSTEM_MEMORY_NODE_BY_ID.get(ECOSYSTEM_MEMORY_ROOT_ID);
-    if (root && revealedNodeIds.has(root.id)) {
-      this.memoryTreeDecor
-        .fillStyle(root.color, 0.025)
-        .fillCircle(root.x, root.y, 148)
-        .lineStyle(3, root.color, 0.13)
-        .strokeCircle(root.x, root.y, 148)
-        .lineStyle(1, root.color, 0.08)
-        .strokeCircle(root.x, root.y, 182);
-    }
-
-    for (let helperIndex = 0; helperIndex < HELPER_IDS.length; helperIndex += 1) {
-      const helperId = HELPER_IDS[helperIndex];
-      const cluster = ECOSYSTEM_MEMORY_NODES.filter(
-        (node) => node.helperId === helperId && revealedNodeIds.has(node.id),
-      );
-      const unlock = cluster.find((node) => node.kind === "helperUnlock");
-      if (!unlock || cluster.length === 0) continue;
-      const minX = Math.min(...cluster.map((node) => node.x));
-      const maxX = Math.max(...cluster.map((node) => node.x));
-      const minY = Math.min(...cluster.map((node) => node.y));
-      const maxY = Math.max(...cluster.map((node) => node.y));
-      const width = Math.max(310, maxX - minX + 150);
-      const height = Math.max(330, maxY - minY + 150);
-      const centerX = (minX + maxX) / 2;
-      const centerY = (minY + maxY) / 2;
-      const outerContour: Phaser.Math.Vector2[] = [];
-      const innerContour: Phaser.Math.Vector2[] = [];
-      for (let point = 0; point < 12; point += 1) {
-        const angle = (point / 12) * Math.PI * 2;
-        const outerWobble = 0.9 + ((point * 7 + helperIndex * 3) % 5) * 0.035 + Math.sin(angle * 3 + helperIndex) * 0.035;
-        const innerWobble = 0.68 + ((point * 5 + helperIndex) % 4) * 0.025 + Math.cos(angle * 2 + helperIndex) * 0.025;
-        outerContour.push(new Phaser.Math.Vector2(
-          centerX + Math.cos(angle) * width * 0.5 * outerWobble,
-          centerY + Math.sin(angle) * height * 0.5 * outerWobble,
-        ));
-        innerContour.push(new Phaser.Math.Vector2(
-          centerX + Math.cos(angle + 0.06) * width * 0.5 * innerWobble,
-          centerY + Math.sin(angle + 0.06) * height * 0.5 * innerWobble,
-        ));
-      }
-      this.memoryTreeDecor
-        .fillStyle(unlock.color, 0.03)
-        .fillPoints(outerContour, true)
-        .lineStyle(2, unlock.color, 0.14)
-        .strokePoints(outerContour, true)
-        .lineStyle(1, unlock.color, 0.075)
-        .strokePoints(innerContour, true);
-
-      for (let bud = 0; bud < 5; bud += 1) {
-        const angle = helperIndex * 0.83 + bud * 1.41;
-        const x = centerX + Math.cos(angle) * width * 0.48;
-        const y = centerY + Math.sin(angle) * height * 0.48;
-        this.memoryTreeDecor.fillStyle(unlock.color, 0.32).fillCircle(x, y, bud % 2 === 0 ? 4 : 2.5);
-      }
     }
   }
 
@@ -3833,7 +3751,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       }
       this.refreshMemoryTree();
       this.memoryTreeLines.setAlpha(0);
-      this.memoryTreeDecor.setAlpha(0.35);
       this.audio.play("milestone");
 
       const focus = this.getMemoryTreeFocus(revealedNodeIds, this.scale.width < 760 ? 105 : 145, 5);
@@ -3868,12 +3785,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         targets: this.memoryTreeLines,
         alpha: 1,
         duration: 720,
-        ease: "Sine.easeOut",
-      });
-      this.tweens.add({
-        targets: this.memoryTreeDecor,
-        alpha: 1,
-        duration: 900,
         ease: "Sine.easeOut",
       });
       newlyRevealed.forEach((nodeId, index) => {
