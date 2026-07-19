@@ -23,6 +23,8 @@ export const ECOSYSTEM_PERMANENT_VERSION = 1;
 export const ECOSYSTEM_ACTIVE_VERSION = 1;
 export const FIELD_MOUSE_STARTER_SEEDS = 3;
 export const BEE_HIVE_STARTER_FLOWERS = 4;
+export const MANUAL_TOUCH_POWER_PER_MEMORY = 0.01;
+export const HELPER_THROUGHPUT_PER_RANK = 0.12;
 const FIRST_RUN_SCOURGE_BASE = 10_000_000;
 const FIRST_RUN_OPENING_HP = 1;
 const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.18;
@@ -197,18 +199,15 @@ const BASE_RESOURCE_CAPACITY: Record<ProductionResourceId, number> = {
   care: 36,
 };
 
-const RESOURCE_STORAGE_HELPER: Record<ProductionResourceId, HelperId> = {
-  dew: "tinySprinkler",
-  moisture: "tinySprinkler",
-  growth: "fieldMouse",
-  flowers: "beeHive",
-  pollinatedBlooms: "beeHive",
-  seeds: "fieldMouse",
-  clippings: "chickenPatrol",
-  compost: "earthwormCrew",
-  humus: "ancientRoots",
-  rootEnergy: "ancientRoots",
-  care: "sheepLoop",
+const HELPER_STORAGE_RESOURCES: Record<HelperId, readonly ProductionResourceId[]> = {
+  tinySprinkler: ["dew", "moisture"],
+  fieldMouse: ["seeds", "growth"],
+  beeHive: ["flowers", "pollinatedBlooms"],
+  chickenPatrol: ["growth", "clippings", "compost"],
+  earthwormCrew: ["compost", "humus"],
+  ancientRoots: ["humus", "rootEnergy", "dew", "care"],
+  sheepLoop: ["growth", "clippings", "care"],
+  meadowRabbit: ["seeds", "growth", "flowers"],
 };
 
 const STARTING_STOCK_RESOURCE: Record<HelperId, ProductionResourceId> = {
@@ -305,9 +304,49 @@ export function normalizePermanentEcosystemState(input: unknown): PermanentEcosy
   return normalized;
 }
 
+export function getPermanentMemoryInvestmentCount(permanent: PermanentEcosystemState): number {
+  let count = permanent.maxFieldTier
+    + permanent.fastTouchRank
+    + permanent.broadPalmRank
+    + permanent.manyHandsRank
+    + (permanent.fieldEmbrace ? 1 : 0);
+  for (const helperId of HELPER_IDS) {
+    count += permanent.unlockedHelpers[helperId] ? 1 : 0;
+    count += permanent.throughputRanks[helperId]
+      + permanent.storageRanks[helperId]
+      + permanent.efficiencyRanks[helperId]
+      + permanent.startingStockRanks[helperId];
+    const baseModeId = HELPERS[helperId].modes[0].id;
+    const unlockedModes = permanent.unlockedModes[helperId];
+    for (let modeIndex = 0; modeIndex < unlockedModes.length; modeIndex += 1) {
+      const modeId = unlockedModes[modeIndex];
+      if (modeId === baseModeId || unlockedModes.indexOf(modeId) !== modeIndex) continue;
+      count += 1;
+    }
+  }
+  return count;
+}
+
+export function getManualTouchPowerMultiplier(permanent: PermanentEcosystemState): number {
+  return 1 + getPermanentMemoryInvestmentCount(permanent) * MANUAL_TOUCH_POWER_PER_MEMORY;
+}
+
+export function getManualTouchPowerBonusPercent(permanent: PermanentEcosystemState): number {
+  return Math.round((getManualTouchPowerMultiplier(permanent) - 1) * 100);
+}
+
+export function getHelperStorageResourceIds(helperId: HelperId): readonly ProductionResourceId[] {
+  return HELPER_STORAGE_RESOURCES[helperId];
+}
+
 function getCapacity(resourceId: ProductionResourceId, permanent: PermanentEcosystemState, field: EcosystemFieldState): number {
-  const helperId = RESOURCE_STORAGE_HELPER[resourceId];
-  const memoryMultiplier = 1 + permanent.storageRanks[helperId] * 0.15;
+  let relevantStorageRanks = 0;
+  for (const helperId of HELPER_IDS) {
+    if (HELPER_STORAGE_RESOURCES[helperId].includes(resourceId)) {
+      relevantStorageRanks += permanent.storageRanks[helperId];
+    }
+  }
+  const memoryMultiplier = 1 + relevantStorageRanks * 0.15;
   const cultivationMultiplier = 1 + field.cultivationRank * 0.08;
   const fieldMultiplier = 1 + Math.sqrt(field.width * field.height) * 0.12;
   return BASE_RESOURCE_CAPACITY[resourceId] * memoryMultiplier * cultivationMultiplier * fieldMultiplier;
@@ -479,6 +518,23 @@ export function getFirstAutomationStatus(
     return { stage: "firstCycle", ...common };
   }
   return { stage: "sustain", ...common };
+}
+
+export function getHelperThroughputMultiplier(rank: number): number {
+  const safeRank = clampRank(rank, 10);
+  return 1 + safeRank * HELPER_THROUGHPUT_PER_RANK;
+}
+
+export function getHelperCycleIntervalMs(
+  helperId: HelperId,
+  throughputRank: number,
+  modeId = HELPERS[helperId].modes[0].id,
+): number {
+  const recipe = PRODUCTION_RECIPES.find(
+    (candidate) => candidate.helperId === helperId && candidate.modeId === modeId,
+  );
+  if (!recipe || recipe.cyclesPerSecond <= 0) return Number.POSITIVE_INFINITY;
+  return 1_000 / (recipe.cyclesPerSecond * getHelperThroughputMultiplier(throughputRank));
 }
 
 export function getFieldMouseStatus(
@@ -1112,7 +1168,7 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
       if (helper.count <= 0 || helper.modeId !== recipe.modeId || helper.reconfigureRemainingMs > 0) {
         continue;
       }
-      const throughput = 1 + permanent.throughputRanks[recipe.helperId] * 0.12;
+      const throughput = getHelperThroughputMultiplier(permanent.throughputRanks[recipe.helperId]);
       const requested = recipe.cyclesPerSecond * helper.count * throughput * tickSeconds;
       performRecipe(state, permanent, recipe, requested, producedThisTick);
       continue;
@@ -1246,11 +1302,12 @@ export function touchFieldTile(
     }
   }
 
-  let totalPower = 0;
+  let baseTotalPower = 0;
   for (const impact of impacts.values()) {
-    totalPower += impact.power;
+    baseTotalPower += impact.power;
     advanceTileStage(state.field, impact.tileIndex);
   }
+  const totalPower = baseTotalPower * getManualTouchPowerMultiplier(permanent);
   const healedHp = state.runNumber === 1
     ? 0
     : Math.min(state.maxHp - state.hp, totalPower * 5.2);

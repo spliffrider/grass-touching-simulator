@@ -102,8 +102,11 @@ import {
   getFieldMouseStatus,
   getFieldTierUnlockCost,
   getFirstAutomationStatus,
+  getHelperCycleIntervalMs,
   getHelperPurchaseCost,
+  getHelperStorageResourceIds,
   getHelperUnlockCost,
+  getManualTouchPowerBonusPercent,
   getModeUnlockCost,
   getPermanentRankCost,
   getTouchRankCost,
@@ -1030,7 +1033,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const frame = this.add.image(0, 0, "memory-node-locked").setOrigin(0.5).setDisplaySize(frameSize, frameSize);
       const icon = this.add.image(0, 0, definition.iconKey).setOrigin(0.5).setDisplaySize(iconSize, iconSize);
       icon.setData("baseScaleX", icon.scaleX).setData("baseScaleY", icon.scaleY);
-      const title = this.createText(definition.label, 14, "#fff3c2", "bold").setOrigin(0.5, 0).setPosition(0, titleY).setAlign("center");
+      const titleFontSize = definition.kind === "helperRank" ? 11 : 14;
+      const title = this.createText(definition.label, titleFontSize, "#fff3c2", "bold").setOrigin(0.5, 0).setPosition(0, titleY).setAlign("center");
       const status = this.createText("", 10, "#b8d9a4", "bold").setOrigin(0.5, 0).setPosition(0, titleY + 22).setAlign("center");
       const maxRank = this.getMemoryNodeMaxRank(definition);
       const rankPips = maxRank > 1 ? this.add.graphics() : null;
@@ -3172,11 +3176,26 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const complete = rank >= maxRank;
       const unlocked = this.permanent.unlockedHelpers[helperId];
       const cost = complete ? 0 : getPermanentRankCost(this.permanent, helperId, kind);
+      const nextRank = Math.min(maxRank, rank + 1);
+      const currentIntervalMs = getHelperCycleIntervalMs(helperId, rank);
+      const nextIntervalMs = getHelperCycleIntervalMs(helperId, nextRank);
+      const formatInterval = (intervalMs: number): string => `${(intervalMs / 1_000).toFixed(2)}s`;
+      const storageLabels = getHelperStorageResourceIds(helperId)
+        .map((resourceId) => PRODUCTION_RESOURCES[resourceId].label)
+        .join(", ");
       const effects: Record<PermanentRankKind, string> = {
-        throughput: rank > 0 ? `Recipes run ${rank * 12}% faster.` : "Helper recipes run at their base speed.",
-        storage: rank > 0 ? `Relevant storage is ${rank * 15}% larger.` : "Relevant buffers use their base capacity.",
-        efficiency: rank > 0 ? `Recipe inputs are reduced by ${(rank * 3.5).toFixed(1)}%.` : "Recipes use their base input amounts.",
-        startingStock: rank > 0 ? `New fields begin with ${rank * 3} useful stock.` : "New fields begin without carried stock.",
+        throughput: complete
+          ? `${HELPERS[helperId].label} cycle cooldown: ${formatInterval(currentIntervalMs)}.`
+          : `${HELPERS[helperId].label} cycle cooldown: ${formatInterval(currentIntervalMs)} -> ${formatInterval(nextIntervalMs)} next rank.`,
+        storage: complete
+          ? `${storageLabels} capacity: +${rank * 15}% from this Memory.`
+          : `${storageLabels} capacity: +${rank * 15}% -> +${nextRank * 15}% next rank.`,
+        efficiency: complete
+          ? `Recipe input cost: -${(rank * 3.5).toFixed(1)}%.`
+          : `Recipe input cost: -${(rank * 3.5).toFixed(1)}% -> -${(nextRank * 3.5).toFixed(1)}% next rank.`,
+        startingStock: complete
+          ? `Each new field starts with +${rank * 3} stock.`
+          : `Starting stock: +${rank * 3} -> +${nextRank * 3} next rank.`,
       };
       return {
         rank,
@@ -3481,7 +3500,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.memoryDetailTitle.setText(definition.label);
     this.memoryDetailBranch.setText(`${definition.branch.toUpperCase()} MEMORY`);
     const rankLine = runtime.maxRank > 1 ? `Rank ${runtime.rank} / ${runtime.maxRank}` : runtime.complete ? "Remembered" : "Single memory";
-    this.memoryDetail.setText(`${definition.description}\n\n${rankLine}\n${runtime.effect}`);
+    const touchBonusLine = definition.kind === "root"
+      ? ""
+      : `\n\nEvery Memory purchase adds +1% manual touch power. Current total: +${getManualTouchPowerBonusPercent(this.permanent)}%.`;
+    this.memoryDetail.setText(`${definition.description}\n\n${rankLine}\n${runtime.effect}${touchBonusLine}`);
     const firstMemoryPending = isFirstMemoryPending(this.state, this.permanent);
     const firstCollapse = isFirstEcosystemCollapse(this.state, this.permanent);
     if (firstMemoryPending && definition.id === FIRST_ECOSYSTEM_MEMORY_NODE_ID && !runtime.complete) {

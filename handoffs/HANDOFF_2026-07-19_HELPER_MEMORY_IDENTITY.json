@@ -1,0 +1,63 @@
+{
+  "date": "2026-07-19",
+  "topic": "Helper-specific Memories and Remembered Touch",
+  "currentUserGoal": "Make permanent skills feel original and mechanically significant while retaining dependable ranked upgrades for each helper and keeping manual touching relevant throughout progression.",
+  "workCompleted": [
+    "Replaced the repeated public Throughput, Storage, Efficiency, and Starting Stock labels with 32 distinct helper-specific Memory identities while preserving the existing save-compatible rank kinds and node ids.",
+    "Made Tiny Sprinkler's Clockwork Nozzle explicitly report and lower its real spray cooldown from about 2.94 seconds at rank zero to about 1.34 seconds at rank ten; equivalent action-speed Memories use the same real cycle calculation for every helper.",
+    "Added Remembered Touch: every purchased helper unlock, alternate mode, field tier, capstone, or numeric Memory rank adds 1% to manual touch power, increasing HP healing, Dew, and RT together.",
+    "Kept the approved fresh Run 1 rhythm unchanged: it starts with zero Memories and still disables manual healing during the authored collapse.",
+    "Reworked storage ownership so every helper storage Memory expands actual recipe-related buffers, including the previously ineffective Meadow Rabbit storage branch.",
+    "Updated Memory detail cards with exact current-to-next rank effects and the current cumulative manual-touch bonus.",
+    "Updated semantic DOM labels and readable debug state with helper-specific Memory names and manualTouchBonusPercent.",
+    "Reduced overview font size for helper-rank labels so the longer specific names remain bounded in the Memory Web.",
+    "Documented helper-specific foundational ranks and Remembered Touch in docs/ECOSYSTEM_FACTORY_DESIGN.md."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemMemoryTree.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-19_HELPER_MEMORY_IDENTITY.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 170 Vitest tests across 21 files, strict TypeScript, and the Vite production build.",
+    "Focused EcosystemSystem and EcosystemMemoryTree suites passed with 46 tests.",
+    "Tests prove Tiny Sprinkler cycle intervals, one-percent manual gains across multiple Memory purchase types, unique helper-rank names, and real storage targets for all eight helpers.",
+    "Existing first-run pacing and unwinnable-collapse tests remain green.",
+    "The live ecosystem playtest route returned HTTP 200 from the local Vite server.",
+    "git diff --check passed apart from the repository's existing Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Helper Memory identity checkpoint committed locally; master is four commits ahead of origin/master and has not been pushed.",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "A hands-on Memory Grove visual pass is still needed for the longer helper-specific names and expanded detail copy; automated screenshots remain unavailable in the quarantined in-app browser tab.",
+    "The 32 dependable helper rank Memories now have distinct identities and real effects, but future slices should add stranger one-off synergies and capstones around this foundation.",
+    "The +1% Remembered Touch rate is deliberately conservative and should be tuned from multi-run feel testing rather than changed from a single early run.",
+    "Chicken Patrol and later helper chapters remain functional scaffolding rather than guided animated chapters.",
+    "The game remains explicitly alpha."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on inspect Memory Grove cards and node labels at desktop and phone widths on http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest.",
+    "Play several runs and judge whether the cumulative Remembered Touch percentage makes manual care increasingly manageable without flattening Scourge pressure.",
+    "Design the first unusual helper synergy or milestone Memory around Tiny Sprinkler and Field Mouse rather than adding another generic numeric branch.",
+    "Continue the guided production chain with Chicken Patrol after the new progression foundation is approved.",
+    "Push local master only when the user requests a GitHub, production, or Mac sync."
+  ],
+  "doNotRevert": [
+    "Do not restore generic public labels such as Throughput or Storage; those names remain internal save-compatible rank kinds only.",
+    "Do not remove the cumulative Remembered Touch benefit from non-touch branches; every permanent Memory purchase must help ordinary manual touching.",
+    "Do not alter fresh Run 1 pacing as part of later Memory tuning without new user feedback; the user explicitly said its current rhythm is OK.",
+    "Do not reintroduce helper storage ranks with no associated buffers.",
+    "Do not cite the legacy 1200-tile harness as ecosystem performance evidence.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

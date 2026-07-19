@@ -179,30 +179,174 @@ const RANK_VISUAL_SCALES: Record<PermanentRankKind, number> = {
   startingStock: 0.7,
 };
 
-const RANK_META: Record<PermanentRankKind, { label: string; description: string; iconKey: string; iconPath: string }> = {
+const RANK_VISUAL_META: Record<PermanentRankKind, { iconKey: string; iconPath: string }> = {
   throughput: {
-    label: "Throughput",
-    description: "Accelerates this helper's production recipes. Upgrade through ten ranks.",
     iconKey: "memory-icon-throughput",
     iconPath: "/assets/ui/skills/steady-tempo.png",
   },
   storage: {
-    label: "Storage",
-    description: "Expands the buffers used by this part of the ecosystem. Upgrade through ten ranks.",
     iconKey: "memory-icon-storage",
     iconPath: "/assets/ui/items/rain-barrel.png",
   },
   efficiency: {
-    label: "Efficiency",
-    description: "Reduces the resources consumed by this helper's recipes. Upgrade through ten ranks.",
     iconKey: "memory-icon-efficiency",
     iconPath: "/assets/ui/skills/honest-work.png",
   },
   startingStock: {
-    label: "Starting Stock",
-    description: "Carries useful stock into every new field. Upgrade through five ranks.",
     iconKey: "memory-icon-starting-stock",
     iconPath: "/assets/ui/items/seed-satchel.png",
+  },
+};
+
+interface HelperRankCopy {
+  label: string;
+  description: string;
+}
+
+const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCopy>> = {
+  tinySprinkler: {
+    throughput: {
+      label: "Clockwork Nozzle",
+      description: "Shortens the pause between Tiny Sprinkler sprays so Dew becomes Moisture and Care more often.",
+    },
+    storage: {
+      label: "Dew Cistern",
+      description: "Expands Dew and Moisture storage, keeping the sprinkler supplied through longer bursts.",
+    },
+    efficiency: {
+      label: "Fine Mist",
+      description: "Reduces the Dew spent by every spray without weakening its output.",
+    },
+    startingStock: {
+      label: "Dawn Condensation",
+      description: "Begins each new field with extra Dew ready for the first sprinkler.",
+    },
+  },
+  fieldMouse: {
+    throughput: {
+      label: "Quick Paws",
+      description: "Shortens the pause between Field Mouse seed-carrying trips.",
+    },
+    storage: {
+      label: "Seed Burrow",
+      description: "Expands Seed and Growth storage around the mouse route.",
+    },
+    efficiency: {
+      label: "Careful Nibbles",
+      description: "Reduces the Seeds spent on every Field Mouse trip.",
+    },
+    startingStock: {
+      label: "Hidden Cache",
+      description: "Begins each new field with extra Seeds tucked safely underground.",
+    },
+  },
+  beeHive: {
+    throughput: {
+      label: "Wingbeat Rhythm",
+      description: "Shortens the pause between Bee Hive pollination flights.",
+    },
+    storage: {
+      label: "Honeycomb Larder",
+      description: "Expands Flower and Pollinated Bloom storage around the hive.",
+    },
+    efficiency: {
+      label: "Pollen Savvy",
+      description: "Reduces the Flowers spent on every pollination flight.",
+    },
+    startingStock: {
+      label: "First Blossoms",
+      description: "Begins each new field with extra Flowers ready for the hive.",
+    },
+  },
+  chickenPatrol: {
+    throughput: {
+      label: "Busy Beaks",
+      description: "Shortens the pause between Chicken Patrol scratches and forage runs.",
+    },
+    storage: {
+      label: "Clipping Yard",
+      description: "Expands the Growth, Clippings, and Compost handled by the patrol.",
+    },
+    efficiency: {
+      label: "Clean Scratch",
+      description: "Reduces the field material spent on every Chicken Patrol cycle.",
+    },
+    startingStock: {
+      label: "Dawn Forage",
+      description: "Begins each new field with extra Clippings for the patrol.",
+    },
+  },
+  earthwormCrew: {
+    throughput: {
+      label: "Restless Soil",
+      description: "Shortens the pause between Earthworm Crew aeration cycles.",
+    },
+    storage: {
+      label: "Compost Midden",
+      description: "Expands Compost and Humus storage around the worm beds.",
+    },
+    efficiency: {
+      label: "Rich Castings",
+      description: "Reduces the Compost spent by every Earthworm Crew cycle.",
+    },
+    startingStock: {
+      label: "Warm Heap",
+      description: "Begins each new field with extra Compost ready for aeration.",
+    },
+  },
+  ancientRoots: {
+    throughput: {
+      label: "Rootbeat",
+      description: "Shortens the pause between Ancient Root conversions.",
+    },
+    storage: {
+      label: "Deep Reservoir",
+      description: "Expands Humus, Root Energy, Dew, and Care storage in the old network.",
+    },
+    efficiency: {
+      label: "Patient Absorption",
+      description: "Reduces the resources spent by every Ancient Root conversion.",
+    },
+    startingStock: {
+      label: "Old Soil",
+      description: "Begins each new field with extra Humus remembered by the roots.",
+    },
+  },
+  sheepLoop: {
+    throughput: {
+      label: "Grazing Rhythm",
+      description: "Shortens the pause between Sheep Loop grazing cycles.",
+    },
+    storage: {
+      label: "Meadow Reserve",
+      description: "Expands Growth, Clippings, and Care storage along the grazing loop.",
+    },
+    efficiency: {
+      label: "Gentle Bite",
+      description: "Reduces the Growth spent on every Sheep Loop cycle.",
+    },
+    startingStock: {
+      label: "Fresh Pasture",
+      description: "Begins each new field with extra Growth ready for grazing.",
+    },
+  },
+  meadowRabbit: {
+    throughput: {
+      label: "Fleetfoot Circuit",
+      description: "Shortens the pause between Meadow Rabbit seed runs.",
+    },
+    storage: {
+      label: "Burrow Network",
+      description: "Expands Seed, Growth, and Flower storage along the rabbit circuit.",
+    },
+    efficiency: {
+      label: "Light Landing",
+      description: "Reduces the Seeds spent on every Meadow Rabbit run.",
+    },
+    startingStock: {
+      label: "Buried Snack",
+      description: "Begins each new field with extra Seeds hidden for the rabbit.",
+    },
   },
 };
 
@@ -331,17 +475,18 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
     });
 
     for (const kind of ["throughput", "efficiency", "storage", "startingStock"] as const) {
-      const meta = RANK_META[kind];
+      const visualMeta = RANK_VISUAL_META[kind];
+      const copy = HELPER_RANK_COPY[helperId][kind];
       const offset = layout.ranks[kind];
       nodes.push({
         id: helperRankId(helperId, kind),
         kind: "helperRank",
-        label: meta.label,
+        label: copy.label,
         branch: helper.label,
-        description: meta.description,
+        description: copy.description,
         color: HELPER_COLORS[helperId],
-        iconKey: meta.iconKey,
-        iconPath: meta.iconPath,
+        iconKey: visualMeta.iconKey,
+        iconPath: visualMeta.iconPath,
         x: x + scalePosition(offset.x),
         y: y + scalePosition(offset.y),
         visualScale: RANK_VISUAL_SCALES[kind],
@@ -389,6 +534,10 @@ export function getHelperUnlockMemoryId(helperId: HelperId): string {
 
 export function getHelperRankMemoryId(helperId: HelperId, kind: PermanentRankKind): string {
   return helperRankId(helperId, kind);
+}
+
+export function getHelperRankMemoryLabel(helperId: HelperId, kind: PermanentRankKind): string {
+  return HELPER_RANK_COPY[helperId][kind].label;
 }
 
 export function getHelperModeMemoryId(helperId: HelperId): string {

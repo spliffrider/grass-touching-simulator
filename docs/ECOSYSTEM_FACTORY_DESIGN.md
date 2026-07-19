@@ -153,11 +153,36 @@ Permanent Memories retain:
 - banked GT and completed-run count
 - helper and alternate-mode unlocks
 - field-size ceilings
-- throughput, storage, efficiency, and starting-stock ranks
+- named helper ranks for action speed, storage, efficiency, and starting stock
 - Fast Touch, Broad Palm, Many Hands, and Field Embrace
 
 Helper unlocks reveal their equipment row and recipes; hidden helpers cannot be
 bought. Tiny Sprinkler is the first unlock and also reveals the Living Ledger.
+
+### Helper Memories And Remembered Touch
+
+Every helper cluster contains a dependable ten-rank skill that improves the
+helper's basic action rhythm. These skills use helper-specific identities in the
+Memory Web instead of exposing internal system labels. Tiny Sprinkler's
+`Clockwork Nozzle`, for example, lowers its Caretaker spray cooldown from about
+2.94 seconds at rank zero to about 1.34 seconds at rank ten. The equivalent
+Field Mouse, Bee Hive, and later-helper skills shorten their own trips, flights,
+or production cycles.
+
+Storage, efficiency, and starting-stock ranks also have helper-specific names
+and copy. Every storage rank expands the actual input or output buffers used by
+its helper; no helper may expose a storage Memory with no mechanical target.
+The underlying rank fields retain their stable save identifiers, so existing
+permanent saves receive the new presentation and behavior without migration.
+
+Every permanent Memory purchase also contributes one point of Remembered
+Touch. Each point adds 1% to the power of ordinary manual touch batches,
+including HP restored, Dew gathered, and RT earned. Unlocks, alternate modes,
+field tiers, capstones, and each numeric rank all contribute one point. This
+keeps the player's hands relevant as automation grows and makes every branch a
+small step toward surviving later Scourge pressure. A fresh Run 1 has no
+Memories and manual healing is disabled there, so its authored collapse rhythm
+is unchanged.
 
 ## Field Ladder And Cultivation
 

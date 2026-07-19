@@ -3,6 +3,7 @@ import {
   FIRST_ECOSYSTEM_MEMORY_NODE_ID,
   getHelperModeMemoryId,
   getHelperRankMemoryId,
+  getHelperRankMemoryLabel,
   getHelperUnlockMemoryId,
   getRevealedEcosystemMemoryNodeIds,
 } from "./EcosystemMemoryTree";
@@ -15,6 +16,7 @@ import {
   getFirstAutomationStatus,
   getHelperPurchaseCost,
   getHelperUnlockCost,
+  getManualTouchPowerBonusPercent,
   getModeUnlockCost,
   getPermanentRankCost,
   getTouchRankCost,
@@ -218,8 +220,9 @@ export class EcosystemDomBridge {
       this.memoryButtons.push({ element: modeButton, helperId, modeId: alternateMode.id });
       memories.append(modeButton);
       for (const kind of ["throughput", "storage", "efficiency", "startingStock"] as const) {
+        const memoryLabel = getHelperRankMemoryLabel(helperId, kind);
         const rankButton = this.createButton(
-          `Buy ${HELPERS[helperId].label} ${kind} rank`,
+          `Buy ${memoryLabel} rank for ${HELPERS[helperId].label}`,
           () => this.actions.buyRank(helperId, kind),
           `ecosystem-rank-${helperId}-${kind}`,
         );
@@ -317,6 +320,7 @@ export class EcosystemDomBridge {
       `Ancient HP ${state.hp.toFixed(1)} / ${state.maxHp.toFixed(0)}`,
       `Scourge demand ${state.scourgeDemandPerSecond.toFixed(2)} Care/s | Care production ${state.rates.care.toFixed(2)}/s`,
       `Field ${state.field.width}x${state.field.height} | Cultivation ${state.field.cultivationRank}/10 | RT ${state.runTouches.toFixed(1)} | GT ${permanent.grassTouches.toFixed(0)}`,
+      `Remembered Touch +${getManualTouchPowerBonusPercent(permanent)}% manual power`,
       ...(automationLine ? [automationLine] : []),
       ...(fieldMouseLine ? [fieldMouseLine] : []),
       ...(showBeeHiveChapter && beeHiveLine ? [beeHiveLine] : []),
@@ -427,7 +431,8 @@ export class EcosystemDomBridge {
           || !permanent.unlockedHelpers[helperId],
         );
         this.setDisabled(button.element, rank >= maxRank || permanent.grassTouches < cost);
-        this.setText(button.element, `${HELPERS[helperId].label} ${button.rankKind} ${rank}/${maxRank}; next ${cost} GT`);
+        const memoryLabel = getHelperRankMemoryLabel(helperId, button.rankKind);
+        this.setText(button.element, `${memoryLabel} (${HELPERS[helperId].label}) ${rank}/${maxRank}; next ${cost} GT`);
       } else if (button.modeId) {
         const nodeId = getHelperModeMemoryId(helperId);
         const owned = permanent.unlockedModes[helperId].includes(button.modeId);
@@ -475,6 +480,7 @@ export class EcosystemDomBridge {
       cultivation: state.field.cultivationRank,
       runTouches: Number(state.runTouches.toFixed(3)),
       grassTouches: Number(permanent.grassTouches.toFixed(3)),
+      manualTouchBonusPercent: getManualTouchPowerBonusPercent(permanent),
       fastTouchRank: permanent.fastTouchRank,
       firstAutomationStage: firstAutomation.stage,
       fieldMouseStage: fieldMouse.stage,

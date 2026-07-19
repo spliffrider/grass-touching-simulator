@@ -25,20 +25,28 @@ import {
   getFirstAutomationStatus,
   getFieldMouseStatus,
   getManyHandsPower,
+  getHelperCycleIntervalMs,
   getHelperPurchaseCost,
+  getHelperStorageResourceIds,
   getHelperUnlockCost,
+  getManualTouchPowerBonusPercent,
+  getManualTouchPowerMultiplier,
+  getPermanentMemoryInvestmentCount,
   getTouchRankCost,
   isFirstCollapseAwaitingSprinkler,
   isFirstEcosystemCollapse,
   isFirstMemoryPending,
   isRunEquipmentAvailable,
   normalizePermanentEcosystemState,
+  purchasePermanentRank,
   purchaseTouchRank,
   setPrototypeFieldSize,
   switchHelperMode,
   touchFieldTile,
   unlockAllPrototypeMemories,
   unlockHelper,
+  unlockHelperMode,
+  unlockNextFieldTier,
 } from "../src/game/ecosystem/EcosystemSystem";
 
 describe("EcosystemSystem", () => {
@@ -444,6 +452,61 @@ describe("EcosystemSystem", () => {
     expect(getBroadPalmPower(10)).toBeCloseTo(1);
     expect(getManyHandsPower(1)).toBeCloseTo(0.35);
     expect(getManyHandsPower(10)).toBeCloseTo(0.8);
+  });
+
+  it("turns helper speed ranks into shorter, measurable action cooldowns", () => {
+    const baseInterval = getHelperCycleIntervalMs("tinySprinkler", 0);
+    const firstRankInterval = getHelperCycleIntervalMs("tinySprinkler", 1);
+    const maxRankInterval = getHelperCycleIntervalMs("tinySprinkler", 10);
+
+    expect(baseInterval).toBeCloseTo(2_941.176, 2);
+    expect(firstRankInterval).toBeLessThan(baseInterval);
+    expect(maxRankInterval).toBeLessThan(firstRankInterval);
+    expect(maxRankInterval).toBeCloseTo(1_336.898, 2);
+  });
+
+  it("makes every purchased Memory strengthen standard manual touches", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    permanent.grassTouches = 10_000;
+
+    expect(unlockHelper(permanent, "tinySprinkler")).toBe(true);
+    expect(purchasePermanentRank(permanent, "tinySprinkler", "throughput")).toBe(true);
+    expect(unlockHelperMode(permanent, "tinySprinkler", "cultivator")).toBe(true);
+    expect(unlockNextFieldTier(permanent)).toBe(true);
+    expect(purchaseTouchRank(permanent, "broadPalm")).toBe(true);
+
+    expect(getPermanentMemoryInvestmentCount(permanent)).toBe(5);
+    expect(getManualTouchPowerBonusPercent(permanent)).toBe(5);
+    expect(getManualTouchPowerMultiplier(permanent)).toBeCloseTo(1.05);
+
+    const state = createEcosystemState(permanent, { seed: 3_141 });
+    state.hp = 50;
+    const result = touchFieldTile(state, permanent, 0);
+
+    expect(result?.totalPower).toBeCloseTo(1.05);
+    expect(result?.healedHp).toBeCloseTo(5.46);
+    expect(result?.dewGained).toBeCloseTo(1.2075);
+    expect(result?.runTouchesGained).toBeCloseTo(0.966);
+  });
+
+  it("gives every helper storage Memory at least one real buffer to expand", () => {
+    const baselinePermanent = createPermanentEcosystemState();
+    const baseline = createEcosystemState(baselinePermanent);
+
+    for (const helperId of HELPER_IDS) {
+      const permanent = createPermanentEcosystemState();
+      permanent.storageRanks[helperId] = 1;
+      const state = createEcosystemState(permanent);
+      const resources = getHelperStorageResourceIds(helperId);
+
+      expect(resources.length, helperId).toBeGreaterThan(0);
+      for (const resourceId of resources) {
+        expect(state.resources[resourceId].capacity, `${helperId}:${resourceId}`).toBeGreaterThan(
+          baseline.resources[resourceId].capacity,
+        );
+      }
+    }
   });
 
   it("purchases Fast Touch ranks and safely defaults old saves to rank zero", () => {

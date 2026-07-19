@@ -11,6 +11,7 @@ import {
   getEcosystemMemoryNodeVisualRadius,
   getHelperModeMemoryId,
   getHelperRankMemoryId,
+  getHelperRankMemoryLabel,
   getHelperUnlockMemoryId,
   getRevealedEcosystemMemoryNodeIds,
 } from "../src/game/ecosystem/EcosystemMemoryTree";
@@ -165,6 +166,16 @@ describe("Ecosystem Memory Tree", () => {
       const ranks = ECOSYSTEM_MEMORY_NODES.filter((node) => node.helperId === unlock.helperId && node.kind === "helperRank");
       for (const rank of ranks) expect(unlock.visualScale ?? 1).toBeGreaterThan(rank.visualScale ?? 1);
     }
+  });
+
+  it("gives every helper rank a distinct, helper-specific identity", () => {
+    const helperRanks = ECOSYSTEM_MEMORY_NODES.filter((node) => node.kind === "helperRank");
+
+    expect(helperRanks).toHaveLength(32);
+    expect(new Set(helperRanks.map((node) => node.label)).size).toBe(helperRanks.length);
+    expect(getHelperRankMemoryLabel("tinySprinkler", "throughput")).toBe("Clockwork Nozzle");
+    expect(getHelperRankMemoryLabel("fieldMouse", "throughput")).toBe("Quick Paws");
+    expect(getHelperRankMemoryLabel("meadowRabbit", "storage")).toBe("Burrow Network");
   });
 
   it("leads progression descriptions with their gameplay effect", () => {
