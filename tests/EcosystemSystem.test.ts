@@ -9,6 +9,7 @@ import {
 } from "../src/game/ecosystem/EcosystemCatalog";
 import { getManualTouchCooldownMs } from "../src/game/ecosystem/EcosystemTouchCooldown";
 import {
+  BEE_HIVE_STARTER_FLOWERS,
   FIELD_MOUSE_STARTER_SEEDS,
   advanceEcosystem,
   buyCultivationRank,
@@ -20,6 +21,7 @@ import {
   forceGameOver,
   getBroadPalmPower,
   getBroadPalmRadius,
+  getBeeHiveStatus,
   getFirstAutomationStatus,
   getFieldMouseStatus,
   getManyHandsPower,
@@ -75,6 +77,7 @@ describe("EcosystemSystem", () => {
     initialScourgeDemandPerSecond: number;
     sprinklerPurchasedAtMs: number | null;
     hpAtPurchase: number | null;
+    grassTouchesAwarded: number;
   } {
     const permanent = createPermanentEcosystemState();
     permanent.completedRuns = 1;
@@ -109,6 +112,62 @@ describe("EcosystemSystem", () => {
       initialScourgeDemandPerSecond,
       sprinklerPurchasedAtMs,
       hpAtPurchase,
+      grassTouchesAwarded: state.endedSummary?.grassTouchesAwarded ?? 0,
+    };
+  }
+
+  function simulateFirstFieldMouseChapterAtFullTouchRate(): {
+    sprinklerPurchasedAtMs: number | null;
+    mousePurchasedAtMs: number | null;
+    firstMouseCycleAtMs: number | null;
+    hpAtFirstMouseCycle: number | null;
+  } {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 2;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    permanent.unlockedHelpers.fieldMouse = true;
+    const state = createEcosystemState(permanent, { seed: 9_010 });
+    const touchCooldownMs = getManualTouchCooldownMs(0);
+    let wallElapsedMs = 0;
+    let nextTouchAtMs = 0;
+    let sprinklerPurchasedAtMs: number | null = null;
+    let mousePurchasedAtMs: number | null = null;
+    let firstMouseCycleAtMs: number | null = null;
+    let hpAtFirstMouseCycle: number | null = null;
+
+    while (state.active && wallElapsedMs < 60_000 && firstMouseCycleAtMs === null) {
+      if (wallElapsedMs >= nextTouchAtMs) {
+        touchFieldTile(state, permanent, 0);
+        nextTouchAtMs += touchCooldownMs;
+      }
+      if (
+        sprinklerPurchasedAtMs === null
+        && state.runTouches >= getHelperPurchaseCost(state, "tinySprinkler")
+        && buyHelper(state, permanent, "tinySprinkler")
+      ) {
+        sprinklerPurchasedAtMs = wallElapsedMs;
+      }
+      if (
+        mousePurchasedAtMs === null
+        && getFirstAutomationStatus(state, permanent).stage === "sustain"
+        && state.runTouches >= getHelperPurchaseCost(state, "fieldMouse")
+        && buyHelper(state, permanent, "fieldMouse")
+      ) {
+        mousePurchasedAtMs = wallElapsedMs;
+      }
+      advanceEcosystem(state, permanent, 10);
+      wallElapsedMs += 10;
+      if (state.helpers.fieldMouse.cyclesCompleted >= 1) {
+        firstMouseCycleAtMs = wallElapsedMs;
+        hpAtFirstMouseCycle = state.hp;
+      }
+    }
+
+    return {
+      sprinklerPurchasedAtMs,
+      mousePurchasedAtMs,
+      firstMouseCycleAtMs,
+      hpAtFirstMouseCycle,
     };
   }
 
@@ -251,6 +310,47 @@ describe("EcosystemSystem", () => {
     state.runTouches = getHelperPurchaseCost(state, "fieldMouse");
     expect(buyHelper(state, permanent, "fieldMouse")).toBe(true);
     expect(state.resources.seeds.amount).toBe(0);
+  });
+
+  it("turns the first Bee Hive purchase into an immediate pollination chapter", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 3;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    permanent.unlockedHelpers.fieldMouse = true;
+    permanent.unlockedHelpers.beeHive = true;
+    const state = createEcosystemState(permanent, { seed: 8_153 });
+    state.runTouches = getHelperPurchaseCost(state, "beeHive");
+
+    expect(getBeeHiveStatus(state, permanent).stage).toBe("ready");
+    expect(buyHelper(state, permanent, "beeHive")).toBe(true);
+    expect(state.resources.flowers.amount).toBe(BEE_HIVE_STARTER_FLOWERS);
+    expect(getBeeHiveStatus(state, permanent).stage).toBe("firstFlight");
+
+    for (let step = 0; step < 24; step += 1) advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+
+    expect(state.helpers.beeHive.cyclesCompleted).toBeGreaterThanOrEqual(1);
+    expect(state.resources.flowers.consumedTotal).toBeGreaterThanOrEqual(1);
+    expect(state.resources.pollinatedBlooms.producedTotal).toBeGreaterThan(1);
+    expect(getBeeHiveStatus(state, permanent).stage).toBe("working");
+    expect(consumeHelperPulses(state).beeHive).toBeGreaterThanOrEqual(1);
+  });
+
+  it("opens one Flower reserve per run and reports a flower-starved hive", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 3;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    permanent.unlockedHelpers.fieldMouse = true;
+    permanent.unlockedHelpers.beeHive = true;
+    const state = createEcosystemState(permanent, { seed: 8_154 });
+    state.runTouches = getHelperPurchaseCost(state, "beeHive");
+
+    expect(buyHelper(state, permanent, "beeHive")).toBe(true);
+    state.resources.flowers.amount = 0;
+    expect(getBeeHiveStatus(state, permanent).stage).toBe("starved");
+
+    state.runTouches = getHelperPurchaseCost(state, "beeHive");
+    expect(buyHelper(state, permanent, "beeHive")).toBe(true);
+    expect(state.resources.flowers.amount).toBe(0);
   });
 
   it("keeps Run 1 bare-hands-only even when helper Memories and RT are injected", () => {
@@ -545,6 +645,21 @@ describe("EcosystemSystem", () => {
     expect(result.durationMs).toBeGreaterThanOrEqual(30_000);
     expect(result.durationMs).toBeLessThanOrEqual(45_000);
     expect(result.durationMs - result.sprinklerPurchasedAtMs!).toBeGreaterThanOrEqual(25_000);
+    expect(result.grassTouchesAwarded).toBeGreaterThanOrEqual(getHelperUnlockCost("fieldMouse"));
+  });
+
+  it("reaches the first Field Mouse planting through clean early-run play", () => {
+    const result = simulateFirstFieldMouseChapterAtFullTouchRate();
+
+    expect(result.sprinklerPurchasedAtMs).not.toBeNull();
+    expect(result.mousePurchasedAtMs).not.toBeNull();
+    expect(result.mousePurchasedAtMs!).toBeGreaterThanOrEqual(20_000);
+    expect(result.mousePurchasedAtMs!).toBeLessThanOrEqual(30_000);
+    expect(result.firstMouseCycleAtMs).not.toBeNull();
+    expect(result.firstMouseCycleAtMs!).toBeGreaterThanOrEqual(25_000);
+    expect(result.firstMouseCycleAtMs!).toBeLessThanOrEqual(35_000);
+    expect(result.hpAtFirstMouseCycle).not.toBeNull();
+    expect(result.hpAtFirstMouseCycle!).toBeGreaterThan(0);
   });
 
   it("lets a developed production web reach a sustained thriving state", () => {

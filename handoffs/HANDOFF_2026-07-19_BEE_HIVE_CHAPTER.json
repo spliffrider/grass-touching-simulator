@@ -1,0 +1,58 @@
+{
+  "date": "2026-07-19",
+  "topic": "Bee Hive pollination chapter",
+  "currentUserGoal": "Continue the ecosystem gameplay chain after Field Mouse with a concrete, animated Bee Hive chapter while preserving smooth bounded rendering and verifying the clean early-game progression.",
+  "workCompleted": [
+    "Added a deterministic clean-play contract showing Run 2 remains in its 30-45 second band, awards enough GT to unlock Field Mouse, and reaches the first mouse purchase around 20-30 seconds and first planting around 25-35 seconds on the next run.",
+    "Added explicit Bee Hive states for locked, RT gathering, ready, first flight, working, flower-starved, and output-blocked behavior.",
+    "The first Bee Hive bought in each run opens exactly four nearby Flowers so pollination demonstrates immediately; later hives do not grant additional Flowers.",
+    "Added focused tests proving real Flowers are consumed, Pollinated Blooms are produced, helper pulses fire, and the one-reserve-per-run rule holds.",
+    "Advanced the Living Ledger into the Bee Hive chapter after the Field Mouse completes its first planting, with RT progress, Flower reserve, cycle progress, Bloom output, and actionable pause copy.",
+    "Added semantic Bee Hive purchase labels and exported debug state for stage, hives, cycles, progress, Flower reserve, and Pollinated Blooms.",
+    "Loaded the existing bee-pixel asset and added one queued pooled flight from hive to field and back, plus a bounded three-fleck pollen burst. Additional hive cycles queue on that flight rather than creating per-hive actors.",
+    "Documented the First Pollination Flight chapter in docs/ECOSYSTEM_FACTORY_DESIGN.md."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-19_BEE_HIVE_CHAPTER.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 165 Vitest tests across 21 files, strict TypeScript, and the Vite production build.",
+    "Focused EcosystemSystem tests passed with 32 tests, including the new clean Field Mouse timing and Bee Hive resource-flow contracts.",
+    "The live ecosystem playtest route returned HTTP 200 from the local Vite server.",
+    "The production build contains dist/assets/effects/bee-pixel.png.",
+    "The Vite error log remained empty and hot reload reported no compilation failures.",
+    "git diff --check passed apart from the repository's existing Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Bee Hive chapter committed locally; master is two commits ahead of origin/master because neither the Field Mouse nor Bee Hive checkpoint has been pushed.",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "Automated screenshots were unavailable because the in-app browser tab remained blocked on the network-error page created before the dev server started. The server and route are healthy, but a fresh hands-on visual pass is still required.",
+    "Bee Hive RT cost, four-Flower reserve, throughput, and starvation timing need player feel-testing in normal progression.",
+    "Chicken Patrol and later helpers remain functional scaffolding rather than guided animated chapters.",
+    "The game remains explicitly alpha."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test the Tiny Sprinkler to Field Mouse to Bee Hive sequence at http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest.",
+    "Tune Bee Hive cost and Flower/Bloom pacing from that test before adding more chain depth.",
+    "Build Chicken Patrol as the next guided chapter after Bee Hive is approved.",
+    "Push the two local master commits only when the user requests a GitHub or production sync."
+  ],
+  "doNotRevert": [
+    "Do not expose the Bee Hive before its permanent Memory is unlocked.",
+    "Do not let the Bee objective replace the Field Mouse objective until a mouse planting has completed, unless a hive was already bought directly.",
+    "Do not grant the four-Flower reserve for the second or later hive in a run.",
+    "Do not create one bee actor, pollen system, or animation chain per hive; preserve the single queued pooled flight.",
+    "Do not cite the legacy 1200-tile harness as ecosystem performance evidence.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

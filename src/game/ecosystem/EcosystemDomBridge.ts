@@ -8,6 +8,7 @@ import {
 } from "./EcosystemMemoryTree";
 import {
   canBeginNextEcosystemRun,
+  getBeeHiveStatus,
   getCultivationCost,
   getDominantChunkStage,
   getFieldMouseStatus,
@@ -21,6 +22,7 @@ import {
   isFirstMemoryPending,
   isRunEquipmentAvailable,
   type EcosystemState,
+  type BeeHiveStatus,
   type FieldMouseStatus,
   type FirstAutomationStatus,
   type PermanentEcosystemState,
@@ -95,6 +97,25 @@ function getFieldMouseReadableLine(status: FieldMouseStatus): string | null {
       return "Field Mouse searching: Seed cache empty; keep Dew, Moisture, and Growth moving";
     case "blocked":
       return `Field Mouse waiting: ${status.pauseReason ?? "check its buffers"}`;
+  }
+}
+
+function getBeeHiveReadableLine(status: BeeHiveStatus): string | null {
+  switch (status.stage) {
+    case "locked":
+      return null;
+    case "gather":
+      return `Bee Hive foundation: ${Math.floor(status.purchaseProgress * status.purchaseCost)} / ${status.purchaseCost} RT`;
+    case "ready":
+      return `Bee Hive ready: establish it for ${status.purchaseCost} RT; nearby wildflowers provide four Flowers`;
+    case "firstFlight":
+      return `First pollination flight: a bee is carrying pollen across the field, cycle ${Math.floor(status.cycleProgress * 100)}%`;
+    case "working":
+      return `Bee Hive working: ${status.flowerAmount.toFixed(1)} Flowers available, ${status.pollinatedBloomAmount.toFixed(1)} Pollinated Blooms stored`;
+    case "starved":
+      return "Bee Hive searching: Flower stores empty; keep Growth moving into Flowers";
+    case "blocked":
+      return `Bee Hive waiting: ${status.pauseReason ?? "check its buffers"}`;
   }
 }
 
@@ -275,6 +296,10 @@ export class EcosystemDomBridge {
     const automationLine = getAutomationReadableLine(firstAutomation);
     const fieldMouse = getFieldMouseStatus(state, permanent);
     const fieldMouseLine = getFieldMouseReadableLine(fieldMouse);
+    const beeHive = getBeeHiveStatus(state, permanent);
+    const beeHiveLine = getBeeHiveReadableLine(beeHive);
+    const showBeeHiveChapter = beeHive.stage !== "locked"
+      && (state.helpers.beeHive.count > 0 || fieldMouse.cyclesCompleted >= 1);
     const firstCollapse = isFirstEcosystemCollapse(state, permanent);
     const firstMemoryPending = isFirstMemoryPending(state, permanent);
     const revealedMemoryNodeIds = memoryRevealActive
@@ -294,6 +319,7 @@ export class EcosystemDomBridge {
       `Field ${state.field.width}x${state.field.height} | Cultivation ${state.field.cultivationRank}/10 | RT ${state.runTouches.toFixed(1)} | GT ${permanent.grassTouches.toFixed(0)}`,
       ...(automationLine ? [automationLine] : []),
       ...(fieldMouseLine ? [fieldMouseLine] : []),
+      ...(showBeeHiveChapter && beeHiveLine ? [beeHiveLine] : []),
       `Bottleneck: ${state.bottleneck}`,
       `Chunks: ${state.field.dirtyChunks.length} total; ${chunkSummary}`,
       "Stocks:",
@@ -346,6 +372,10 @@ export class EcosystemDomBridge {
           ? state.runTouches >= cost
             ? `Invite first Field Mouse for ${cost} RT`
             : `First Field Mouse: ${Math.floor(state.runTouches)} / ${cost} RT`
+        : helperId === "beeHive" && state.helpers.beeHive.count === 0
+          ? state.runTouches >= cost
+            ? `Establish first Bee Hive for ${cost} RT`
+            : `First Bee Hive: ${Math.floor(state.runTouches)} / ${cost} RT`
         : `Buy ${HELPERS[helperId].label} for ${cost} RT`);
     }
     for (const button of this.modeButtons) {
@@ -452,6 +482,12 @@ export class EcosystemDomBridge {
       fieldMouseCycles: Number(fieldMouse.cyclesCompleted.toFixed(3)),
       fieldMouseCycleProgress: Number(fieldMouse.cycleProgress.toFixed(3)),
       seedCache: Number(fieldMouse.seedAmount.toFixed(3)),
+      beeHiveStage: beeHive.stage,
+      beeHives: equipmentAvailable ? state.helpers.beeHive.count : 0,
+      beeHiveCycles: Number(beeHive.cyclesCompleted.toFixed(3)),
+      beeHiveCycleProgress: Number(beeHive.cycleProgress.toFixed(3)),
+      flowerReserve: Number(beeHive.flowerAmount.toFixed(3)),
+      pollinatedBlooms: Number(beeHive.pollinatedBloomAmount.toFixed(3)),
       firstMemoryFocus: firstMemoryPending || memoryRevealActive,
       memoryRevealActive,
       revealedMemoryNodes: state.active ? 0 : revealedMemoryNodeIds.size,

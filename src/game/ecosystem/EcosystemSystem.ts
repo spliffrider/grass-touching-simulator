@@ -22,6 +22,7 @@ import {
 export const ECOSYSTEM_PERMANENT_VERSION = 1;
 export const ECOSYSTEM_ACTIVE_VERSION = 1;
 export const FIELD_MOUSE_STARTER_SEEDS = 3;
+export const BEE_HIVE_STARTER_FLOWERS = 4;
 const FIRST_RUN_SCOURGE_BASE = 10_000_000;
 const FIRST_RUN_OPENING_HP = 1;
 const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.18;
@@ -164,6 +165,19 @@ export interface FieldMouseStatus {
   cyclesCompleted: number;
   seedAmount: number;
   growthAmount: number;
+  pauseReason: string | null;
+}
+
+export type BeeHiveStage = "locked" | "gather" | "ready" | "firstFlight" | "working" | "starved" | "blocked";
+
+export interface BeeHiveStatus {
+  stage: BeeHiveStage;
+  purchaseCost: number;
+  purchaseProgress: number;
+  cycleProgress: number;
+  cyclesCompleted: number;
+  flowerAmount: number;
+  pollinatedBloomAmount: number;
   pauseReason: string | null;
 }
 
@@ -501,6 +515,40 @@ export function getFieldMouseStatus(
   return { stage: "working", ...common };
 }
 
+export function getBeeHiveStatus(
+  state: EcosystemState,
+  permanent: PermanentEcosystemState,
+): BeeHiveStatus {
+  const hive = state.helpers.beeHive;
+  const purchaseCost = getHelperPurchaseCost(state, "beeHive");
+  const common = {
+    purchaseCost,
+    purchaseProgress: Math.min(1, Math.max(0, state.runTouches / purchaseCost)),
+    cycleProgress: Math.min(1, Math.max(0, hive.pulseProgress)),
+    cyclesCompleted: hive.cyclesCompleted,
+    flowerAmount: state.resources.flowers.amount,
+    pollinatedBloomAmount: state.resources.pollinatedBlooms.amount,
+    pauseReason: hive.lastPauseReason,
+  };
+
+  if (!isRunEquipmentAvailable(state) || !permanent.unlockedHelpers.beeHive) {
+    return { stage: "locked", ...common };
+  }
+  if (hive.count <= 0) {
+    return { stage: state.runTouches >= purchaseCost ? "ready" : "gather", ...common };
+  }
+  if (hive.lastPauseReason?.startsWith("Needs flowers") || state.resources.flowers.amount < EPSILON) {
+    return { stage: "starved", ...common };
+  }
+  if (hive.lastPauseReason) {
+    return { stage: "blocked", ...common };
+  }
+  if (hive.cyclesCompleted < 1) {
+    return { stage: "firstFlight", ...common };
+  }
+  return { stage: "working", ...common };
+}
+
 export function buyHelper(state: EcosystemState, permanent: PermanentEcosystemState, helperId: HelperId): boolean {
   if (!isRunEquipmentAvailable(state) || !permanent.unlockedHelpers[helperId]) {
     return false;
@@ -511,9 +559,13 @@ export function buyHelper(state: EcosystemState, permanent: PermanentEcosystemSt
   }
   state.runTouches -= cost;
   const firstFieldMouse = helperId === "fieldMouse" && state.helpers.fieldMouse.count === 0;
+  const firstBeeHive = helperId === "beeHive" && state.helpers.beeHive.count === 0;
   state.helpers[helperId].count += 1;
   if (firstFieldMouse) {
     addResource(state, "seeds", FIELD_MOUSE_STARTER_SEEDS);
+  }
+  if (firstBeeHive) {
+    addResource(state, "flowers", BEE_HIVE_STARTER_FLOWERS);
   }
   state.helperPurchaseCount += 1;
   return true;

@@ -102,6 +102,24 @@ representative patch, plants it, and returns to its parked status badge. One
 pooled carried-Seed sprite and the existing impact pool represent the action;
 additional simultaneous cycles are summarized by the same bounded animation.
 
+### First Pollination Flight
+
+Once the Field Mouse has completed a planting cycle, an unlocked Bee Hive
+becomes the next guided chapter. The Ledger tracks RT toward its first hive,
+then follows Flower reserves, pollination-cycle progress, Pollinated Blooms,
+and blocked or flower-starved states.
+
+The first Bee Hive bought in each run opens four nearby Flowers. The reserve is
+large enough to demonstrate the new conversion immediately without replacing
+the natural Growth-to-Flowers chain. Later hives do not create more Flowers.
+Pollinate mode favors Bloom throughput; Honey Reserve trades some throughput
+for Care.
+
+One pooled bee sprite flies from the hive to a representative flowering patch,
+releases a bounded three-fleck pollen burst, and returns. Extra cycles queue on
+that same flight instead of creating one actor or tween per hive, preserving a
+fixed presentation budget as equipment counts grow.
+
 ## Fixed-Tick Simulation
 
 Production runs on deterministic 250 ms ticks. Frame rendering never executes

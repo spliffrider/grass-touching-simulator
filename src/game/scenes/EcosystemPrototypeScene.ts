@@ -83,6 +83,7 @@ import {
   type FieldViewportState,
 } from "../ecosystem/EcosystemViewport";
 import {
+  BEE_HIVE_STARTER_FLOWERS,
   FIELD_MOUSE_STARTER_SEEDS,
   advanceEcosystem,
   buyCultivationRank,
@@ -95,6 +96,7 @@ import {
   createPermanentEcosystemState,
   forceGameOver,
   getCultivationCost,
+  getBeeHiveStatus,
   getDominantChunkStage,
   getEcosystemReadout,
   getFieldMouseStatus,
@@ -150,7 +152,7 @@ const TILE_VARIANTS: Record<TileStage, readonly string[]> = {
 const HELPER_EFFECT_TEXTURE: Record<HelperId, string> = {
   tinySprinkler: "eco-effect-water",
   fieldMouse: "eco-effect-seed",
-  beeHive: "eco-effect-pollen",
+  beeHive: "eco-effect-bee",
   chickenPatrol: "eco-effect-spore",
   earthwormCrew: "eco-effect-spore",
   ancientRoots: "eco-effect-water",
@@ -192,6 +194,7 @@ const HELPER_PULSE_ANIMATION_MS = 620;
 const HELPER_SOUND_INTERVAL_MS = 720;
 const FIELD_MOUSE_SCURRY_MS = 1_080;
 const FIELD_MOUSE_PLANT_RATIO = 0.62;
+const BEE_FLIGHT_MS = 460;
 const TOUCH_READY_FLASH_MS = 220;
 const FIRST_MEMORY_CELEBRATION_MS = 520;
 const FIRST_MEMORY_REVEAL_MS = 1_050;
@@ -242,6 +245,8 @@ interface HelperActorView {
   scurryTargetY: number;
   scurryPulseCount: number;
   scurryPlanted: boolean;
+  beeFlightActive: boolean;
+  beeFlightPulseCount: number;
 }
 
 interface MemoryNodeRuntime {
@@ -330,7 +335,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private displayObjectCount = 0;
   private lastGameOverState = false;
   private firstSprinklerCycleCelebrated = false;
-  private firstSprinklerReadyForPurchase = false;
+  private automationGoalReadyForPurchase = false;
   private returnToTitleAvailable = false;
 
   private background!: Phaser.GameObjects.Image;
@@ -492,6 +497,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
     this.load.image("eco-effect-water", "/assets/effects/water-drop.png");
     this.load.image("eco-effect-seed", "/assets/effects/seed-kernel.png");
+    this.load.image("eco-effect-bee", "/assets/effects/bee-pixel.png");
     this.load.image("eco-effect-pollen", "/assets/effects/pollen-fleck.png");
     this.load.image("eco-effect-spore", "/assets/effects/magic-spore.png");
     this.load.image("eco-effect-grass", "/assets/tiles/grass-fleck.png");
@@ -517,6 +523,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       "eco-player",
       "eco-effect-water",
       "eco-effect-seed",
+      "eco-effect-bee",
       "eco-effect-pollen",
       "eco-effect-spore",
       "eco-effect-grass",
@@ -618,7 +625,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.displayObjectCount = 0;
     this.lastGameOverState = false;
     this.firstSprinklerCycleCelebrated = false;
-    this.firstSprinklerReadyForPurchase = false;
+    this.automationGoalReadyForPurchase = false;
     this.openingPanelsVisible = false;
     this.displayedHpRatio = 1;
     this.hpHeartbeatPulse = 0;
@@ -885,6 +892,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         scurryTargetY: 0,
         scurryPulseCount: 0,
         scurryPlanted: false,
+        beeFlightActive: false,
+        beeFlightPulseCount: 0,
       };
     }
 
@@ -1724,14 +1733,51 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
       const firstAutomation = getFirstAutomationStatus(this.state, this.permanent);
       const fieldMouse = getFieldMouseStatus(this.state, this.permanent);
-      const showFieldMouseChapter = fieldMouse.stage !== "locked" && firstAutomation.stage === "sustain";
-      this.firstSprinklerReadyForPurchase = showFieldMouseChapter
-        ? fieldMouse.stage === "ready"
-        : this.state.helpers.tinySprinkler.count === 0 && this.state.runTouches >= firstAutomation.purchaseCost;
+      const beeHive = getBeeHiveStatus(this.state, this.permanent);
+      const showBeeHiveChapter = beeHive.stage !== "locked"
+        && (this.state.helpers.beeHive.count > 0 || fieldMouse.cyclesCompleted >= 1);
+      const showFieldMouseChapter = !showBeeHiveChapter
+        && fieldMouse.stage !== "locked"
+        && firstAutomation.stage === "sustain";
+      this.automationGoalReadyForPurchase = showBeeHiveChapter
+        ? beeHive.stage === "ready"
+        : showFieldMouseChapter
+          ? fieldMouse.stage === "ready"
+          : this.state.helpers.tinySprinkler.count === 0 && this.state.runTouches >= firstAutomation.purchaseCost;
       let automationProgress = 0;
       let automationColor: number;
       let automationCopy: string;
-      if (showFieldMouseChapter) {
+      if (showBeeHiveChapter) {
+        switch (beeHive.stage) {
+          case "ready":
+            automationProgress = 1;
+            automationColor = 0xffe889;
+            automationCopy = `BEE HIVE READY  |  Establish it for ${beeHive.purchaseCost} RT`;
+            break;
+          case "firstFlight":
+            automationProgress = beeHive.cycleProgress;
+            automationColor = HELPER_EFFECT_COLOR.beeHive;
+            automationCopy = `FIRST POLLINATION  |  ${BEE_HIVE_STARTER_FLOWERS} Flowers opened - follow the bee`;
+            break;
+          case "working":
+            automationProgress = beeHive.cycleProgress;
+            automationColor = HELPER_EFFECT_COLOR.beeHive;
+            automationCopy = `BLOOMS ACTIVE  |  ${beeHive.flowerAmount.toFixed(1)} Flowers  |  ${beeHive.pollinatedBloomAmount.toFixed(1)} Pollinated`;
+            break;
+          case "starved":
+            automationColor = 0xe8616a;
+            automationCopy = "HIVE SEARCHING  |  Flower stores empty - cultivate more Growth";
+            break;
+          case "blocked":
+            automationColor = 0xe8616a;
+            automationCopy = `HIVE WAITING  |  ${beeHive.pauseReason ?? "Check its buffers"}`;
+            break;
+          default:
+            automationProgress = beeHive.purchaseProgress;
+            automationColor = HELPER_EFFECT_COLOR.beeHive;
+            automationCopy = `BEE HIVE  |  Gather RT ${Math.floor(this.state.runTouches)} / ${beeHive.purchaseCost}`;
+        }
+      } else if (showFieldMouseChapter) {
         switch (fieldMouse.stage) {
           case "ready":
             automationProgress = 1;
@@ -1826,6 +1872,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
             ? this.state.runTouches >= cost
               ? `Invite Field Mouse  |  ${cost} RT`
               : `Field Mouse  |  ${Math.floor(this.state.runTouches)} / ${cost} RT`
+          : helperId === "beeHive" && helper.count === 0
+            ? this.state.runTouches >= cost
+              ? `Establish Bee Hive  |  ${cost} RT`
+              : `Bee Hive  |  ${Math.floor(this.state.runTouches)} / ${cost} RT`
           : `${HELPERS[helperId].label} x${helper.count}  Buy ${cost} RT${pause}`;
         this.helperBuyButtons[helperId]
           .setLabel(label)
@@ -2212,6 +2262,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         actor.scurryStartedAt = -Infinity;
         actor.scurryPulseCount = 0;
         actor.scurryPlanted = false;
+        actor.beeFlightActive = false;
+        actor.beeFlightPulseCount = 0;
         continue;
       }
       const fraction = (index + 1) / (owned.length + 1);
@@ -2277,7 +2329,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.scourgeCore.setScale(1 + Math.sin(now * 0.0031 + 0.8) * 0.09);
     }
     if (this.automationGoalText.visible) {
-      this.automationGoalText.setAlpha(this.firstSprinklerReadyForPurchase
+      this.automationGoalText.setAlpha(this.automationGoalReadyForPurchase
         ? 0.82 + (Math.sin(now * 0.006) + 1) * 0.09
         : 1);
     }
@@ -2469,6 +2521,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       if (!priming) this.spawnFieldMouseScurry(actor, pulseCount);
       return;
     }
+    if (helperId === "beeHive") {
+      if (!priming) this.spawnBeeFlight(actor, pulseCount);
+      return;
+    }
     if (helperId === "tinySprinkler" && this.time.now - this.lastHelperSoundAt >= HELPER_SOUND_INTERVAL_MS) {
       this.lastHelperSoundAt = this.time.now;
       this.audio.play("sprinkler");
@@ -2529,6 +2585,101 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
   }
 
+  private spawnBeeFlight(actor: HelperActorView, pulseCount: number): void {
+    if (actor.beeFlightActive) {
+      actor.beeFlightPulseCount += pulseCount;
+      return;
+    }
+    const bee = this.effectPool.find((candidate) => !candidate.visible);
+    if (!bee) return;
+    const singlePlot = this.state.field.stages.length === 1 && this.projection.lod === "near";
+    const centerX = this.projection.originX + this.projection.worldWidth / 2;
+    const centerY = this.projection.originY + this.projection.worldHeight / 2;
+    const singlePlotSize = singlePlot
+      ? Math.min(420, this.projection.cellSize * 0.86, this.fieldBounds.height * 0.72)
+      : 0;
+    const targetX = singlePlot
+      ? centerX + (Math.random() - 0.5) * singlePlotSize * 0.54
+      : Phaser.Math.Clamp(
+        this.projection.originX + Math.random() * this.projection.worldWidth,
+        this.fieldBounds.x + 22,
+        this.fieldBounds.x + this.fieldBounds.width - 22,
+      );
+    const targetY = singlePlot
+      ? centerY + (Math.random() - 0.5) * singlePlotSize * 0.42
+      : Phaser.Math.Clamp(
+        this.projection.originY + Math.random() * this.projection.worldHeight,
+        this.fieldBounds.y + 58,
+        this.fieldBounds.y + this.fieldBounds.height - 36,
+      );
+
+    actor.beeFlightActive = true;
+    actor.beeFlightPulseCount = Math.max(1, pulseCount);
+    bee
+      .setTexture("eco-effect-bee")
+      .setPosition(actor.image.x, actor.image.y - actor.actorSize * 0.2)
+      .setAlpha(1)
+      .setScale(1)
+      .setDisplaySize(20, 20)
+      .setRotation(-0.08)
+      .setFlipX(targetX < actor.image.x)
+      .setVisible(true);
+    this.tweens.killTweensOf(bee);
+    this.tweens.add({
+      targets: bee,
+      x: targetX,
+      y: targetY,
+      rotation: 0.08,
+      duration: BEE_FLIGHT_MS,
+      ease: "Sine.easeInOut",
+      hold: 120,
+      yoyo: true,
+      onYoyo: () => {
+        const deliveredPulses = Math.max(1, actor.beeFlightPulseCount);
+        actor.beeFlightPulseCount = 0;
+        bee.setFlipX(actor.image.x >= targetX);
+        if (!this.state.active || this.worksOpen) return;
+        this.spawnBeePollinationBurst(targetX, targetY);
+        this.completeHelperEffect("beeHive", targetX, targetY, deliveredPulses, false, false);
+      },
+      onComplete: () => {
+        bee.setVisible(false).setFlipX(false);
+        actor.beeFlightActive = false;
+        const queuedPulses = actor.beeFlightPulseCount;
+        actor.beeFlightPulseCount = 0;
+        if (queuedPulses > 0 && this.state.active && !this.worksOpen) {
+          this.spawnBeeFlight(actor, queuedPulses);
+        }
+      },
+    });
+  }
+
+  private spawnBeePollinationBurst(x: number, y: number): void {
+    for (let index = 0; index < 3; index += 1) {
+      const pollen = this.effectPool.find((candidate) => !candidate.visible);
+      if (!pollen) break;
+      pollen
+        .setTexture("eco-effect-pollen")
+        .setPosition(x + (index - 1) * 7, y)
+        .setAlpha(0.94)
+        .setScale(0.68)
+        .setRotation(index * 0.8)
+        .setVisible(true);
+      this.tweens.killTweensOf(pollen);
+      this.tweens.add({
+        targets: pollen,
+        x: x + (index - 1) * 22,
+        y: y - 24 - index * 5,
+        rotation: pollen.rotation + Math.PI * 1.5,
+        scale: 1.2,
+        alpha: 0,
+        duration: 460 + index * 45,
+        ease: "Cubic.easeOut",
+        onComplete: () => pollen.setVisible(false),
+      });
+    }
+  }
+
   private spawnFieldMouseScurry(actor: HelperActorView, pulseCount: number): void {
     if (this.time.now - actor.scurryStartedAt < FIELD_MOUSE_SCURRY_MS) {
       actor.scurryPulseCount += pulseCount;
@@ -2574,7 +2725,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     celebrateFirstCare: boolean,
   ): void {
     const color = HELPER_EFFECT_COLOR[helperId];
-    if (!priming && helperId === "fieldMouse" && this.time.now - this.lastHelperSoundAt >= HELPER_SOUND_INTERVAL_MS) {
+    if (!priming
+      && (helperId === "fieldMouse" || helperId === "beeHive")
+      && this.time.now - this.lastHelperSoundAt >= HELPER_SOUND_INTERVAL_MS) {
       this.lastHelperSoundAt = this.time.now;
       this.audio.play("seed");
     }
@@ -2682,6 +2835,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         ? "FIRST SPRINKLER ONLINE"
         : helperId === "fieldMouse"
           ? `FIELD MOUSE ONLINE  |  +${FIELD_MOUSE_STARTER_SEEDS} SEEDS`
+        : helperId === "beeHive"
+          ? `BEE HIVE ONLINE  |  +${BEE_HIVE_STARTER_FLOWERS} FLOWERS`
           : `${HELPERS[helperId].label.toUpperCase()} ONLINE`)
       .setColor(`#${color.toString(16).padStart(6, "0")}`)
       .setPosition(actor.baseX, actor.baseY - actor.actorSize * 0.95)
