@@ -27,9 +27,18 @@
   ],
   "gitStatus": {
     "branch": "master",
-    "expectedAfterCommit": "Currency HUD and Memory detail checkpoint committed locally; master is two commits ahead of origin/master and has not been pushed.",
-    "pushRequested": false,
+    "expectedAfterCommit": "Currency HUD and resize-recovery checkpoints are pushed to origin/master. This release-record update is a docs-only follow-up.",
+    "pushRequested": true,
     "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "deployment": {
+    "target": "production",
+    "status": "Ready",
+    "deploymentId": "dpl_7ouDU6Yo78BdqjANZFwWkqPBpiKx",
+    "deploymentUrl": "https://grass-touching-simulator-bp13drzbu-sensitech.vercel.app",
+    "productionUrl": "https://grasstouchingsimulator.com",
+    "deployedCodeCommit": "0e2f1eb",
+    "verification": "The custom domain returned HTTP 200 and served assets/index-B-2dRJNn.js, matching the locally verified production build."
   },
   "knownIssues": [
     "The playtest debug control panel intentionally overlays the lower-left corner and is not part of the production interface.",
@@ -38,7 +47,7 @@
   "nextRecommendedSteps": [
     "Hands-on check the active currency plaques and short-window Memory detail once in the user's normal browser.",
     "Return to the early Growth and first-expansion pacing work after this readability slice is approved.",
-    "Push master and run the Mac handoff workflow only when the user requests a cross-machine or production sync."
+    "Run the Mac handoff workflow only when the user requests a cross-machine sync."
   ],
   "doNotRevert": [
     "Do not combine Run Touches and Grass Touches back into one plain text string.",
