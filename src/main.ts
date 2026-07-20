@@ -5,12 +5,12 @@ import { EcosystemPrototypeScene } from "./game/scenes/EcosystemPrototypeScene";
 import { EcosystemTitleScene } from "./game/scenes/EcosystemTitleScene";
 import { RedesignPrototypeScene } from "./game/scenes/RedesignPrototypeScene";
 import { TitleScene } from "./game/scenes/TitleScene";
+import {
+  applyViewportResize,
+  isUsableViewportSize,
+  type ViewportSize,
+} from "./viewport";
 import "./style.css";
-
-interface ViewportSize {
-  width: number;
-  height: number;
-}
 
 declare global {
   interface Window {
@@ -107,7 +107,14 @@ let resizeTimeoutHandle: number | undefined;
 let lastResizeAppliedAt = 0;
 
 function resizeGame(force = false): void {
+  if (document.hidden) {
+    return;
+  }
+
   const viewport = getViewportSize();
+  if (!isUsableViewportSize(viewport)) {
+    return;
+  }
   syncViewportCss(viewport);
 
   const widthDelta = Math.abs(viewport.width - lastViewport.width);
@@ -116,18 +123,12 @@ function resizeGame(force = false): void {
     return;
   }
 
-  const gameElement = document.getElementById("game");
-  if (gameElement) {
-    gameElement.style.width = `${viewport.width}px`;
-    gameElement.style.height = `${viewport.height}px`;
-  }
-
-  game.scale.setParentSize(viewport.width, viewport.height);
-
-  if (game.canvas) {
-    game.canvas.style.width = `${viewport.width}px`;
-    game.canvas.style.height = `${viewport.height}px`;
-  }
+  applyViewportResize(
+    viewport,
+    document.getElementById("game"),
+    game.canvas,
+    (width, height) => game.scale.setParentSize(width, height),
+  );
 
   lastViewport = viewport;
   lastResizeAppliedAt = performance.now();
@@ -158,6 +159,12 @@ function queueResizeGame(): void {
 
 window.addEventListener("resize", queueResizeGame);
 window.visualViewport?.addEventListener("resize", queueResizeGame);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  window.requestAnimationFrame(() => resizeGame(true));
+});
+window.addEventListener("focus", () => resizeGame(true));
+window.addEventListener("pageshow", () => resizeGame(true));
 window.addEventListener("orientationchange", () => {
   if (resizeTimeoutHandle !== undefined) {
     window.clearTimeout(resizeTimeoutHandle);

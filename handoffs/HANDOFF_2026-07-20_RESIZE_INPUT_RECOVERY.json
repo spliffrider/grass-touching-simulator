@@ -1,0 +1,55 @@
+{
+  "date": "2026-07-20",
+  "topic": "Browser restore input and resize performance",
+  "currentUserGoal": "Keep the ecosystem game clickable and responsive after minimizing and maximizing the browser window.",
+  "workCompleted": [
+    "Reproduced the failure with a compact-to-maximized viewport transition: the visible canvas and field hit area resized, but real Phaser canvas clicks stopped reaching the scene.",
+    "Identified the root cause in the global resize path: Phaser refreshed its pointer transform while the canvas still had the old CSS dimensions, then the canvas CSS size changed afterward.",
+    "Added a tested viewport resize helper that applies the final game and canvas CSS dimensions before Phaser refreshes its scale and pointer bounds.",
+    "Ignored hidden and transiently unusable viewport sizes so a minimized window cannot lay out the game at near-zero dimensions.",
+    "Added visibility, focus, and page-show recovery refreshes so restoring a browser resynchronizes Phaser even when the final viewport dimensions match the previous window size.",
+    "Made the ecosystem resize listener skip duplicate-size layouts, avoid preparing the hidden Memory Grove during an active run, and unregister only its own listener on shutdown.",
+    "Exported canvas bounds and pointer scale through the ecosystem playtest harness for direct regression diagnosis.",
+    "Added viewport regression tests covering CSS-before-Phaser ordering and minimized-size rejection."
+  ],
+  "filesChanged": [
+    "src/main.ts",
+    "src/viewport.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/ViewportResize.test.ts",
+    "handoffs/HANDOFF_2026-07-20_RESIZE_INPUT_RECOVERY.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 179 Vitest tests across 22 files, strict TypeScript, and the Vite production build.",
+    "Automated browser regression reproduced a 320x200 to 1920x1080 transition on the actual ecosystem route.",
+    "After the fix, canvas bounds were 1920x1080, pointer scale was exactly 1x1, and the 1020x882 field surface matched its 1020x882 Phaser hit area.",
+    "The first real canvas touch after maximizing was accepted with 0.0 ms reported input latency.",
+    "The maximized one-tile playtest measured 144 FPS, 6.75 ms p95 frame delta, and zero frame spikes in the sampled window.",
+    "A 390x844 phone transition also kept canvas, field surface, hit area, and touch input synchronized.",
+    "The browser console had no warnings or errors during the final checks.",
+    "git diff --check passed apart from the repository's existing Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Resize recovery checkpoint committed locally; master is one commit ahead of origin/master and has not been pushed.",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The automated viewport transition exercises the same stale-bounds failure path, but a final hands-on minimize and maximize in the user's normal browser is still the best confirmation of OS-window behavior.",
+    "The game remains explicitly alpha; this slice fixes resize responsiveness and does not retune ecosystem balance."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on minimize and maximize the normal ecosystem playtest once and confirm the first field click and Options button both respond immediately.",
+    "Continue the early Growth and first-expansion pacing test after resize behavior is confirmed.",
+    "Use the new canvasBounds and pointerScale harness fields for any future resize regression instead of inferring input geometry from screenshots."
+  ],
+  "doNotRevert": [
+    "Do not move the canvas CSS assignments after game.scale.setParentSize; Phaser must read the final client rectangle while refreshing pointer coordinates.",
+    "Do not process hidden or near-zero viewport dimensions as real game layouts.",
+    "Do not restore the anonymous ecosystem resize listener or the broad scale.off(RESIZE) cleanup.",
+    "Do not cite the legacy 1200-tile harness as ecosystem performance evidence.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-20",
-  "latestHandoff": "HANDOFF_2026-07-20_STARTER_GROWTH.json",
+  "latestHandoff": "HANDOFF_2026-07-20_RESIZE_INPUT_RECOVERY.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

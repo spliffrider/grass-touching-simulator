@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { isUsableViewportSize } from "../../viewport";
 import {
   readStoredMusicVolume,
   readStoredSfxVolume,
@@ -350,6 +351,18 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private firstSprinklerCycleCelebrated = false;
   private automationGoalReadyForPurchase = false;
   private returnToTitleAvailable = false;
+  private lastLayoutWidth = 0;
+  private lastLayoutHeight = 0;
+  private readonly handleScaleResize = (gameSize: Phaser.Structs.Size): void => {
+    const width = Math.round(gameSize.width);
+    const height = Math.round(gameSize.height);
+    if (!isUsableViewportSize({ width, height })) return;
+    if (width === this.lastLayoutWidth && height === this.lastLayoutHeight) return;
+
+    this.layout(width, height);
+    if (!this.state.active) this.prepareMemoryGroveView();
+    this.renderField(true);
+  };
 
   private background!: Phaser.GameObjects.Image;
   private fieldRoot!: Phaser.GameObjects.Container;
@@ -591,11 +604,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.cameras.main.fadeIn(240, 3, 12, 7);
     this.playRootEntrance(this.state.active ? this.fieldRoot : this.memoryRoot);
 
-    this.scale.on(Phaser.Scale.Events.RESIZE, (gameSize: Phaser.Structs.Size) => {
-      this.layout(gameSize.width, gameSize.height);
-      this.prepareMemoryGroveView();
-      this.renderField(true);
-    });
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.handleScaleResize);
     window.addEventListener("pagehide", this.handlePageHide);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.shutdownScene());
     window.__grassAppReady?.();
@@ -649,6 +658,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.ambientMotes.length = 0;
     this.touchCooldowns.clear();
     this.touchRecoveryVisual = null;
+    this.lastLayoutWidth = 0;
+    this.lastLayoutHeight = 0;
     this.memoryNodeViews.clear();
     this.helperActors = {} as Record<HelperId, HelperActorView>;
     this.helperFeedbackTexts = {} as Record<HelperId, Phaser.GameObjects.Text>;
@@ -1272,6 +1283,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private layout(width: number, height: number): void {
+    this.lastLayoutWidth = Math.round(width);
+    this.lastLayoutHeight = Math.round(height);
     const mobile = width < 760;
     const ledgerUnlocked = isRunEquipmentAvailable(this.state)
       && this.permanent.unlockedHelpers.tinySprinkler;
@@ -4175,6 +4188,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       fieldInputHeight: Math.round(this.fieldSurface.height),
       fieldInputHitAreaWidth: Math.round(Number(this.fieldSurface.input?.hitArea?.width ?? 0)),
       fieldInputHitAreaHeight: Math.round(Number(this.fieldSurface.input?.hitArea?.height ?? 0)),
+      canvasBoundsWidth: Math.round(this.scale.canvasBounds.width),
+      canvasBoundsHeight: Math.round(this.scale.canvasBounds.height),
+      pointerScaleX: Number(this.scale.displayScale.x.toFixed(4)),
+      pointerScaleY: Number(this.scale.displayScale.y.toFixed(4)),
       averageTouchInputLatencyMs: this.touchInputAttempts > 0
         ? Number((this.touchInputLatencyTotalMs / this.touchInputAttempts).toFixed(3))
         : 0,
@@ -4371,6 +4388,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.music?.stop();
     this.domBridge?.destroy();
     window.removeEventListener("pagehide", this.handlePageHide);
-    this.scale.off(Phaser.Scale.Events.RESIZE);
+    this.scale.off(Phaser.Scale.Events.RESIZE, this.handleScaleResize);
   }
 }
