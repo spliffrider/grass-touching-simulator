@@ -1,0 +1,46 @@
+{
+  "date": "2026-07-21",
+  "topic": "Memory Grove background atmosphere and depth",
+  "currentUserGoal": "Make the Memory Grove and skill-tree backgrounds feel richer and less like flat dark-green panels without obscuring the readable skill web or harming performance.",
+  "workCompleted": [
+    "Allowed the existing meadow artwork to ghost through the Memory Grove's outer shell instead of covering it with an almost opaque flat overlay.",
+    "Added restrained woven-grove texture layers to the run summary, Memory Web, and selected-memory detail panels.",
+    "Added a faint meadow layer inside the web viewport so the skill nodes feel rooted in the game's world rather than suspended in an empty green void.",
+    "Added deterministic dappled light, edge roots, low grass silhouettes, title flourishes, and a small pool of drifting pollen and spores behind the skill connectors.",
+    "Kept all new atmosphere bounded to fixed display objects and preallocated typed-array motion data, with no per-frame object creation or active tweens.",
+    "Previewed and tuned the populated Memory Grove on desktop and phone viewports with the user-facing preview shown in the in-app browser."
+  ],
+  "filesChanged": [
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-21_MEMORY_GROVE_ATMOSPHERE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 181 Vitest tests across 23 files, strict TypeScript, and the Vite production build.",
+    "Verified the populated Memory Grove at 1280x720 and 390x844; panel texture, motes, roots, and meadow depth remain behind the connector and node hierarchy.",
+    "Browser diagnostics contained no warnings or errors.",
+    "Phone Memory Grove performance snapshot: 143 FPS, 0 frame spikes, 0 active tweens, 0.014 ms average animation work, and 0.1 ms maximum animation work.",
+    "git diff --check passed apart from the repository's existing Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Memory Grove atmosphere committed locally; master is two commits ahead of origin/master and has not been pushed or redeployed.",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The atmosphere intentionally remains subtle so it does not compete with the growing skill web; future visual additions should preserve this readability hierarchy.",
+    "This checkpoint is local only until the user requests another GitHub and Vercel release."
+  ],
+  "nextRecommendedSteps": [
+    "Let the user continue judging the live local Memory Grove preview and tune atmosphere strength if requested.",
+    "Push master and deploy Vercel when the user approves the current visual pass.",
+    "Continue early Growth and first-expansion pacing work after the Memory Grove presentation is accepted."
+  ],
+  "doNotRevert": [
+    "Do not restore the removed transparent cluster polygons around Memory Web branches.",
+    "Do not add decorative paths that can be mistaken for skill connectors or overlap skill nodes.",
+    "Do not replace the bounded atmosphere pool with per-frame-created particles or tweens.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

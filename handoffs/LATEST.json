@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-20",
-  "latestHandoff": "HANDOFF_2026-07-20_CREDITS_ROSTER_RESTORE.json",
+  "updatedAt": "2026-07-21",
+  "latestHandoff": "HANDOFF_2026-07-21_MEMORY_GROVE_ATMOSPHERE.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

@@ -198,6 +198,7 @@ const HARNESS_REFRESH_MS = 500;
 const MAX_EFFECTS = 24;
 const MAX_CHUNK_VIEWS = 100;
 const AMBIENT_MOTE_COUNT = 18;
+const MEMORY_GROVE_MOTE_COUNT = 12;
 const MAX_SCENE_CONTENT_WIDTH = 1680;
 const HELPER_ARRIVAL_MS = 760;
 const HELPER_PULSE_ANIMATION_MS = 620;
@@ -462,6 +463,18 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private factoryResourceBacks = {} as Record<ProductionResourceId, Phaser.GameObjects.Rectangle>;
 
   private memoryChrome!: Phaser.GameObjects.Graphics;
+  private memoryAtmosphere!: Phaser.GameObjects.Graphics;
+  private memorySummaryTexture!: Phaser.GameObjects.TileSprite;
+  private memoryTreeMeadow!: Phaser.GameObjects.TileSprite;
+  private memoryTreeTexture!: Phaser.GameObjects.TileSprite;
+  private memoryDetailTexture!: Phaser.GameObjects.TileSprite;
+  private memoryMoteLayer!: Phaser.GameObjects.Container;
+  private memoryMotes: Phaser.GameObjects.Image[] = [];
+  private readonly memoryMotePhases = new Float32Array(MEMORY_GROVE_MOTE_COUNT);
+  private readonly memoryMoteBaseXs = new Float32Array(MEMORY_GROVE_MOTE_COUNT);
+  private readonly memoryMoteBaseYs = new Float32Array(MEMORY_GROVE_MOTE_COUNT);
+  private readonly memoryMoteDriftXs = new Float32Array(MEMORY_GROVE_MOTE_COUNT);
+  private readonly memoryMoteDriftYs = new Float32Array(MEMORY_GROVE_MOTE_COUNT);
   private memoryTitle!: Phaser.GameObjects.Text;
   private memorySubtitle!: Phaser.GameObjects.Text;
   private memorySummary!: Phaser.GameObjects.Text;
@@ -542,6 +555,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.load.image("memory-node-available", "/assets/ui/skill-node-available.png");
     this.load.image("memory-node-owned", "/assets/ui/skill-node-owned.png");
     this.load.image("memory-node-selected", "/assets/ui/skill-node-selected.png");
+    this.load.image("memory-grove-texture", "/assets/ui/emerald-bg.png");
     for (const asset of ECOSYSTEM_MEMORY_ICON_ASSETS) this.load.image(asset.key, asset.path);
   }
 
@@ -666,6 +680,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.impactPool.length = 0;
     this.effectPool.length = 0;
     this.ambientMotes.length = 0;
+    this.memoryMotes.length = 0;
     this.touchCooldowns.clear();
     this.touchRecoveryVisual = null;
     this.lastLayoutWidth = 0;
@@ -1024,11 +1039,35 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private createMemoryView(): void {
     this.memoryChrome = this.add.graphics();
+    this.memorySummaryTexture = this.add.tileSprite(0, 0, 1, 1, "memory-grove-texture")
+      .setOrigin(0)
+      .setBlendMode(Phaser.BlendModes.SCREEN);
+    this.memoryTreeMeadow = this.add.tileSprite(0, 0, 1, 1, "eco-background")
+      .setOrigin(0)
+      .setBlendMode(Phaser.BlendModes.SCREEN);
+    this.memoryTreeTexture = this.add.tileSprite(0, 0, 1, 1, "memory-grove-texture")
+      .setOrigin(0)
+      .setBlendMode(Phaser.BlendModes.SCREEN);
+    this.memoryDetailTexture = this.add.tileSprite(0, 0, 1, 1, "memory-grove-texture")
+      .setOrigin(0)
+      .setBlendMode(Phaser.BlendModes.SCREEN);
+    this.memoryAtmosphere = this.add.graphics();
     this.memoryTreeMaskShape = this.add.graphics().setVisible(false);
+    const memoryTreeMask = this.memoryTreeMaskShape.createGeometryMask();
+    this.memoryMoteLayer = this.add.container();
     this.memoryTreeWorld = this.add.container();
     this.memoryTreeLines = this.add.graphics();
     this.memoryTreeWorld.add(this.memoryTreeLines);
-    this.memoryTreeWorld.setMask(this.memoryTreeMaskShape.createGeometryMask());
+    this.memoryTreeWorld.setMask(memoryTreeMask);
+    this.memoryMoteLayer.setMask(memoryTreeMask);
+    for (let index = 0; index < MEMORY_GROVE_MOTE_COUNT; index += 1) {
+      const mote = this.add.image(0, 0, index % 4 === 0 ? "eco-effect-spore" : "eco-effect-pollen")
+        .setOrigin(0.5)
+        .setAlpha(0.25);
+      this.memoryMotePhases[index] = (index / MEMORY_GROVE_MOTE_COUNT) * Math.PI * 2;
+      this.memoryMotes.push(mote);
+      this.memoryMoteLayer.add(mote);
+    }
     this.memoryTitle = this.createText("Memory Grove", 34, "#fff3c2", "bold");
     this.memorySubtitle = this.createText("The field is still. Spend Grass Touches on what the next run remembers.", 14, "#b8d9a4");
     this.memorySummary = this.createText("", 13, "#e3f3d6");
@@ -1051,6 +1090,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.memoryDetailIcon = this.add.image(0, 0, "eco-player").setOrigin(0.5);
     this.memoryRoot.add([
       this.memoryChrome,
+      this.memorySummaryTexture,
+      this.memoryTreeMeadow,
+      this.memoryTreeTexture,
+      this.memoryDetailTexture,
+      this.memoryAtmosphere,
+      this.memoryMoteLayer,
       this.memoryTreeWorld,
       this.memoryTitle,
       this.memorySubtitle,
@@ -1617,7 +1662,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private layoutMemory(width: number, height: number, mobile: boolean): void {
     this.memoryChrome.clear();
-    this.memoryChrome.fillStyle(0x04130c, 0.975).fillRect(0, 0, width, height);
+    this.memoryChrome.fillStyle(0x04130c, 0.89).fillRect(0, 0, width, height);
     this.memoryChrome.lineStyle(3, 0xd8b66a, 0.92).strokeRect(8, 8, width - 16, height - 16);
     this.memoryChrome.lineStyle(1, 0x77a65d, 0.28).strokeRect(14, 14, width - 28, height - 28);
     const contentWidth = mobile ? width - 16 : Math.min(1760, width - 32);
@@ -1646,6 +1691,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     let detailY: number;
     let detailWidth: number;
     let detailHeight: number;
+    let summaryBounds: FieldViewportBounds | null = null;
     if (mobile) {
       treePanelX = 10;
       treePanelY = 120;
@@ -1671,6 +1717,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       detailX = treePanelX + treePanelWidth + gap;
       detailY = mainY;
       detailHeight = mainHeight;
+      summaryBounds = { x: contentX, y: mainY, width: summaryWidth, height: mainHeight };
       this.drawPanel(this.memoryChrome, contentX, mainY, summaryWidth, mainHeight, 0.9);
       this.drawPanel(this.memoryChrome, treePanelX, treePanelY, treePanelWidth, treePanelHeight, 0.78);
       this.drawPanel(this.memoryChrome, detailX, detailY, detailWidth, detailHeight, 0.9);
@@ -1707,6 +1754,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.memoryTreeViewport.width / ECOSYSTEM_MEMORY_WORLD_WIDTH,
       this.memoryTreeViewport.height / ECOSYSTEM_MEMORY_WORLD_HEIGHT,
     ) * 0.94;
+    this.layoutMemoryGroveBackground(
+      width,
+      height,
+      mobile,
+      { x: treePanelX, y: treePanelY, width: treePanelWidth, height: treePanelHeight },
+      { x: detailX, y: detailY, width: detailWidth, height: detailHeight },
+      summaryBounds,
+    );
 
     if (mobile) {
       const iconX = detailX + 58;
@@ -1737,6 +1792,125 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       .setPosition(width / 2 - (mobile ? 176 : 150), height - (mobile ? 64 : 70))
       .setSize(mobile ? 352 : 300, mobile ? 50 : 52);
     this.applyMemoryTreeViewTransform();
+  }
+
+  private layoutMemoryGroveBackground(
+    width: number,
+    height: number,
+    mobile: boolean,
+    treeBounds: FieldViewportBounds,
+    detailBounds: FieldViewportBounds,
+    summaryBounds: FieldViewportBounds | null,
+  ): void {
+    const textureInset = mobile ? 6 : 8;
+    const layoutTexture = (
+      texture: Phaser.GameObjects.TileSprite,
+      bounds: FieldViewportBounds,
+      alpha: number,
+      tint: number,
+    ): void => {
+      texture
+        .setVisible(true)
+        .setPosition(bounds.x + textureInset, bounds.y + textureInset)
+        .setSize(
+          Math.max(1, bounds.width - textureInset * 2),
+          Math.max(1, bounds.height - textureInset * 2),
+        )
+        .setTileScale(mobile ? 0.62 : 0.78)
+        .setTint(tint)
+        .setAlpha(alpha);
+    };
+
+    layoutTexture(this.memoryTreeMeadow, treeBounds, mobile ? 0.07 : 0.1, 0x7cad78);
+    this.memoryTreeMeadow.setTileScale(mobile ? 0.42 : 0.56);
+    layoutTexture(this.memoryTreeTexture, treeBounds, mobile ? 0.18 : 0.24, 0x72a56a);
+    layoutTexture(this.memoryDetailTexture, detailBounds, mobile ? 0.12 : 0.16, 0x588a72);
+    if (summaryBounds) {
+      layoutTexture(this.memorySummaryTexture, summaryBounds, 0.15, 0x668b56);
+    } else {
+      this.memorySummaryTexture.setVisible(false);
+    }
+
+    const graphics = this.memoryAtmosphere;
+    graphics.clear();
+    graphics.fillStyle(0xa7d47a, mobile ? 0.02 : 0.035).fillEllipse(
+      width / 2,
+      mobile ? 40 : 46,
+      Math.min(width * 0.62, 760),
+      mobile ? 82 : 112,
+    );
+    graphics.lineStyle(1, 0x91bd73, 0.16).strokeRoundedRect(
+      treeBounds.x + 9,
+      treeBounds.y + 9,
+      treeBounds.width - 18,
+      treeBounds.height - 18,
+      4,
+    );
+
+    const dappleCount = mobile ? 18 : 30;
+    for (let index = 0; index < dappleCount; index += 1) {
+      const normalizedX = ((index * 37 + 11) % 101) / 100;
+      const normalizedY = ((index * 61 + 23) % 97) / 96;
+      const x = this.memoryTreeViewport.x + 12 + normalizedX * Math.max(1, this.memoryTreeViewport.width - 24);
+      const y = this.memoryTreeViewport.y + 10 + normalizedY * Math.max(1, this.memoryTreeViewport.height - 20);
+      const color = index % 5 === 0 ? 0xd8b66a : index % 3 === 0 ? 0x8fbd75 : 0x4f805b;
+      graphics.fillStyle(color, 0.07 + (index % 4) * 0.015).fillCircle(x, y, index % 6 === 0 ? 2 : 1);
+    }
+
+    const rootBottom = treeBounds.y + treeBounds.height - 10;
+    for (const edge of [0, 1]) {
+      const direction = edge === 0 ? 1 : -1;
+      const anchorX = edge === 0 ? treeBounds.x + 13 : treeBounds.x + treeBounds.width - 13;
+      const kneeX = anchorX + direction * (mobile ? 24 : 42);
+      const kneeY = rootBottom - (mobile ? 38 : 58);
+      graphics.lineStyle(mobile ? 1 : 2, 0x8a633e, 0.13);
+      graphics.lineBetween(anchorX, rootBottom, kneeX, kneeY);
+      graphics.lineBetween(kneeX, kneeY, kneeX + direction * (mobile ? 12 : 26), kneeY - (mobile ? 26 : 44));
+      graphics.lineStyle(1, 0x8a633e, 0.1);
+      graphics.lineBetween(kneeX, kneeY, kneeX + direction * (mobile ? 18 : 32), kneeY + 9);
+      graphics.lineBetween(
+        kneeX + direction * 5,
+        kneeY - 12,
+        kneeX - direction * (mobile ? 8 : 15),
+        kneeY - (mobile ? 24 : 32),
+      );
+    }
+
+    const sprigCount = mobile ? 5 : 9;
+    for (let index = 0; index < sprigCount; index += 1) {
+      const x = treeBounds.x + 28 + (index / Math.max(1, sprigCount - 1)) * (treeBounds.width - 56);
+      const stemHeight = (mobile ? 12 : 18) + (index % 3) * (mobile ? 3 : 5);
+      const lean = ((index % 2) * 2 - 1) * (mobile ? 3 : 5);
+      const baseY = treeBounds.y + treeBounds.height - 9;
+      graphics.lineStyle(1, 0x79ad62, 0.12);
+      graphics.lineBetween(x, baseY, x + lean, baseY - stemHeight);
+      graphics.lineBetween(x + lean * 0.55, baseY - stemHeight * 0.55, x + lean + 5, baseY - stemHeight * 0.7);
+      graphics.lineBetween(x + lean * 0.72, baseY - stemHeight * 0.72, x + lean - 5, baseY - stemHeight * 0.88);
+    }
+
+    const flourishHalfWidth = Math.min(mobile ? 62 : 150, width * 0.22);
+    graphics.lineStyle(1, 0xd8b66a, mobile ? 0.12 : 0.18);
+    graphics.lineBetween(width / 2 - flourishHalfWidth, mobile ? 35 : 41, width / 2 - (mobile ? 72 : 176), mobile ? 41 : 48);
+    graphics.lineBetween(width / 2 + flourishHalfWidth, mobile ? 35 : 41, width / 2 + (mobile ? 72 : 176), mobile ? 41 : 48);
+
+    for (let index = 0; index < this.memoryMotes.length; index += 1) {
+      const normalizedX = ((index * 43 + 17) % 103) / 102;
+      const normalizedY = ((index * 67 + 29) % 107) / 106;
+      this.memoryMoteBaseXs[index] = this.memoryTreeViewport.x + 16
+        + normalizedX * Math.max(1, this.memoryTreeViewport.width - 32);
+      this.memoryMoteBaseYs[index] = this.memoryTreeViewport.y + 14
+        + normalizedY * Math.max(1, this.memoryTreeViewport.height - 28);
+      this.memoryMoteDriftXs[index] = (mobile ? 3 : 5) + (index % 4) * 1.5;
+      this.memoryMoteDriftYs[index] = (mobile ? 4 : 7) + (index % 3) * 2;
+      const moteSize = (mobile ? 3 : 4) + (index % 3);
+      this.memoryMotes[index]
+        .setVisible(true)
+        .setPosition(this.memoryMoteBaseXs[index], this.memoryMoteBaseYs[index])
+        .setDisplaySize(moteSize, moteSize);
+    }
+
+    graphics.fillStyle(0x010704, 0.16).fillRect(0, 0, width, 10);
+    graphics.fillStyle(0x010704, 0.18).fillRect(0, height - 12, width, 12);
   }
 
   private layoutMemoryCurrencyBadge(x: number, y: number, width: number, height: number, mobile: boolean): void {
@@ -4142,6 +4316,25 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.memoryCurrencyIcon
       .setScale(currencyScaleX * (1 + pulse * 0.025), currencyScaleY * (1 + pulse * 0.025))
       .setAngle(pulse * 1.2);
+    this.memoryTreeTexture.tilePositionX = now * 0.0012;
+    this.memoryTreeTexture.tilePositionY = -now * 0.00055;
+    this.memoryTreeMeadow.tilePositionX = -now * 0.00018;
+    this.memoryTreeMeadow.tilePositionY = now * 0.00008;
+    this.memorySummaryTexture.tilePositionX = -now * 0.00045;
+    this.memorySummaryTexture.tilePositionY = now * 0.0003;
+    this.memoryDetailTexture.tilePositionX = now * 0.00035;
+    this.memoryDetailTexture.tilePositionY = now * 0.0005;
+    for (let index = 0; index < this.memoryMotes.length; index += 1) {
+      const phase = this.memoryMotePhases[index];
+      const orbit = now * (0.00032 + (index % 4) * 0.000035) + phase;
+      this.memoryMotes[index]
+        .setPosition(
+          this.memoryMoteBaseXs[index] + Math.sin(orbit) * this.memoryMoteDriftXs[index],
+          this.memoryMoteBaseYs[index] + Math.cos(orbit * 0.83) * this.memoryMoteDriftYs[index],
+        )
+        .setAlpha(0.16 + (Math.sin(orbit * 1.7) + 1) * 0.09)
+        .setAngle(Math.sin(orbit * 0.7) * 14);
+    }
     this.beginNextRunButton.container.setScale(
       this.beginNextRunButton.enabled ? 1 + Math.sin(now * 0.004) * 0.018 : 1,
     );
