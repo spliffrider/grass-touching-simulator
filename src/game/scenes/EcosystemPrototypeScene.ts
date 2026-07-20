@@ -181,7 +181,7 @@ const HELPER_EFFECT_COLOR: Record<HelperId, number> = {
 };
 
 const HELPER_PULSE_COPY: Record<HelperId, string> = {
-  tinySprinkler: "MOISTURE + CARE",
+  tinySprinkler: "MOISTURE + GROWTH + CARE",
   fieldMouse: "GROWTH + RUN TOUCHES",
   beeHive: "POLLINATED BLOOMS",
   chickenPatrol: "COMPOST + RUN TOUCHES",
@@ -1716,6 +1716,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.setTextIfChanged(this.caretakerStats, [
         `Touch yield     ${this.state.runNumber === 1 ? "0 Care (overwhelmed)" : "5.2 Care"}`,
         "Dew gathered    1.15",
+        `Hand Tending    ${this.state.runNumber === 1 ? "after first collapse" : "+0.35 Growth"}`,
         "Run Touches     +0.92",
         "",
         `Fast Touch      ${getManualTouchCooldownMs(this.permanent.fastTouchRank)} ms recovery`,
@@ -1855,7 +1856,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           case "firstCycle":
             automationProgress = firstAutomation.cycleProgress;
             automationColor = 0x8de7ff;
-            automationCopy = "FIRST SPRAY  |  Watch Dew become Moisture + Care";
+            automationCopy = "FIRST SPRAY  |  Dew becomes Moisture + Growth + Care";
             break;
           case "sustain":
             automationProgress = firstAutomation.cycleProgress;
@@ -2994,9 +2995,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         onComplete: () => view.setVisible(false),
       });
     }
-    this.touchSummaryText.setText(
-      `${result.affectedTileCount} tile${result.affectedTileCount === 1 ? "" : "s"} cared for  |  +${result.dewGained.toFixed(1)} Dew  +${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}`,
-    ).setAlpha(1).setY(this.fieldBounds.y + 56);
+    const growthSummary = result.growthGained > 0 ? `  +${result.growthGained.toFixed(1)} Growth` : "";
+    const touchSummary = this.scale.width < 760
+      ? `+${result.dewGained.toFixed(1)} Dew${growthSummary}\n+${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}`
+      : `${result.affectedTileCount} tile${result.affectedTileCount === 1 ? "" : "s"} cared for  |  +${result.dewGained.toFixed(1)} Dew${growthSummary}  +${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}`;
+    this.touchSummaryText.setText(touchSummary).setAlpha(1).setY(this.fieldBounds.y + 56);
     this.tweens.killTweensOf(this.touchSummaryText);
     this.tweens.add({ targets: this.touchSummaryText, y: this.fieldBounds.y + 39, alpha: 0, duration: 1_100, ease: "Cubic.easeOut" });
   }

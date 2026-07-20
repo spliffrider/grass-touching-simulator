@@ -280,6 +280,7 @@ export interface TouchBatchResult {
   totalPower: number;
   healedHp: number;
   dewGained: number;
+  growthGained: number;
   runTouchesGained: number;
   fieldEmbraceTriggered: boolean;
   representativeImpacts: readonly TouchBatchImpact[];

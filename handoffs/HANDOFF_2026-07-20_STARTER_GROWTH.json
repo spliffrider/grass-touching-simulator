@@ -1,0 +1,63 @@
+{
+  "date": "2026-07-20",
+  "topic": "One-tile starter Growth through Hand Tending",
+  "currentUserGoal": "Give the inherited 1x1 field easier, understandable Growth sources before the Field Mouse economy is established.",
+  "workCompleted": [
+    "Added Hand Tending after the authored first collapse: every accepted manual touch produces 0.35 Growth per point of total touch power.",
+    "Kept Run 1 unchanged by granting no Hand Tending Growth during its deliberate onboarding collapse.",
+    "Added immediate touch feedback for Growth on desktop and a compact two-line version on phone layouts.",
+    "Added a small 0.08 Growth bonus per completed Tiny Sprinkler Caretaker cycle.",
+    "Implemented sprinkler Growth as a non-blocking bonus after the base recipe completes, so full Growth storage can never pause Moisture or Care production.",
+    "Updated the caretaker readout, first-spray teaching copy, helper pulse copy, readable DOM state, and semantic snapshot to expose the new Growth sources.",
+    "Updated the durable ecosystem design document with Hand Tending and starter sprinkler sprouting.",
+    "Added deterministic coverage for twenty base touches producing seven Growth, Run 1 producing none, sprinkler Growth production, and full Growth storage preserving Care output.",
+    "Reset the automated browser save to clean Run 1 and reopened the normal ecosystem playtest route."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-20_STARTER_GROWTH.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 177 Vitest tests across 21 files, strict TypeScript, and the Vite production build.",
+    "The focused EcosystemSystem suite passed all 39 tests after the non-blocking sprinkler correction.",
+    "Live Run 2+ browser verification confirmed one accepted base touch immediately raised Growth by approximately 0.35 and displayed +0.4 Growth after the remembered +1% touch bonus.",
+    "Desktop visual QA showed the Growth reward in the field touch summary and Living Ledger without overlap.",
+    "Exact 390x844 QA showed the compact two-line touch summary, field, and Living Ledger remained readable without layout overlap.",
+    "The browser console had no warnings or errors during the live checks.",
+    "The final automated browser state is clean Run 1 with 100 HP, zero Run Touches, zero Grass Touches, a 1x1 field, and the normal playtest route open.",
+    "git diff --check passed apart from the repository's existing Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Starter Growth checkpoint committed locally; master is one commit ahead of origin/master and has not been pushed.",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The 0.35 manual Growth and 0.08 sprinkler Growth values are initial balance values and need hands-on Run 2 and early-midgame tuning.",
+    "At uninterrupted base touch cadence, Hand Tending alone projects roughly thirteen minutes to the current 736-Growth first expansion; real Scourge survival should require progression before that full interval is possible.",
+    "Growth acquisition is now visible on touch, but the Cultivation UI still does not preview cumulative cost or estimated progress to the next field expansion.",
+    "The game remains explicitly alpha."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test Run 2 and judge whether the first seven-Growth Cultivation purchase arrives at a satisfying pace.",
+    "Tune Hand Tending, starter sprinkler Growth, or the ten Cultivation costs from real feel rather than changing all three simultaneously.",
+    "Add a clear next-expansion progress treatment showing current Growth, next Cultivation cost, and the remembered field-size ceiling.",
+    "Continue testing the transition from manual Hand Tending into Field Mouse and Damp Furrows production.",
+    "Push local master only when the user requests a GitHub, production, or Mac sync."
+  ],
+  "doNotRevert": [
+    "Do not grant Hand Tending Growth during Run 1; that run remains the authored first-collapse lesson.",
+    "Do not move starter sprinkler Growth into the Caretaker recipe's required outputs; a full Growth buffer must never pause life-saving Care.",
+    "Do not grant Growth for cooldown-rejected taps; only accepted manual touches receive Hand Tending output.",
+    "Do not remove growthGained from TouchBatchResult or the semantic Growth snapshot because they make the starter source directly testable.",
+    "Do not cite the legacy 1200-tile harness as ecosystem performance evidence.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

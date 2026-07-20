@@ -28,6 +28,8 @@ export const HELPER_THROUGHPUT_PER_RANK = 0.12;
 export const DAMP_FURROWS_MOISTURE_PER_CYCLE = 0.3;
 export const DAMP_FURROWS_GROWTH_PER_CYCLE = 0.45;
 export const DAMP_FURROWS_CARE_PER_CYCLE = 0.22;
+export const HAND_TENDING_GROWTH_PER_POWER = 0.35;
+export const STARTER_SPRINKLER_GROWTH_PER_CYCLE = 0.08;
 const FIRST_RUN_SCOURGE_BASE = 10_000_000;
 const FIRST_RUN_OPENING_HP = 1;
 const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.18;
@@ -1001,6 +1003,22 @@ function performDampFurrows(
   return cycles;
 }
 
+function performStarterSprouting(
+  state: EcosystemState,
+  completedCycles: number,
+  producedThisTick: ProductionRateRecord,
+): number {
+  if (completedCycles <= EPSILON) return 0;
+  const growthAdded = addResource(
+    state,
+    "growth",
+    completedCycles * STARTER_SPRINKLER_GROWTH_PER_CYCLE,
+  );
+  producedThisTick.growth += growthAdded;
+  state.field.stageProgress += completedCycles * 0.08;
+  return growthAdded;
+}
+
 function getRecipeInputMultiplier(permanent: PermanentEcosystemState, recipe: ProductionRecipe): number {
   if (!recipe.helperId) {
     return 1;
@@ -1219,6 +1237,9 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
       const throughput = getHelperThroughputMultiplier(permanent.throughputRanks[recipe.helperId]);
       const requested = recipe.cyclesPerSecond * helper.count * throughput * tickSeconds;
       const completedCycles = performRecipe(state, permanent, recipe, requested, producedThisTick);
+      if (recipe.id === "sprinkler-care") {
+        performStarterSprouting(state, completedCycles, producedThisTick);
+      }
       if (recipe.helperId === "fieldMouse") {
         performDampFurrows(state, completedCycles, producedThisTick);
       }
@@ -1365,6 +1386,9 @@ export function touchFieldTile(
   state.hp += healedHp;
   state.manualCareTotal += healedHp;
   const dewGained = addResource(state, "dew", totalPower * 1.15);
+  const growthGained = state.runNumber === 1
+    ? 0
+    : addResource(state, "growth", totalPower * HAND_TENDING_GROWTH_PER_POWER);
   const runTouchesGained = totalPower * 0.92;
   state.runTouches += runTouchesGained;
   state.runTouchesEarned += runTouchesGained;
@@ -1382,6 +1406,7 @@ export function touchFieldTile(
     totalPower,
     healedHp,
     dewGained,
+    growthGained,
     runTouchesGained,
     fieldEmbraceTriggered: embraceTriggered,
     representativeImpacts,

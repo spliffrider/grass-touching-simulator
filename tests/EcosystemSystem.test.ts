@@ -11,6 +11,7 @@ import { getManualTouchCooldownMs } from "../src/game/ecosystem/EcosystemTouchCo
 import {
   BEE_HIVE_STARTER_FLOWERS,
   FIELD_MOUSE_STARTER_SEEDS,
+  HAND_TENDING_GROWTH_PER_POWER,
   advanceEcosystem,
   buyCultivationRank,
   buyHelper,
@@ -217,6 +218,24 @@ describe("EcosystemSystem", () => {
     expect(state.helpers.tinySprinkler.lastPauseReason).toMatch(/full/i);
   });
 
+  it("keeps sprinkler Care running when optional starter Growth storage is full", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    const state = createEcosystemState(permanent, { seed: 5 });
+    state.helpers.tinySprinkler.count = 1;
+    state.resources.dew.amount = state.resources.dew.capacity;
+    state.resources.growth.amount = state.resources.growth.capacity;
+    state.resources.moisture.amount = 0;
+    state.resources.care.amount = 0;
+
+    for (let step = 0; step < 12; step += 1) advanceEcosystem(state, permanent, 250);
+
+    expect(state.resources.growth.amount).toBe(state.resources.growth.capacity);
+    expect(state.resources.care.producedTotal).toBeGreaterThan(0);
+    expect(state.helpers.tinySprinkler.lastPauseReason).toBeNull();
+  });
+
   it("emits one consumable Tiny Sprinkler pulse after a completed production cycle", () => {
     const permanent = createPermanentEcosystemState();
     permanent.completedRuns = 1;
@@ -230,12 +249,13 @@ describe("EcosystemSystem", () => {
     for (let step = 0; step < 12; step += 1) advanceEcosystem(state, permanent, 250);
 
     expect(state.resources.moisture.amount).toBeGreaterThan(0);
+    expect(state.resources.growth.producedTotal).toBeGreaterThan(0);
     expect(state.resources.care.producedTotal).toBeGreaterThan(0);
     expect(consumeHelperPulses(state).tinySprinkler).toBe(1);
     expect(consumeHelperPulses(state).tinySprinkler).toBe(0);
   });
 
-  it("carries the first loss into a purchasable Dew-to-Care sprinkler chain", () => {
+  it("carries the first loss into a purchasable sprinkler Care and Growth chain", () => {
     const permanent = createPermanentEcosystemState();
     permanent.grassTouches = getHelperUnlockCost("tinySprinkler");
     expect(unlockHelper(permanent, "tinySprinkler")).toBe(true);
@@ -254,6 +274,7 @@ describe("EcosystemSystem", () => {
 
     expect(state.resources.dew.consumedTotal).toBeGreaterThan(0);
     expect(state.resources.moisture.producedTotal).toBeGreaterThan(0);
+    expect(state.resources.growth.producedTotal).toBeGreaterThan(0);
     expect(state.resources.care.producedTotal).toBeGreaterThan(0);
     expect(consumeHelperPulses(state).tinySprinkler).toBeGreaterThanOrEqual(1);
   });
@@ -551,7 +572,22 @@ describe("EcosystemSystem", () => {
     expect(result?.totalPower).toBeCloseTo(1.05);
     expect(result?.healedHp).toBeCloseTo(5.46);
     expect(result?.dewGained).toBeCloseTo(1.2075);
+    expect(result?.growthGained).toBeCloseTo(1.05 * HAND_TENDING_GROWTH_PER_POWER);
     expect(result?.runTouchesGained).toBeCloseTo(0.966);
+  });
+
+  it("turns recovered Run 2 touches into immediate starter Growth", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    const state = createEcosystemState(permanent, { seed: 3_142 });
+
+    let growthGained = 0;
+    for (let touch = 0; touch < 20; touch += 1) {
+      growthGained += touchFieldTile(state, permanent, 0)?.growthGained ?? 0;
+    }
+
+    expect(growthGained).toBeCloseTo(7);
+    expect(state.resources.growth.amount).toBeCloseTo(7);
   });
 
   it("gives every helper storage Memory at least one real buffer to expand", () => {
@@ -671,6 +707,7 @@ describe("EcosystemSystem", () => {
     expect(state.scourgeDemandPerSecond).toBe(10_000_000);
     expect(state.careDeficitPerSecond).toBe(10_000_000);
     expect(result?.dewGained).toBeGreaterThan(0);
+    expect(result?.growthGained).toBe(0);
     expect(result?.runTouchesGained).toBeGreaterThan(0);
   });
 

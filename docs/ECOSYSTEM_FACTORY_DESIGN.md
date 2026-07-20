@@ -55,7 +55,7 @@ a run. Helper recipes provide the useful throughput:
 
 | Helper | Primary role | Alternate mode |
 | --- | --- | --- |
-| Tiny Sprinkler | Dew to Moisture and Care | Cultivator favors Moisture and Growth |
+| Tiny Sprinkler | Dew to Moisture, starter Growth, and Care | Cultivator favors Moisture and Growth |
 | Field Mouse | Seeds to Growth and RT | Cache favors input efficiency |
 | Bee Hive | Flowers to Pollinated Blooms | Honey Reserve adds Care at lower throughput |
 | Chicken Patrol | Clippings to Compost and RT | Forage also produces Clippings from Growth |
@@ -73,7 +73,7 @@ pauses and reports the resource currently limiting Care throughput.
 Remembering Tiny Sprinkler reveals the Living Ledger on the following run. A
 fixed First Automation strip fills from current RT toward the first 14 RT
 sprinkler purchase. Once bought, the same strip becomes its production-cycle
-meter and explicitly reports `Dew -> Moisture + Care`; if the recipe pauses for
+meter and explicitly reports `Dew -> Moisture + Growth + Care`; if the recipe pauses for
 Dew, it tells the player to touch the field. The first purchase uses the pooled
 arrival, water-spray, impact, sound, and HP-bar feedback so automation reads as
 a run milestone rather than a silent number change.
@@ -177,12 +177,19 @@ permanent saves receive the new presentation and behavior without migration.
 
 Every permanent Memory purchase also contributes one point of Remembered
 Touch. Each point adds 1% to the power of ordinary manual touch batches,
-including HP restored, Dew gathered, and RT earned. Unlocks, alternate modes,
+including HP restored, Dew gathered, Growth tended, and RT earned. Unlocks, alternate modes,
 field tiers, capstones, and each numeric rank all contribute one point. This
 keeps the player's hands relevant as automation grows and makes every branch a
 small step toward surviving later Scourge pressure. A fresh Run 1 has no
 Memories and manual healing is disabled there, so its authored collapse rhythm
 is unchanged.
+
+After the authored first collapse, **Hand Tending** gives every accepted manual
+touch `0.35 Growth` per point of touch power. This makes the inherited 1x1 plot
+an active Growth source before the Field Mouse arrives. The default Tiny
+Sprinkler Caretaker spray also produces a small Growth trickle while preserving
+its primary Moisture and Care role. Run 1 grants no Hand Tending Growth because
+its first touch is still the deliberate onboarding collapse.
 
 ## Field Ladder And Cultivation
 

@@ -83,7 +83,7 @@ function getAutomationReadableLine(status: FirstAutomationStatus): string | null
     case "ready":
       return `First automation ready: buy Tiny Sprinkler for ${status.purchaseCost} ${RUN_TOUCHES_LABEL}`;
     case "firstCycle":
-      return `First sprinkler cycle: Dew is becoming Moisture and Care, cycle ${Math.floor(status.cycleProgress * 100)}%`;
+      return `First sprinkler cycle: Dew is becoming Moisture, Growth, and Care, cycle ${Math.floor(status.cycleProgress * 100)}%`;
     case "sustain":
       return `Care online: keep Tiny Sprinkler supplied; ${status.dewAmount.toFixed(1)} Dew available, cycle ${Math.floor(status.cycleProgress * 100)}%`;
     case "dry":
@@ -339,6 +339,9 @@ export class EcosystemDomBridge {
       `Scourge demand ${state.scourgeDemandPerSecond.toFixed(2)} Care/s | Care production ${state.rates.care.toFixed(2)}/s`,
       `Field ${state.field.width}x${state.field.height} | Cultivation ${state.field.cultivationRank}/10 | ${RUN_TOUCHES_LABEL} ${state.runTouches.toFixed(1)} | ${GRASS_TOUCHES_LABEL} ${permanent.grassTouches.toFixed(0)}`,
       `Remembered Touch +${getManualTouchPowerBonusPercent(permanent)}% manual power`,
+      state.runNumber === 1
+        ? "Hand Tending unlocks after the first collapse"
+        : "Hand Tending: each recovered manual touch produces Growth",
       ...(automationLine ? [automationLine] : []),
       ...(fieldMouseLine ? [fieldMouseLine] : []),
       ...(showBeeHiveChapter && beeHiveLine ? [beeHiveLine] : []),
@@ -496,6 +499,7 @@ export class EcosystemDomBridge {
       field: `${state.field.width}x${state.field.height}`,
       logicalTiles: state.field.stages.length,
       cultivation: state.field.cultivationRank,
+      growth: Number(state.resources.growth.amount.toFixed(3)),
       runTouches: Number(state.runTouches.toFixed(3)),
       grassTouches: Number(permanent.grassTouches.toFixed(3)),
       manualTouchBonusPercent: getManualTouchPowerBonusPercent(permanent),

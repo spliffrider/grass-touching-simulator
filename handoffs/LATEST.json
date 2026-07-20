@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-20",
-  "latestHandoff": "HANDOFF_2026-07-20_DAMP_FURROWS_SYNERGY.json",
+  "latestHandoff": "HANDOFF_2026-07-20_STARTER_GROWTH.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",
