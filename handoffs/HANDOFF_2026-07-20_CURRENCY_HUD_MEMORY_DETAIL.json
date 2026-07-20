@@ -1,0 +1,49 @@
+{
+  "date": "2026-07-20",
+  "topic": "Currency HUD and responsive Memory Grove detail",
+  "currentUserGoal": "Prevent Memory Grove text collisions at short window heights, make the top currency HUD more visually interesting, and give available Grass Touches stronger visual priority.",
+  "workCompleted": [
+    "Split the active-run currency readout into two compact icon-backed plaques for Run Touches and Grass Touches.",
+    "Gave Grass Touches the stronger gold-and-green treatment while keeping Run Touches visually distinct in cyan and teal.",
+    "Added a prominent rooted-grass currency badge to the Memory Grove header with a large live value and subtle ambient icon motion.",
+    "Made currency value changes pulse briefly without creating update-loop tweens when the value is unchanged.",
+    "Reworked the Memory Grove detail panel into measured body and status regions so descriptions, costs, and availability cannot occupy the same space.",
+    "Added compact mobile detail copy and responsive font fitting for constrained heights.",
+    "Adjusted the mobile Memory Grove vertical layout to reserve room for the new currency badge and stacked detail panel."
+  ],
+  "filesChanged": [
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "handoffs/HANDOFF_2026-07-20_CURRENCY_HUD_MEMORY_DETAIL.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 179 Vitest tests across 22 files, strict TypeScript, and the Vite production build.",
+    "Verified the actual ecosystem Memory Grove and active-run HUD at 1723x812, 1280x720, and 390x844.",
+    "Confirmed the short-window Memory detail description and purchase status use separate regions with no overlap.",
+    "Confirmed both currency plaques remain readable without colliding with Options, Ancient HP, or Scourge text.",
+    "Confirmed the phone Memory Grove stacks its detail panel cleanly below the web.",
+    "Browser diagnostics contained no warnings or errors.",
+    "git diff --check passed apart from the repository's existing Windows LF-to-CRLF notice."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Currency HUD and Memory detail checkpoint committed locally; master is two commits ahead of origin/master and has not been pushed.",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The playtest debug control panel intentionally overlays the lower-left corner and is not part of the production interface.",
+    "The Memory Web still relies on zoom for dense late-game labels; this slice improves surrounding currency and detail readability rather than redesigning node-label culling."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on check the active currency plaques and short-window Memory detail once in the user's normal browser.",
+    "Return to the early Growth and first-expansion pacing work after this readability slice is approved.",
+    "Push master and run the Mac handoff workflow only when the user requests a cross-machine or production sync."
+  ],
+  "doNotRevert": [
+    "Do not combine Run Touches and Grass Touches back into one plain text string.",
+    "Do not independently bottom-position Memory detail status text without reserving body-copy space.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction.",
+    "Do not cite the legacy 1200-tile harness as ecosystem performance evidence."
+  ]
+}

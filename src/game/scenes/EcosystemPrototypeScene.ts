@@ -413,7 +413,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private hpBarHeartbeatGlow!: Phaser.GameObjects.Rectangle;
   private hpText!: Phaser.GameObjects.Text;
   private pressureText!: Phaser.GameObjects.Text;
-  private currencyText!: Phaser.GameObjects.Text;
+  private runTouchesIcon!: Phaser.GameObjects.Image;
+  private runTouchesLabel!: Phaser.GameObjects.Text;
+  private runTouchesValue!: Phaser.GameObjects.Text;
+  private grassTouchesIcon!: Phaser.GameObjects.Image;
+  private grassTouchesLabel!: Phaser.GameObjects.Text;
+  private grassTouchesValue!: Phaser.GameObjects.Text;
   private fieldLabelText!: Phaser.GameObjects.Text;
   private fieldHintText!: Phaser.GameObjects.Text;
   private ledgerTitle!: Phaser.GameObjects.Text;
@@ -461,7 +466,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private memorySubtitle!: Phaser.GameObjects.Text;
   private memorySummary!: Phaser.GameObjects.Text;
   private memoryDetail!: Phaser.GameObjects.Text;
-  private memoryCurrencyText!: Phaser.GameObjects.Text;
+  private memoryCurrencyBack!: Phaser.GameObjects.Rectangle;
+  private memoryCurrencyIcon!: Phaser.GameObjects.Image;
+  private memoryCurrencyLabel!: Phaser.GameObjects.Text;
+  private memoryCurrencyValue!: Phaser.GameObjects.Text;
   private memoryTreeTitle!: Phaser.GameObjects.Text;
   private memoryTreeWorld!: Phaser.GameObjects.Container;
   private memoryTreeLines!: Phaser.GameObjects.Graphics;
@@ -470,6 +478,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private memoryDetailTitle!: Phaser.GameObjects.Text;
   private memoryDetailBranch!: Phaser.GameObjects.Text;
   private memoryDetailStatus!: Phaser.GameObjects.Text;
+  private memoryDetailStatusBack!: Phaser.GameObjects.Rectangle;
   private memoryDetailIconGlow!: Phaser.GameObjects.Arc;
   private memoryDetailIconFrame!: Phaser.GameObjects.Image;
   private memoryDetailIcon!: Phaser.GameObjects.Image;
@@ -478,6 +487,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private memoryZoomInButton!: SceneButton;
   private memoryOptionsButton!: SceneButton;
   private beginNextRunButton!: SceneButton;
+  private memoryDetailBounds: FieldViewportBounds = { x: 0, y: 0, width: 1, height: 1 };
 
   private optionsChrome!: Phaser.GameObjects.Graphics;
   private optionsTitle!: Phaser.GameObjects.Text;
@@ -815,7 +825,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.displayedHpRatio = Phaser.Math.Clamp(this.state.hp / Math.max(1, this.state.maxHp), 0, 1);
     this.hpText = this.createText("", 15, "#f2e8d5", "bold");
     this.pressureText = this.createText("", 13, "#f1a6ce");
-    this.currencyText = this.createText("", 14, "#ffe889", "bold");
+    this.runTouchesIcon = this.add.image(0, 0, "memory-icon-broad-palm").setOrigin(0.5);
+    this.runTouchesLabel = this.createText(RUN_TOUCHES_LABEL.toUpperCase(), 9, "#8de7ff", "bold");
+    this.runTouchesValue = this.createText("0", 17, "#f2fbff", "bold");
+    this.grassTouchesIcon = this.add.image(0, 0, "memory-icon-field-tier").setOrigin(0.5);
+    this.grassTouchesLabel = this.createText(GRASS_TOUCHES_LABEL.toUpperCase(), 9, "#cde99b", "bold");
+    this.grassTouchesValue = this.createText("0", 17, "#ffe889", "bold");
     this.fieldLabelText = this.createText("", 16, "#fff3c2", "bold");
     this.fieldHintText = this.createText("Touch the living field", 12, "#cce9bd");
     this.ledgerTitle = this.createText("Living Ledger", 22, "#fff3c2", "bold");
@@ -848,7 +863,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.hpBarHeartbeatGlow,
       this.hpText,
       this.pressureText,
-      this.currencyText,
+      this.runTouchesIcon,
+      this.runTouchesLabel,
+      this.runTouchesValue,
+      this.grassTouchesIcon,
+      this.grassTouchesLabel,
+      this.grassTouchesValue,
       this.fieldLabelText,
       this.fieldHintText,
       this.ledgerTitle,
@@ -1012,12 +1032,20 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.memoryTitle = this.createText("Memory Grove", 34, "#fff3c2", "bold");
     this.memorySubtitle = this.createText("The field is still. Spend Grass Touches on what the next run remembers.", 14, "#b8d9a4");
     this.memorySummary = this.createText("", 13, "#e3f3d6");
-    this.memoryCurrencyText = this.createText("", 15, "#ffe889", "bold");
+    this.memoryCurrencyBack = this.add.rectangle(0, 0, 220, 52, 0x17351f, 0.98)
+      .setOrigin(0)
+      .setStrokeStyle(2, 0xffe889, 0.86);
+    this.memoryCurrencyIcon = this.add.image(0, 0, "memory-icon-field-tier").setOrigin(0.5);
+    this.memoryCurrencyLabel = this.createText(`AVAILABLE ${GRASS_TOUCHES_LABEL.toUpperCase()}`, 10, "#cde99b", "bold");
+    this.memoryCurrencyValue = this.createText("0", 22, "#ffe889", "bold");
     this.memoryTreeTitle = this.createText("Memory Web", 20, "#fff3c2", "bold");
     this.memoryDetailTitle = this.createText("", 24, "#fff3c2", "bold");
     this.memoryDetailBranch = this.createText("", 12, "#8de7ff", "bold");
     this.memoryDetail = this.createText("", 13, "#e3f3d6");
     this.memoryDetailStatus = this.createText("", 13, "#ffe889", "bold");
+    this.memoryDetailStatusBack = this.add.rectangle(0, 0, 100, 54, 0x071b11, 0.96)
+      .setOrigin(0)
+      .setStrokeStyle(1, 0xd8b66a, 0.5);
     this.memoryDetailIconGlow = this.add.circle(0, 0, 70, 0x8de7ff, 0.1).setStrokeStyle(2, 0x8de7ff, 0.45);
     this.memoryDetailIconFrame = this.add.image(0, 0, "memory-node-selected").setOrigin(0.5);
     this.memoryDetailIcon = this.add.image(0, 0, "eco-player").setOrigin(0.5);
@@ -1027,7 +1055,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.memoryTitle,
       this.memorySubtitle,
       this.memorySummary,
-      this.memoryCurrencyText,
+      this.memoryCurrencyBack,
+      this.memoryCurrencyIcon,
+      this.memoryCurrencyLabel,
+      this.memoryCurrencyValue,
       this.memoryTreeTitle,
       this.memoryDetailIconGlow,
       this.memoryDetailIconFrame,
@@ -1035,6 +1066,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.memoryDetailTitle,
       this.memoryDetailBranch,
       this.memoryDetail,
+      this.memoryDetailStatusBack,
       this.memoryDetailStatus,
     ]);
 
@@ -1305,7 +1337,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.hpBarHeartbeatGlow.setPosition(header.x + 17, header.y + 64).setSize(header.width - 156, 12);
       this.hpText.setFontSize(12).setPosition(header.x + 18, header.y + 52);
       this.pressureText.setFontSize(10).setPosition(header.x + 18, header.y + 78);
-      this.currencyText.setFontSize(10).setLineSpacing(1).setOrigin(1, 0).setPosition(header.x + header.width - 12, header.y + 53);
       this.optionsButton.setPosition(header.x + header.width - 90, header.y + 8);
       this.optionsButton.setSize(78, 28);
     } else {
@@ -1318,9 +1349,38 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.hpBarHeartbeatGlow.setPosition(barX + 3, header.y + 39).setSize(barWidth - 6, 18);
       this.hpText.setFontSize(15).setPosition(barX + 9, header.y + 25);
       this.pressureText.setFontSize(13).setPosition(barX + 9, header.y + 65);
-      this.currencyText.setFontSize(15).setLineSpacing(0).setOrigin(1, 0).setPosition(header.x + header.width - 116, header.y + 59);
       this.optionsButton.setPosition(header.x + header.width - 104, header.y + 14);
       this.optionsButton.setSize(86, 36);
+    }
+    if (mobile) {
+      const chipWidth = 116;
+      const chipHeight = 21;
+      const chipX = header.x + header.width - chipWidth - 10;
+      const runChipY = header.y + 49;
+      const grassChipY = header.y + 72;
+      this.drawCurrencyPlate(chipX, runChipY, chipWidth, chipHeight, 0x8de7ff, 0x0b2530, false);
+      this.drawCurrencyPlate(chipX, grassChipY, chipWidth, chipHeight, 0xffe889, 0x203818, true);
+      this.runTouchesIcon.setPosition(chipX + 11, runChipY + chipHeight / 2).setDisplaySize(16, 16);
+      this.grassTouchesIcon.setPosition(chipX + 11, grassChipY + chipHeight / 2).setDisplaySize(16, 16);
+      this.runTouchesLabel.setFontSize(7).setPosition(chipX + 22, runChipY + 5);
+      this.grassTouchesLabel.setFontSize(7).setPosition(chipX + 22, grassChipY + 5);
+      this.runTouchesValue.setFontSize(10).setOrigin(1, 0).setPosition(chipX + chipWidth - 6, runChipY + 4);
+      this.grassTouchesValue.setFontSize(10).setOrigin(1, 0).setPosition(chipX + chipWidth - 6, grassChipY + 4);
+    } else {
+      const chipWidth = 138;
+      const chipHeight = 34;
+      const chipGap = 8;
+      const grassChipX = header.x + header.width - chipWidth - 16;
+      const runChipX = grassChipX - chipWidth - chipGap;
+      const chipY = header.y + header.height - chipHeight - 8;
+      this.drawCurrencyPlate(runChipX, chipY, chipWidth, chipHeight, 0x8de7ff, 0x0b2530, false);
+      this.drawCurrencyPlate(grassChipX, chipY, chipWidth, chipHeight, 0xffe889, 0x203818, true);
+      this.runTouchesIcon.setPosition(runChipX + 19, chipY + chipHeight / 2).setDisplaySize(26, 26);
+      this.grassTouchesIcon.setPosition(grassChipX + 19, chipY + chipHeight / 2).setDisplaySize(26, 26);
+      this.runTouchesLabel.setFontSize(8).setPosition(runChipX + 38, chipY + 4);
+      this.grassTouchesLabel.setFontSize(8).setPosition(grassChipX + 38, chipY + 4);
+      this.runTouchesValue.setFontSize(16).setOrigin(0, 0).setPosition(runChipX + 38, chipY + 14);
+      this.grassTouchesValue.setFontSize(16).setOrigin(0, 0).setPosition(grassChipX + 38, chipY + 14);
     }
     this.animateHealthBar(this.time.now, 0);
 
@@ -1569,7 +1629,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       .setPosition(width / 2, mobile ? 45 : 60)
       .setWordWrapWidth(mobile ? width - 126 : width - 360)
       .setAlign("center");
-    this.memoryCurrencyText.setFontSize(mobile ? 11 : 15).setOrigin(0, 0).setPosition(contentX + 16, mobile ? 58 : 38);
+    if (mobile) {
+      this.layoutMemoryCurrencyBadge(contentX + 8, 74, 154, 38, true);
+    } else {
+      this.layoutMemoryCurrencyBadge(contentX + 16, 26, width < 1100 ? 208 : 244, 54, false);
+    }
     this.memoryOptionsButton
       .setPosition(contentX + contentWidth - (mobile ? 88 : 104), mobile ? 16 : 24)
       .setSize(mobile ? 78 : 88, mobile ? 28 : 34);
@@ -1584,13 +1648,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     let detailHeight: number;
     if (mobile) {
       treePanelX = 10;
-      treePanelY = 82;
+      treePanelY = 120;
       treePanelWidth = width - 20;
-      treePanelHeight = Math.min(450, Math.max(330, height * 0.52));
+      treePanelHeight = Phaser.Math.Clamp((height - treePanelY - 84) * 0.58, 280, 400);
       detailX = 10;
       detailY = treePanelY + treePanelHeight + 8;
       detailWidth = width - 20;
-      detailHeight = Math.max(170, height - detailY - 76);
+      detailHeight = Math.max(120, height - detailY - 76);
       this.drawPanel(this.memoryChrome, treePanelX, treePanelY, treePanelWidth, treePanelHeight, 0.82);
       this.drawPanel(this.memoryChrome, detailX, detailY, detailWidth, detailHeight, 0.9);
       this.memorySummary.setVisible(false);
@@ -1653,7 +1717,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.memoryDetailTitle.setFontSize(18).setPosition(detailX + 108, detailY + 18).setWordWrapWidth(detailWidth - 122);
       this.memoryDetailBranch.setPosition(detailX + 108, detailY + 48).setWordWrapWidth(detailWidth - 122);
       this.memoryDetail.setFontSize(10).setPosition(detailX + 108, detailY + 72).setWordWrapWidth(detailWidth - 122);
-      this.memoryDetailStatus.setFontSize(10).setPosition(detailX + 18, detailY + detailHeight - 42).setWordWrapWidth(detailWidth - 36);
     } else {
       const iconX = detailX + detailWidth / 2;
       const iconY = detailY + 112;
@@ -1663,8 +1726,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.memoryDetailTitle.setFontSize(23).setPosition(detailX + 20, detailY + 194).setWordWrapWidth(detailWidth - 40);
       this.memoryDetailBranch.setPosition(detailX + 20, detailY + 230).setWordWrapWidth(detailWidth - 40);
       this.memoryDetail.setFontSize(12).setPosition(detailX + 20, detailY + 268).setWordWrapWidth(detailWidth - 40);
-      this.memoryDetailStatus.setFontSize(12).setPosition(detailX + 20, detailY + detailHeight - 76).setWordWrapWidth(detailWidth - 40);
     }
+    this.memoryDetailBounds = { x: detailX, y: detailY, width: detailWidth, height: detailHeight };
+    this.layoutMemoryDetailContent(mobile);
     this.memoryDetailIcon
       .setData("baseScaleX", this.memoryDetailIcon.scaleX)
       .setData("baseScaleY", this.memoryDetailIcon.scaleY);
@@ -1673,6 +1737,63 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       .setPosition(width / 2 - (mobile ? 176 : 150), height - (mobile ? 64 : 70))
       .setSize(mobile ? 352 : 300, mobile ? 50 : 52);
     this.applyMemoryTreeViewTransform();
+  }
+
+  private layoutMemoryCurrencyBadge(x: number, y: number, width: number, height: number, mobile: boolean): void {
+    this.memoryCurrencyBack
+      .setPosition(x, y)
+      .setSize(width, height)
+      .setFillStyle(0x17351f, 0.98)
+      .setStrokeStyle(mobile ? 2 : 3, 0xffe889, 0.88);
+    const iconSize = mobile ? 28 : 40;
+    this.memoryCurrencyIcon
+      .setPosition(x + (mobile ? 20 : 28), y + height / 2)
+      .setDisplaySize(iconSize, iconSize)
+      .setData("baseScaleX", this.memoryCurrencyIcon.scaleX)
+      .setData("baseScaleY", this.memoryCurrencyIcon.scaleY);
+    const textX = x + (mobile ? 40 : 54);
+    this.memoryCurrencyLabel
+      .setFontSize(mobile ? 7 : 9)
+      .setPosition(textX, y + (mobile ? 4 : 6));
+    this.memoryCurrencyValue
+      .setFontSize(mobile ? 16 : 22)
+      .setPosition(textX, y + (mobile ? 14 : 20));
+  }
+
+  private layoutMemoryDetailContent(mobile = this.scale.width < 760): void {
+    const bounds = this.memoryDetailBounds;
+    const horizontalPadding = mobile ? 12 : 14;
+    const statusTextX = bounds.x + horizontalPadding + (mobile ? 2 : 6);
+    const statusWidth = Math.max(40, bounds.width - horizontalPadding * 2 - (mobile ? 4 : 12));
+    this.memoryDetailStatus
+      .setFontSize(mobile ? 9 : 11)
+      .setLineSpacing(mobile ? 1 : 2)
+      .setWordWrapWidth(statusWidth);
+    const statusPaddingY = mobile ? 7 : 10;
+    const statusHeight = Math.max(mobile ? 42 : 58, this.memoryDetailStatus.height + statusPaddingY * 2);
+    const statusY = bounds.y + bounds.height - statusHeight - (mobile ? 8 : 12);
+    this.memoryDetailStatusBack
+      .setPosition(bounds.x + horizontalPadding, statusY)
+      .setSize(bounds.width - horizontalPadding * 2, statusHeight);
+    this.memoryDetailStatus.setPosition(statusTextX, statusY + statusPaddingY);
+
+    const bodyTop = mobile ? bounds.y + 72 : bounds.y + 268;
+    const bodyX = mobile ? bounds.x + 108 : bounds.x + 20;
+    const bodyWidth = mobile ? bounds.width - 122 : bounds.width - 40;
+    const bodyBottom = statusY - (mobile ? 8 : 14);
+    const availableHeight = Math.max(28, bodyBottom - bodyTop);
+    const minimumFontSize = mobile ? 8 : 9;
+    let fontSize = mobile ? 10 : 12;
+    this.memoryDetail
+      .setPosition(bodyX, bodyTop)
+      .setWordWrapWidth(bodyWidth)
+      .setLineSpacing(2)
+      .setFontSize(fontSize);
+    while (this.memoryDetail.height > availableHeight && fontSize > minimumFontSize) {
+      fontSize -= 1;
+      this.memoryDetail.setFontSize(fontSize);
+    }
+    if (this.memoryDetail.height > availableHeight) this.memoryDetail.setLineSpacing(0);
   }
 
   private layoutOptions(width: number, height: number, mobile: boolean): void {
@@ -1715,11 +1836,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.setTextIfChanged(this.pressureText, awaitingFirstTouch
         ? "Scourge dormant  |  Touch the grass to begin"
         : `Scourge ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s  |  produced ${readout.careProductionPerSecond.toFixed(2)}/s`);
-      const currencySeparator = this.scale.width < 760 ? "\n" : "   ";
-      this.setTextIfChanged(
-        this.currencyText,
-        `${RUN_TOUCHES_LABEL} ${readout.runTouches.toFixed(0)}${currencySeparator}${GRASS_TOUCHES_LABEL} ${this.permanent.grassTouches.toFixed(0)}`,
-      );
+      this.updateCurrencyValue(this.runTouchesValue, readout.runTouches.toFixed(0));
+      this.updateCurrencyValue(this.grassTouchesValue, this.permanent.grassTouches.toFixed(0), true);
       this.setTextIfChanged(this.fieldLabelText, this.scale.width < 760
         ? `${readout.fieldSize}x${readout.fieldSize} | Cultivation ${readout.cultivationRank}/10`
         : `${readout.fieldSize}x${readout.fieldSize} Living Field  |  Cultivation ${readout.cultivationRank}/10`);
@@ -3448,7 +3566,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           ? ECOSYSTEM_MEMORY_ROOT_ID
           : [...revealedNodeIds][0] ?? ECOSYSTEM_MEMORY_ROOT_ID;
     }
-    this.memoryCurrencyText.setText(`AVAILABLE ${GRASS_TOUCHES_LABEL.toUpperCase()}  ${Math.floor(this.permanent.grassTouches)}`);
+    this.updateCurrencyValue(this.memoryCurrencyValue, `${Math.floor(this.permanent.grassTouches)}`, true);
     this.drawMemoryTreeConnectors(revealedNodeIds);
     for (const view of this.memoryNodeViews.values()) {
       const runtime = this.getMemoryNodeRuntime(view.definition);
@@ -3556,10 +3674,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.memoryDetailTitle.setText(definition.label);
     this.memoryDetailBranch.setText(`${definition.branch.toUpperCase()} MEMORY`);
     const rankLine = runtime.maxRank > 1 ? `Rank ${runtime.rank} / ${runtime.maxRank}` : runtime.complete ? "Remembered" : "Single memory";
-    const touchBonusLine = definition.kind === "root"
-      ? ""
-      : `\n\nEvery Memory purchase adds +1% manual touch power. Current total: +${getManualTouchPowerBonusPercent(this.permanent)}%.`;
-    this.memoryDetail.setText(`${definition.description}\n\n${rankLine}\n${runtime.effect}${touchBonusLine}`);
+    const manualTouchBonus = getManualTouchPowerBonusPercent(this.permanent);
+    const detailCopy = mobile
+      ? `${definition.description}\n${rankLine} | ${runtime.effect}${definition.kind === "root" ? "" : `\nManual touch power: +${manualTouchBonus}%.`}`
+      : `${definition.description}\n\n${rankLine}\n${runtime.effect}${definition.kind === "root" ? "" : `\n\nEvery Memory purchase adds +1% manual touch power. Current total: +${manualTouchBonus}%.`}`;
+    this.memoryDetail.setText(detailCopy);
     const firstMemoryPending = isFirstMemoryPending(this.state, this.permanent);
     const firstCollapse = isFirstEcosystemCollapse(this.state, this.permanent);
     if (firstMemoryPending && definition.id === FIRST_ECOSYSTEM_MEMORY_NODE_ID && !runtime.complete) {
@@ -3582,6 +3701,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const short = Math.max(0, Math.ceil(runtime.cost - this.permanent.grassTouches));
       this.memoryDetailStatus.setText(`COST ${runtime.cost} ${GRASS_TOUCHES_LABEL.toUpperCase()}  |  AVAILABLE ${Math.floor(this.permanent.grassTouches)}\nNeed ${short} more ${GRASS_TOUCHES_LABEL}.`).setColor("#f1a6ce");
     }
+    this.layoutMemoryDetailContent(mobile);
   }
 
   private previewMemoryNode(nodeId: string): void {
@@ -4016,6 +4136,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       .setScale(baseScaleX * (1 + pulse * 0.035), baseScaleY * (1 + pulse * 0.035))
       .setAngle(pulse * 1.5);
     this.memoryDetailIconGlow.setScale(1 + pulse * 0.035).setAlpha(0.88 + pulse * 0.1);
+    const currencyScaleX = Number(this.memoryCurrencyIcon.getData("baseScaleX") ?? this.memoryCurrencyIcon.scaleX);
+    const currencyScaleY = Number(this.memoryCurrencyIcon.getData("baseScaleY") ?? this.memoryCurrencyIcon.scaleY);
+    this.memoryCurrencyBack.setAlpha(0.94 + pulse * 0.04);
+    this.memoryCurrencyIcon
+      .setScale(currencyScaleX * (1 + pulse * 0.025), currencyScaleY * (1 + pulse * 0.025))
+      .setAngle(pulse * 1.2);
     this.beginNextRunButton.container.setScale(
       this.beginNextRunButton.enabled ? 1 + Math.sin(now * 0.004) * 0.018 : 1,
     );
@@ -4275,6 +4401,24 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     if (target.text !== value) target.setText(value);
   }
 
+  private updateCurrencyValue(
+    target: Phaser.GameObjects.Text,
+    value: string,
+    emphasized = false,
+  ): void {
+    if (target.text === value) return;
+    target.setText(value);
+    this.tweens.killTweensOf(target);
+    target.setScale(emphasized ? 1.18 : 1.1);
+    this.tweens.add({
+      targets: target,
+      scaleX: 1,
+      scaleY: 1,
+      duration: emphasized ? 240 : 150,
+      ease: "Back.easeOut",
+    });
+  }
+
   private playRootEntrance(root: Phaser.GameObjects.Container, duration = 220): void {
     this.tweens.killTweensOf(root);
     root.setAlpha(0.25).setScale(0.988);
@@ -4379,6 +4523,29 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     graphics.lineStyle(3, 0x5b3926, 0.96).strokeRoundedRect(x + 2, y + 3, width, height, 6);
     graphics.lineStyle(2, 0xd8b66a, 0.88).strokeRoundedRect(x, y, width, height, 6);
     graphics.lineStyle(1, 0xe0a36c, 0.26).strokeRoundedRect(x + 6, y + 6, width - 12, height - 12, 4);
+  }
+
+  private drawCurrencyPlate(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    accent: number,
+    fill: number,
+    emphasized: boolean,
+  ): void {
+    if (emphasized) {
+      this.fieldChrome
+        .fillStyle(accent, 0.08)
+        .fillRoundedRect(x - 3, y - 3, width + 6, height + 6, 6);
+    }
+    this.fieldChrome
+      .fillStyle(fill, 0.97)
+      .fillRoundedRect(x, y, width, height, 4)
+      .lineStyle(emphasized ? 2 : 1, accent, emphasized ? 0.9 : 0.7)
+      .strokeRoundedRect(x, y, width, height, 4)
+      .lineStyle(1, 0xffffff, emphasized ? 0.13 : 0.08)
+      .lineBetween(x + 5, y + 4, x + width - 5, y + 4);
   }
 
   private shutdownScene(): void {
