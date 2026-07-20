@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { DEFAULT_MUSIC_VOLUME, readStoredMusicVolume, writeStoredMusicVolume } from "../data/audio-settings";
 import { BUILD_LABEL } from "../data/build-info";
 import { CHARACTER_CLASSES, getCharacterClass, type CharacterClassDefinition } from "../data/character-classes";
+import { GRASS_TOUCHER_CREDITS, PLAYTESTER_CREDITS } from "../data/credits";
 import { ChiptuneMusicSystem, TITLE_TRACK_ID } from "../systems/ChiptuneMusicSystem";
 import { hasSavedGame, resetSave } from "../systems/SaveSystem";
 import type { CharacterClassId } from "../types/game-state";
@@ -33,7 +34,6 @@ const OPTIONS_HIT_BASE_WIDTH = 350;
 const OPTIONS_HIT_BASE_HEIGHT = 44;
 const MOBILE_TEST_MODE_PARAM = "mobileTest";
 const MOBILE_TEST_MODE_VALUE = "audio";
-const GRASS_TOUCHER_CREDITS = ["Sad choupbese", "KaviaarSocialist", "Echarnus", "Overtilted", "entry 3 test"] as const;
 
 interface TitleButton {
   id: "start" | "continue" | "options" | "quit" | "credits";
@@ -493,7 +493,7 @@ export class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.creditsNames = this.add
-      .text(0, 0, "Cosmodeus\nRemy\nRobin C.\nTuloWodash\nVNDYN\ntussukarva🇫🇮🇸🇪\n🔪⋆🎀  𝒦𝒾𝓉𝓉𝓎 𝒩💔𝒾𝓇 🎀⋆🔪", {
+      .text(0, 0, PLAYTESTER_CREDITS.join("\n"), {
         fontFamily: "Trebuchet MS, Arial",
         fontSize: "17px",
         color: "#f7ffe8",

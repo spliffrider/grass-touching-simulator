@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-20",
-  "latestHandoff": "HANDOFF_2026-07-20_CURRENCY_HUD_MEMORY_DETAIL.json",
+  "latestHandoff": "HANDOFF_2026-07-20_CREDITS_ROSTER_RESTORE.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

@@ -6,6 +6,12 @@ import {
   writeStoredSfxVolume,
 } from "../data/audio-settings";
 import { BUILD_LABEL } from "../data/build-info";
+import {
+  CREDIT_DEVELOPER,
+  CREDITS_ACCESSIBLE_COPY,
+  GRASS_TOUCHER_CREDITS,
+  PLAYTESTER_CREDITS,
+} from "../data/credits";
 import { GRASS_TOUCHES_LABEL } from "../ecosystem/EcosystemCatalog";
 import {
   clearEcosystemProgress,
@@ -76,7 +82,12 @@ export class EcosystemTitleScene extends Phaser.Scene {
   private creditsRoot!: Phaser.GameObjects.Container;
   private creditsPanel!: Phaser.GameObjects.NineSlice;
   private creditsTitle!: Phaser.GameObjects.Text;
-  private creditsCopy!: Phaser.GameObjects.Text;
+  private creditsDeveloper!: Phaser.GameObjects.Text;
+  private creditsPlaytesterTitle!: Phaser.GameObjects.Text;
+  private creditsPlaytesterNames!: Phaser.GameObjects.Text;
+  private creditsGrassToucherTitle!: Phaser.GameObjects.Text;
+  private creditsGrassToucherNames!: Phaser.GameObjects.Text;
+  private creditsThanks!: Phaser.GameObjects.Text;
   private creditsBackButton!: TitleMenuButton;
 
   private readonly motes: Phaser.GameObjects.Image[] = [];
@@ -101,6 +112,7 @@ export class EcosystemTitleScene extends Phaser.Scene {
   private readonly semanticMenuButtons = new Map<MenuAction, HTMLButtonElement>();
   private semanticOptionsBack?: HTMLButtonElement;
   private semanticCreditsBack?: HTMLButtonElement;
+  private semanticCreditsCopy?: HTMLParagraphElement;
   private semanticMusicRange?: HTMLInputElement;
   private semanticSfxRange?: HTMLInputElement;
   private readonly resizeHandler = (gameSize: Phaser.Structs.Size): void => {
@@ -137,6 +149,7 @@ export class EcosystemTitleScene extends Phaser.Scene {
     this.semanticRoot = undefined;
     this.semanticOptionsBack = undefined;
     this.semanticCreditsBack = undefined;
+    this.semanticCreditsCopy = undefined;
     this.semanticMusicRange = undefined;
     this.semanticSfxRange = undefined;
     this.parallaxX = 0;
@@ -341,24 +354,43 @@ export class EcosystemTitleScene extends Phaser.Scene {
     const backdrop = this.add.rectangle(0, 0, 1, 1, 0x020805, 0.76)
       .setOrigin(0)
       .setInteractive();
-    this.creditsPanel = this.add.nineslice(0, 0, "ecosystem-title-panel", undefined, 560, 430, 18, 18, 18, 18)
+    this.creditsPanel = this.add.nineslice(0, 0, "ecosystem-title-panel", undefined, 700, 500, 18, 18, 18, 18)
       .setOrigin(0.5)
       .setAlpha(0.99);
     this.creditsTitle = this.createText("CREDITS", 32, "#fff3c2", "bold").setOrigin(0.5);
-    this.creditsCopy = this.createText(
-      [
-        "Created by sensiburner",
-        "",
-        "Ancient Grass redesign",
-        "Code, systems, art direction, and unreasonable persistence",
-        "",
-        "With thanks to the Grass Touching friends",
-        "who kept asking when the new build would be ready.",
-      ].join("\n"),
-      16,
+    this.creditsDeveloper = this.createText(
+      `Created by ${CREDIT_DEVELOPER}\nAncient Grass redesign, systems, and art direction`,
+      13,
       "#dff6ca",
-    ).setOrigin(0.5).setAlign("center").setLineSpacing(5);
-    this.creditsRoot.add([backdrop, this.creditsPanel, this.creditsTitle, this.creditsCopy]);
+    ).setOrigin(0.5, 0).setAlign("center").setLineSpacing(3);
+    this.creditsPlaytesterTitle = this.createText("PLAYTESTERS", 16, "#8de7ff", "bold").setOrigin(0.5, 0);
+    this.creditsPlaytesterNames = this.createText(
+      PLAYTESTER_CREDITS.join("\n"),
+      15,
+      "#f2e8d5",
+    ).setOrigin(0.5, 0).setAlign("center").setLineSpacing(2);
+    this.creditsGrassToucherTitle = this.createText("GRASS TOUCHERS", 16, "#cde99b", "bold").setOrigin(0.5, 0);
+    this.creditsGrassToucherNames = this.createText(
+      GRASS_TOUCHER_CREDITS.join("\n"),
+      15,
+      "#f2e8d5",
+    ).setOrigin(0.5, 0).setAlign("center").setLineSpacing(2);
+    this.creditsThanks = this.createText(
+      "Thank you for touching the grass, finding the rough patches,\nand asking when the next build would be ready.",
+      12,
+      "#b8d9a4",
+    ).setOrigin(0.5).setAlign("center").setLineSpacing(2);
+    this.creditsRoot.add([
+      backdrop,
+      this.creditsPanel,
+      this.creditsTitle,
+      this.creditsDeveloper,
+      this.creditsPlaytesterTitle,
+      this.creditsPlaytesterNames,
+      this.creditsGrassToucherTitle,
+      this.creditsGrassToucherNames,
+      this.creditsThanks,
+    ]);
     this.creditsBackButton = this.createModalButton(this.creditsRoot, "BACK", () => this.closeModal());
     backdrop.setData("layoutBackdrop", true);
   }
@@ -381,6 +413,11 @@ export class EcosystemTitleScene extends Phaser.Scene {
     this.semanticMusicRange = this.createSemanticRange(root, "Music volume", (value) => this.setVolumeValue("music", value));
     this.semanticSfxRange = this.createSemanticRange(root, "Sound effects volume", (value) => this.setVolumeValue("sfx", value));
     this.semanticOptionsBack = this.createSemanticButton(root, "Back from options", () => this.closeModal());
+    this.semanticCreditsCopy = document.createElement("p");
+    this.semanticCreditsCopy.className = "ecosystem-agent-readable";
+    this.semanticCreditsCopy.textContent = CREDITS_ACCESSIBLE_COPY;
+    this.semanticCreditsCopy.hidden = true;
+    root.append(this.semanticCreditsCopy);
     this.semanticCreditsBack = this.createSemanticButton(root, "Back from credits", () => this.closeModal());
     document.body.append(root);
     this.semanticRoot = root;
@@ -886,6 +923,7 @@ export class EcosystemTitleScene extends Phaser.Scene {
     if (this.semanticSfxRange) this.semanticSfxRange.hidden = !optionsVisible;
     if (this.semanticOptionsBack) this.semanticOptionsBack.hidden = !optionsVisible;
     const creditsVisible = this.modalOpen && this.creditsRoot.visible;
+    if (this.semanticCreditsCopy) this.semanticCreditsCopy.hidden = !creditsVisible;
     if (this.semanticCreditsBack) this.semanticCreditsBack.hidden = !creditsVisible;
   }
 
@@ -965,19 +1003,64 @@ export class EcosystemTitleScene extends Phaser.Scene {
     this.optionsBackButton.hit.setSize(230, 48);
     this.refreshSliders();
 
-    const creditsWidth = Math.min(mobile ? width - 24 : 560, width - 16);
-    const creditsHeight = Math.min(mobile ? 470 : 430, height - 24);
+    const creditsWidth = Math.min(mobile ? width - 20 : 700, width - 16);
+    const creditsHeight = Math.min(mobile ? 590 : 500, height - (mobile ? 20 : 24));
     const creditsX = width / 2;
     const creditsY = height / 2;
+    const creditsTop = creditsY - creditsHeight / 2;
+    const creditsBottom = creditsY + creditsHeight / 2;
+    const compactCredits = creditsHeight < 450;
     this.creditsPanel.setPosition(creditsX, creditsY).setSize(creditsWidth, creditsHeight);
-    this.creditsTitle.setPosition(creditsX, creditsY - creditsHeight / 2 + 48);
-    this.creditsCopy
-      .setFontSize(mobile ? 13 : 16)
-      .setWordWrapWidth(creditsWidth - 70)
-      .setPosition(creditsX, creditsY - 28);
-    this.creditsBackButton.container.setPosition(creditsX, creditsY + creditsHeight / 2 - 54);
-    this.creditsBackButton.back.setSize(230, 48);
-    this.creditsBackButton.hit.setSize(230, 48);
+    this.creditsTitle
+      .setFontSize(compactCredits ? 24 : 32)
+      .setPosition(creditsX, creditsTop + (compactCredits ? 28 : 40));
+    this.creditsDeveloper
+      .setFontSize(compactCredits ? 9 : mobile ? 11 : 13)
+      .setWordWrapWidth(creditsWidth - 48)
+      .setPosition(creditsX, creditsTop + (compactCredits ? 51 : 72));
+
+    const sectionTitleSize = compactCredits ? 11 : mobile ? 13 : 16;
+    const nameSize = compactCredits ? 10 : mobile ? 12 : 15;
+    const titleY = creditsTop + (compactCredits ? 100 : mobile ? 126 : 140);
+    if (mobile) {
+      this.creditsPlaytesterTitle.setFontSize(sectionTitleSize).setPosition(creditsX, titleY);
+      this.creditsPlaytesterNames
+        .setFontSize(nameSize)
+        .setLineSpacing(compactCredits ? 0 : 1)
+        .setWordWrapWidth(creditsWidth - 42)
+        .setPosition(creditsX, titleY + (compactCredits ? 17 : 22));
+      const grassTitleY = this.creditsPlaytesterNames.y + this.creditsPlaytesterNames.height + (compactCredits ? 7 : 12);
+      this.creditsGrassToucherTitle.setFontSize(sectionTitleSize).setPosition(creditsX, grassTitleY);
+      this.creditsGrassToucherNames
+        .setFontSize(nameSize)
+        .setLineSpacing(compactCredits ? 0 : 1)
+        .setWordWrapWidth(creditsWidth - 42)
+        .setPosition(creditsX, grassTitleY + (compactCredits ? 17 : 22));
+    } else {
+      const columnOffset = Math.min(170, creditsWidth * 0.24);
+      const columnWidth = Math.max(180, creditsWidth / 2 - 46);
+      this.creditsPlaytesterTitle.setFontSize(sectionTitleSize).setPosition(creditsX - columnOffset, titleY);
+      this.creditsGrassToucherTitle.setFontSize(sectionTitleSize).setPosition(creditsX + columnOffset, titleY);
+      this.creditsPlaytesterNames
+        .setFontSize(nameSize)
+        .setLineSpacing(compactCredits ? 0 : 2)
+        .setWordWrapWidth(columnWidth)
+        .setPosition(creditsX - columnOffset, titleY + (compactCredits ? 18 : 26));
+      this.creditsGrassToucherNames
+        .setFontSize(nameSize)
+        .setLineSpacing(compactCredits ? 0 : 2)
+        .setWordWrapWidth(columnWidth)
+        .setPosition(creditsX + columnOffset, titleY + (compactCredits ? 18 : 26));
+    }
+
+    this.creditsThanks
+      .setFontSize(compactCredits ? 9 : mobile ? 10 : 12)
+      .setWordWrapWidth(creditsWidth - 48)
+      .setPosition(creditsX, creditsBottom - (compactCredits ? 70 : 92));
+    const backHeight = compactCredits ? 38 : 46;
+    this.creditsBackButton.container.setPosition(creditsX, creditsBottom - (compactCredits ? 28 : 42));
+    this.creditsBackButton.back.setSize(Math.min(230, creditsWidth - 70), backHeight);
+    this.creditsBackButton.hit.setSize(Math.min(230, creditsWidth - 70), backHeight);
   }
 
   private createText(

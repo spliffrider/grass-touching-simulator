@@ -1,0 +1,50 @@
+{
+  "date": "2026-07-20",
+  "topic": "Restore named playtesters to ecosystem credits",
+  "currentUserGoal": "Bring the original playtester credits back after the ecosystem gameplay update replaced them with a generic thank-you message.",
+  "workCompleted": [
+    "Recovered the complete named roster from the original title-screen credits and its historical credits commits.",
+    "Added one shared credits data module used by both the ecosystem and legacy title scenes so their rosters cannot drift independently.",
+    "Rebuilt the ecosystem credits modal with dedicated Developer, Playtesters, and Grass Touchers sections.",
+    "Added a two-column desktop layout, stacked phone layout, and compact short-landscape layout with clear Back-button spacing.",
+    "Exposed the complete roster through the title screen's semantic DOM layer while the credits modal is open.",
+    "Added regression tests that preserve every recovered playtester and Grass Toucher entry."
+  ],
+  "filesChanged": [
+    "src/game/data/credits.ts",
+    "src/game/scenes/EcosystemTitleScene.ts",
+    "src/game/scenes/TitleScene.ts",
+    "tests/Credits.test.ts",
+    "handoffs/HANDOFF_2026-07-20_CREDITS_ROSTER_RESTORE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 181 Vitest tests across 23 files, strict TypeScript, and the Vite production build.",
+    "Verified the actual ecosystem title Credits modal at 1280x720, 390x844, and 844x390.",
+    "Confirmed all seven Playtesters and all five Grass Touchers are visible without overlap or clipping.",
+    "Confirmed the semantic browser snapshot includes the complete credits roster.",
+    "Browser diagnostics contained no warnings or errors.",
+    "git diff --check passed apart from the repository's existing Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Credits restoration committed locally; master is one commit ahead of origin/master and has not been pushed or redeployed.",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "Windows canvas text renders country-flag emoji as regional letters because the platform emoji font does not combine flags; the exact Unicode handle is preserved in source and semantic text and renders normally on platforms with flag glyph support.",
+    "This checkpoint is local only until the user requests another GitHub and Vercel release."
+  ],
+  "nextRecommendedSteps": [
+    "Let the user inspect the restored local Credits modal at the bare title URL.",
+    "Push master and deploy Vercel when the user approves the restored roster.",
+    "Continue the early Growth and first-expansion pacing work after the credits regression is closed."
+  ],
+  "doNotRevert": [
+    "Do not replace named credits with a generic thank-you paragraph.",
+    "Do not duplicate credits arrays inside individual scenes; keep both title scenes on the shared roster.",
+    "Do not remove the user-requested entry 3 test credit unless explicitly asked.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}
