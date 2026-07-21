@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   DESKTOP_TILE_ANIMATION_BUDGET,
+  PHONE_SINGLE_PLOT_MOTE_BUDGET,
   PHONE_TILE_ANIMATION_BUDGET,
   getAnimatedTileCount,
   getAnimatedTileIndex,
+  getVisibleAmbientMoteCount,
 } from "../src/game/ecosystem/EcosystemAnimationBudget";
 
 describe("EcosystemAnimationBudget", () => {
@@ -29,5 +31,11 @@ describe("EcosystemAnimationBudget", () => {
     expect(new Set(indices).size).toBe(animated);
     expect(indices[0]).toBe(0);
     expect(indices.at(-1)).toBeGreaterThan(350);
+  });
+
+  it("keeps a lively but bounded single-plot mote budget on phones", () => {
+    expect(getVisibleAmbientMoteCount(18, true)).toBe(PHONE_SINGLE_PLOT_MOTE_BUDGET);
+    expect(getVisibleAmbientMoteCount(18, false)).toBe(18);
+    expect(getVisibleAmbientMoteCount(6, true)).toBe(6);
   });
 });

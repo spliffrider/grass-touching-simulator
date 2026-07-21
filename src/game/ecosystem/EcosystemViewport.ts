@@ -126,6 +126,33 @@ export function projectField(
   };
 }
 
+export function hasFieldProjectionGeometryChanged(
+  previous: FieldProjection | null | undefined,
+  next: FieldProjection,
+): boolean {
+  if (!previous) return true;
+  return previous.viewport.x !== next.viewport.x
+    || previous.viewport.y !== next.viewport.y
+    || previous.viewport.width !== next.viewport.width
+    || previous.viewport.height !== next.viewport.height
+    || previous.fieldWidth !== next.fieldWidth
+    || previous.fieldHeight !== next.fieldHeight
+    || previous.cellSize !== next.cellSize
+    || previous.worldWidth !== next.worldWidth
+    || previous.worldHeight !== next.worldHeight
+    || previous.originX !== next.originX
+    || previous.originY !== next.originY
+    || previous.lod !== next.lod
+    || previous.visibleTiles.startX !== next.visibleTiles.startX
+    || previous.visibleTiles.endX !== next.visibleTiles.endX
+    || previous.visibleTiles.startY !== next.visibleTiles.startY
+    || previous.visibleTiles.endY !== next.visibleTiles.endY
+    || previous.visibleChunks.startX !== next.visibleChunks.startX
+    || previous.visibleChunks.endX !== next.visibleChunks.endX
+    || previous.visibleChunks.startY !== next.visibleChunks.startY
+    || previous.visibleChunks.endY !== next.visibleChunks.endY;
+}
+
 export function screenPointToTile(
   projection: FieldProjection,
   screenX: number,

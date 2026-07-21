@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  hasFieldProjectionGeometryChanged,
   panFieldViewport,
   projectField,
   screenPointToTile,
@@ -38,5 +39,15 @@ describe("EcosystemViewport", () => {
     const panned = panFieldViewport(state, projection, 100_000, -100_000);
     expect(panned.centerX).toBe(0);
     expect(panned.centerY).toBe(1);
+  });
+
+  it("detects when cached field geometry can be reused", () => {
+    const projection = projectField(100, 100, bounds, { centerX: 0.5, centerY: 0.5, zoom: 1 });
+    const sameProjection = projectField(100, 100, bounds, { centerX: 0.5, centerY: 0.5, zoom: 1 });
+    const zoomedProjection = projectField(100, 100, bounds, { centerX: 0.5, centerY: 0.5, zoom: 2 });
+
+    expect(hasFieldProjectionGeometryChanged(null, projection)).toBe(true);
+    expect(hasFieldProjectionGeometryChanged(projection, sameProjection)).toBe(false);
+    expect(hasFieldProjectionGeometryChanged(projection, zoomedProjection)).toBe(true);
   });
 });

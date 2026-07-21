@@ -23,6 +23,7 @@ import {
 import {
   getAnimatedTileCount,
   getAnimatedTileIndex,
+  getVisibleAmbientMoteCount,
 } from "../ecosystem/EcosystemAnimationBudget";
 import { EcosystemDomBridge, type EcosystemDomActions } from "../ecosystem/EcosystemDomBridge";
 import {
@@ -80,6 +81,7 @@ import {
   FIELD_MIN_ZOOM,
   MAX_NEAR_TILE_VIEWS_DESKTOP,
   MAX_NEAR_TILE_VIEWS_PHONE,
+  hasFieldProjectionGeometryChanged,
   panFieldViewport,
   projectField,
   screenPointToTile,
@@ -347,6 +349,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private performanceMonitor = new EcosystemPerformanceMonitor();
   private renderedTileViews = 0;
   private renderedChunkViews = 0;
+  private visibleAmbientMoteCount = 0;
+  private lastRenderedProjection: FieldProjection | null = null;
+  private lastHelperLayoutMask = -1;
+  private fieldGridRedraws = 0;
+  private fieldGeometryReuses = 0;
+  private helperLayoutPasses = 0;
+  private tileTextureChanges = 0;
+  private chunkTextureChanges = 0;
   private displayObjectCount = 0;
   private lastGameOverState = false;
   private firstSprinklerCycleCelebrated = false;
@@ -668,6 +678,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.performanceMonitor = new EcosystemPerformanceMonitor();
     this.renderedTileViews = 0;
     this.renderedChunkViews = 0;
+    this.visibleAmbientMoteCount = 0;
+    this.lastRenderedProjection = null;
+    this.lastHelperLayoutMask = -1;
+    this.fieldGridRedraws = 0;
+    this.fieldGeometryReuses = 0;
+    this.helperLayoutPasses = 0;
+    this.tileTextureChanges = 0;
+    this.chunkTextureChanges = 0;
     this.displayObjectCount = 0;
     this.lastGameOverState = false;
     this.firstSprinklerCycleCelebrated = false;
@@ -2375,29 +2393,44 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       width: Math.max(1, this.fieldBounds.width - 16),
       height: Math.max(1, this.fieldBounds.height - 52),
     };
-    this.projection = projectField(this.state.field.width, this.state.field.height, viewport, this.fieldView);
+    const nextProjection = projectField(this.state.field.width, this.state.field.height, viewport, this.fieldView);
+    const geometryChanged = hasFieldProjectionGeometryChanged(this.lastRenderedProjection, nextProjection);
+    this.projection = nextProjection;
+    this.lastRenderedProjection = nextProjection;
 
-    for (const image of this.tilePool) image.setVisible(false);
-    for (const image of this.chunkPool) image.setVisible(false);
-    for (const mote of this.ambientMotes) mote.setVisible(false);
-    this.fieldAtmosphere.clear();
-    this.fieldGrid.clear();
     const mobileBudget = this.scale.width < 760 ? MAX_NEAR_TILE_VIEWS_PHONE : MAX_NEAR_TILE_VIEWS_DESKTOP;
     const near = this.projection.lod === "near" && this.projection.visibleTiles.count <= mobileBudget;
     const singlePlot = near && this.state.field.stages.length === 1;
+    const representationChanged = (near && this.renderedChunkViews > 0) || (!near && this.renderedTileViews > 0);
+    const refreshViewGeometry = geometryChanged || representationChanged;
+    if (refreshViewGeometry) {
+      for (let index = 0; index < this.renderedTileViews; index += 1) this.tilePool[index].setVisible(false);
+      for (let index = 0; index < this.renderedChunkViews; index += 1) this.chunkPool[index].setVisible(false);
+    }
+    for (let index = 0; index < this.visibleAmbientMoteCount; index += 1) this.ambientMotes[index].setVisible(false);
+    this.visibleAmbientMoteCount = 0;
+    this.fieldAtmosphere.clear();
+    const redrawGrid = geometryChanged || singlePlot;
+    if (redrawGrid) {
+      this.fieldGrid.clear();
+      this.fieldGridRedraws += 1;
+    } else {
+      this.fieldGeometryReuses += 1;
+    }
     this.plotStageText.setVisible(singlePlot);
     this.plotDetailText.setVisible(singlePlot);
     if (singlePlot) this.drawSinglePlotPresentation();
     if (near) {
       this.ensureTilePoolSize(Math.min(mobileBudget, this.projection.visibleTiles.count));
-      this.renderedTileViews = this.renderNearTiles(mobileBudget);
+      this.renderedTileViews = this.renderNearTiles(mobileBudget, redrawGrid, refreshViewGeometry);
       this.renderedChunkViews = 0;
     } else {
       this.ensureChunkPoolSize(Math.min(MAX_CHUNK_VIEWS, this.projection.visibleChunks.count));
       this.renderedTileViews = 0;
-      this.renderedChunkViews = this.renderChunkTiles();
+      this.renderedChunkViews = this.renderChunkTiles(redrawGrid, refreshViewGeometry);
     }
-    this.layoutHelperActors();
+    const helperLayoutMask = this.getVisibleHelperLayoutMask();
+    if (geometryChanged || helperLayoutMask !== this.lastHelperLayoutMask) this.layoutHelperActors();
     clearDirtyChunks(this.state.field);
   }
 
@@ -2425,33 +2458,44 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.displayObjectCount = this.countDisplayObjects();
   }
 
-  private renderNearTiles(budget: number): number {
+  private renderNearTiles(budget: number, redrawGrid: boolean, refreshGeometry: boolean): number {
     const range = this.projection.visibleTiles;
     let poolIndex = 0;
     const singlePlot = this.state.field.stages.length === 1;
     const visualSize = singlePlot
       ? Math.min(420, this.projection.cellSize * 0.86, this.fieldBounds.height * 0.72)
       : Math.min(240, this.projection.cellSize * 0.9);
-    this.fieldGrid.lineStyle(this.projection.cellSize >= 38 ? 2 : 1, 0x3f271c, 0.62);
+    const needsGeometryValues = refreshGeometry || redrawGrid;
+    if (redrawGrid) this.fieldGrid.lineStyle(this.projection.cellSize >= 38 ? 2 : 1, 0x3f271c, 0.62);
     for (let y = range.startY; y <= range.endY && poolIndex < budget; y += 1) {
       for (let x = range.startX; x <= range.endX && poolIndex < budget; x += 1) {
         const tileIndex = y * this.state.field.width + x;
         const stage = this.state.field.stages[tileIndex] as TileStage;
         const image = this.tilePool[poolIndex];
         const variants = TILE_VARIANTS[stage];
-        image.setTexture(singlePlot
+        const textureKey = singlePlot
           ? ECOSYSTEM_HERO_TILE_TEXTURE_KEYS[stage]
-          : variants[(tileIndex * 17 + stage * 3) % variants.length]);
-        const screenX = this.projection.originX + (x + 0.5) * this.projection.cellSize;
-        const screenY = this.projection.originY + (y + 0.5) * this.projection.cellSize;
-        image
-          .setPosition(screenX, screenY)
-          .setRotation(0)
-          .setDisplaySize(visualSize, visualSize)
-          .setVisible(true)
-          .setAlpha(0.94);
-        this.tileBaseYs[poolIndex] = screenY;
-        if (singlePlot) {
+          : variants[(tileIndex * 17 + stage * 3) % variants.length];
+        if (image.texture.key !== textureKey) {
+          image.setTexture(textureKey);
+          this.tileTextureChanges += 1;
+        }
+        const screenX = needsGeometryValues
+          ? this.projection.originX + (x + 0.5) * this.projection.cellSize
+          : 0;
+        const screenY = needsGeometryValues
+          ? this.projection.originY + (y + 0.5) * this.projection.cellSize
+          : 0;
+        if (refreshGeometry) {
+          image
+            .setPosition(screenX, screenY)
+            .setRotation(0)
+            .setDisplaySize(visualSize, visualSize)
+            .setVisible(true)
+            .setAlpha(0.94);
+          this.tileBaseYs[poolIndex] = screenY;
+        }
+        if (redrawGrid && singlePlot) {
           this.fieldGrid.lineStyle(3, 0xd8b66a, 0.82).strokeRoundedRect(
             screenX - visualSize / 2 - 4,
             screenY - visualSize / 2 - 4,
@@ -2466,7 +2510,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
             visualSize - 10,
             2,
           );
-        } else if (this.projection.cellSize >= 24) {
+        } else if (redrawGrid && this.projection.cellSize >= 24) {
           this.fieldGrid.strokeRect(
             this.projection.originX + x * this.projection.cellSize + this.projection.cellSize * 0.05,
             this.projection.originY + y * this.projection.cellSize + this.projection.cellSize * 0.05,
@@ -2524,7 +2568,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.plotStageText.setFontSize(this.scale.width < 760 ? 15 : 19).setPosition(centerX, plaqueY + 15);
     this.plotDetailText.setFontSize(this.scale.width < 760 ? 9 : 11).setPosition(centerX, plaqueY + 39);
 
-    for (let index = 0; index < this.ambientMotes.length; index += 1) {
+    this.visibleAmbientMoteCount = getVisibleAmbientMoteCount(
+      this.ambientMotes.length,
+      this.scale.width < 760,
+    );
+    for (let index = 0; index < this.visibleAmbientMoteCount; index += 1) {
       const mote = this.ambientMotes[index];
       const phase = this.ambientMotePhases[index];
       const orbitBand = index % 3;
@@ -2538,11 +2586,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
   }
 
-  private renderChunkTiles(): number {
+  private renderChunkTiles(redrawGrid: boolean, refreshGeometry: boolean): number {
     const range = this.projection.visibleChunks;
     let poolIndex = 0;
     const chunkCellSize = this.projection.cellSize * 10;
-    this.fieldGrid.lineStyle(2, 0xd8b66a, this.projection.lod === "far" ? 0.3 : 0.44);
+    const needsGeometryValues = refreshGeometry || redrawGrid;
+    if (redrawGrid) this.fieldGrid.lineStyle(2, 0xd8b66a, this.projection.lod === "far" ? 0.3 : 0.44);
     for (let chunkY = range.startY; chunkY <= range.endY && poolIndex < this.chunkPool.length; chunkY += 1) {
       for (let chunkX = range.startX; chunkX <= range.endX && poolIndex < this.chunkPool.length; chunkX += 1) {
         const chunkIndex = chunkY * this.state.field.chunkColumns + chunkX;
@@ -2551,18 +2600,34 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         const image = this.chunkPool[poolIndex];
         const tileWidth = Math.min(10, this.state.field.width - chunkX * 10);
         const tileHeight = Math.min(10, this.state.field.height - chunkY * 10);
-        const displayWidth = tileWidth * this.projection.cellSize * 0.96;
-        const displayHeight = tileHeight * this.projection.cellSize * 0.96;
-        const x = this.projection.originX + (chunkX * 10 + tileWidth / 2) * this.projection.cellSize;
-        const y = this.projection.originY + (chunkY * 10 + tileHeight / 2) * this.projection.cellSize;
-        image.setTexture(variants[(chunkIndex * 7 + stage) % variants.length]);
-        image.setPosition(x, y).setDisplaySize(displayWidth, displayHeight).setVisible(true).setAlpha(this.projection.lod === "far" ? 0.76 : 0.86);
-        this.fieldGrid.strokeRect(
-          this.projection.originX + chunkX * chunkCellSize + 2,
-          this.projection.originY + chunkY * chunkCellSize + 2,
-          Math.max(1, displayWidth - 4),
-          Math.max(1, displayHeight - 4),
-        );
+        const displayWidth = needsGeometryValues ? tileWidth * this.projection.cellSize * 0.96 : 0;
+        const displayHeight = needsGeometryValues ? tileHeight * this.projection.cellSize * 0.96 : 0;
+        const x = needsGeometryValues
+          ? this.projection.originX + (chunkX * 10 + tileWidth / 2) * this.projection.cellSize
+          : 0;
+        const y = needsGeometryValues
+          ? this.projection.originY + (chunkY * 10 + tileHeight / 2) * this.projection.cellSize
+          : 0;
+        const textureKey = variants[(chunkIndex * 7 + stage) % variants.length];
+        if (image.texture.key !== textureKey) {
+          image.setTexture(textureKey);
+          this.chunkTextureChanges += 1;
+        }
+        if (refreshGeometry) {
+          image
+            .setPosition(x, y)
+            .setDisplaySize(displayWidth, displayHeight)
+            .setVisible(true)
+            .setAlpha(this.projection.lod === "far" ? 0.76 : 0.86);
+        }
+        if (redrawGrid) {
+          this.fieldGrid.strokeRect(
+            this.projection.originX + chunkX * chunkCellSize + 2,
+            this.projection.originY + chunkY * chunkCellSize + 2,
+            Math.max(1, displayWidth - 4),
+            Math.max(1, displayHeight - 4),
+          );
+        }
         poolIndex += 1;
       }
     }
@@ -2573,6 +2638,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const owned = isRunEquipmentAvailable(this.state)
       ? HELPER_IDS.filter((helperId) => this.state.helpers[helperId].count > 0)
       : [];
+    this.lastHelperLayoutMask = this.getVisibleHelperLayoutMask();
+    this.helperLayoutPasses += 1;
     const singlePlot = this.state.field.stages.length === 1 && this.projection?.lod === "near";
     const singlePlotSize = singlePlot
       ? Math.min(420, this.projection.cellSize * 0.86, this.fieldBounds.height * 0.72)
@@ -2651,7 +2718,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       image.y = baseY + sway * Math.min(2.4, this.projection.cellSize * 0.035);
       image.rotation = sway * 0.012;
     }
-    for (let index = 0; index < this.ambientMotes.length; index += 1) {
+    for (let index = 0; index < this.visibleAmbientMoteCount; index += 1) {
       const mote = this.ambientMotes[index];
       if (!mote.visible) continue;
       const phase = this.ambientMotePhases[index];
@@ -2760,6 +2827,15 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       actor.countText.setPosition(badgeX, badgeY - 1).setAlpha(arrivalRatio);
     }
     this.animateTouchRecovery(now);
+  }
+
+  private getVisibleHelperLayoutMask(): number {
+    if (!isRunEquipmentAvailable(this.state)) return 0;
+    let mask = 0;
+    for (let index = 0; index < HELPER_IDS.length; index += 1) {
+      if (this.state.helpers[HELPER_IDS[index]].count > 0) mask |= 1 << index;
+    }
+    return mask;
   }
 
   private animateTouchRecovery(now: number): void {
@@ -4458,6 +4534,15 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       renderedTileViews: this.renderedTileViews,
       animatedTileViews: getAnimatedTileCount(this.renderedTileViews, this.scale.width < 760),
       renderedChunkViews: this.renderedChunkViews,
+      animatedAmbientMotes: this.visibleAmbientMoteCount,
+      fieldZoom: Number(this.fieldView.zoom.toFixed(3)),
+      visibleTileCandidates: this.projection?.visibleTiles.count ?? 0,
+      visibleChunkCandidates: this.projection?.visibleChunks.count ?? 0,
+      fieldGridRedraws: this.fieldGridRedraws,
+      fieldGeometryReuses: this.fieldGeometryReuses,
+      helperLayoutPasses: this.helperLayoutPasses,
+      tileTextureChanges: this.tileTextureChanges,
+      chunkTextureChanges: this.chunkTextureChanges,
       pooledTileViews: this.tilePool.length,
       pooledChunkViews: this.chunkPool.length,
       pooledImpacts: this.impactPool.length,

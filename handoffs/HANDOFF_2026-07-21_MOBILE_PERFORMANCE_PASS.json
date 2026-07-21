@@ -1,0 +1,57 @@
+{
+  "date": "2026-07-21",
+  "topic": "Ecosystem mobile rendering and animation performance",
+  "currentUserGoal": "Keep the ecosystem redesign visually busy while making the phone experience fast, smooth, and ready to scale toward a 100x100 field.",
+  "workCompleted": [
+    "Profiled the actual ecosystem prototype at 390x844 instead of using the obsolete legacy tile harness.",
+    "Added projection-geometry change detection so routine production renders reuse stable viewport, tile, chunk, and grid geometry.",
+    "Stopped unchanged production ticks from rebuilding the field grid, repositioning every visible tile or chunk, relaying out helper actors, or reapplying identical texture keys.",
+    "Kept stage changes live by updating only tile or chunk textures whose resolved key actually changed.",
+    "Reduced the phone close-up animation budget from 72 to 48 representative tiles while leaving all visible tiles rendered.",
+    "Capped the phone single-plot ambient mote animation pool at 10 while preserving the full desktop presentation.",
+    "Added ecosystem harness counters for projection reuse, grid redraws, helper layout passes, texture changes, zoom, visible candidates, and ambient mote count.",
+    "Verified resize behavior and touch registration after moving between 390x844 and 1280x720."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemAnimationBudget.ts",
+    "src/game/ecosystem/EcosystemViewport.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemAnimationBudget.test.ts",
+    "tests/EcosystemViewport.test.ts",
+    "handoffs/HANDOFF_2026-07-21_MOBILE_PERFORMANCE_PASS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 183 Vitest tests across 23 files, strict TypeScript, and the Vite production build.",
+    "Targeted animation-budget and viewport tests passed: 9 tests across 2 files.",
+    "Busy 100x100 phone far view with all eight helpers: 144 FPS, 0 frame spikes, 0.089 ms average frame work, 0.036 ms average animation work, and 0.025 ms average field-render work.",
+    "Busy 100x100 phone near view with all eight helpers: 110 rendered tile views, 48 animated representatives, 144 FPS, 0 frame spikes, 0.101 ms average frame work, 0.060 ms average animation work, and 0.033 ms average field-render work.",
+    "The 100x100 far view stayed bounded at 100 rendered chunk views; no full-field scans or per-frame production loops were reported.",
+    "Desktop 1280x720 resize verification retained all 100 chunk views and accepted the first field touch with 0.1 ms average input latency and 1.9 ms touch action work.",
+    "Phone and desktop screenshots showed intact field framing, chunk grids, HUD layout, helper actors, and Memory Grove presentation.",
+    "Browser diagnostics contained no warnings or errors, and git diff --check passed apart from normal Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Mobile performance pass committed locally; master is one commit ahead of origin/master and has not been pushed or redeployed.",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The debug panel requires many repeated currency clicks to assemble a fully funded stress field; a dedicated one-click ecosystem stress-state control would make future profiling faster and more repeatable.",
+    "The current browser refresh ceiling was 144 FPS, so these measurements demonstrate ample main-thread headroom rather than real low-end-phone GPU performance.",
+    "Future visual systems must continue using pooled, viewport-bounded actors and representative effects instead of scaling display objects with all 10,000 logical tiles."
+  ],
+  "nextRecommendedSteps": [
+    "Run a hands-on phone test on physical mid-range hardware when available, focusing on battery heat, touch latency, and sustained production.",
+    "Add a one-click ecosystem stress-state debug control before the next deep profiling pass.",
+    "Continue the early Growth and first-expansion pacing work once the user is satisfied with mobile feel.",
+    "Push master and deploy Vercel only when the user requests the next release."
+  ],
+  "doNotRevert": [
+    "Do not resume unconditional field-grid clearing, helper relayout, or texture assignment on every dirty production render.",
+    "Do not increase phone animation counts without measuring the actual ecosystem route at phone size.",
+    "Do not use the legacy 1200-tile harness as evidence for ecosystem redesign performance.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

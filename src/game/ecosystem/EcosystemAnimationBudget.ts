@@ -1,5 +1,6 @@
 export const DESKTOP_TILE_ANIMATION_BUDGET = 144;
-export const PHONE_TILE_ANIMATION_BUDGET = 72;
+export const PHONE_TILE_ANIMATION_BUDGET = 48;
+export const PHONE_SINGLE_PLOT_MOTE_BUDGET = 10;
 
 export function getAnimatedTileCount(renderedTileCount: number, mobile: boolean): number {
   const rendered = Math.max(0, Math.floor(renderedTileCount));
@@ -18,4 +19,9 @@ export function getAnimatedTileIndex(
     renderedTileCount - 1,
     Math.floor((sample * renderedTileCount) / animatedTileCount),
   );
+}
+
+export function getVisibleAmbientMoteCount(totalMotes: number, mobile: boolean): number {
+  const total = Math.max(0, Math.floor(totalMotes));
+  return mobile ? Math.min(total, PHONE_SINGLE_PLOT_MOTE_BUDGET) : total;
 }
