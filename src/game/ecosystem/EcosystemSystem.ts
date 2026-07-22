@@ -29,6 +29,7 @@ export const ANCIENT_HEARTWOOD_HP_PER_RANK = 15;
 export const LINGERING_CARE_MAX_RANK = 10;
 export const LINGERING_CARE_DURATION_MS = 4_000;
 export const VERDANT_AEGIS_MAX_RANK = 10;
+export const FIRST_RUN_TARGET_DURATION_MS = 16_000;
 export const MANUAL_TOUCH_CARE_PER_POWER = 6;
 export const MANUAL_TOUCH_POWER_PER_MEMORY = 0.015;
 export const HELPER_THROUGHPUT_PER_RANK = 0.15;
@@ -37,9 +38,9 @@ export const DAMP_FURROWS_GROWTH_PER_CYCLE = 0.45;
 export const DAMP_FURROWS_CARE_PER_CYCLE = 0.22;
 export const HAND_TENDING_GROWTH_PER_POWER = 0.35;
 export const STARTER_SPRINKLER_GROWTH_PER_CYCLE = 0.08;
-const FIRST_RUN_SCOURGE_BASE = 10_000_000;
-const FIRST_RUN_OPENING_HP = 1;
-const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.18;
+// Run 1 cannot produce Care, so this curve creates a readable but inevitable first collapse.
+const FIRST_RUN_SCOURGE_BASE = 3.7;
+const FIRST_RUN_SCOURGE_RAMP_SECONDS = 30;
 const PRE_AUTOMATION_SCOURGE_RAMP_SECONDS = 0.2;
 const FIRST_AUTOMATION_SCOURGE_RAMP_SECONDS = 55;
 const MULTI_AUTOMATION_SCOURGE_RAMP_SECONDS = 36;
@@ -518,7 +519,7 @@ export function createEcosystemState(
   const fieldSizeIndex = Math.min(permanent.maxFieldTier, options.fieldSizeIndex ?? 0);
   const field = createField(fieldSizeIndex, seed);
   const runNumber = permanent.completedRuns + 1;
-  const maxHp = getPermanentMaxHp(permanent);
+  const maxHp = runNumber === 1 ? ECOSYSTEM_BASE_MAX_HP : getPermanentMaxHp(permanent);
   const state: EcosystemState = {
     version: ECOSYSTEM_ACTIVE_VERSION,
     active: true,
@@ -1617,10 +1618,9 @@ export function touchFieldTile(
   state.runTouches += runTouchesGained;
   state.runTouchesEarned += runTouchesGained;
   if (wakesFirstRunScourge) {
-    state.hp = Math.min(state.hp, FIRST_RUN_OPENING_HP);
     state.scourgeDemandPerSecond = FIRST_RUN_SCOURGE_BASE;
     state.careDeficitPerSecond = FIRST_RUN_SCOURGE_BASE;
-    state.bottleneck = "The Scourge has broken through";
+    state.bottleneck = "The Scourge is gathering";
   }
 
   const representativeImpacts = [...impacts.values()].slice(0, MAX_REPRESENTATIVE_IMPACTS);

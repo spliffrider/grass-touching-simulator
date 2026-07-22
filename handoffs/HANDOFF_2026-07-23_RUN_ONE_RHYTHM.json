@@ -1,0 +1,51 @@
+{
+  "date": "2026-07-23",
+  "topic": "Readable first-run collapse rhythm",
+  "currentUserGoal": "Make Run 1 last at least about fifteen seconds so a new player can understand the field, touch cooldown, HP loss, and Scourge before the mandatory first Game Over.",
+  "workCompleted": [
+    "Removed the first-touch strike that forced Ancient HP directly to one.",
+    "Replaced the ten-million-Care opening spike with a deterministic rising Scourge curve tuned to collapse a clean Run 1 at roughly sixteen seconds after the first touch.",
+    "Kept Run 1 unwinnable: manual touches still produce no Care or Growth, equipment remains unavailable, and permanent healing and shield Memories remain disabled.",
+    "Made Run 1 ignore contradictory debug-injected Heartwood ranks so its authored timing remains stable at the base 100 maximum HP.",
+    "Changed the initial bottleneck copy to 'The Scourge is gathering' so the slower opening reads as escalation rather than an already completed breach.",
+    "Updated the durable ecosystem design document from the obsolete two-to-four-second target to the new fifteen-to-seventeen-second target.",
+    "Left the local Vite server running on port 5173 for hands-on timing verification."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-23_RUN_ONE_RHYTHM.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "Focused EcosystemSystem verification passed: 47 tests.",
+    "npm run check passed: ESLint, 194 Vitest tests across 23 files, strict TypeScript, and the Vite production build.",
+    "Deterministic tests enforce a fifteen-to-seventeen-second collapse both for ordinary periodic touching and for touching at every legal cooldown.",
+    "A debug-unlocked contradictory Run 1 follows the same timing band and receives no helper, healing-over-time, shield, or maximum-HP protection.",
+    "The local playtest URL returned HTTP 200.",
+    "Browser timing could not be captured because the in-app browser remained on a stale generated connection-error page and its controller refused navigation; a manual refresh is still required for hands-on visual verification.",
+    "git diff --check passed apart from normal Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Run 1 rhythm checkpoint committed locally; master is expected to be one commit ahead of origin/master and has not been pushed or redeployed.",
+    "productionCodeCommit": "9304839dcf9d262482244fd4c3492cfa7de43111",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The sixteen-second target is model-verified but needs the user's hands-on visual and pacing judgment after refreshing the local playtest.",
+    "The live Vercel build still has the previous near-instant Run 1 until this local checkpoint is explicitly pushed and deployed."
+  ],
+  "nextRecommendedSteps": [
+    "Refresh the local playtest, reset the prototype from Playtest tools, and time one natural Run 1 from first accepted touch to Game Over.",
+    "Adjust the base or ramp only if the visible experience feels materially shorter or longer than the deterministic sixteen-second model.",
+    "Push and deploy this checkpoint after hands-on approval."
+  ],
+  "doNotRevert": [
+    "Do not restore the immediate first-touch HP clamp or million-scale opening Scourge spike.",
+    "Do not make Run 1 survivable through spam touching, injected Memories, helpers, healing-over-time, or shields.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md in this checkpoint without explicit user direction."
+  ]
+}

@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-22",
-  "latestHandoff": "HANDOFF_2026-07-22_VERDANT_AEGIS.json",
+  "updatedAt": "2026-07-23",
+  "latestHandoff": "HANDOFF_2026-07-23_RUN_ONE_RHYTHM.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

@@ -13,6 +13,7 @@ import {
   ANCIENT_HEARTWOOD_MAX_RANK,
   BEE_HIVE_STARTER_FLOWERS,
   FIELD_MOUSE_STARTER_SEEDS,
+  FIRST_RUN_TARGET_DURATION_MS,
   HAND_TENDING_GROWTH_PER_POWER,
   LINGERING_CARE_DURATION_MS,
   VERDANT_AEGIS_MAX_RANK,
@@ -84,7 +85,7 @@ describe("EcosystemSystem", () => {
     const state = createEcosystemState(permanent, { seed: 8_008 + completedRuns });
     let wallElapsedMs = 0;
     let nextTouchAtMs = 0;
-    while (state.active && wallElapsedMs < 10_000) {
+    while (state.active && wallElapsedMs < 30_000) {
       if (wallElapsedMs >= nextTouchAtMs) {
         touchFieldTile(state, permanent, 0);
         nextTouchAtMs += touchCooldownMs;
@@ -93,6 +94,11 @@ describe("EcosystemSystem", () => {
       wallElapsedMs += 10;
     }
     return state.elapsedMs;
+  }
+
+  function expectReadableFirstCollapse(durationMs: number): void {
+    expect(durationMs).toBeGreaterThanOrEqual(FIRST_RUN_TARGET_DURATION_MS - 1_000);
+    expect(durationMs).toBeLessThanOrEqual(FIRST_RUN_TARGET_DURATION_MS + 1_000);
   }
 
   function simulateFirstAutomationRunAtFullTouchRate(): {
@@ -903,17 +909,17 @@ describe("EcosystemSystem", () => {
     expect(state.field.cultivationRank).toBe(0);
   });
 
-  it("ends the first manual run as a brief onboarding failure", () => {
-    expect(simulateManualRun(0, 0)).toBe(PRODUCTION_TICK_MS);
+  it("gives the first onboarding failure time to be read", () => {
+    expectReadableFirstCollapse(simulateManualRun(0, 0));
   });
 
   it("overpowers a first-run player touching at every legal cooldown", () => {
     const duration = simulateCooldownLimitedManualRun(0, getManualTouchCooldownMs(0));
 
-    expect(duration).toBe(PRODUCTION_TICK_MS);
+    expectReadableFirstCollapse(duration);
   });
 
-  it("answers the first touch with a near-fatal Scourge strike instead of healing", () => {
+  it("answers the first touch with rising Scourge pressure instead of healing", () => {
     const permanent = createPermanentEcosystemState();
     const state = createEcosystemState(permanent, { seed: 4_004 });
     state.hp = 50;
@@ -921,9 +927,10 @@ describe("EcosystemSystem", () => {
     const result = touchFieldTile(state, permanent, 0);
 
     expect(result?.healedHp).toBe(0);
-    expect(state.hp).toBe(1);
-    expect(state.scourgeDemandPerSecond).toBe(10_000_000);
-    expect(state.careDeficitPerSecond).toBe(10_000_000);
+    expect(state.hp).toBe(50);
+    expect(state.scourgeDemandPerSecond).toBeGreaterThan(3);
+    expect(state.scourgeDemandPerSecond).toBeLessThan(4);
+    expect(state.careDeficitPerSecond).toBe(state.scourgeDemandPerSecond);
     expect(result?.dewGained).toBeGreaterThan(0);
     expect(result?.growthGained).toBe(0);
     expect(result?.runTouchesGained).toBeGreaterThan(0);
@@ -942,10 +949,10 @@ describe("EcosystemSystem", () => {
     expect(state.maxOverhealShield).toBe(0);
     expect(state.overhealShieldRemainingMs).toBe(0);
 
-    while (state.active && state.elapsedMs < 5_000) advanceEcosystem(state, permanent, 250);
+    while (state.active && state.elapsedMs < 30_000) advanceEcosystem(state, permanent, 250);
 
     expect(state.runNumber).toBe(1);
-    expect(state.elapsedMs).toBe(PRODUCTION_TICK_MS);
+    expectReadableFirstCollapse(state.elapsedMs);
   });
 
   it("waits for the player's first touch before unleashing Run 1", () => {
@@ -963,7 +970,14 @@ describe("EcosystemSystem", () => {
     advanceEcosystem(state, permanent, 250);
 
     expect(state.elapsedMs).toBe(250);
-    expect(state.scourgeDemandPerSecond).toBeGreaterThan(50_000_000);
+    expect(state.scourgeDemandPerSecond).toBeGreaterThan(3);
+    expect(state.scourgeDemandPerSecond).toBeLessThan(4.5);
+    expect(state.hp).toBeGreaterThan(98);
+    expect(state.active).toBe(true);
+
+    while (state.active && state.elapsedMs < 30_000) advanceEcosystem(state, permanent, 250);
+
+    expectReadableFirstCollapse(state.elapsedMs);
     expect(state.hp).toBe(0);
     expect(state.active).toBe(false);
   });
