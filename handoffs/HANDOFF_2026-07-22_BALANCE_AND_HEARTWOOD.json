@@ -1,0 +1,60 @@
+{
+  "date": "2026-07-22",
+  "topic": "Ecosystem difficulty relief and Ancient Heartwood health progression",
+  "currentUserGoal": "Make the ecosystem game less punishing after the scripted first loss, strengthen player progression, and add a permanent way to increase the field's health.",
+  "workCompleted": [
+    "Preserved the intentionally unwinnable Run 1 onboarding while reducing post-collapse Scourge base demand by roughly 15-20 percent across progression tiers.",
+    "Lengthened the post-collapse Scourge ramps so automation and field growth have more time to come online before demand accelerates.",
+    "Raised base manual Care from 5.2 to 6.0 per full-power touch.",
+    "Raised the permanent manual-touch bonus from 1 percent to 1.5 percent per Memory investment and made the displayed percentage retain half-percent precision.",
+    "Raised helper throughput scaling from 12 percent to 15 percent per rank, producing materially shorter helper cycle cooldowns.",
+    "Added Ancient Heartwood as a ten-rank Field Vitality Memory. Each rank adds 15 maximum Ancient HP to future fields, from 100 base HP to a 250 HP cap.",
+    "Added Heartwood pricing, purchase behavior, save normalization, future-run application, debug unlock behavior, Memory Web presentation, detail copy, and semantic controls.",
+    "Placed the new Heartwood branch beside Field Heir without crossed connectors, overlapping nodes, or clipped default framing.",
+    "Reset the local browser playtest to a clean Run 1 after verification."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemMemoryTree.test.ts",
+    "tests/EcosystemSave.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-22_BALANCE_AND_HEARTWOOD.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 185 Vitest tests across 23 files, strict TypeScript, and the Vite production build.",
+    "Targeted ecosystem system, Memory Web, and save verification passed: 60 tests across 3 files.",
+    "The deterministic full-rate Run 2 benchmark now lasts 57.0 seconds, begins at 5.55 Scourge Care per second, buys its first sprinkler at 5.32 seconds, and still has full HP at that purchase.",
+    "Run 1 still waits for the first touch and then collapses on the first 250 ms production tick, including with debug-unlocked Memories.",
+    "Strict Memory Web geometry checks passed with 55 nodes: no connector crossings, node overlaps, blocked branches, or narrow shared-node branch angles.",
+    "Browser verification confirmed an 8-Grass-Touch Heartwood purchase, +15 maximum HP, +1.5 percent additional manual power, and a 115/115 HP Run 2.",
+    "Desktop and 390x844 browser layouts showed readable Heartwood node and detail presentation with no browser warnings or errors.",
+    "git diff --check passed apart from normal Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Balance and Heartwood checkpoint committed locally; master is expected to be one commit ahead of origin/master and has not been pushed or deployed.",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The new balance curve is deterministic and browser-verified but still needs the user's hands-on progression test across several consecutive runs.",
+    "Ancient Heartwood applies to newly created fields; an already active or ended field intentionally retains the max HP stored in that run snapshot.",
+    "Late-game Scourge tiers were softened proportionally but have not yet received a long-form real-player balance pass."
+  ],
+  "nextRecommendedSteps": [
+    "Play Runs 2-5 normally and note whether each loss feels earned, whether Heartwood competes fairly with throughput Memories, and where the next difficulty wall appears.",
+    "Tune Heartwood costs or later Scourge tiers from hands-on timing instead of making another broad blind adjustment.",
+    "Consider a later regeneration or damage-resistance branch only if raw maximum HP does not create enough build variety.",
+    "Push and deploy only when the user requests the next live release."
+  ],
+  "doNotRevert": [
+    "Do not weaken the scripted Run 1 collapse; the requested difficulty relief begins with Run 2.",
+    "Do not remove heartwoodRank from v1 permanent-state normalization; missing legacy values must continue defaulting to zero.",
+    "Do not move Heartwood back to the clipped far-left position or introduce Memory Web connector crossings.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

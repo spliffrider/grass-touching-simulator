@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-21",
-  "latestHandoff": "HANDOFF_2026-07-21_MOBILE_PERFORMANCE_PASS.json",
+  "updatedAt": "2026-07-22",
+  "latestHandoff": "HANDOFF_2026-07-22_BALANCE_AND_HEARTWOOD.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

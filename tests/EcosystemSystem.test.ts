@@ -9,6 +9,8 @@ import {
 } from "../src/game/ecosystem/EcosystemCatalog";
 import { getManualTouchCooldownMs } from "../src/game/ecosystem/EcosystemTouchCooldown";
 import {
+  ANCIENT_HEARTWOOD_HP_PER_RANK,
+  ANCIENT_HEARTWOOD_MAX_RANK,
   BEE_HIVE_STARTER_FLOWERS,
   FIELD_MOUSE_STARTER_SEEDS,
   HAND_TENDING_GROWTH_PER_POWER,
@@ -20,6 +22,7 @@ import {
   createEcosystemState,
   createPermanentEcosystemState,
   forceGameOver,
+  getAncientHeartwoodRankCost,
   getBroadPalmPower,
   getBroadPalmRadius,
   getBeeHiveStatus,
@@ -33,6 +36,7 @@ import {
   getManualTouchPowerBonusPercent,
   getManualTouchPowerMultiplier,
   getPermanentMemoryInvestmentCount,
+  getPermanentMaxHp,
   getTouchRankCost,
   isFirstCollapseAwaitingSprinkler,
   isFirstEcosystemCollapse,
@@ -40,6 +44,7 @@ import {
   isRunEquipmentAvailable,
   normalizePermanentEcosystemState,
   purchasePermanentRank,
+  purchaseAncientHeartwoodRank,
   purchaseTouchRank,
   setPrototypeFieldSize,
   switchHelperMode,
@@ -547,7 +552,7 @@ describe("EcosystemSystem", () => {
     expect(baseInterval).toBeCloseTo(2_941.176, 2);
     expect(firstRankInterval).toBeLessThan(baseInterval);
     expect(maxRankInterval).toBeLessThan(firstRankInterval);
-    expect(maxRankInterval).toBeCloseTo(1_336.898, 2);
+    expect(maxRankInterval).toBeCloseTo(1_176.471, 2);
   });
 
   it("makes every purchased Memory strengthen standard manual touches", () => {
@@ -562,18 +567,18 @@ describe("EcosystemSystem", () => {
     expect(purchaseTouchRank(permanent, "broadPalm")).toBe(true);
 
     expect(getPermanentMemoryInvestmentCount(permanent)).toBe(5);
-    expect(getManualTouchPowerBonusPercent(permanent)).toBe(5);
-    expect(getManualTouchPowerMultiplier(permanent)).toBeCloseTo(1.05);
+    expect(getManualTouchPowerBonusPercent(permanent)).toBe(7.5);
+    expect(getManualTouchPowerMultiplier(permanent)).toBeCloseTo(1.075);
 
     const state = createEcosystemState(permanent, { seed: 3_141 });
     state.hp = 50;
     const result = touchFieldTile(state, permanent, 0);
 
-    expect(result?.totalPower).toBeCloseTo(1.05);
-    expect(result?.healedHp).toBeCloseTo(5.46);
-    expect(result?.dewGained).toBeCloseTo(1.2075);
-    expect(result?.growthGained).toBeCloseTo(1.05 * HAND_TENDING_GROWTH_PER_POWER);
-    expect(result?.runTouchesGained).toBeCloseTo(0.966);
+    expect(result?.totalPower).toBeCloseTo(1.075);
+    expect(result?.healedHp).toBeCloseTo(6.45);
+    expect(result?.dewGained).toBeCloseTo(1.23625);
+    expect(result?.growthGained).toBeCloseTo(1.075 * HAND_TENDING_GROWTH_PER_POWER);
+    expect(result?.runTouchesGained).toBeCloseTo(0.989);
   });
 
   it("turns recovered Run 2 touches into immediate starter Growth", () => {
@@ -625,6 +630,27 @@ describe("EcosystemSystem", () => {
     expect(legacy.fastTouchRank).toBe(1);
     expect(legacy.grassTouches).toBe(0);
     expect(getManualTouchCooldownMs(legacy.fastTouchRank)).toBe(356);
+  });
+
+  it("remembers Ancient Heartwood ranks and applies them to future field health", () => {
+    const permanent = normalizePermanentEcosystemState({ version: 1, completedRuns: 1 });
+    expect(permanent.heartwoodRank).toBe(0);
+    expect(getPermanentMaxHp(permanent)).toBe(100);
+
+    const firstRankCost = getAncientHeartwoodRankCost(permanent.heartwoodRank);
+    permanent.grassTouches = firstRankCost;
+    expect(firstRankCost).toBe(8);
+    expect(purchaseAncientHeartwoodRank(permanent)).toBe(true);
+    expect(permanent.heartwoodRank).toBe(1);
+    expect(getPermanentMaxHp(permanent)).toBe(100 + ANCIENT_HEARTWOOD_HP_PER_RANK);
+
+    const nextRun = createEcosystemState(permanent, { seed: 1_515 });
+    expect(nextRun.hp).toBe(115);
+    expect(nextRun.maxHp).toBe(115);
+
+    const maxed = normalizePermanentEcosystemState({ version: 1, heartwoodRank: 999 });
+    expect(maxed.heartwoodRank).toBe(ANCIENT_HEARTWOOD_MAX_RANK);
+    expect(getPermanentMaxHp(maxed)).toBe(250);
   });
 
   it("safely normalizes the most recently purchased Memory node", () => {
@@ -754,7 +780,8 @@ describe("EcosystemSystem", () => {
     advanceEcosystem(state, permanent, 250);
 
     expect(state.scourgeDemandPerSecond).toBeGreaterThan(4);
-    expect(state.hp).toBeLessThan(100);
+    expect(state.hp).toBeLessThan(state.maxHp);
+    expect(state.hp).toBeGreaterThan(100);
   });
 
   it("does not grant free Scourge relief for repeated losses", () => {
@@ -800,15 +827,15 @@ describe("EcosystemSystem", () => {
   it("keeps the second run threatening without overwhelming its opening", () => {
     const result = simulateFirstAutomationRunAtFullTouchRate();
 
-    expect(result.initialScourgeDemandPerSecond).toBeGreaterThan(6.5);
-    expect(result.initialScourgeDemandPerSecond).toBeLessThan(7);
-    expect(result.sprinklerPurchasedAtMs).toBeGreaterThanOrEqual(5_500);
-    expect(result.sprinklerPurchasedAtMs).toBeLessThanOrEqual(6_000);
+    expect(result.initialScourgeDemandPerSecond).toBeGreaterThan(5.4);
+    expect(result.initialScourgeDemandPerSecond).toBeLessThan(5.7);
+    expect(result.sprinklerPurchasedAtMs).toBeGreaterThanOrEqual(5_000);
+    expect(result.sprinklerPurchasedAtMs).toBeLessThanOrEqual(5_500);
     expect(result.hpAtPurchase).not.toBeNull();
-    expect(result.hpAtPurchase!).toBeGreaterThanOrEqual(95);
-    expect(result.durationMs).toBeGreaterThanOrEqual(30_000);
-    expect(result.durationMs).toBeLessThanOrEqual(45_000);
-    expect(result.durationMs - result.sprinklerPurchasedAtMs!).toBeGreaterThanOrEqual(25_000);
+    expect(result.hpAtPurchase!).toBeGreaterThanOrEqual(99);
+    expect(result.durationMs).toBeGreaterThanOrEqual(50_000);
+    expect(result.durationMs).toBeLessThanOrEqual(70_000);
+    expect(result.durationMs - result.sprinklerPurchasedAtMs!).toBeGreaterThanOrEqual(45_000);
     expect(result.grassTouchesAwarded).toBeGreaterThanOrEqual(getHelperUnlockCost("fieldMouse"));
   });
 
@@ -849,7 +876,8 @@ describe("EcosystemSystem", () => {
     }
 
     expect(state.active).toBe(true);
-    expect(state.hp).toBe(100);
+    expect(state.hp).toBeGreaterThan(100);
+    expect(state.hp).toBeLessThanOrEqual(state.maxHp);
     expect(careSurplusTicks).toBeGreaterThan(1_000);
     expect(state.resources.care.producedTotal).toBeGreaterThan(800);
     expect(state.resources.care.amount).toBeGreaterThan(200);

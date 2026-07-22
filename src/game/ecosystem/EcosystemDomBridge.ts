@@ -18,8 +18,10 @@ import {
   getRevealedEcosystemMemoryNodeIds,
 } from "./EcosystemMemoryTree";
 import {
+  ANCIENT_HEARTWOOD_MAX_RANK,
   canBeginNextEcosystemRun,
   getBeeHiveStatus,
+  getAncientHeartwoodRankCost,
   getCultivationCost,
   getDominantChunkStage,
   getFieldMouseStatus,
@@ -54,6 +56,7 @@ export interface EcosystemDomActions {
   unlockHelper(helperId: HelperId): void;
   unlockMode(helperId: HelperId, modeId: string): void;
   buyRank(helperId: HelperId, kind: PermanentRankKind): void;
+  buyHeartwoodRank(): void;
   unlockFieldTier(): void;
   buyTouchRank(kind: PermanentTouchRankKind): void;
   buyFieldEmbrace(): void;
@@ -152,6 +155,7 @@ export class EcosystemDomBridge {
   private readonly optionsButton: HTMLButtonElement;
   private readonly titleButton: HTMLButtonElement;
   private readonly nextRunButton: HTMLButtonElement;
+  private readonly heartwoodButton: HTMLButtonElement;
   private readonly fieldTierButton: HTMLButtonElement;
   private readonly fieldEmbraceButton: HTMLButtonElement;
   private readonly playtestStatus?: HTMLOutputElement;
@@ -262,12 +266,17 @@ export class EcosystemDomBridge {
       () => this.actions.unlockFieldTier(),
       "ecosystem-unlock-field",
     );
+    this.heartwoodButton = this.createButton(
+      "Buy Ancient Heartwood rank",
+      () => this.actions.buyHeartwoodRank(),
+      "ecosystem-rank-heartwood",
+    );
     this.fieldEmbraceButton = this.createButton(
       "Unlock Field Embrace",
       () => this.actions.buyFieldEmbrace(),
       "ecosystem-unlock-field-embrace",
     );
-    memories.append(this.fieldTierButton, ...touchButtons, this.fieldEmbraceButton);
+    memories.append(this.heartwoodButton, this.fieldTierButton, ...touchButtons, this.fieldEmbraceButton);
     this.root.append(memories);
 
     if (playtest) {
@@ -479,6 +488,17 @@ export class EcosystemDomBridge {
         this.setDisabled(button.element, Boolean(prerequisite && !permanent.unlockedHelpers[prerequisite]) || permanent.grassTouches < cost);
       }
     }
+    const heartwoodRank = permanent.heartwoodRank;
+    const heartwoodComplete = heartwoodRank >= ANCIENT_HEARTWOOD_MAX_RANK;
+    const heartwoodCost = heartwoodComplete ? 0 : getAncientHeartwoodRankCost(heartwoodRank);
+    this.setHidden(this.heartwoodButton, state.active || !revealedMemoryNodeIds.has("field:heartwood"));
+    this.setDisabled(this.heartwoodButton, heartwoodComplete || permanent.grassTouches < heartwoodCost);
+    this.setText(
+      this.heartwoodButton,
+      heartwoodComplete
+        ? `Ancient Heartwood ${heartwoodRank}/${ANCIENT_HEARTWOOD_MAX_RANK}; complete`
+        : `Ancient Heartwood ${heartwoodRank}/${ANCIENT_HEARTWOOD_MAX_RANK}; next ${heartwoodCost} ${GRASS_TOUCHES_LABEL}`,
+    );
     this.setHidden(this.fieldTierButton, state.active || !revealedMemoryNodeIds.has("field:tier"));
     this.setHidden(
       this.fieldEmbraceButton,
@@ -503,6 +523,8 @@ export class EcosystemDomBridge {
       runTouches: Number(state.runTouches.toFixed(3)),
       grassTouches: Number(permanent.grassTouches.toFixed(3)),
       manualTouchBonusPercent: getManualTouchPowerBonusPercent(permanent),
+      heartwoodRank: permanent.heartwoodRank,
+      maxHp: state.maxHp,
       fastTouchRank: permanent.fastTouchRank,
       firstAutomationStage: firstAutomation.stage,
       fieldMouseStage: fieldMouse.stage,

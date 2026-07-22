@@ -6,6 +6,7 @@ import {
   clearEcosystemProgress,
   createActiveFieldSnapshot,
   getEcosystemSaveSummary,
+  loadPermanentEcosystemState,
   restoreActiveFieldSnapshot,
   saveActiveField,
   savePermanentEcosystemState,
@@ -49,6 +50,19 @@ class MemoryStorage implements Storage {
 }
 
 describe("EcosystemSave", () => {
+  it("persists Ancient Heartwood ranks for future fields", () => {
+    const storage = new MemoryStorage();
+    const permanent = createPermanentEcosystemState();
+    permanent.heartwoodRank = 3;
+
+    savePermanentEcosystemState(permanent, storage);
+    const loaded = loadPermanentEcosystemState(storage);
+    const nextField = createEcosystemState(loaded);
+
+    expect(loaded.heartwoodRank).toBe(3);
+    expect(nextField.maxHp).toBe(145);
+  });
+
   it("round-trips exact active state without offline advancement", () => {
     const permanent = createPermanentEcosystemState();
     permanent.completedRuns = 1;

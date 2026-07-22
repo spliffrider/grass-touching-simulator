@@ -59,8 +59,8 @@ function angleBetweenVectors(left: Point, right: Point): number {
 }
 
 describe("Ecosystem Memory Tree", () => {
-  it("defines a stable, expandable 54-node web", () => {
-    expect(ECOSYSTEM_MEMORY_NODES).toHaveLength(54);
+  it("defines a stable, expandable 55-node web", () => {
+    expect(ECOSYSTEM_MEMORY_NODES).toHaveLength(55);
     expect(new Set(ECOSYSTEM_MEMORY_NODES.map((node) => node.id)).size).toBe(ECOSYSTEM_MEMORY_NODES.length);
     expect(ECOSYSTEM_MEMORY_NODE_BY_ID.get("touch:fastTouch")).toMatchObject({
       kind: "touchRank",
@@ -68,6 +68,11 @@ describe("Ecosystem Memory Tree", () => {
       touchKind: "fastTouch",
     });
     expect(getTouchRankCost("fastTouch", 0)).toBe(9);
+    expect(ECOSYSTEM_MEMORY_NODE_BY_ID.get("field:heartwood")).toMatchObject({
+      kind: "fieldHealth",
+      label: "Ancient Heartwood",
+      prerequisites: [ECOSYSTEM_MEMORY_ROOT_ID],
+    });
   });
 
   it("keeps every node and prerequisite inside the declared graph", () => {
@@ -193,7 +198,10 @@ describe("Ecosystem Memory Tree", () => {
 
   it("leads progression descriptions with their gameplay effect", () => {
     const progressionNodes = ECOSYSTEM_MEMORY_NODES.filter((node) =>
-      node.kind === "helperRank" || node.kind === "touchRank" || node.kind === "fieldTier",
+      node.kind === "helperRank"
+        || node.kind === "touchRank"
+        || node.kind === "fieldHealth"
+        || node.kind === "fieldTier",
     );
 
     for (const node of progressionNodes) {
@@ -213,7 +221,7 @@ describe("Ecosystem Memory Tree", () => {
     expect(unlockHelper(permanent, "tinySprinkler")).toBe(true);
     const firstBranches = getRevealedEcosystemMemoryNodeIds(permanent);
 
-    expect(firstBranches.size).toBe(11);
+    expect(firstBranches.size).toBe(12);
     expect(firstBranches.has(ECOSYSTEM_MEMORY_ROOT_ID)).toBe(true);
     expect(firstBranches.has(FIRST_ECOSYSTEM_MEMORY_NODE_ID)).toBe(true);
     expect(firstBranches.has(getHelperUnlockMemoryId("fieldMouse"))).toBe(true);
@@ -225,6 +233,7 @@ describe("Ecosystem Memory Tree", () => {
     expect(firstBranches.has("touch:broadPalm")).toBe(true);
     expect(firstBranches.has("touch:manyHands")).toBe(false);
     expect(firstBranches.has("field:tier")).toBe(true);
+    expect(firstBranches.has("field:heartwood")).toBe(true);
 
     permanent.grassTouches = getHelperUnlockCost("fieldMouse");
     expect(unlockHelper(permanent, "fieldMouse")).toBe(true);

@@ -91,8 +91,12 @@ import {
   type FieldViewportState,
 } from "../ecosystem/EcosystemViewport";
 import {
+  ANCIENT_HEARTWOOD_HP_PER_RANK,
+  ANCIENT_HEARTWOOD_MAX_RANK,
   BEE_HIVE_STARTER_FLOWERS,
   FIELD_MOUSE_STARTER_SEEDS,
+  MANUAL_TOUCH_CARE_PER_POWER,
+  MANUAL_TOUCH_POWER_PER_MEMORY,
   advanceEcosystem,
   buyCultivationRank,
   buyHelper,
@@ -103,6 +107,7 @@ import {
   createNextEcosystemRun,
   createPermanentEcosystemState,
   forceGameOver,
+  getAncientHeartwoodRankCost,
   getCultivationCost,
   getBeeHiveStatus,
   getDominantChunkStage,
@@ -116,12 +121,14 @@ import {
   getHelperUnlockCost,
   getManualTouchPowerBonusPercent,
   getModeUnlockCost,
+  getPermanentMaxHp,
   getPermanentRankCost,
   getTouchRankCost,
   isFirstEcosystemCollapse,
   isFirstMemoryPending,
   isDampFurrowsFlowing,
   isRunEquipmentAvailable,
+  purchaseAncientHeartwoodRank,
   purchaseFieldEmbrace,
   purchasePermanentRank,
   purchaseTouchRank,
@@ -1241,6 +1248,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       unlockHelper: (helperId) => this.buyMemoryNode(getHelperUnlockMemoryId(helperId)),
       unlockMode: (helperId) => this.buyMemoryNode(getHelperModeMemoryId(helperId)),
       buyRank: (helperId, kind) => this.buyMemoryNode(getHelperRankMemoryId(helperId, kind)),
+      buyHeartwoodRank: () => this.buyMemoryNode("field:heartwood"),
       unlockFieldTier: () => this.buyMemoryNode("field:tier"),
       buyTouchRank: (kind) => this.buyMemoryNode(`touch:${kind}`),
       buyFieldEmbrace: () => this.buyMemoryNode("touch:fieldEmbrace"),
@@ -2037,7 +2045,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.setTextIfChanged(this.bottleneckText, `Bottleneck: ${readout.bottleneck}`);
       const palmRadius = this.permanent.broadPalmRank > 0 ? 1 + Math.floor((this.permanent.broadPalmRank - 1) / 2) : 0;
       this.setTextIfChanged(this.caretakerStats, [
-        `Touch yield     ${this.state.runNumber === 1 ? "0 Care (overwhelmed)" : "5.2 Care"}`,
+        `Touch yield     ${this.state.runNumber === 1 ? "0 Care (overwhelmed)" : `${MANUAL_TOUCH_CARE_PER_POWER.toFixed(1)} Care`}`,
         "Dew gathered    1.15",
         `Hand Tending    ${this.state.runNumber === 1 ? "after first collapse" : "+0.35 Growth"}`,
         "Run Touches     +0.92",
@@ -3599,6 +3607,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
   private getMemoryNodeMaxRank(definition: EcosystemMemoryNodeDefinition): number {
     if (definition.kind === "helperRank") return definition.rankKind === "startingStock" ? 5 : 10;
+    if (definition.kind === "fieldHealth") return ANCIENT_HEARTWOOD_MAX_RANK;
     if (definition.kind === "fieldTier") return FIELD_SIZE_LADDER.length - 1;
     if (definition.kind === "touchRank") return 10;
     return 1;
@@ -3732,6 +3741,29 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         effect: complete
           ? "Cultivation may expand a run all the way to 100x100."
           : `Current maximum ${currentSize}x${currentSize}; next memory permits ${nextSize}x${nextSize}.`,
+        requirement: "",
+      };
+    }
+
+    if (definition.kind === "fieldHealth") {
+      const rank = this.permanent.heartwoodRank;
+      const maxRank = ANCIENT_HEARTWOOD_MAX_RANK;
+      const complete = rank >= maxRank;
+      const cost = complete ? 0 : getAncientHeartwoodRankCost(rank);
+      const currentMaxHp = getPermanentMaxHp(this.permanent);
+      const nextMaxHp = currentMaxHp + (complete ? 0 : ANCIENT_HEARTWOOD_HP_PER_RANK);
+      return {
+        rank,
+        maxRank,
+        cost,
+        complete,
+        unlocked: true,
+        affordable: !complete && availableGt >= cost,
+        action: () => purchaseAncientHeartwoodRank(this.permanent),
+        status: complete ? `${rank}/${maxRank} complete` : `${rank}/${maxRank}\n${cost} ${GRASS_TOUCHES_LABEL}`,
+        effect: complete
+          ? `Future fields begin with ${currentMaxHp} maximum Ancient HP.`
+          : `Maximum Ancient HP: ${currentMaxHp} -> ${nextMaxHp} next rank.`,
         requirement: "",
       };
     }
@@ -3927,7 +3959,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const manualTouchBonus = getManualTouchPowerBonusPercent(this.permanent);
     const detailCopy = mobile
       ? `${definition.description}\n${rankLine} | ${runtime.effect}${definition.kind === "root" ? "" : `\nManual touch power: +${manualTouchBonus}%.`}`
-      : `${definition.description}\n\n${rankLine}\n${runtime.effect}${definition.kind === "root" ? "" : `\n\nEvery Memory purchase adds +1% manual touch power. Current total: +${manualTouchBonus}%.`}`;
+      : `${definition.description}\n\n${rankLine}\n${runtime.effect}${definition.kind === "root" ? "" : `\n\nEvery Memory purchase adds +${(MANUAL_TOUCH_POWER_PER_MEMORY * 100).toFixed(1)}% manual touch power. Current total: +${manualTouchBonus}%.`}`;
     this.memoryDetail.setText(detailCopy);
     const firstMemoryPending = isFirstMemoryPending(this.state, this.permanent);
     const firstCollapse = isFirstEcosystemCollapse(this.state, this.permanent);

@@ -23,8 +23,12 @@ export const ECOSYSTEM_PERMANENT_VERSION = 1;
 export const ECOSYSTEM_ACTIVE_VERSION = 1;
 export const FIELD_MOUSE_STARTER_SEEDS = 3;
 export const BEE_HIVE_STARTER_FLOWERS = 4;
-export const MANUAL_TOUCH_POWER_PER_MEMORY = 0.01;
-export const HELPER_THROUGHPUT_PER_RANK = 0.12;
+export const ECOSYSTEM_BASE_MAX_HP = 100;
+export const ANCIENT_HEARTWOOD_MAX_RANK = 10;
+export const ANCIENT_HEARTWOOD_HP_PER_RANK = 15;
+export const MANUAL_TOUCH_CARE_PER_POWER = 6;
+export const MANUAL_TOUCH_POWER_PER_MEMORY = 0.015;
+export const HELPER_THROUGHPUT_PER_RANK = 0.15;
 export const DAMP_FURROWS_MOISTURE_PER_CYCLE = 0.3;
 export const DAMP_FURROWS_GROWTH_PER_CYCLE = 0.45;
 export const DAMP_FURROWS_CARE_PER_CYCLE = 0.22;
@@ -34,8 +38,10 @@ const FIRST_RUN_SCOURGE_BASE = 10_000_000;
 const FIRST_RUN_OPENING_HP = 1;
 const FIRST_RUN_SCOURGE_RAMP_SECONDS = 0.18;
 const PRE_AUTOMATION_SCOURGE_RAMP_SECONDS = 0.2;
-const FIRST_AUTOMATION_SCOURGE_RAMP_SECONDS = 40;
-const EARLY_SCOURGE_BASE_BY_CAPABILITY = [12, 6, 2.4, 1.5, 1.05, 0.82] as const;
+const FIRST_AUTOMATION_SCOURGE_RAMP_SECONDS = 55;
+const MULTI_AUTOMATION_SCOURGE_RAMP_SECONDS = 36;
+const LATE_AUTOMATION_SCOURGE_RAMP_SECONDS = 1_800;
+const EARLY_SCOURGE_BASE_BY_CAPABILITY = [10, 5, 2.05, 1.28, 0.88, 0.68] as const;
 
 export type HelperRankRecord = Record<HelperId, number>;
 export type HelperUnlockRecord = Record<HelperId, boolean>;
@@ -55,6 +61,7 @@ export interface PermanentEcosystemState {
   efficiencyRanks: HelperRankRecord;
   startingStockRanks: HelperRankRecord;
   maxFieldTier: number;
+  heartwoodRank: number;
   fastTouchRank: number;
   broadPalmRank: number;
   manyHandsRank: number;
@@ -270,6 +277,7 @@ export function createPermanentEcosystemState(): PermanentEcosystemState {
     efficiencyRanks: createHelperNumberRecord(),
     startingStockRanks: createHelperNumberRecord(),
     maxFieldTier: 0,
+    heartwoodRank: 0,
     fastTouchRank: 0,
     broadPalmRank: 0,
     manyHandsRank: 0,
@@ -289,6 +297,7 @@ export function normalizePermanentEcosystemState(input: unknown): PermanentEcosy
   normalized.grassTouches = Math.max(0, Number(source.grassTouches) || 0);
   normalized.completedRuns = Math.max(0, Math.floor(Number(source.completedRuns) || 0));
   normalized.maxFieldTier = clampRank(Number(source.maxFieldTier), FIELD_SIZE_LADDER.length - 1);
+  normalized.heartwoodRank = clampRank(Number(source.heartwoodRank), ANCIENT_HEARTWOOD_MAX_RANK);
   normalized.fastTouchRank = clampRank(Number(source.fastTouchRank), 10);
   normalized.broadPalmRank = clampRank(Number(source.broadPalmRank), 10);
   normalized.manyHandsRank = clampRank(Number(source.manyHandsRank), 10);
@@ -314,6 +323,7 @@ export function normalizePermanentEcosystemState(input: unknown): PermanentEcosy
 
 export function getPermanentMemoryInvestmentCount(permanent: PermanentEcosystemState): number {
   let count = permanent.maxFieldTier
+    + permanent.heartwoodRank
     + permanent.fastTouchRank
     + permanent.broadPalmRank
     + permanent.manyHandsRank
@@ -340,7 +350,12 @@ export function getManualTouchPowerMultiplier(permanent: PermanentEcosystemState
 }
 
 export function getManualTouchPowerBonusPercent(permanent: PermanentEcosystemState): number {
-  return Math.round((getManualTouchPowerMultiplier(permanent) - 1) * 100);
+  return Math.round(getPermanentMemoryInvestmentCount(permanent) * MANUAL_TOUCH_POWER_PER_MEMORY * 1_000) / 10;
+}
+
+export function getPermanentMaxHp(permanent: PermanentEcosystemState): number {
+  return ECOSYSTEM_BASE_MAX_HP
+    + clampRank(permanent.heartwoodRank, ANCIENT_HEARTWOOD_MAX_RANK) * ANCIENT_HEARTWOOD_HP_PER_RANK;
 }
 
 export function getHelperStorageResourceIds(helperId: HelperId): readonly ProductionResourceId[] {
@@ -449,8 +464,8 @@ export function createEcosystemState(
     tickAccumulatorMs: 0,
     fixedTicks: 0,
     rngState: seed,
-    hp: 100,
-    maxHp: 100,
+    hp: getPermanentMaxHp(permanent),
+    maxHp: getPermanentMaxHp(permanent),
     scourgeDemandPerSecond: 0,
     careDeficitPerSecond: 0,
     runTouches: 0,
@@ -977,6 +992,24 @@ function consumeResource(state: EcosystemState, resourceId: ProductionResourceId
   return consumed;
 }
 
+export function getAncientHeartwoodRankCost(rank: number): number {
+  const safeRank = clampRank(rank, ANCIENT_HEARTWOOD_MAX_RANK);
+  return Math.ceil(8 * Math.pow(safeRank + 1, 1.36));
+}
+
+export function purchaseAncientHeartwoodRank(permanent: PermanentEcosystemState): boolean {
+  if (permanent.heartwoodRank >= ANCIENT_HEARTWOOD_MAX_RANK) {
+    return false;
+  }
+  const cost = getAncientHeartwoodRankCost(permanent.heartwoodRank);
+  if (permanent.grassTouches + EPSILON < cost) {
+    return false;
+  }
+  permanent.grassTouches -= cost;
+  permanent.heartwoodRank += 1;
+  return true;
+}
+
 function performDampFurrows(
   state: EcosystemState,
   requestedCycles: number,
@@ -1115,8 +1148,8 @@ function getScourgeDemand(state: EcosystemState, permanent: PermanentEcosystemSt
     : capabilityTier === 1
       ? FIRST_AUTOMATION_SCOURGE_RAMP_SECONDS
     : capabilityTier <= 5
-      ? 30 * Math.pow(1.9, capabilityTier)
-      : 1_520 * Math.pow(1.34, capabilityTier - 5);
+      ? MULTI_AUTOMATION_SCOURGE_RAMP_SECONDS * Math.pow(1.9, capabilityTier)
+      : LATE_AUTOMATION_SCOURGE_RAMP_SECONDS * Math.pow(1.34, capabilityTier - 5);
   const ageRatio = ageSeconds / rampSeconds;
   const tileScale = 1 + Math.log2(state.field.stages.length + 1) * 0.11;
   const baseDemand = capabilityTier <= 5
@@ -1382,7 +1415,7 @@ export function touchFieldTile(
   const totalPower = baseTotalPower * getManualTouchPowerMultiplier(permanent);
   const healedHp = state.runNumber === 1
     ? 0
-    : Math.min(state.maxHp - state.hp, totalPower * 5.2);
+    : Math.min(state.maxHp - state.hp, totalPower * MANUAL_TOUCH_CARE_PER_POWER);
   state.hp += healedHp;
   state.manualCareTotal += healedHp;
   const dewGained = addResource(state, "dew", totalPower * 1.15);
@@ -1500,6 +1533,7 @@ export function setPrototypeFieldSize(
 
 export function unlockAllPrototypeMemories(permanent: PermanentEcosystemState): void {
   permanent.maxFieldTier = FIELD_SIZE_LADDER.length - 1;
+  permanent.heartwoodRank = 6;
   permanent.fastTouchRank = 10;
   permanent.broadPalmRank = 10;
   permanent.manyHandsRank = 10;

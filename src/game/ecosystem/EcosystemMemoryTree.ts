@@ -19,6 +19,7 @@ export type EcosystemMemoryNodeKind =
   | "helperUnlock"
   | "helperRank"
   | "helperMode"
+  | "fieldHealth"
   | "fieldTier"
   | "touchRank"
   | "capstone";
@@ -404,6 +405,20 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       touchKind: "fastTouch",
     },
     {
+      id: "field:heartwood",
+      kind: "fieldHealth",
+      label: "Ancient Heartwood",
+      branch: "Field vitality",
+      description: "Raises the Ancient Grass's maximum health by 15 with every remembered rank. Upgrade through ten ranks.",
+      color: 0xe69a5b,
+      iconKey: "memory-icon-heartwood",
+      iconPath: "/assets/ui/skills/perennial-patches.png",
+      x: scalePosition(-1660),
+      y: scalePosition(110),
+      visualScale: 0.98,
+      prerequisites: [ECOSYSTEM_MEMORY_ROOT_ID],
+    },
+    {
       id: "touch:broadPalm",
       kind: "touchRank",
       label: "Broad Palm",
@@ -575,6 +590,7 @@ function isMemoryNodeOwned(
     return permanent.startingStockRanks[helperId] > 0;
   }
   if (node.kind === "fieldTier") return permanent.maxFieldTier > 0;
+  if (node.kind === "fieldHealth") return permanent.heartwoodRank > 0;
   if (node.kind === "touchRank") {
     if (node.touchKind === "fastTouch") return permanent.fastTouchRank > 0;
     if (node.touchKind === "broadPalm") return permanent.broadPalmRank > 0;
@@ -600,6 +616,7 @@ export function isEcosystemMemoryNodeRevealed(
     return permanent.unlockedHelpers[node.helperId!];
   }
   if (node.kind === "fieldTier") return true;
+  if (node.kind === "fieldHealth") return true;
   if (node.kind === "touchRank") {
     return node.touchKind !== "manyHands" || permanent.broadPalmRank >= 2;
   }
