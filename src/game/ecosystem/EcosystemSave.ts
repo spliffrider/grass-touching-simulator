@@ -11,6 +11,7 @@ import {
   createEcosystemState,
   createPermanentEcosystemState,
   enforceRunOneBareHands,
+  getVerdantAegisCapacity,
   normalizePermanentEcosystemState,
   rebuildChunkStageCounts,
   type EcosystemRunSummary,
@@ -62,6 +63,9 @@ export interface ActiveFieldSnapshot {
   manualCareTotal: number;
   lingeringCarePerSecond: number;
   lingeringCareRemainingMs: number;
+  overhealShield: number;
+  maxOverhealShield: number;
+  overhealShieldRemainingMs: number;
   helperPurchaseCount: number;
   resources: Record<ProductionResourceId, ResourceBufferSnapshot>;
   rates: Record<ProductionResourceId, number>;
@@ -160,6 +164,9 @@ export function createActiveFieldSnapshot(
     manualCareTotal: state.manualCareTotal,
     lingeringCarePerSecond: state.lingeringCarePerSecond,
     lingeringCareRemainingMs: state.lingeringCareRemainingMs,
+    overhealShield: state.overhealShield,
+    maxOverhealShield: state.maxOverhealShield,
+    overhealShieldRemainingMs: state.overhealShieldRemainingMs,
     helperPurchaseCount: state.helperPurchaseCount,
     resources,
     rates,
@@ -237,6 +244,20 @@ export function restoreActiveFieldSnapshot(
   state.lingeringCarePerSecond = finiteNumber(input.lingeringCarePerSecond, 0, 0);
   state.lingeringCareRemainingMs = finiteNumber(input.lingeringCareRemainingMs, 0, 0);
   if (state.lingeringCareRemainingMs <= 0) state.lingeringCarePerSecond = 0;
+  const aegisAvailable = state.active && state.runNumber > 1 && permanent.verdantAegisRank > 0;
+  const defaultShieldCapacity = aegisAvailable ? getVerdantAegisCapacity(permanent, state.maxHp) : 0;
+  state.maxOverhealShield = aegisAvailable
+    ? finiteNumber(input.maxOverhealShield, defaultShieldCapacity, 0)
+    : 0;
+  state.overhealShield = Math.min(
+    state.maxOverhealShield,
+    finiteNumber(input.overhealShield, 0, 0),
+  );
+  state.overhealShieldRemainingMs = finiteNumber(input.overhealShieldRemainingMs, 0, 0);
+  if (state.overhealShield <= 0 || state.overhealShieldRemainingMs <= 0) {
+    state.overhealShield = 0;
+    state.overhealShieldRemainingMs = 0;
+  }
   state.helperPurchaseCount = Math.floor(finiteNumber(input.helperPurchaseCount, 0, 0));
   state.bottleneck = typeof input.bottleneck === "string" ? input.bottleneck : "Resuming field";
   state.endedSummary = cloneSummary(input.endedSummary);

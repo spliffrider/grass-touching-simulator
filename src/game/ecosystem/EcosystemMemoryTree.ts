@@ -434,6 +434,21 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       touchKind: "lingeringCare",
     },
     {
+      id: "touch:verdantAegis",
+      kind: "touchRank",
+      label: "Verdant Aegis",
+      branch: "Touch protection",
+      description: "Converts healing beyond full Ancient HP into a brief shield against the Scourge. Upgrade through ten ranks.",
+      color: 0x79f4d5,
+      iconKey: "memory-icon-verdant-aegis",
+      iconPath: "/assets/ui/skills/dew-respecter.png",
+      x: scalePosition(-1780),
+      y: scalePosition(650),
+      visualScale: 0.98,
+      prerequisites: ["touch:lingeringCare"],
+      touchKind: "verdantAegis",
+    },
+    {
       id: "touch:broadPalm",
       kind: "touchRank",
       label: "Broad Palm",
@@ -610,7 +625,8 @@ function isMemoryNodeOwned(
     if (node.touchKind === "fastTouch") return permanent.fastTouchRank > 0;
     if (node.touchKind === "broadPalm") return permanent.broadPalmRank > 0;
     if (node.touchKind === "manyHands") return permanent.manyHandsRank > 0;
-    return permanent.lingeringCareRank > 0;
+    if (node.touchKind === "lingeringCare") return permanent.lingeringCareRank > 0;
+    return permanent.verdantAegisRank > 0;
   }
   return permanent.fieldEmbrace;
 }
@@ -636,6 +652,7 @@ export function isEcosystemMemoryNodeRevealed(
   if (node.kind === "touchRank") {
     if (node.touchKind === "manyHands") return permanent.broadPalmRank >= 2;
     if (node.touchKind === "lingeringCare") return permanent.heartwoodRank >= 1;
+    if (node.touchKind === "verdantAegis") return permanent.lingeringCareRank >= 1;
     return true;
   }
   if (node.kind === "capstone") {

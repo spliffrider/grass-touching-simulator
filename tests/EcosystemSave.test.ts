@@ -50,11 +50,13 @@ class MemoryStorage implements Storage {
 }
 
 describe("EcosystemSave", () => {
-  it("persists Ancient Heartwood and Green Afterglow ranks for future fields", () => {
+  it("persists Ancient Heartwood, Green Afterglow, and Verdant Aegis ranks for future fields", () => {
     const storage = new MemoryStorage();
     const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
     permanent.heartwoodRank = 3;
     permanent.lingeringCareRank = 4;
+    permanent.verdantAegisRank = 5;
 
     savePermanentEcosystemState(permanent, storage);
     const loaded = loadPermanentEcosystemState(storage);
@@ -62,7 +64,9 @@ describe("EcosystemSave", () => {
 
     expect(loaded.heartwoodRank).toBe(3);
     expect(loaded.lingeringCareRank).toBe(4);
+    expect(loaded.verdantAegisRank).toBe(5);
     expect(nextField.maxHp).toBe(145);
+    expect(nextField.maxOverhealShield).toBeGreaterThan(0);
   });
 
   it("round-trips exact active state without offline advancement", () => {
@@ -89,6 +93,9 @@ describe("EcosystemSave", () => {
     expect(loaded?.state.helpers).toEqual(state.helpers);
     expect(loaded?.state.lingeringCarePerSecond).toBe(state.lingeringCarePerSecond);
     expect(loaded?.state.lingeringCareRemainingMs).toBe(state.lingeringCareRemainingMs);
+    expect(loaded?.state.overhealShield).toBe(state.overhealShield);
+    expect(loaded?.state.maxOverhealShield).toBe(state.maxOverhealShield);
+    expect(loaded?.state.overhealShieldRemainingMs).toBe(state.overhealShieldRemainingMs);
     expect([...loaded!.state.field.stages]).toEqual([...state.field.stages]);
     expect(loaded?.view).toEqual({ centerX: 0.62, centerY: 0.41, zoom: 3.2 });
   });
@@ -101,6 +108,9 @@ describe("EcosystemSave", () => {
     state.helpers.fieldMouse.count = 3;
     state.helpers.tinySprinkler.pulseProgress = 0.75;
     state.helperPulses.tinySprinkler = 2;
+    state.overhealShield = 30;
+    state.maxOverhealShield = 50;
+    state.overhealShieldRemainingMs = 4_000;
 
     const loaded = restoreActiveFieldSnapshot(createActiveFieldSnapshot(state), permanent);
 
@@ -109,6 +119,9 @@ describe("EcosystemSave", () => {
     expect(loaded?.state.helpers.fieldMouse.count).toBe(0);
     expect(loaded?.state.helpers.tinySprinkler.pulseProgress).toBe(0);
     expect(loaded?.state.helperPulses.tinySprinkler).toBe(0);
+    expect(loaded?.state.overhealShield).toBe(0);
+    expect(loaded?.state.maxOverhealShield).toBe(0);
+    expect(loaded?.state.overhealShieldRemainingMs).toBe(0);
   });
 
   it("loads active saves created before helper cycle totals were recorded", () => {
@@ -136,6 +149,24 @@ describe("EcosystemSave", () => {
 
     expect(loaded?.state.lingeringCarePerSecond).toBe(0);
     expect(loaded?.state.lingeringCareRemainingMs).toBe(0);
+  });
+
+  it("defaults active saves created before Verdant Aegis to no temporary shield", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    permanent.lingeringCareRank = 1;
+    permanent.verdantAegisRank = 1;
+    const state = createEcosystemState(permanent, { seed: 8_155 });
+    const snapshot = createActiveFieldSnapshot(state);
+    delete (snapshot as { overhealShield?: number }).overhealShield;
+    delete (snapshot as { maxOverhealShield?: number }).maxOverhealShield;
+    delete (snapshot as { overhealShieldRemainingMs?: number }).overhealShieldRemainingMs;
+
+    const loaded = restoreActiveFieldSnapshot(snapshot, permanent);
+
+    expect(loaded?.state.overhealShield).toBe(0);
+    expect(loaded?.state.maxOverhealShield).toBeGreaterThan(0);
+    expect(loaded?.state.overhealShieldRemainingMs).toBe(0);
   });
 
   it("rejects tile payloads whose dimensions do not match", () => {

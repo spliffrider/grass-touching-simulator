@@ -28,6 +28,7 @@ export const ANCIENT_HEARTWOOD_MAX_RANK = 10;
 export const ANCIENT_HEARTWOOD_HP_PER_RANK = 15;
 export const LINGERING_CARE_MAX_RANK = 10;
 export const LINGERING_CARE_DURATION_MS = 4_000;
+export const VERDANT_AEGIS_MAX_RANK = 10;
 export const MANUAL_TOUCH_CARE_PER_POWER = 6;
 export const MANUAL_TOUCH_POWER_PER_MEMORY = 0.015;
 export const HELPER_THROUGHPUT_PER_RANK = 0.15;
@@ -50,7 +51,12 @@ export type HelperUnlockRecord = Record<HelperId, boolean>;
 export type HelperModeUnlockRecord = Record<HelperId, string[]>;
 export type ProductionBufferRecord = Record<ProductionResourceId, ProductionBuffer>;
 export type ProductionRateRecord = Record<ProductionResourceId, number>;
-export type PermanentTouchRankKind = "fastTouch" | "broadPalm" | "manyHands" | "lingeringCare";
+export type PermanentTouchRankKind =
+  | "fastTouch"
+  | "broadPalm"
+  | "manyHands"
+  | "lingeringCare"
+  | "verdantAegis";
 
 export interface PermanentEcosystemState {
   version: typeof ECOSYSTEM_PERMANENT_VERSION;
@@ -65,6 +71,7 @@ export interface PermanentEcosystemState {
   maxFieldTier: number;
   heartwoodRank: number;
   lingeringCareRank: number;
+  verdantAegisRank: number;
   fastTouchRank: number;
   broadPalmRank: number;
   manyHandsRank: number;
@@ -128,6 +135,9 @@ export interface EcosystemState {
   manualCareTotal: number;
   lingeringCarePerSecond: number;
   lingeringCareRemainingMs: number;
+  overhealShield: number;
+  maxOverhealShield: number;
+  overhealShieldRemainingMs: number;
   helperPurchaseCount: number;
   resources: ProductionBufferRecord;
   rates: ProductionRateRecord;
@@ -148,6 +158,10 @@ export interface EcosystemReadout {
   hp: number;
   maxHp: number;
   hpRatio: number;
+  overhealShield: number;
+  maxOverhealShield: number;
+  overhealShieldRatio: number;
+  overhealShieldRemainingMs: number;
   elapsedMs: number;
   fieldSize: number;
   tileCount: number;
@@ -247,6 +261,7 @@ const TOUCH_RANK_BASE_COST: Record<PermanentTouchRankKind, number> = {
   broadPalm: 7,
   manyHands: 12,
   lingeringCare: 10,
+  verdantAegis: 18,
 };
 const FIRST_SPRINKLER_CARE_MILESTONE = 0.3;
 const EPSILON = 0.000_001;
@@ -285,6 +300,7 @@ export function createPermanentEcosystemState(): PermanentEcosystemState {
     maxFieldTier: 0,
     heartwoodRank: 0,
     lingeringCareRank: 0,
+    verdantAegisRank: 0,
     fastTouchRank: 0,
     broadPalmRank: 0,
     manyHandsRank: 0,
@@ -306,6 +322,7 @@ export function normalizePermanentEcosystemState(input: unknown): PermanentEcosy
   normalized.maxFieldTier = clampRank(Number(source.maxFieldTier), FIELD_SIZE_LADDER.length - 1);
   normalized.heartwoodRank = clampRank(Number(source.heartwoodRank), ANCIENT_HEARTWOOD_MAX_RANK);
   normalized.lingeringCareRank = clampRank(Number(source.lingeringCareRank), LINGERING_CARE_MAX_RANK);
+  normalized.verdantAegisRank = clampRank(Number(source.verdantAegisRank), VERDANT_AEGIS_MAX_RANK);
   normalized.fastTouchRank = clampRank(Number(source.fastTouchRank), 10);
   normalized.broadPalmRank = clampRank(Number(source.broadPalmRank), 10);
   normalized.manyHandsRank = clampRank(Number(source.manyHandsRank), 10);
@@ -333,6 +350,7 @@ export function getPermanentMemoryInvestmentCount(permanent: PermanentEcosystemS
   let count = permanent.maxFieldTier
     + permanent.heartwoodRank
     + permanent.lingeringCareRank
+    + permanent.verdantAegisRank
     + permanent.fastTouchRank
     + permanent.broadPalmRank
     + permanent.manyHandsRank
@@ -381,6 +399,25 @@ export function getLingeringCareMaxRate(permanent: PermanentEcosystemState): num
   return getLingeringCareStackRate(permanent.lingeringCareRank)
     * getLingeringCareMaxStacks(permanent.lingeringCareRank)
     * getManualTouchPowerMultiplier(permanent);
+}
+
+export function getVerdantAegisConversion(rank: number): number {
+  const safeRank = clampRank(rank, VERDANT_AEGIS_MAX_RANK);
+  return safeRank <= 0 ? 0 : 0.5 + (safeRank - 1) * (0.5 / 9);
+}
+
+export function getVerdantAegisCapacityRatio(rank: number): number {
+  const safeRank = clampRank(rank, VERDANT_AEGIS_MAX_RANK);
+  return safeRank <= 0 ? 0 : 0.08 + (safeRank - 1) * 0.03;
+}
+
+export function getVerdantAegisDurationMs(rank: number): number {
+  const safeRank = clampRank(rank, VERDANT_AEGIS_MAX_RANK);
+  return safeRank <= 0 ? 0 : 4_000 + (safeRank - 1) * 250;
+}
+
+export function getVerdantAegisCapacity(permanent: PermanentEcosystemState, maxHp: number): number {
+  return Math.max(0, maxHp) * getVerdantAegisCapacityRatio(permanent.verdantAegisRank);
 }
 
 export function getHelperStorageResourceIds(helperId: HelperId): readonly ProductionResourceId[] {
@@ -481,6 +518,7 @@ export function createEcosystemState(
   const fieldSizeIndex = Math.min(permanent.maxFieldTier, options.fieldSizeIndex ?? 0);
   const field = createField(fieldSizeIndex, seed);
   const runNumber = permanent.completedRuns + 1;
+  const maxHp = getPermanentMaxHp(permanent);
   const state: EcosystemState = {
     version: ECOSYSTEM_ACTIVE_VERSION,
     active: true,
@@ -489,8 +527,8 @@ export function createEcosystemState(
     tickAccumulatorMs: 0,
     fixedTicks: 0,
     rngState: seed,
-    hp: getPermanentMaxHp(permanent),
-    maxHp: getPermanentMaxHp(permanent),
+    hp: maxHp,
+    maxHp,
     scourgeDemandPerSecond: 0,
     careDeficitPerSecond: 0,
     runTouches: 0,
@@ -499,6 +537,9 @@ export function createEcosystemState(
     manualCareTotal: 0,
     lingeringCarePerSecond: 0,
     lingeringCareRemainingMs: 0,
+    overhealShield: 0,
+    maxOverhealShield: runNumber > 1 ? getVerdantAegisCapacity(permanent, maxHp) : 0,
+    overhealShieldRemainingMs: 0,
     helperPurchaseCount: 0,
     resources: createResourceBuffers(permanent, field, runNumber > 1),
     rates: createRateRecord(),
@@ -529,6 +570,9 @@ export function enforceRunOneBareHands(state: EcosystemState): void {
     return;
   }
   state.helperPurchaseCount = 0;
+  state.overhealShield = 0;
+  state.maxOverhealShield = 0;
+  state.overhealShieldRemainingMs = 0;
   for (const helperId of HELPER_IDS) {
     const helper = state.helpers[helperId];
     helper.count = 0;
@@ -877,7 +921,9 @@ export function purchaseTouchRank(permanent: PermanentEcosystemState, kind: Perm
       ? permanent.broadPalmRank
       : kind === "manyHands"
         ? permanent.manyHandsRank
-        : permanent.lingeringCareRank;
+        : kind === "lingeringCare"
+          ? permanent.lingeringCareRank
+          : permanent.verdantAegisRank;
   if (currentRank >= 10) {
     return false;
   }
@@ -885,6 +931,9 @@ export function purchaseTouchRank(permanent: PermanentEcosystemState, kind: Perm
     return false;
   }
   if (kind === "lingeringCare" && permanent.heartwoodRank < 1) {
+    return false;
+  }
+  if (kind === "verdantAegis" && permanent.lingeringCareRank < 1) {
     return false;
   }
   const cost = getTouchRankCost(kind, currentRank);
@@ -898,8 +947,10 @@ export function purchaseTouchRank(permanent: PermanentEcosystemState, kind: Perm
     permanent.broadPalmRank += 1;
   } else if (kind === "manyHands") {
     permanent.manyHandsRank += 1;
-  } else {
+  } else if (kind === "lingeringCare") {
     permanent.lingeringCareRank += 1;
+  } else {
+    permanent.verdantAegisRank += 1;
   }
   return true;
 }
@@ -1235,6 +1286,8 @@ function finishRun(state: EcosystemState, permanent: PermanentEcosystemState): v
   }
   state.active = false;
   state.hp = 0;
+  state.overhealShield = 0;
+  state.overhealShieldRemainingMs = 0;
   const careProduced = state.resources.care.producedTotal;
   const minimumAward = permanent.completedRuns === 0
     ? Math.max(
@@ -1261,7 +1314,69 @@ function finishRun(state: EcosystemState, permanent: PermanentEcosystemState): v
   };
 }
 
-function applyLingeringCare(state: EcosystemState): number {
+function addVerdantAegis(
+  state: EcosystemState,
+  permanent: PermanentEcosystemState,
+  overheal: number,
+): number {
+  if (
+    state.runNumber === 1
+    || permanent.verdantAegisRank <= 0
+    || state.hp <= 0
+    || overheal <= EPSILON
+  ) {
+    return 0;
+  }
+  const capacity = getVerdantAegisCapacity(permanent, state.maxHp);
+  if (capacity <= EPSILON) return 0;
+  state.maxOverhealShield = capacity;
+  const converted = overheal * getVerdantAegisConversion(permanent.verdantAegisRank);
+  const shieldGained = Math.min(capacity - state.overhealShield, converted);
+  state.overhealShield = Math.min(capacity, state.overhealShield + converted);
+  state.overhealShieldRemainingMs = getVerdantAegisDurationMs(permanent.verdantAegisRank);
+  return Math.max(0, shieldGained);
+}
+
+function healAncientGrass(
+  state: EcosystemState,
+  permanent: PermanentEcosystemState,
+  amount: number,
+  countAsManualCare: boolean,
+): number {
+  if (!state.active || state.runNumber === 1 || state.hp <= 0 || amount <= EPSILON) return 0;
+  const missingHp = Math.max(0, state.maxHp - state.hp);
+  const healed = Math.min(missingHp, amount);
+  state.hp += healed;
+  if (countAsManualCare) state.manualCareTotal += healed;
+  addVerdantAegis(state, permanent, Math.max(0, amount - healed));
+  return healed;
+}
+
+function absorbScourgeDamage(state: EcosystemState, damage: number): void {
+  let remainingDamage = Math.max(0, damage);
+  if (state.overhealShieldRemainingMs > 0 && state.overhealShield > EPSILON) {
+    const absorbed = Math.min(state.overhealShield, remainingDamage);
+    state.overhealShield = Math.max(0, state.overhealShield - absorbed);
+    remainingDamage -= absorbed;
+    if (state.overhealShield <= EPSILON) {
+      state.overhealShield = 0;
+      state.overhealShieldRemainingMs = 0;
+    }
+  }
+  state.hp = Math.max(0, state.hp - remainingDamage);
+}
+
+function advanceVerdantAegisLifetime(state: EcosystemState): void {
+  if (state.overhealShield <= EPSILON || state.overhealShieldRemainingMs <= 0) {
+    state.overhealShield = 0;
+    state.overhealShieldRemainingMs = 0;
+    return;
+  }
+  state.overhealShieldRemainingMs = Math.max(0, state.overhealShieldRemainingMs - PRODUCTION_TICK_MS);
+  if (state.overhealShieldRemainingMs <= 0) state.overhealShield = 0;
+}
+
+function applyLingeringCare(state: EcosystemState, permanent: PermanentEcosystemState): number {
   if (
     state.runNumber === 1
     || state.lingeringCareRemainingMs <= 0
@@ -1274,11 +1389,12 @@ function applyLingeringCare(state: EcosystemState): number {
 
   const activeMs = Math.min(PRODUCTION_TICK_MS, state.lingeringCareRemainingMs);
   state.lingeringCareRemainingMs = Math.max(0, state.lingeringCareRemainingMs - PRODUCTION_TICK_MS);
-  const healed = state.hp <= 0
-    ? 0
-    : Math.min(state.maxHp - state.hp, state.lingeringCarePerSecond * activeMs / 1_000);
-  state.hp += healed;
-  state.manualCareTotal += healed;
+  const healed = healAncientGrass(
+    state,
+    permanent,
+    state.lingeringCarePerSecond * activeMs / 1_000,
+    true,
+  );
   if (state.lingeringCareRemainingMs <= 0) {
     state.lingeringCarePerSecond = 0;
   }
@@ -1295,6 +1411,7 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
     state.bottleneck = "Touch the field to wake the Scourge";
     return;
   }
+  advanceVerdantAegisLifetime(state);
   const tickSeconds = PRODUCTION_TICK_MS / 1_000;
   state.elapsedMs += PRODUCTION_TICK_MS;
   state.fixedTicks += 1;
@@ -1348,11 +1465,11 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
   const deficit = Math.max(0, demandedCare - consumedCare);
   state.careDeficitPerSecond = deficit / tickSeconds;
   if (deficit > 0) {
-    state.hp = Math.max(0, state.hp - deficit);
+    absorbScourgeDamage(state, deficit);
   } else if (state.resources.care.amount > state.resources.care.capacity * 0.45) {
-    state.hp = Math.min(state.maxHp, state.hp + 0.08 * tickSeconds);
+    healAncientGrass(state, permanent, 0.08 * tickSeconds, false);
   }
-  applyLingeringCare(state);
+  applyLingeringCare(state, permanent);
 
   for (const resourceId of PRODUCTION_RESOURCE_IDS) {
     state.rates[resourceId] = producedThisTick[resourceId] / tickSeconds;
@@ -1472,11 +1589,14 @@ export function touchFieldTile(
     advanceTileStage(state.field, impact.tileIndex);
   }
   const totalPower = baseTotalPower * getManualTouchPowerMultiplier(permanent);
-  const healedHp = state.runNumber === 1
-    ? 0
-    : Math.min(state.maxHp - state.hp, totalPower * MANUAL_TOUCH_CARE_PER_POWER);
-  state.hp += healedHp;
-  state.manualCareTotal += healedHp;
+  const shieldBeforeTouch = state.overhealShield;
+  const healedHp = healAncientGrass(
+    state,
+    permanent,
+    totalPower * MANUAL_TOUCH_CARE_PER_POWER,
+    true,
+  );
+  const shieldGained = Math.max(0, state.overhealShield - shieldBeforeTouch);
   let lingeringCareAddedPerSecond = 0;
   if (state.runNumber > 1 && permanent.lingeringCareRank > 0) {
     const stackRate = getLingeringCareStackRate(permanent.lingeringCareRank)
@@ -1509,6 +1629,8 @@ export function touchFieldTile(
     affectedTileCount: impacts.size,
     totalPower,
     healedHp,
+    shieldGained,
+    shieldAmount: state.overhealShield,
     lingeringCareAddedPerSecond,
     lingeringCarePerSecond: state.lingeringCarePerSecond,
     dewGained,
@@ -1560,6 +1682,10 @@ export function getEcosystemReadout(state: EcosystemState): EcosystemReadout {
     hp: state.hp,
     maxHp: state.maxHp,
     hpRatio: state.maxHp > 0 ? state.hp / state.maxHp : 0,
+    overhealShield: state.overhealShield,
+    maxOverhealShield: state.maxOverhealShield,
+    overhealShieldRatio: state.maxOverhealShield > 0 ? state.overhealShield / state.maxOverhealShield : 0,
+    overhealShieldRemainingMs: state.overhealShieldRemainingMs,
     elapsedMs: state.elapsedMs,
     fieldSize: state.field.width,
     tileCount: state.field.stages.length,
@@ -1578,6 +1704,8 @@ export function getEcosystemReadout(state: EcosystemState): EcosystemReadout {
 export function forceGameOver(state: EcosystemState, permanent: PermanentEcosystemState): void {
   if (!state.active) return;
   state.hp = 0;
+  state.overhealShield = 0;
+  state.overhealShieldRemainingMs = 0;
   finishRun(state, permanent);
 }
 
@@ -1608,6 +1736,7 @@ export function unlockAllPrototypeMemories(permanent: PermanentEcosystemState): 
   permanent.maxFieldTier = FIELD_SIZE_LADDER.length - 1;
   permanent.heartwoodRank = 6;
   permanent.lingeringCareRank = 10;
+  permanent.verdantAegisRank = 10;
   permanent.fastTouchRank = 10;
   permanent.broadPalmRank = 10;
   permanent.manyHandsRank = 10;

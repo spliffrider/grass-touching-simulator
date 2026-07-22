@@ -127,6 +127,9 @@ import {
   getPermanentMaxHp,
   getPermanentRankCost,
   getTouchRankCost,
+  getVerdantAegisCapacityRatio,
+  getVerdantAegisConversion,
+  getVerdantAegisDurationMs,
   isFirstEcosystemCollapse,
   isFirstMemoryPending,
   isDampFurrowsFlowing,
@@ -434,6 +437,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private hpBarBack!: Phaser.GameObjects.Rectangle;
   private hpBarFill!: Phaser.GameObjects.Rectangle;
   private hpBarHeartbeatGlow!: Phaser.GameObjects.Rectangle;
+  private hpShieldBack!: Phaser.GameObjects.Rectangle;
+  private hpShieldFill!: Phaser.GameObjects.Rectangle;
+  private hpShieldGlow!: Phaser.GameObjects.Rectangle;
   private hpText!: Phaser.GameObjects.Text;
   private pressureText!: Phaser.GameObjects.Text;
   private runTouchesIcon!: Phaser.GameObjects.Image;
@@ -468,8 +474,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private plotDetailText!: Phaser.GameObjects.Text;
   private openingPanelsVisible = false;
   private displayedHpRatio = 1;
+  private displayedShieldRatio = 0;
+  private lastObservedShield = 0;
+  private lastObservedShieldRemainingMs = 0;
   private hpHeartbeatPulse = 0;
   private lingeringCareArrivalPulse = 0;
+  private verdantAegisGainPulse = 0;
+  private verdantAegisHitPulse = 0;
   private optionsButton!: SceneButton;
   private worksButton!: SceneButton;
   private cultivationButton!: SceneButton;
@@ -705,8 +716,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.automationGoalReadyForPurchase = false;
     this.openingPanelsVisible = false;
     this.displayedHpRatio = 1;
+    this.displayedShieldRatio = 0;
+    this.lastObservedShield = 0;
+    this.lastObservedShieldRemainingMs = 0;
     this.hpHeartbeatPulse = 0;
     this.lingeringCareArrivalPulse = 0;
+    this.verdantAegisGainPulse = 0;
+    this.verdantAegisHitPulse = 0;
     this.tilePool.length = 0;
     this.chunkPool.length = 0;
     this.impactPool.length = 0;
@@ -870,7 +886,19 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.hpBarHeartbeatGlow = this.add.rectangle(0, 0, 100, 14, 0xb9ff9c, 0)
       .setOrigin(0, 0.5)
       .setBlendMode(Phaser.BlendModes.ADD);
+    this.hpShieldBack = this.add.rectangle(0, 0, 100, 5, 0x092927, 0.96)
+      .setOrigin(0, 0.5)
+      .setStrokeStyle(1, 0x79f4d5, 0.52);
+    this.hpShieldFill = this.add.rectangle(0, 0, 100, 3, 0x79f4d5, 1).setOrigin(0, 0.5);
+    this.hpShieldGlow = this.add.rectangle(0, 0, 100, 7, 0xbffff0, 0)
+      .setOrigin(0, 0.5)
+      .setBlendMode(Phaser.BlendModes.ADD);
     this.displayedHpRatio = Phaser.Math.Clamp(this.state.hp / Math.max(1, this.state.maxHp), 0, 1);
+    this.displayedShieldRatio = this.state.maxOverhealShield > 0
+      ? Phaser.Math.Clamp(this.state.overhealShield / this.state.maxOverhealShield, 0, 1)
+      : 0;
+    this.lastObservedShield = this.state.overhealShield;
+    this.lastObservedShieldRemainingMs = this.state.overhealShieldRemainingMs;
     this.hpText = this.createText("", 15, "#f2e8d5", "bold");
     this.pressureText = this.createText("", 13, "#f1a6ce");
     this.runTouchesIcon = this.add.image(0, 0, "memory-icon-broad-palm").setOrigin(0.5);
@@ -909,6 +937,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.hpBarBack,
       this.hpBarFill,
       this.hpBarHeartbeatGlow,
+      this.hpShieldBack,
+      this.hpShieldFill,
+      this.hpShieldGlow,
       this.hpText,
       this.pressureText,
       this.runTouchesIcon,
@@ -1422,6 +1453,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.hpBarBack.setPosition(header.x + 14, header.y + 64).setSize(header.width - 150, 18);
       this.hpBarFill.setPosition(header.x + 17, header.y + 64).setSize(header.width - 156, 12);
       this.hpBarHeartbeatGlow.setPosition(header.x + 17, header.y + 64).setSize(header.width - 156, 12);
+      this.hpShieldBack.setPosition(header.x + 17, header.y + 69).setSize(header.width - 156, 5);
+      this.hpShieldFill.setPosition(header.x + 18, header.y + 69).setSize(header.width - 158, 3);
+      this.hpShieldGlow.setPosition(header.x + 18, header.y + 69).setSize(header.width - 158, 7);
       this.hpText.setFontSize(12).setPosition(header.x + 18, header.y + 52);
       this.pressureText.setFontSize(10).setPosition(header.x + 18, header.y + 78);
       this.optionsButton.setPosition(header.x + header.width - 90, header.y + 8);
@@ -1434,6 +1468,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.hpBarBack.setPosition(barX, header.y + 39).setSize(barWidth, 24);
       this.hpBarFill.setPosition(barX + 3, header.y + 39).setSize(barWidth - 6, 18);
       this.hpBarHeartbeatGlow.setPosition(barX + 3, header.y + 39).setSize(barWidth - 6, 18);
+      this.hpShieldBack.setPosition(barX + 3, header.y + 46).setSize(barWidth - 6, 6);
+      this.hpShieldFill.setPosition(barX + 4, header.y + 46).setSize(barWidth - 8, 4);
+      this.hpShieldGlow.setPosition(barX + 4, header.y + 46).setSize(barWidth - 8, 9);
       this.hpText.setFontSize(15).setPosition(barX + 9, header.y + 25);
       this.pressureText.setFontSize(13).setPosition(barX + 9, header.y + 65);
       this.optionsButton.setPosition(header.x + header.width - 104, header.y + 14);
@@ -2046,17 +2083,23 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const hpColor = hpRatio > 0.55 ? 0x83d765 : hpRatio > 0.25 ? 0xf0c85b : 0xe8616a;
       const lingeringCareActive = this.state.lingeringCareRemainingMs > 0
         && this.state.lingeringCarePerSecond > 0;
+      const verdantAegisActive = this.state.overhealShieldRemainingMs > 0
+        && this.state.overhealShield > 0;
       if (this.hpBarFill.fillColor !== hpColor) {
         this.hpBarFill.setFillStyle(hpColor, 1);
         this.hpBarHeartbeatGlow.setFillStyle(hpColor, 1);
       }
-      const afterglowHpCopy = lingeringCareActive
+      const hpStatusCopy = verdantAegisActive
         ? this.scale.width < 760
-          ? `  +${this.state.lingeringCarePerSecond.toFixed(1)}/s`
-          : `  |  AFTERGLOW +${this.state.lingeringCarePerSecond.toFixed(1)} Care/s`
-        : "";
-      this.hpText.setColor(lingeringCareActive ? "#d9ff9f" : "#f2e8d5");
-      this.setTextIfChanged(this.hpText, `Ancient HP ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}${afterglowHpCopy}`);
+          ? `  +${this.state.overhealShield.toFixed(1)} shield`
+          : `  |  AEGIS +${this.state.overhealShield.toFixed(1)}  ${(this.state.overhealShieldRemainingMs / 1_000).toFixed(1)}s`
+        : lingeringCareActive
+          ? this.scale.width < 760
+            ? `  +${this.state.lingeringCarePerSecond.toFixed(1)}/s`
+            : `  |  AFTERGLOW +${this.state.lingeringCarePerSecond.toFixed(1)} Care/s`
+          : "";
+      this.hpText.setColor(verdantAegisActive ? "#bffff0" : lingeringCareActive ? "#d9ff9f" : "#f2e8d5");
+      this.setTextIfChanged(this.hpText, `Ancient HP ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}${hpStatusCopy}`);
       this.setTextIfChanged(this.pressureText, awaitingFirstTouch
         ? "Scourge dormant  |  Touch the grass to begin"
         : `Scourge ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s  |  produced ${readout.careProductionPerSecond.toFixed(2)}/s`);
@@ -2075,6 +2118,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         "Run Touches     +0.92",
         `Green Afterglow ${this.permanent.lingeringCareRank > 0
           ? `${this.state.lingeringCarePerSecond.toFixed(1)} Care/s | ${(this.state.lingeringCareRemainingMs / 1_000).toFixed(1)}s`
+          : "not remembered"}`,
+        `Verdant Aegis   ${this.permanent.verdantAegisRank > 0
+          ? `${this.state.overhealShield.toFixed(1)} / ${this.state.maxOverhealShield.toFixed(1)} | ${(this.state.overhealShieldRemainingMs / 1_000).toFixed(1)}s`
           : "not remembered"}`,
         "",
         `Fast Touch      ${getManualTouchCooldownMs(this.permanent.fastTouchRank)} ms recovery`,
@@ -3415,12 +3461,15 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const afterglowSummary = result.lingeringCarePerSecond > 0
       ? `  Afterglow ${result.lingeringCarePerSecond.toFixed(1)} Care/s`
       : "";
+    const aegisSummary = result.shieldGained > 0
+      ? `  Aegis +${result.shieldGained.toFixed(1)}`
+      : "";
     const touchSummary = this.scale.width < 760
-      ? `+${result.dewGained.toFixed(1)} Dew${growthSummary}\n+${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}${afterglowSummary}`
-      : `${result.affectedTileCount} tile${result.affectedTileCount === 1 ? "" : "s"} cared for  |  +${result.dewGained.toFixed(1)} Dew${growthSummary}  +${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}${afterglowSummary}`;
+      ? `+${result.dewGained.toFixed(1)} Dew${growthSummary}\n+${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}${afterglowSummary}${aegisSummary}`
+      : `${result.affectedTileCount} tile${result.affectedTileCount === 1 ? "" : "s"} cared for  |  +${result.dewGained.toFixed(1)} Dew${growthSummary}  +${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}${afterglowSummary}${aegisSummary}`;
     this.touchSummaryText
       .setText(touchSummary)
-      .setColor(result.lingeringCarePerSecond > 0 ? "#d9ff9f" : "#fff3c2")
+      .setColor(result.shieldGained > 0 ? "#bffff0" : result.lingeringCarePerSecond > 0 ? "#d9ff9f" : "#fff3c2")
       .setAlpha(1)
       .setY(this.fieldBounds.y + 56);
     this.tweens.killTweensOf(this.touchSummaryText);
@@ -3547,6 +3596,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const audioEnd = performance.now();
     this.showTouchImpacts(result);
     this.showLingeringCareEffect(result);
+    if (result.shieldGained > 0) this.verdantAegisGainPulse = 1;
     const effectsEnd = performance.now();
     this.uiRefreshRequested = true;
     this.fieldRenderRequested = true;
@@ -3662,8 +3712,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
     this.state = createNextEcosystemRun(this.permanent);
     this.displayedHpRatio = 1;
+    this.displayedShieldRatio = 0;
+    this.lastObservedShield = 0;
+    this.lastObservedShieldRemainingMs = 0;
     this.hpHeartbeatPulse = 0;
     this.lingeringCareArrivalPulse = 0;
+    this.verdantAegisGainPulse = 0;
+    this.verdantAegisHitPulse = 0;
     this.firstSprinklerCycleCelebrated = false;
     this.memoryRevealHoldIds = null;
     this.memoryRevealSequenceActive = false;
@@ -3879,14 +3934,18 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           ? this.permanent.broadPalmRank
           : kind === "manyHands"
             ? this.permanent.manyHandsRank
-            : this.permanent.lingeringCareRank;
+            : kind === "lingeringCare"
+              ? this.permanent.lingeringCareRank
+              : this.permanent.verdantAegisRank;
       const maxRank = 10;
       const complete = rank >= maxRank;
       const unlocked = kind === "manyHands"
         ? this.permanent.broadPalmRank >= 2
         : kind === "lingeringCare"
           ? this.permanent.heartwoodRank >= 1
-          : true;
+          : kind === "verdantAegis"
+            ? this.permanent.lingeringCareRank >= 1
+            : true;
       const cost = complete ? 0 : getTouchRankCost(kind, rank);
       let effect = "Manual touch affects one chosen tile at full strength.";
       if (kind === "fastTouch") {
@@ -3911,6 +3970,20 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         effect = rank > 0
           ? `Each touch adds ${stackRate.toFixed(2)} Care/s, stacking ${maxStacks} times for ${(LINGERING_CARE_DURATION_MS / 1_000).toFixed(0)} seconds before manual-power bonuses.`
           : `Rank 1 makes each touch add ${stackRate.toFixed(2)} Care/s, stacking ${maxStacks} times for ${(LINGERING_CARE_DURATION_MS / 1_000).toFixed(0)} seconds.`;
+      } else if (kind === "verdantAegis") {
+        const displayRank = Math.max(1, rank);
+        const conversion = Math.round(getVerdantAegisConversion(displayRank) * 100);
+        const capacity = Math.round(getVerdantAegisCapacityRatio(displayRank) * 100);
+        const duration = (getVerdantAegisDurationMs(displayRank) / 1_000).toFixed(2).replace(/\.00$/, "");
+        if (rank <= 0) {
+          effect = `Rank 1 converts ${conversion}% of healing beyond full HP into a shield worth up to ${capacity}% of maximum HP for ${duration} seconds.`;
+        } else if (complete) {
+          effect = `Converts ${conversion}% of overhealing into a ${capacity}%-maximum-HP shield for ${duration} seconds. New overhealing refreshes it.`;
+        } else {
+          const nextConversion = Math.round(getVerdantAegisConversion(rank + 1) * 100);
+          const nextCapacity = Math.round(getVerdantAegisCapacityRatio(rank + 1) * 100);
+          effect = `Converts ${conversion}% of overhealing into a ${capacity}%-maximum-HP shield for ${duration} seconds. Next rank: ${nextConversion}% conversion and ${nextCapacity}% capacity.`;
+        }
       }
       return {
         rank,
@@ -3926,7 +3999,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           ? ""
           : kind === "lingeringCare"
             ? "Requires Ancient Heartwood rank 1."
-            : "Requires Broad Palm rank 2.",
+            : kind === "verdantAegis"
+              ? "Requires Green Afterglow rank 1."
+              : "Requires Broad Palm rank 2.",
       };
     }
 
@@ -4497,20 +4572,42 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         this.hpBarFill.setScale(this.hpBarFill.scaleX, 1);
         this.hpBarHeartbeatGlow.setAlpha(0).setScale(this.hpBarHeartbeatGlow.scaleX, 1);
       }
+      this.hpShieldFill.setScale(this.hpShieldFill.scaleX, 1);
+      this.hpShieldGlow.setAlpha(0).setScale(this.hpShieldGlow.scaleX, 1);
       this.hpHeartbeatPulse = 0;
       this.lingeringCareArrivalPulse = 0;
+      this.verdantAegisGainPulse = 0;
+      this.verdantAegisHitPulse = 0;
+      this.lastObservedShield = this.state.overhealShield;
+      this.lastObservedShieldRemainingMs = this.state.overhealShieldRemainingMs;
       return;
     }
 
     const lingeringCareActive = this.state.lingeringCareRemainingMs > 0
       && this.state.lingeringCarePerSecond > 0;
-    const targetRatio = predictHealthRatio(
-      this.state.hp,
-      this.state.maxHp,
-      -this.state.careDeficitPerSecond + (lingeringCareActive ? this.state.lingeringCarePerSecond : 0),
-      this.state.tickAccumulatorMs,
-      PRODUCTION_TICK_MS,
-    );
+    const shieldAvailable = this.state.maxOverhealShield > 0;
+    const shieldActive = this.state.overhealShieldRemainingMs > 0 && this.state.overhealShield > 0;
+    const shieldDelta = this.state.overhealShield - this.lastObservedShield;
+    if (shieldDelta > 0.001) {
+      this.verdantAegisGainPulse = 1;
+    } else if (
+      shieldDelta < -0.001
+      && !(this.state.overhealShield <= 0 && this.lastObservedShieldRemainingMs <= PRODUCTION_TICK_MS + 1)
+    ) {
+      this.verdantAegisHitPulse = 1;
+    }
+    this.lastObservedShield = this.state.overhealShield;
+    this.lastObservedShieldRemainingMs = this.state.overhealShieldRemainingMs;
+
+    const targetRatio = shieldActive && this.state.hp >= this.state.maxHp - 0.001
+      ? 1
+      : predictHealthRatio(
+        this.state.hp,
+        this.state.maxHp,
+        -this.state.careDeficitPerSecond + (lingeringCareActive ? this.state.lingeringCarePerSecond : 0),
+        this.state.tickAccumulatorMs,
+        PRODUCTION_TICK_MS,
+      );
     this.displayedHpRatio = smoothHealthRatio(this.displayedHpRatio, targetRatio, delta);
     const barWidth = Math.max(1, this.hpBarBack.width - 6);
     const displayWidth = Math.max(1, barWidth * this.displayedHpRatio);
@@ -4519,15 +4616,57 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.hpBarHeartbeatGlow.setDisplaySize(displayWidth, this.hpBarHeartbeatGlow.height);
     }
 
+    const shieldPendingSeconds = Math.max(0, Math.min(PRODUCTION_TICK_MS, this.state.tickAccumulatorMs)) / 1_000;
+    const shieldHealingRate = lingeringCareActive && this.state.hp >= this.state.maxHp - 0.001
+      ? this.state.lingeringCarePerSecond * getVerdantAegisConversion(this.permanent.verdantAegisRank)
+      : 0;
+    const predictedShield = shieldActive
+      ? Phaser.Math.Clamp(
+        this.state.overhealShield
+          + (shieldHealingRate - this.state.careDeficitPerSecond) * shieldPendingSeconds,
+        0,
+        this.state.maxOverhealShield,
+      )
+      : 0;
+    const targetShieldRatio = shieldAvailable
+      ? predictedShield / Math.max(0.001, this.state.maxOverhealShield)
+      : 0;
+    this.displayedShieldRatio = smoothHealthRatio(this.displayedShieldRatio, targetShieldRatio, delta);
+    const shieldBarWidth = Math.max(1, this.hpShieldBack.width - 2);
+    const shieldDisplayWidth = Math.max(1, shieldBarWidth * this.displayedShieldRatio);
+    this.hpShieldBack.setVisible(shieldAvailable).setAlpha(shieldActive ? 0.96 : 0.38);
+    this.hpShieldFill.setVisible(shieldAvailable && this.displayedShieldRatio > 0.002);
+    this.hpShieldGlow.setVisible(shieldAvailable && (shieldActive || this.verdantAegisGainPulse > 0 || this.verdantAegisHitPulse > 0));
+    if (Math.abs(this.hpShieldFill.displayWidth - shieldDisplayWidth) > 0.1) {
+      this.hpShieldFill.setDisplaySize(shieldDisplayWidth, this.hpShieldFill.height);
+      this.hpShieldGlow.setDisplaySize(shieldDisplayWidth, this.hpShieldGlow.height);
+    }
+
     const previousPulse = this.hpHeartbeatPulse;
     const rawPulse = getHealthHeartbeatPulse(now, targetRatio);
     this.hpHeartbeatPulse = rawPulse >= 0.002 ? rawPulse : 0;
     this.lingeringCareArrivalPulse = Math.max(0, this.lingeringCareArrivalPulse - delta / 420);
+    this.verdantAegisGainPulse = Math.max(0, this.verdantAegisGainPulse - delta / 460);
+    this.verdantAegisHitPulse = Math.max(0, this.verdantAegisHitPulse - delta / 260);
     const afterglowShimmer = lingeringCareActive
       ? 0.62 + (Math.sin(now * 0.0085) + 1) * 0.09
       : 0;
     const restorativePulse = Math.max(afterglowShimmer, this.lingeringCareArrivalPulse);
-    if (this.hpHeartbeatPulse <= 0 && previousPulse <= 0 && restorativePulse <= 0) return;
+    const aegisShimmer = shieldActive ? 0.12 + (Math.sin(now * 0.011) + 1) * 0.045 : 0;
+    const aegisPulse = Math.max(aegisShimmer, this.verdantAegisGainPulse, this.verdantAegisHitPulse);
+    this.hpShieldFill.setScale(
+      this.hpShieldFill.scaleX,
+      1 + this.verdantAegisGainPulse * 0.7 + this.verdantAegisHitPulse * 0.42,
+    );
+    this.hpShieldGlow
+      .setFillStyle(this.verdantAegisHitPulse > 0 ? 0xf2fff9 : 0x79f4d5, 1)
+      .setScale(this.hpShieldGlow.scaleX, 1 + aegisPulse * 0.8)
+      .setAlpha(Math.max(aegisShimmer, this.verdantAegisGainPulse * 0.72, this.verdantAegisHitPulse * 0.92));
+    if (this.hpHeartbeatPulse <= 0 && previousPulse <= 0 && restorativePulse <= 0) {
+      this.hpBarFill.setScale(this.hpBarFill.scaleX, 1);
+      this.hpBarHeartbeatGlow.setAlpha(0).setScale(this.hpBarHeartbeatGlow.scaleX, 1);
+      return;
+    }
     const urgency = 1 - targetRatio;
     const fillPulse = 1
       + this.hpHeartbeatPulse * (0.045 + urgency * 0.065)
@@ -4660,8 +4799,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.permanent = createPermanentEcosystemState();
     this.state = createEcosystemState(this.permanent);
     this.displayedHpRatio = 1;
+    this.displayedShieldRatio = 0;
+    this.lastObservedShield = 0;
+    this.lastObservedShieldRemainingMs = 0;
     this.hpHeartbeatPulse = 0;
     this.lingeringCareArrivalPulse = 0;
+    this.verdantAegisGainPulse = 0;
+    this.verdantAegisHitPulse = 0;
     this.firstSprinklerCycleCelebrated = false;
     this.memoryRevealHoldIds = null;
     this.memoryRevealSequenceActive = false;
@@ -4777,6 +4921,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       lingeringCareRank: this.permanent.lingeringCareRank,
       lingeringCarePerSecond: Number(this.state.lingeringCarePerSecond.toFixed(4)),
       lingeringCareRemainingMs: Math.round(this.state.lingeringCareRemainingMs),
+      verdantAegisRank: this.permanent.verdantAegisRank,
+      overhealShield: Number(this.state.overhealShield.toFixed(4)),
+      maxOverhealShield: Number(this.state.maxOverhealShield.toFixed(4)),
+      overhealShieldRemainingMs: Math.round(this.state.overhealShieldRemainingMs),
+      displayedShieldRatio: Number(this.displayedShieldRatio.toFixed(4)),
+      verdantAegisGainPulse: Number(this.verdantAegisGainPulse.toFixed(4)),
+      verdantAegisHitPulse: Number(this.verdantAegisHitPulse.toFixed(4)),
       trackedTouchCooldowns: this.touchCooldowns.size,
       touchCooldownRemainingMs: this.touchRecoveryVisual
         ? Math.max(0, Math.round(this.touchRecoveryVisual.readyAtMs - performance.now()))

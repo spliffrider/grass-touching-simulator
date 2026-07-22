@@ -1,0 +1,64 @@
+{
+  "date": "2026-07-22",
+  "topic": "Verdant Aegis temporary overheal shield Memory",
+  "currentUserGoal": "Add a ranked Memory that converts healing received at full Ancient HP into a temporary shield with satisfying visual feedback and bounded large-field performance.",
+  "workCompleted": [
+    "Added Verdant Aegis as a ten-rank Touch Protection Memory branching from Green Afterglow rank 1.",
+    "At rank 1, 50% of overhealing becomes a shield capped at 8% of maximum HP for four seconds; the curve reaches 100% conversion, 35% capacity, and 6.25 seconds at rank 10.",
+    "Routed manual touches, Green Afterglow ticks, and natural healing through one allocation-free healing path so all eligible overflow can feed the shield consistently.",
+    "Applied Scourge damage to the temporary shield before Ancient HP, refreshed its lifetime when new overhealing arrives, and cleared it cleanly on expiry or Game Over.",
+    "Kept Run 1 deliberately unshielded even with debug Memories unlocked, preserving the intended first-collapse progression beat.",
+    "Prevented shield generation from counting as useful manual healing, so overhealing cannot be farmed for permanent Grass Touches.",
+    "Persisted exact shield amount, capacity, and remaining lifetime in active-field saves; legacy saves and contradictory Run 1 snapshots default safely to no active shield.",
+    "Added the Memory Web node, blue water-shield icon, rank costs, reveal rules, detail copy, semantic purchase control, status readout, and debug dataset fields.",
+    "Added a cyan-mint shield strip inside the HP bar, gain pulse, absorption flash, active shimmer, compact mobile copy, touch-summary feedback, and live shield state in the caretaker panel.",
+    "Implemented all Aegis animation state as fixed scalar values and existing pooled effects, with no per-heal timers, collections, or display-object growth.",
+    "Restored the browser playtest to a clean Run 1 after verification and left the local Vite server running on port 5173."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/ecosystem/EcosystemSave.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemMemoryTree.test.ts",
+    "tests/EcosystemSave.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-22_VERDANT_AEGIS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 194 Vitest tests across 23 files, strict TypeScript, and the Vite production build.",
+    "Targeted ecosystem system, Memory Web, and save verification passed: 69 tests across 3 files.",
+    "Memory Web geometry checks passed with 57 nodes: no connector crossings, node overlaps, blocked branches, or narrow shared-node branch angles.",
+    "Browser progression verified a clean Run 1 collapse, Tiny Sprinkler unlock, Heartwood and Green Afterglow prerequisites, Verdant Aegis purchase, shield gain from a full-HP touch, Scourge absorption, and expiry behavior.",
+    "Desktop 1280x720 and phone 390x844 captures showed readable Memory detail and active-run presentation with no incoherent overlap outside the intentional debug panel.",
+    "A 100x100 browser check retained 10,000 logical tiles, 100 rendered chunk views, zero rendered tile views, zero full-field scans, 83 visible display objects, zero frame spikes, and approximately 0.03 ms average frame work in the sampled browser state.",
+    "Browser logs contained no warnings or errors.",
+    "git diff --check passed apart from normal Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Verdant Aegis checkpoint committed locally; master is expected to be three commits ahead of origin/master and has not been pushed or deployed.",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "Verdant Aegis curves and costs are deterministic and browser-verified but still need hands-on balance feedback alongside Green Afterglow and Ancient Heartwood.",
+    "An active Green Afterglow stack can keep feeding or refreshing the shield at full HP; this is intentional synergy and should be judged in normal Runs 2-5.",
+    "The shield strip is deliberately thin so the primary HP bar remains dominant; hands-on testing may justify a small contrast adjustment without changing its layout footprint."
+  ],
+  "nextRecommendedSteps": [
+    "Play Runs 2-5 normally and judge whether Verdant Aegis creates a useful safety window without making Heartwood or direct Care production irrelevant.",
+    "Tune conversion, capacity, duration, or Memory costs only from observed survival timing.",
+    "Push and deploy the three local master commits only when the user requests the next live release."
+  ],
+  "doNotRevert": [
+    "Do not let Verdant Aegis activate during Run 1; the first collapse remains intentionally unavoidable.",
+    "Do not credit shield generation as useful healing or permanent-currency progress.",
+    "Do not replace the aggregate shield amount-and-timer model with per-heal objects or timers.",
+    "Do not add shield visuals whose pool or display-object count scales with logical field size.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

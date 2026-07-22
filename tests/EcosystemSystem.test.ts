@@ -15,6 +15,7 @@ import {
   FIELD_MOUSE_STARTER_SEEDS,
   HAND_TENDING_GROWTH_PER_POWER,
   LINGERING_CARE_DURATION_MS,
+  VERDANT_AEGIS_MAX_RANK,
   advanceEcosystem,
   buyCultivationRank,
   buyHelper,
@@ -42,6 +43,10 @@ import {
   getPermanentMemoryInvestmentCount,
   getPermanentMaxHp,
   getTouchRankCost,
+  getVerdantAegisCapacity,
+  getVerdantAegisCapacityRatio,
+  getVerdantAegisConversion,
+  getVerdantAegisDurationMs,
   isFirstCollapseAwaitingSprinkler,
   isFirstEcosystemCollapse,
   isFirstMemoryPending,
@@ -697,6 +702,128 @@ describe("EcosystemSystem", () => {
     ]);
   });
 
+  it("unlocks Verdant Aegis after Green Afterglow and uses the approved rank curves", () => {
+    const permanent = normalizePermanentEcosystemState({ version: 1, completedRuns: 1 });
+    permanent.grassTouches = 1_000;
+
+    expect(permanent.verdantAegisRank).toBe(0);
+    expect(purchaseTouchRank(permanent, "verdantAegis")).toBe(false);
+
+    permanent.lingeringCareRank = 1;
+    expect(getTouchRankCost("verdantAegis", 0)).toBe(18);
+    expect(purchaseTouchRank(permanent, "verdantAegis")).toBe(true);
+    expect(permanent.verdantAegisRank).toBe(1);
+    expect(getVerdantAegisConversion(1)).toBeCloseTo(0.5);
+    expect(getVerdantAegisCapacityRatio(1)).toBeCloseTo(0.08);
+    expect(getVerdantAegisDurationMs(1)).toBe(4_000);
+    expect(getVerdantAegisConversion(VERDANT_AEGIS_MAX_RANK)).toBeCloseTo(1);
+    expect(getVerdantAegisCapacityRatio(VERDANT_AEGIS_MAX_RANK)).toBeCloseTo(0.35);
+    expect(getVerdantAegisDurationMs(VERDANT_AEGIS_MAX_RANK)).toBe(6_250);
+
+    const maxed = normalizePermanentEcosystemState({ version: 1, verdantAegisRank: 999 });
+    expect(maxed.verdantAegisRank).toBe(VERDANT_AEGIS_MAX_RANK);
+  });
+
+  it("converts only healing beyond full HP into a temporary shield", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    permanent.heartwoodRank = 1;
+    permanent.lingeringCareRank = 1;
+    permanent.verdantAegisRank = 1;
+    const state = createEcosystemState(permanent, { seed: 1_618 });
+    state.hp = state.maxHp - 2;
+
+    const result = touchFieldTile(state, permanent, 0)!;
+    const rawHealing = result.totalPower * 6;
+
+    expect(result.healedHp).toBeCloseTo(2);
+    expect(result.shieldGained).toBeCloseTo((rawHealing - 2) * getVerdantAegisConversion(1));
+    expect(result.shieldAmount).toBeCloseTo(result.shieldGained);
+    expect(state.hp).toBe(state.maxHp);
+    expect(state.maxOverhealShield).toBeCloseTo(getVerdantAegisCapacity(permanent, state.maxHp));
+    expect(state.overhealShieldRemainingMs).toBe(getVerdantAegisDurationMs(1));
+    expect(state.manualCareTotal).toBeCloseTo(2);
+  });
+
+  it("caps Verdant Aegis and refreshes its lifetime even when the shield is full", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    permanent.lingeringCareRank = 1;
+    permanent.verdantAegisRank = 1;
+    const state = createEcosystemState(permanent, { seed: 1_619 });
+
+    for (let touch = 0; touch < 8; touch += 1) touchFieldTile(state, permanent, 0);
+    expect(state.overhealShield).toBeCloseTo(state.maxOverhealShield);
+    expect(state.manualCareTotal).toBe(0);
+
+    state.overhealShieldRemainingMs = 250;
+    const cappedTouch = touchFieldTile(state, permanent, 0)!;
+    expect(cappedTouch.shieldGained).toBe(0);
+    expect(state.overhealShield).toBeCloseTo(state.maxOverhealShield);
+    expect(state.overhealShieldRemainingMs).toBe(getVerdantAegisDurationMs(1));
+  });
+
+  it("absorbs Scourge damage with Verdant Aegis before Ancient HP", () => {
+    const shieldPermanent = createPermanentEcosystemState();
+    shieldPermanent.completedRuns = 1;
+    shieldPermanent.unlockedHelpers.tinySprinkler = true;
+    shieldPermanent.lingeringCareRank = 1;
+    shieldPermanent.verdantAegisRank = 1;
+    const shielded = createEcosystemState(shieldPermanent, { seed: 1_620 });
+    touchFieldTile(shielded, shieldPermanent, 0);
+    shielded.lingeringCarePerSecond = 0;
+    shielded.lingeringCareRemainingMs = 0;
+    const shieldBeforeDamage = shielded.overhealShield;
+
+    const baselinePermanent = createPermanentEcosystemState();
+    baselinePermanent.completedRuns = 1;
+    baselinePermanent.unlockedHelpers.tinySprinkler = true;
+    baselinePermanent.lingeringCareRank = 1;
+    const baseline = createEcosystemState(baselinePermanent, { seed: 1_620 });
+    touchFieldTile(baseline, baselinePermanent, 0);
+    baseline.lingeringCarePerSecond = 0;
+    baseline.lingeringCareRemainingMs = 0;
+
+    advanceEcosystem(shielded, shieldPermanent, PRODUCTION_TICK_MS);
+    advanceEcosystem(baseline, baselinePermanent, PRODUCTION_TICK_MS);
+
+    expect(baseline.hp).toBeLessThan(baseline.maxHp);
+    const baselineDamage = baseline.maxHp - baseline.hp;
+    expect(shielded.hp - baseline.hp).toBeCloseTo(Math.min(shieldBeforeDamage, baselineDamage), 5);
+    expect(shielded.overhealShield).toBeCloseTo(Math.max(0, shieldBeforeDamage - baselineDamage), 5);
+  });
+
+  it("expires Verdant Aegis without per-heal timers or offline-style advancement", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    permanent.heartwoodRank = 10;
+    permanent.lingeringCareRank = 1;
+    permanent.verdantAegisRank = 10;
+    const state = createEcosystemState(permanent, { seed: 1_621 });
+    state.overhealShield = state.maxOverhealShield;
+    state.overhealShieldRemainingMs = getVerdantAegisDurationMs(10);
+
+    for (
+      let elapsed = 0;
+      elapsed < getVerdantAegisDurationMs(10) - PRODUCTION_TICK_MS;
+      elapsed += PRODUCTION_TICK_MS
+    ) {
+      advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+    }
+    expect(state.overhealShield).toBeGreaterThan(0);
+    expect(state.overhealShieldRemainingMs).toBe(PRODUCTION_TICK_MS);
+
+    advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+    expect(state.overhealShield).toBe(0);
+    expect(state.overhealShieldRemainingMs).toBe(0);
+    expect(Object.keys(state).filter((key) => key.toLowerCase().includes("shield"))).toEqual([
+      "overhealShield",
+      "maxOverhealShield",
+      "overhealShieldRemainingMs",
+    ]);
+  });
+
   it("remembers Ancient Heartwood ranks and applies them to future field health", () => {
     const permanent = normalizePermanentEcosystemState({ version: 1, completedRuns: 1 });
     expect(permanent.heartwoodRank).toBe(0);
@@ -810,6 +937,10 @@ describe("EcosystemSystem", () => {
 
     expect(result?.lingeringCarePerSecond).toBe(0);
     expect(state.lingeringCareRemainingMs).toBe(0);
+    expect(result?.shieldGained).toBe(0);
+    expect(state.overhealShield).toBe(0);
+    expect(state.maxOverhealShield).toBe(0);
+    expect(state.overhealShieldRemainingMs).toBe(0);
 
     while (state.active && state.elapsedMs < 5_000) advanceEcosystem(state, permanent, 250);
 
@@ -837,7 +968,7 @@ describe("EcosystemSystem", () => {
     expect(state.active).toBe(false);
   });
 
-  it("does not let debug-unlocked Memories soften an unequipped early run", () => {
+  it("does not let debug-unlocked Memories eliminate Scourge pressure from an early run", () => {
     const permanent = createPermanentEcosystemState();
     permanent.completedRuns = 1;
     unlockAllPrototypeMemories(permanent);
@@ -848,7 +979,7 @@ describe("EcosystemSystem", () => {
     advanceEcosystem(state, permanent, 250);
 
     expect(state.scourgeDemandPerSecond).toBeGreaterThan(4);
-    expect(state.hp).toBeLessThan(state.maxHp);
+    expect(state.hp + state.overhealShield).toBeLessThan(state.maxHp + state.maxOverhealShield);
     expect(state.hp).toBeGreaterThan(100);
   });
 

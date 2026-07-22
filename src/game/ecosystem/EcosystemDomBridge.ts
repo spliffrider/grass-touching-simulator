@@ -257,6 +257,7 @@ export class EcosystemDomBridge {
       ["broadPalm", "Broad Palm", "ecosystem-rank-broad-palm"],
       ["manyHands", "Many Hands", "ecosystem-rank-many-hands"],
       ["lingeringCare", "Green Afterglow", "ecosystem-rank-lingering-care"],
+      ["verdantAegis", "Verdant Aegis", "ecosystem-rank-verdant-aegis"],
     ] as const).map(([touchKind, label, testId]) => {
       const element = this.createButton(`Buy ${label} rank`, () => this.actions.buyTouchRank(touchKind), testId);
       this.memoryButtons.push({ element, touchKind });
@@ -352,6 +353,9 @@ export class EcosystemDomBridge {
       ...(permanent.lingeringCareRank > 0
         ? [`Lingering Care ${state.lingeringCarePerSecond.toFixed(2)} Care/s | ${(state.lingeringCareRemainingMs / 1_000).toFixed(1)}s remaining`]
         : []),
+      ...(permanent.verdantAegisRank > 0
+        ? [`Verdant Aegis ${state.overhealShield.toFixed(1)} / ${state.maxOverhealShield.toFixed(1)} shield | ${(state.overhealShieldRemainingMs / 1_000).toFixed(1)}s remaining`]
+        : []),
       state.runNumber === 1
         ? "Hand Tending unlocks after the first collapse"
         : "Hand Tending: each recovered manual touch produces Growth",
@@ -436,12 +440,16 @@ export class EcosystemDomBridge {
             ? permanent.broadPalmRank
             : kind === "manyHands"
               ? permanent.manyHandsRank
-              : permanent.lingeringCareRank;
+              : kind === "lingeringCare"
+                ? permanent.lingeringCareRank
+                : permanent.verdantAegisRank;
         const unlocked = kind === "manyHands"
           ? permanent.broadPalmRank >= 2
           : kind === "lingeringCare"
             ? permanent.heartwoodRank >= 1
-            : true;
+            : kind === "verdantAegis"
+              ? permanent.lingeringCareRank >= 1
+              : true;
         const maxRank = 10;
         const cost = rank >= maxRank ? 0 : getTouchRankCost(kind, rank);
         const label = kind === "fastTouch"
@@ -450,7 +458,9 @@ export class EcosystemDomBridge {
             ? "Broad Palm"
             : kind === "manyHands"
               ? "Many Hands"
-              : "Green Afterglow";
+              : kind === "lingeringCare"
+                ? "Green Afterglow"
+                : "Verdant Aegis";
         this.setHidden(button.element, state.active || !revealedMemoryNodeIds.has(nodeId));
         this.setDisabled(button.element, !unlocked || rank >= maxRank || permanent.grassTouches < cost);
         this.setText(button.element, rank >= maxRank
@@ -543,6 +553,10 @@ export class EcosystemDomBridge {
       lingeringCareRank: permanent.lingeringCareRank,
       lingeringCarePerSecond: Number(state.lingeringCarePerSecond.toFixed(4)),
       lingeringCareRemainingMs: state.lingeringCareRemainingMs,
+      verdantAegisRank: permanent.verdantAegisRank,
+      overhealShield: Number(state.overhealShield.toFixed(4)),
+      maxOverhealShield: Number(state.maxOverhealShield.toFixed(4)),
+      overhealShieldRemainingMs: state.overhealShieldRemainingMs,
       maxHp: state.maxHp,
       fastTouchRank: permanent.fastTouchRank,
       firstAutomationStage: firstAutomation.stage,
