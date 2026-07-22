@@ -60,6 +60,8 @@ export interface ActiveFieldSnapshot {
   runTouchesEarned: number;
   manualTouchCount: number;
   manualCareTotal: number;
+  lingeringCarePerSecond: number;
+  lingeringCareRemainingMs: number;
   helperPurchaseCount: number;
   resources: Record<ProductionResourceId, ResourceBufferSnapshot>;
   rates: Record<ProductionResourceId, number>;
@@ -156,6 +158,8 @@ export function createActiveFieldSnapshot(
     runTouchesEarned: state.runTouchesEarned,
     manualTouchCount: state.manualTouchCount,
     manualCareTotal: state.manualCareTotal,
+    lingeringCarePerSecond: state.lingeringCarePerSecond,
+    lingeringCareRemainingMs: state.lingeringCareRemainingMs,
     helperPurchaseCount: state.helperPurchaseCount,
     resources,
     rates,
@@ -230,6 +234,9 @@ export function restoreActiveFieldSnapshot(
   state.runTouchesEarned = finiteNumber(input.runTouchesEarned, 0, 0);
   state.manualTouchCount = Math.floor(finiteNumber(input.manualTouchCount, 0, 0));
   state.manualCareTotal = finiteNumber(input.manualCareTotal, 0, 0);
+  state.lingeringCarePerSecond = finiteNumber(input.lingeringCarePerSecond, 0, 0);
+  state.lingeringCareRemainingMs = finiteNumber(input.lingeringCareRemainingMs, 0, 0);
+  if (state.lingeringCareRemainingMs <= 0) state.lingeringCarePerSecond = 0;
   state.helperPurchaseCount = Math.floor(finiteNumber(input.helperPurchaseCount, 0, 0));
   state.bottleneck = typeof input.bottleneck === "string" ? input.bottleneck : "Resuming field";
   state.endedSummary = cloneSummary(input.endedSummary);

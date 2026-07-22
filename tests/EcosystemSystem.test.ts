@@ -14,6 +14,7 @@ import {
   BEE_HIVE_STARTER_FLOWERS,
   FIELD_MOUSE_STARTER_SEEDS,
   HAND_TENDING_GROWTH_PER_POWER,
+  LINGERING_CARE_DURATION_MS,
   advanceEcosystem,
   buyCultivationRank,
   buyHelper,
@@ -33,6 +34,9 @@ import {
   getHelperPurchaseCost,
   getHelperStorageResourceIds,
   getHelperUnlockCost,
+  getLingeringCareMaxRate,
+  getLingeringCareMaxStacks,
+  getLingeringCareStackRate,
   getManualTouchPowerBonusPercent,
   getManualTouchPowerMultiplier,
   getPermanentMemoryInvestmentCount,
@@ -632,6 +636,67 @@ describe("EcosystemSystem", () => {
     expect(getManualTouchCooldownMs(legacy.fastTouchRank)).toBe(356);
   });
 
+  it("turns Green Afterglow ranks into capped, refreshable healing stacks", () => {
+    const permanent = normalizePermanentEcosystemState({ version: 1, completedRuns: 1 });
+    permanent.grassTouches = 100;
+
+    expect(permanent.lingeringCareRank).toBe(0);
+    expect(purchaseTouchRank(permanent, "lingeringCare")).toBe(false);
+
+    permanent.heartwoodRank = 1;
+    const firstRankCost = getTouchRankCost("lingeringCare", 0);
+    expect(firstRankCost).toBe(10);
+    expect(purchaseTouchRank(permanent, "lingeringCare")).toBe(true);
+    expect(permanent.lingeringCareRank).toBe(1);
+    expect(getLingeringCareMaxStacks(1)).toBe(2);
+
+    const state = createEcosystemState(permanent, { seed: 1_616 });
+    state.hp = 50;
+    const expectedStackRate = getLingeringCareStackRate(1) * getManualTouchPowerMultiplier(permanent);
+    const firstTouch = touchFieldTile(state, permanent, 0);
+    const secondTouch = touchFieldTile(state, permanent, 0);
+
+    expect(firstTouch?.lingeringCareAddedPerSecond).toBeCloseTo(expectedStackRate);
+    expect(secondTouch?.lingeringCarePerSecond).toBeCloseTo(expectedStackRate * 2);
+    expect(state.lingeringCareRemainingMs).toBe(LINGERING_CARE_DURATION_MS);
+
+    state.lingeringCareRemainingMs = 750;
+    const cappedTouch = touchFieldTile(state, permanent, 0);
+    expect(cappedTouch?.lingeringCareAddedPerSecond).toBe(0);
+    expect(state.lingeringCareRemainingMs).toBe(LINGERING_CARE_DURATION_MS);
+
+    state.resources.care.capacity = 10_000;
+    state.resources.care.amount = 10_000;
+    const manualCareBeforeAfterglow = state.manualCareTotal;
+    advanceEcosystem(state, permanent, 1_000);
+    expect(state.manualCareTotal - manualCareBeforeAfterglow).toBeCloseTo(expectedStackRate * 2, 5);
+    for (let elapsed = 1_000; elapsed < LINGERING_CARE_DURATION_MS; elapsed += 1_000) {
+      advanceEcosystem(state, permanent, 1_000);
+    }
+    expect(state.lingeringCarePerSecond).toBe(0);
+    expect(state.lingeringCareRemainingMs).toBe(0);
+  });
+
+  it("scales Green Afterglow to six stronger stacks without creating per-touch state", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    permanent.heartwoodRank = 1;
+    permanent.lingeringCareRank = 10;
+
+    expect(getLingeringCareStackRate(10)).toBeCloseTo(0.85);
+    expect(getLingeringCareMaxStacks(10)).toBe(6);
+
+    const state = createEcosystemState(permanent, { seed: 1_617 });
+    for (let touch = 0; touch < 20; touch += 1) touchFieldTile(state, permanent, 0);
+
+    expect(state.lingeringCarePerSecond).toBeCloseTo(getLingeringCareMaxRate(permanent));
+    expect(state.lingeringCareRemainingMs).toBe(LINGERING_CARE_DURATION_MS);
+    expect(Object.keys(state).filter((key) => key.startsWith("lingeringCare"))).toEqual([
+      "lingeringCarePerSecond",
+      "lingeringCareRemainingMs",
+    ]);
+  });
+
   it("remembers Ancient Heartwood ranks and applies them to future field health", () => {
     const permanent = normalizePermanentEcosystemState({ version: 1, completedRuns: 1 });
     expect(permanent.heartwoodRank).toBe(0);
@@ -741,7 +806,10 @@ describe("EcosystemSystem", () => {
     const permanent = createPermanentEcosystemState();
     unlockAllPrototypeMemories(permanent);
     const state = createEcosystemState(permanent, { seed: 5_005 });
-    touchFieldTile(state, permanent, 0);
+    const result = touchFieldTile(state, permanent, 0);
+
+    expect(result?.lingeringCarePerSecond).toBe(0);
+    expect(state.lingeringCareRemainingMs).toBe(0);
 
     while (state.active && state.elapsedMs < 5_000) advanceEcosystem(state, permanent, 250);
 

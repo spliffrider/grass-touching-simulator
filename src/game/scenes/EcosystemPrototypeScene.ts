@@ -95,6 +95,7 @@ import {
   ANCIENT_HEARTWOOD_MAX_RANK,
   BEE_HIVE_STARTER_FLOWERS,
   FIELD_MOUSE_STARTER_SEEDS,
+  LINGERING_CARE_DURATION_MS,
   MANUAL_TOUCH_CARE_PER_POWER,
   MANUAL_TOUCH_POWER_PER_MEMORY,
   advanceEcosystem,
@@ -119,6 +120,8 @@ import {
   getHelperPurchaseCost,
   getHelperStorageResourceIds,
   getHelperUnlockCost,
+  getLingeringCareMaxStacks,
+  getLingeringCareStackRate,
   getManualTouchPowerBonusPercent,
   getModeUnlockCost,
   getPermanentMaxHp,
@@ -205,6 +208,7 @@ const SAVE_INTERVAL_MS = 15_000;
 const DOM_REFRESH_MS = 1_000;
 const HARNESS_REFRESH_MS = 500;
 const MAX_EFFECTS = 24;
+const LINGERING_CARE_VISUAL_POOL_SIZE = 6;
 const MAX_CHUNK_VIEWS = 100;
 const AMBIENT_MOTE_COUNT = 18;
 const MEMORY_GROVE_MOTE_COUNT = 12;
@@ -403,6 +407,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private chunkPool: Phaser.GameObjects.Image[] = [];
   private impactPool: Phaser.GameObjects.Arc[] = [];
   private effectPool: Phaser.GameObjects.Image[] = [];
+  private lingeringCarePulsePool: Phaser.GameObjects.Image[] = [];
   private ambientMotes: Phaser.GameObjects.Image[] = [];
   private readonly ambientMotePhases = new Float32Array(AMBIENT_MOTE_COUNT);
   private readonly ambientMoteCenterXs = new Float32Array(AMBIENT_MOTE_COUNT);
@@ -464,6 +469,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private openingPanelsVisible = false;
   private displayedHpRatio = 1;
   private hpHeartbeatPulse = 0;
+  private lingeringCareArrivalPulse = 0;
   private optionsButton!: SceneButton;
   private worksButton!: SceneButton;
   private cultivationButton!: SceneButton;
@@ -700,10 +706,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.openingPanelsVisible = false;
     this.displayedHpRatio = 1;
     this.hpHeartbeatPulse = 0;
+    this.lingeringCareArrivalPulse = 0;
     this.tilePool.length = 0;
     this.chunkPool.length = 0;
     this.impactPool.length = 0;
     this.effectPool.length = 0;
+    this.lingeringCarePulsePool.length = 0;
     this.ambientMotes.length = 0;
     this.memoryMotes.length = 0;
     this.touchCooldowns.clear();
@@ -995,6 +1003,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const effect = this.add.image(0, 0, "eco-effect-water").setVisible(false).setOrigin(0.5);
       this.effectLayer.add(effect);
       this.effectPool.push(effect);
+    }
+    for (let index = 0; index < LINGERING_CARE_VISUAL_POOL_SIZE; index += 1) {
+      const pulse = this.add.image(0, 0, "eco-effect-grass")
+        .setOrigin(0.5)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setVisible(false);
+      this.fieldRoot.add(pulse);
+      this.lingeringCarePulsePool.push(pulse);
     }
     for (const helperId of HELPER_IDS) {
       const feedback = this.createText("", 12, "#fff3c2", "bold")
@@ -2028,11 +2044,19 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         : `Run ${this.state.runNumber}  |  ${elapsedMinutes}:${`${elapsedSeconds % 60}`.padStart(2, "0")}  |  Field active`);
       const hpRatio = Phaser.Math.Clamp(readout.hpRatio, 0, 1);
       const hpColor = hpRatio > 0.55 ? 0x83d765 : hpRatio > 0.25 ? 0xf0c85b : 0xe8616a;
+      const lingeringCareActive = this.state.lingeringCareRemainingMs > 0
+        && this.state.lingeringCarePerSecond > 0;
       if (this.hpBarFill.fillColor !== hpColor) {
         this.hpBarFill.setFillStyle(hpColor, 1);
         this.hpBarHeartbeatGlow.setFillStyle(hpColor, 1);
       }
-      this.setTextIfChanged(this.hpText, `Ancient HP ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}`);
+      const afterglowHpCopy = lingeringCareActive
+        ? this.scale.width < 760
+          ? `  +${this.state.lingeringCarePerSecond.toFixed(1)}/s`
+          : `  |  AFTERGLOW +${this.state.lingeringCarePerSecond.toFixed(1)} Care/s`
+        : "";
+      this.hpText.setColor(lingeringCareActive ? "#d9ff9f" : "#f2e8d5");
+      this.setTextIfChanged(this.hpText, `Ancient HP ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}${afterglowHpCopy}`);
       this.setTextIfChanged(this.pressureText, awaitingFirstTouch
         ? "Scourge dormant  |  Touch the grass to begin"
         : `Scourge ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s  |  produced ${readout.careProductionPerSecond.toFixed(2)}/s`);
@@ -2049,6 +2073,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         "Dew gathered    1.15",
         `Hand Tending    ${this.state.runNumber === 1 ? "after first collapse" : "+0.35 Growth"}`,
         "Run Touches     +0.92",
+        `Green Afterglow ${this.permanent.lingeringCareRank > 0
+          ? `${this.state.lingeringCarePerSecond.toFixed(1)} Care/s | ${(this.state.lingeringCareRemainingMs / 1_000).toFixed(1)}s`
+          : "not remembered"}`,
         "",
         `Fast Touch      ${getManualTouchCooldownMs(this.permanent.fastTouchRank)} ms recovery`,
         `Broad Palm      ${palmRadius > 0 ? `radius ${palmRadius}` : "single plot"}`,
@@ -3385,12 +3412,86 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       });
     }
     const growthSummary = result.growthGained > 0 ? `  +${result.growthGained.toFixed(1)} Growth` : "";
+    const afterglowSummary = result.lingeringCarePerSecond > 0
+      ? `  Afterglow ${result.lingeringCarePerSecond.toFixed(1)} Care/s`
+      : "";
     const touchSummary = this.scale.width < 760
-      ? `+${result.dewGained.toFixed(1)} Dew${growthSummary}\n+${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}`
-      : `${result.affectedTileCount} tile${result.affectedTileCount === 1 ? "" : "s"} cared for  |  +${result.dewGained.toFixed(1)} Dew${growthSummary}  +${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}`;
-    this.touchSummaryText.setText(touchSummary).setAlpha(1).setY(this.fieldBounds.y + 56);
+      ? `+${result.dewGained.toFixed(1)} Dew${growthSummary}\n+${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}${afterglowSummary}`
+      : `${result.affectedTileCount} tile${result.affectedTileCount === 1 ? "" : "s"} cared for  |  +${result.dewGained.toFixed(1)} Dew${growthSummary}  +${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}${afterglowSummary}`;
+    this.touchSummaryText
+      .setText(touchSummary)
+      .setColor(result.lingeringCarePerSecond > 0 ? "#d9ff9f" : "#fff3c2")
+      .setAlpha(1)
+      .setY(this.fieldBounds.y + 56);
     this.tweens.killTweensOf(this.touchSummaryText);
     this.tweens.add({ targets: this.touchSummaryText, y: this.fieldBounds.y + 39, alpha: 0, duration: 1_100, ease: "Cubic.easeOut" });
+  }
+
+  private showLingeringCareEffect(result: TouchBatchResult): void {
+    if (result.lingeringCarePerSecond <= 0 || !this.state.active || this.worksOpen || this.optionsOpen) return;
+    const primary = result.representativeImpacts.find((impact) => impact.kind === "primary")
+      ?? result.representativeImpacts[0];
+    if (!primary) return;
+
+    const tileX = primary.tileIndex % this.state.field.width;
+    const tileY = Math.floor(primary.tileIndex / this.state.field.width);
+    const sourceX = this.projection.originX + (tileX + 0.5) * this.projection.cellSize;
+    const sourceY = this.projection.originY + (tileY + 0.5) * this.projection.cellSize;
+    if (!this.pointInField(sourceX, sourceY)) return;
+
+    const ring = this.impactPool.find((candidate) => !candidate.visible);
+    if (ring) {
+      ring
+        .setPosition(sourceX, sourceY)
+        .setRadius(Math.max(12, Math.min(42, this.projection.cellSize * 0.4)))
+        .setFillStyle(0xb9ff9c, 0.2)
+        .setStrokeStyle(5, 0xffe889, 1)
+        .setAlpha(1)
+        .setScale(0.3)
+        .setVisible(true);
+      this.tweens.killTweensOf(ring);
+      this.tweens.add({
+        targets: ring,
+        scale: 1.8,
+        alpha: 0,
+        duration: 680,
+        ease: "Cubic.easeOut",
+        onComplete: () => ring.setVisible(false),
+      });
+    }
+
+    const pulse = this.lingeringCarePulsePool.find((candidate) => !candidate.visible);
+    if (!pulse) return;
+    const targetX = this.hpBarFill.x + Math.max(8, this.hpBarFill.displayWidth * 0.72);
+    const targetY = this.hpBarFill.y;
+    const visualSize = this.scale.width < 760 ? 16 : 22;
+    pulse
+      .setTexture("eco-effect-spore")
+      .setPosition(sourceX, sourceY)
+      .setDisplaySize(visualSize, visualSize)
+      .setTint(0xcfff93)
+      .setAlpha(1)
+      .setRotation(-0.25)
+      .setVisible(true);
+    const targetScaleX = pulse.scaleX;
+    const targetScaleY = pulse.scaleY;
+    pulse.setScale(targetScaleX * 0.62, targetScaleY * 0.62);
+    this.tweens.killTweensOf(pulse);
+    this.tweens.add({
+      targets: pulse,
+      x: targetX,
+      y: targetY,
+      scaleX: targetScaleX * 1.05,
+      scaleY: targetScaleY * 1.05,
+      rotation: Math.PI * 1.75,
+      alpha: 0.88,
+      duration: this.scale.width < 760 ? 430 : 560,
+      ease: "Sine.easeInOut",
+      onComplete: () => {
+        pulse.clearTint().setVisible(false);
+        this.lingeringCareArrivalPulse = Math.min(1, this.lingeringCareArrivalPulse + 0.72);
+      },
+    });
   }
 
   private touchCoordinates(x: number, y: number): void {
@@ -3445,6 +3546,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.audio.playGrassTouch("normal", "lush", result.fieldEmbraceTriggered, result.affectedTileCount, true);
     const audioEnd = performance.now();
     this.showTouchImpacts(result);
+    this.showLingeringCareEffect(result);
     const effectsEnd = performance.now();
     this.uiRefreshRequested = true;
     this.fieldRenderRequested = true;
@@ -3561,6 +3663,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.state = createNextEcosystemRun(this.permanent);
     this.displayedHpRatio = 1;
     this.hpHeartbeatPulse = 0;
+    this.lingeringCareArrivalPulse = 0;
     this.firstSprinklerCycleCelebrated = false;
     this.memoryRevealHoldIds = null;
     this.memoryRevealSequenceActive = false;
@@ -3774,10 +3877,16 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         ? this.permanent.fastTouchRank
         : kind === "broadPalm"
           ? this.permanent.broadPalmRank
-          : this.permanent.manyHandsRank;
+          : kind === "manyHands"
+            ? this.permanent.manyHandsRank
+            : this.permanent.lingeringCareRank;
       const maxRank = 10;
       const complete = rank >= maxRank;
-      const unlocked = kind !== "manyHands" || this.permanent.broadPalmRank >= 2;
+      const unlocked = kind === "manyHands"
+        ? this.permanent.broadPalmRank >= 2
+        : kind === "lingeringCare"
+          ? this.permanent.heartwoodRank >= 1
+          : true;
       const cost = complete ? 0 : getTouchRankCost(kind, rank);
       let effect = "Manual touch affects one chosen tile at full strength.";
       if (kind === "fastTouch") {
@@ -3795,6 +3904,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         effect = rank > 0
           ? `${rank * 2} distant tiles receive ${effectiveness}% touch strength.`
           : "Distant touch echoes have not been remembered yet.";
+      } else if (kind === "lingeringCare") {
+        const displayRank = Math.max(1, rank);
+        const stackRate = getLingeringCareStackRate(displayRank);
+        const maxStacks = getLingeringCareMaxStacks(displayRank);
+        effect = rank > 0
+          ? `Each touch adds ${stackRate.toFixed(2)} Care/s, stacking ${maxStacks} times for ${(LINGERING_CARE_DURATION_MS / 1_000).toFixed(0)} seconds before manual-power bonuses.`
+          : `Rank 1 makes each touch add ${stackRate.toFixed(2)} Care/s, stacking ${maxStacks} times for ${(LINGERING_CARE_DURATION_MS / 1_000).toFixed(0)} seconds.`;
       }
       return {
         rank,
@@ -3806,7 +3922,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         action: () => purchaseTouchRank(this.permanent, kind),
         status: complete ? "10/10 complete" : unlocked ? `${rank}/10\n${cost} ${GRASS_TOUCHES_LABEL}` : "Locked",
         effect,
-        requirement: unlocked ? "" : "Requires Broad Palm rank 2.",
+        requirement: unlocked
+          ? ""
+          : kind === "lingeringCare"
+            ? "Requires Ancient Heartwood rank 1."
+            : "Requires Broad Palm rank 2.",
       };
     }
 
@@ -4378,13 +4498,16 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         this.hpBarHeartbeatGlow.setAlpha(0).setScale(this.hpBarHeartbeatGlow.scaleX, 1);
       }
       this.hpHeartbeatPulse = 0;
+      this.lingeringCareArrivalPulse = 0;
       return;
     }
 
+    const lingeringCareActive = this.state.lingeringCareRemainingMs > 0
+      && this.state.lingeringCarePerSecond > 0;
     const targetRatio = predictHealthRatio(
       this.state.hp,
       this.state.maxHp,
-      -this.state.careDeficitPerSecond,
+      -this.state.careDeficitPerSecond + (lingeringCareActive ? this.state.lingeringCarePerSecond : 0),
       this.state.tickAccumulatorMs,
       PRODUCTION_TICK_MS,
     );
@@ -4399,14 +4522,27 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const previousPulse = this.hpHeartbeatPulse;
     const rawPulse = getHealthHeartbeatPulse(now, targetRatio);
     this.hpHeartbeatPulse = rawPulse >= 0.002 ? rawPulse : 0;
-    if (this.hpHeartbeatPulse <= 0 && previousPulse <= 0) return;
+    this.lingeringCareArrivalPulse = Math.max(0, this.lingeringCareArrivalPulse - delta / 420);
+    const afterglowShimmer = lingeringCareActive
+      ? 0.62 + (Math.sin(now * 0.0085) + 1) * 0.09
+      : 0;
+    const restorativePulse = Math.max(afterglowShimmer, this.lingeringCareArrivalPulse);
+    if (this.hpHeartbeatPulse <= 0 && previousPulse <= 0 && restorativePulse <= 0) return;
     const urgency = 1 - targetRatio;
-    const fillPulse = 1 + this.hpHeartbeatPulse * (0.045 + urgency * 0.065);
-    const glowPulse = 1 + this.hpHeartbeatPulse * (0.16 + urgency * 0.18);
+    const fillPulse = 1
+      + this.hpHeartbeatPulse * (0.045 + urgency * 0.065)
+      + this.lingeringCareArrivalPulse * 0.065;
+    const glowPulse = 1
+      + this.hpHeartbeatPulse * (0.16 + urgency * 0.18)
+      + restorativePulse * 0.2;
     this.hpBarFill.setScale(this.hpBarFill.scaleX, fillPulse);
     this.hpBarHeartbeatGlow
+      .setFillStyle(lingeringCareActive || this.lingeringCareArrivalPulse > 0 ? 0xb9ff9c : this.hpBarFill.fillColor, 1)
       .setScale(this.hpBarHeartbeatGlow.scaleX, glowPulse)
-      .setAlpha(this.hpHeartbeatPulse * (0.12 + urgency * 0.22));
+      .setAlpha(Math.max(
+        this.hpHeartbeatPulse * (0.12 + urgency * 0.22),
+        restorativePulse * (this.lingeringCareArrivalPulse > 0 ? 0.55 : 0.22),
+      ));
   }
 
   private animateMemoryTree(now: number): void {
@@ -4525,6 +4661,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.state = createEcosystemState(this.permanent);
     this.displayedHpRatio = 1;
     this.hpHeartbeatPulse = 0;
+    this.lingeringCareArrivalPulse = 0;
     this.firstSprinklerCycleCelebrated = false;
     this.memoryRevealHoldIds = null;
     this.memoryRevealSequenceActive = false;
@@ -4550,6 +4687,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const performanceSnapshot = this.performanceMonitor.getSnapshot();
     let activeEffects = 0;
     for (const effect of this.effectPool) activeEffects += effect.visible ? 1 : 0;
+    for (const pulse of this.lingeringCarePulsePool) activeEffects += pulse.visible ? 1 : 0;
     for (const impact of this.impactPool) activeEffects += impact.visible ? 1 : 0;
     document.documentElement.dataset.grassEcosystemHarness = JSON.stringify({
       route: "ecosystemPrototype",
@@ -4579,6 +4717,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       pooledChunkViews: this.chunkPool.length,
       pooledImpacts: this.impactPool.length,
       pooledEffects: this.effectPool.length,
+      pooledLingeringCarePulses: this.lingeringCarePulsePool.length,
       displayObjects: this.displayObjectCount,
       visibleDisplayObjects: this.countVisibleDisplayObjects(),
       activeTweens: this.getActiveTweenCount(),
@@ -4635,6 +4774,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       manualTouchCooldownMs: getManualTouchCooldownMs(this.permanent.fastTouchRank),
       displayedHpRatio: Number(this.displayedHpRatio.toFixed(4)),
       hpHeartbeatPulse: Number(this.hpHeartbeatPulse.toFixed(4)),
+      lingeringCareRank: this.permanent.lingeringCareRank,
+      lingeringCarePerSecond: Number(this.state.lingeringCarePerSecond.toFixed(4)),
+      lingeringCareRemainingMs: Math.round(this.state.lingeringCareRemainingMs),
       trackedTouchCooldowns: this.touchCooldowns.size,
       touchCooldownRemainingMs: this.touchRecoveryVisual
         ? Math.max(0, Math.round(this.touchRecoveryVisual.readyAtMs - performance.now()))

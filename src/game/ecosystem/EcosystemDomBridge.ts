@@ -256,6 +256,7 @@ export class EcosystemDomBridge {
       ["fastTouch", "Fast Touch", "ecosystem-rank-fast-touch"],
       ["broadPalm", "Broad Palm", "ecosystem-rank-broad-palm"],
       ["manyHands", "Many Hands", "ecosystem-rank-many-hands"],
+      ["lingeringCare", "Green Afterglow", "ecosystem-rank-lingering-care"],
     ] as const).map(([touchKind, label, testId]) => {
       const element = this.createButton(`Buy ${label} rank`, () => this.actions.buyTouchRank(touchKind), testId);
       this.memoryButtons.push({ element, touchKind });
@@ -348,6 +349,9 @@ export class EcosystemDomBridge {
       `Scourge demand ${state.scourgeDemandPerSecond.toFixed(2)} Care/s | Care production ${state.rates.care.toFixed(2)}/s`,
       `Field ${state.field.width}x${state.field.height} | Cultivation ${state.field.cultivationRank}/10 | ${RUN_TOUCHES_LABEL} ${state.runTouches.toFixed(1)} | ${GRASS_TOUCHES_LABEL} ${permanent.grassTouches.toFixed(0)}`,
       `Remembered Touch +${getManualTouchPowerBonusPercent(permanent)}% manual power`,
+      ...(permanent.lingeringCareRank > 0
+        ? [`Lingering Care ${state.lingeringCarePerSecond.toFixed(2)} Care/s | ${(state.lingeringCareRemainingMs / 1_000).toFixed(1)}s remaining`]
+        : []),
       state.runNumber === 1
         ? "Hand Tending unlocks after the first collapse"
         : "Hand Tending: each recovered manual touch produces Growth",
@@ -430,11 +434,23 @@ export class EcosystemDomBridge {
           ? permanent.fastTouchRank
           : kind === "broadPalm"
             ? permanent.broadPalmRank
-            : permanent.manyHandsRank;
-        const unlocked = kind !== "manyHands" || permanent.broadPalmRank >= 2;
+            : kind === "manyHands"
+              ? permanent.manyHandsRank
+              : permanent.lingeringCareRank;
+        const unlocked = kind === "manyHands"
+          ? permanent.broadPalmRank >= 2
+          : kind === "lingeringCare"
+            ? permanent.heartwoodRank >= 1
+            : true;
         const maxRank = 10;
         const cost = rank >= maxRank ? 0 : getTouchRankCost(kind, rank);
-        const label = kind === "fastTouch" ? "Fast Touch" : kind === "broadPalm" ? "Broad Palm" : "Many Hands";
+        const label = kind === "fastTouch"
+          ? "Fast Touch"
+          : kind === "broadPalm"
+            ? "Broad Palm"
+            : kind === "manyHands"
+              ? "Many Hands"
+              : "Green Afterglow";
         this.setHidden(button.element, state.active || !revealedMemoryNodeIds.has(nodeId));
         this.setDisabled(button.element, !unlocked || rank >= maxRank || permanent.grassTouches < cost);
         this.setText(button.element, rank >= maxRank
@@ -524,6 +540,9 @@ export class EcosystemDomBridge {
       grassTouches: Number(permanent.grassTouches.toFixed(3)),
       manualTouchBonusPercent: getManualTouchPowerBonusPercent(permanent),
       heartwoodRank: permanent.heartwoodRank,
+      lingeringCareRank: permanent.lingeringCareRank,
+      lingeringCarePerSecond: Number(state.lingeringCarePerSecond.toFixed(4)),
+      lingeringCareRemainingMs: state.lingeringCareRemainingMs,
       maxHp: state.maxHp,
       fastTouchRank: permanent.fastTouchRank,
       firstAutomationStage: firstAutomation.stage,

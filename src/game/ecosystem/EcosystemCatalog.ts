@@ -279,6 +279,8 @@ export interface TouchBatchResult {
   affectedTileCount: number;
   totalPower: number;
   healedHp: number;
+  lingeringCareAddedPerSecond: number;
+  lingeringCarePerSecond: number;
   dewGained: number;
   growthGained: number;
   runTouchesGained: number;

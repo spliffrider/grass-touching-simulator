@@ -1,0 +1,64 @@
+{
+  "date": "2026-07-22",
+  "topic": "Green Afterglow manual-touch healing Memory",
+  "currentUserGoal": "Add a ranked heal-over-time skill to manual touches and give it a satisfying, readable visualization without compromising large-field performance.",
+  "workCompleted": [
+    "Added Green Afterglow as a ten-rank Touch Restoration Memory branching from Ancient Heartwood rank 1.",
+    "Each accepted manual touch adds one four-second healing stack. Rank 1 adds 0.40 Care per second per stack with a two-stack cap; rank 10 adds 0.85 Care per second per stack with a six-stack cap, before global manual-power bonuses.",
+    "Repeated touches at the stack cap refresh the four-second duration without creating per-touch timers or collections.",
+    "Applied actual Afterglow healing on the fixed production tick and credited useful healing to manual Care totals, while preventing revival after Ancient HP reaches zero.",
+    "Kept Run 1 deliberately unaffected even when prototype Memories are debug-unlocked.",
+    "Persisted both the permanent Memory rank and an active field's current Afterglow rate and remaining duration; legacy saves default safely to zero.",
+    "Added Memory Web node placement, warm-sunlight icon art, detail copy, costs, prerequisites, selected-node behavior, semantic controls, readable status, and debug dataset fields.",
+    "Added a green-gold plot bloom, a pooled restorative spore traveling from the touched tile to the HP bar, an HP-bar arrival flash and ongoing restorative shimmer, green active HP copy, and live Care-per-second feedback in the touch summary.",
+    "Kept the visualization bounded to six unmasked travel motes plus the existing impact pool, independent of logical field size.",
+    "Reset the browser playtest to a clean Run 1 after verification."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/ecosystem/EcosystemSave.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemMemoryTree.test.ts",
+    "tests/EcosystemSave.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-22_GREEN_AFTERGLOW.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed after the final visual edits: ESLint, 188 Vitest tests across 23 files, strict TypeScript, and the Vite production build.",
+    "Targeted ecosystem system, Memory Web, and save verification passed: 63 tests across 3 files.",
+    "Memory Web geometry checks passed with 56 nodes: no connector crossings, node overlaps, blocked branches, or narrow shared-node branch angles.",
+    "Browser progression verified a clean Run 1 collapse, Tiny Sprinkler unlock, Ancient Heartwood rank 1 revealing Green Afterglow, Green Afterglow rank purchase, and active Run 2 healing at 0.418 Care per second with 3.75 seconds remaining.",
+    "Desktop 1280x720 and phone 390x844 captures showed readable node/detail presentation, active HP text, and no incoherent layout overlap outside the intentional debug overlay.",
+    "Phone instrumentation measured a 2.2 ms touch action, 144 reported FPS, zero frame spikes, and a fixed six-mote Afterglow pool.",
+    "A 100x100 browser check retained 10,000 logical tiles, 100 rendered chunks, zero full-field scans, zero frame spikes, and the same six-mote Afterglow pool.",
+    "Browser logs contained only normal Vite connection and Phaser startup messages; no warnings or errors were present.",
+    "git diff --check passed apart from normal Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Green Afterglow checkpoint committed locally; master is expected to be two commits ahead of origin/master and has not been pushed or deployed.",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "Green Afterglow's rank curve is deterministic and browser-verified but still needs hands-on balance feedback across Runs 2-5.",
+    "The debug panel intentionally overlays the lower edge of the phone Memory detail card; it is not present in the real game.",
+    "The travel effect is brief by design so rapid touching remains responsive; active healing remains readable in the HP label and shimmer after the mote arrives."
+  ],
+  "nextRecommendedSteps": [
+    "Play Runs 2-5 normally and compare Green Afterglow against Heartwood, helper throughput, and Fast Touch purchases.",
+    "Tune stack rate, cap, duration, or rank costs only from hands-on survival timing rather than broad blind changes.",
+    "Push and deploy the two local master commits only when the user requests the next live release."
+  ],
+  "doNotRevert": [
+    "Do not let Green Afterglow activate during Run 1; the first collapse remains a scripted progression beat.",
+    "Do not replace the aggregate rate-and-timer model with one timer per touch or tile.",
+    "Do not grow the six-mote visual pool with field size or touch count.",
+    "Do not move the Green Afterglow node into a crossing connector path.",
+    "Do not touch docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

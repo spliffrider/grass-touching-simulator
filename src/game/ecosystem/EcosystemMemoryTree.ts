@@ -419,6 +419,21 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       prerequisites: [ECOSYSTEM_MEMORY_ROOT_ID],
     },
     {
+      id: "touch:lingeringCare",
+      kind: "touchRank",
+      label: "Green Afterglow",
+      branch: "Touch restoration",
+      description: "Manual touches leave a healing afterglow that restores Ancient HP for four seconds. Upgrade through ten ranks.",
+      color: 0xb9ff9c,
+      iconKey: "memory-icon-lingering-care",
+      iconPath: "/assets/ui/skills/warm-sunlight.png",
+      x: scalePosition(-1750),
+      y: scalePosition(350),
+      visualScale: 0.94,
+      prerequisites: ["field:heartwood"],
+      touchKind: "lingeringCare",
+    },
+    {
       id: "touch:broadPalm",
       kind: "touchRank",
       label: "Broad Palm",
@@ -594,7 +609,8 @@ function isMemoryNodeOwned(
   if (node.kind === "touchRank") {
     if (node.touchKind === "fastTouch") return permanent.fastTouchRank > 0;
     if (node.touchKind === "broadPalm") return permanent.broadPalmRank > 0;
-    return permanent.manyHandsRank > 0;
+    if (node.touchKind === "manyHands") return permanent.manyHandsRank > 0;
+    return permanent.lingeringCareRank > 0;
   }
   return permanent.fieldEmbrace;
 }
@@ -618,7 +634,9 @@ export function isEcosystemMemoryNodeRevealed(
   if (node.kind === "fieldTier") return true;
   if (node.kind === "fieldHealth") return true;
   if (node.kind === "touchRank") {
-    return node.touchKind !== "manyHands" || permanent.broadPalmRank >= 2;
+    if (node.touchKind === "manyHands") return permanent.broadPalmRank >= 2;
+    if (node.touchKind === "lingeringCare") return permanent.heartwoodRank >= 1;
+    return true;
   }
   if (node.kind === "capstone") {
     return permanent.broadPalmRank >= 10 && permanent.manyHandsRank >= 10;

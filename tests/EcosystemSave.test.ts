@@ -50,16 +50,18 @@ class MemoryStorage implements Storage {
 }
 
 describe("EcosystemSave", () => {
-  it("persists Ancient Heartwood ranks for future fields", () => {
+  it("persists Ancient Heartwood and Green Afterglow ranks for future fields", () => {
     const storage = new MemoryStorage();
     const permanent = createPermanentEcosystemState();
     permanent.heartwoodRank = 3;
+    permanent.lingeringCareRank = 4;
 
     savePermanentEcosystemState(permanent, storage);
     const loaded = loadPermanentEcosystemState(storage);
     const nextField = createEcosystemState(loaded);
 
     expect(loaded.heartwoodRank).toBe(3);
+    expect(loaded.lingeringCareRank).toBe(4);
     expect(nextField.maxHp).toBe(145);
   });
 
@@ -85,6 +87,8 @@ describe("EcosystemSave", () => {
     expect(loaded?.state.fixedTicks).toBe(state.fixedTicks);
     expect(loaded?.state.resources).toEqual(state.resources);
     expect(loaded?.state.helpers).toEqual(state.helpers);
+    expect(loaded?.state.lingeringCarePerSecond).toBe(state.lingeringCarePerSecond);
+    expect(loaded?.state.lingeringCareRemainingMs).toBe(state.lingeringCareRemainingMs);
     expect([...loaded!.state.field.stages]).toEqual([...state.field.stages]);
     expect(loaded?.view).toEqual({ centerX: 0.62, centerY: 0.41, zoom: 3.2 });
   });
@@ -118,6 +122,20 @@ describe("EcosystemSave", () => {
     const loaded = restoreActiveFieldSnapshot(snapshot, permanent);
 
     expect(loaded?.state.helpers.fieldMouse.cyclesCompleted).toBe(0);
+  });
+
+  it("defaults active saves created before Green Afterglow to no active healing", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    const state = createEcosystemState(permanent, { seed: 8_154 });
+    const snapshot = createActiveFieldSnapshot(state);
+    delete (snapshot as { lingeringCarePerSecond?: number }).lingeringCarePerSecond;
+    delete (snapshot as { lingeringCareRemainingMs?: number }).lingeringCareRemainingMs;
+
+    const loaded = restoreActiveFieldSnapshot(snapshot, permanent);
+
+    expect(loaded?.state.lingeringCarePerSecond).toBe(0);
+    expect(loaded?.state.lingeringCareRemainingMs).toBe(0);
   });
 
   it("rejects tile payloads whose dimensions do not match", () => {

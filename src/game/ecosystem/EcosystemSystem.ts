@@ -26,6 +26,8 @@ export const BEE_HIVE_STARTER_FLOWERS = 4;
 export const ECOSYSTEM_BASE_MAX_HP = 100;
 export const ANCIENT_HEARTWOOD_MAX_RANK = 10;
 export const ANCIENT_HEARTWOOD_HP_PER_RANK = 15;
+export const LINGERING_CARE_MAX_RANK = 10;
+export const LINGERING_CARE_DURATION_MS = 4_000;
 export const MANUAL_TOUCH_CARE_PER_POWER = 6;
 export const MANUAL_TOUCH_POWER_PER_MEMORY = 0.015;
 export const HELPER_THROUGHPUT_PER_RANK = 0.15;
@@ -48,7 +50,7 @@ export type HelperUnlockRecord = Record<HelperId, boolean>;
 export type HelperModeUnlockRecord = Record<HelperId, string[]>;
 export type ProductionBufferRecord = Record<ProductionResourceId, ProductionBuffer>;
 export type ProductionRateRecord = Record<ProductionResourceId, number>;
-export type PermanentTouchRankKind = "fastTouch" | "broadPalm" | "manyHands";
+export type PermanentTouchRankKind = "fastTouch" | "broadPalm" | "manyHands" | "lingeringCare";
 
 export interface PermanentEcosystemState {
   version: typeof ECOSYSTEM_PERMANENT_VERSION;
@@ -62,6 +64,7 @@ export interface PermanentEcosystemState {
   startingStockRanks: HelperRankRecord;
   maxFieldTier: number;
   heartwoodRank: number;
+  lingeringCareRank: number;
   fastTouchRank: number;
   broadPalmRank: number;
   manyHandsRank: number;
@@ -123,6 +126,8 @@ export interface EcosystemState {
   runTouchesEarned: number;
   manualTouchCount: number;
   manualCareTotal: number;
+  lingeringCarePerSecond: number;
+  lingeringCareRemainingMs: number;
   helperPurchaseCount: number;
   resources: ProductionBufferRecord;
   rates: ProductionRateRecord;
@@ -241,6 +246,7 @@ const TOUCH_RANK_BASE_COST: Record<PermanentTouchRankKind, number> = {
   fastTouch: 9,
   broadPalm: 7,
   manyHands: 12,
+  lingeringCare: 10,
 };
 const FIRST_SPRINKLER_CARE_MILESTONE = 0.3;
 const EPSILON = 0.000_001;
@@ -278,6 +284,7 @@ export function createPermanentEcosystemState(): PermanentEcosystemState {
     startingStockRanks: createHelperNumberRecord(),
     maxFieldTier: 0,
     heartwoodRank: 0,
+    lingeringCareRank: 0,
     fastTouchRank: 0,
     broadPalmRank: 0,
     manyHandsRank: 0,
@@ -298,6 +305,7 @@ export function normalizePermanentEcosystemState(input: unknown): PermanentEcosy
   normalized.completedRuns = Math.max(0, Math.floor(Number(source.completedRuns) || 0));
   normalized.maxFieldTier = clampRank(Number(source.maxFieldTier), FIELD_SIZE_LADDER.length - 1);
   normalized.heartwoodRank = clampRank(Number(source.heartwoodRank), ANCIENT_HEARTWOOD_MAX_RANK);
+  normalized.lingeringCareRank = clampRank(Number(source.lingeringCareRank), LINGERING_CARE_MAX_RANK);
   normalized.fastTouchRank = clampRank(Number(source.fastTouchRank), 10);
   normalized.broadPalmRank = clampRank(Number(source.broadPalmRank), 10);
   normalized.manyHandsRank = clampRank(Number(source.manyHandsRank), 10);
@@ -324,6 +332,7 @@ export function normalizePermanentEcosystemState(input: unknown): PermanentEcosy
 export function getPermanentMemoryInvestmentCount(permanent: PermanentEcosystemState): number {
   let count = permanent.maxFieldTier
     + permanent.heartwoodRank
+    + permanent.lingeringCareRank
     + permanent.fastTouchRank
     + permanent.broadPalmRank
     + permanent.manyHandsRank
@@ -356,6 +365,22 @@ export function getManualTouchPowerBonusPercent(permanent: PermanentEcosystemSta
 export function getPermanentMaxHp(permanent: PermanentEcosystemState): number {
   return ECOSYSTEM_BASE_MAX_HP
     + clampRank(permanent.heartwoodRank, ANCIENT_HEARTWOOD_MAX_RANK) * ANCIENT_HEARTWOOD_HP_PER_RANK;
+}
+
+export function getLingeringCareStackRate(rank: number): number {
+  const safeRank = clampRank(rank, LINGERING_CARE_MAX_RANK);
+  return safeRank <= 0 ? 0 : 0.4 + (safeRank - 1) * 0.05;
+}
+
+export function getLingeringCareMaxStacks(rank: number): number {
+  const safeRank = clampRank(rank, LINGERING_CARE_MAX_RANK);
+  return safeRank <= 0 ? 0 : 2 + Math.floor((safeRank - 1) / 2);
+}
+
+export function getLingeringCareMaxRate(permanent: PermanentEcosystemState): number {
+  return getLingeringCareStackRate(permanent.lingeringCareRank)
+    * getLingeringCareMaxStacks(permanent.lingeringCareRank)
+    * getManualTouchPowerMultiplier(permanent);
 }
 
 export function getHelperStorageResourceIds(helperId: HelperId): readonly ProductionResourceId[] {
@@ -472,6 +497,8 @@ export function createEcosystemState(
     runTouchesEarned: 0,
     manualTouchCount: 0,
     manualCareTotal: 0,
+    lingeringCarePerSecond: 0,
+    lingeringCareRemainingMs: 0,
     helperPurchaseCount: 0,
     resources: createResourceBuffers(permanent, field, runNumber > 1),
     rates: createRateRecord(),
@@ -848,11 +875,16 @@ export function purchaseTouchRank(permanent: PermanentEcosystemState, kind: Perm
     ? permanent.fastTouchRank
     : kind === "broadPalm"
       ? permanent.broadPalmRank
-      : permanent.manyHandsRank;
+      : kind === "manyHands"
+        ? permanent.manyHandsRank
+        : permanent.lingeringCareRank;
   if (currentRank >= 10) {
     return false;
   }
   if (kind === "manyHands" && permanent.broadPalmRank < 2) {
+    return false;
+  }
+  if (kind === "lingeringCare" && permanent.heartwoodRank < 1) {
     return false;
   }
   const cost = getTouchRankCost(kind, currentRank);
@@ -864,8 +896,10 @@ export function purchaseTouchRank(permanent: PermanentEcosystemState, kind: Perm
     permanent.fastTouchRank += 1;
   } else if (kind === "broadPalm") {
     permanent.broadPalmRank += 1;
-  } else {
+  } else if (kind === "manyHands") {
     permanent.manyHandsRank += 1;
+  } else {
+    permanent.lingeringCareRank += 1;
   }
   return true;
 }
@@ -1227,6 +1261,30 @@ function finishRun(state: EcosystemState, permanent: PermanentEcosystemState): v
   };
 }
 
+function applyLingeringCare(state: EcosystemState): number {
+  if (
+    state.runNumber === 1
+    || state.lingeringCareRemainingMs <= 0
+    || state.lingeringCarePerSecond <= EPSILON
+  ) {
+    state.lingeringCareRemainingMs = 0;
+    state.lingeringCarePerSecond = 0;
+    return 0;
+  }
+
+  const activeMs = Math.min(PRODUCTION_TICK_MS, state.lingeringCareRemainingMs);
+  state.lingeringCareRemainingMs = Math.max(0, state.lingeringCareRemainingMs - PRODUCTION_TICK_MS);
+  const healed = state.hp <= 0
+    ? 0
+    : Math.min(state.maxHp - state.hp, state.lingeringCarePerSecond * activeMs / 1_000);
+  state.hp += healed;
+  state.manualCareTotal += healed;
+  if (state.lingeringCareRemainingMs <= 0) {
+    state.lingeringCarePerSecond = 0;
+  }
+  return healed;
+}
+
 function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState): void {
   if (state.runNumber === 1) {
     enforceRunOneBareHands(state);
@@ -1294,6 +1352,7 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
   } else if (state.resources.care.amount > state.resources.care.capacity * 0.45) {
     state.hp = Math.min(state.maxHp, state.hp + 0.08 * tickSeconds);
   }
+  applyLingeringCare(state);
 
   for (const resourceId of PRODUCTION_RESOURCE_IDS) {
     state.rates[resourceId] = producedThisTick[resourceId] / tickSeconds;
@@ -1418,6 +1477,18 @@ export function touchFieldTile(
     : Math.min(state.maxHp - state.hp, totalPower * MANUAL_TOUCH_CARE_PER_POWER);
   state.hp += healedHp;
   state.manualCareTotal += healedHp;
+  let lingeringCareAddedPerSecond = 0;
+  if (state.runNumber > 1 && permanent.lingeringCareRank > 0) {
+    const stackRate = getLingeringCareStackRate(permanent.lingeringCareRank)
+      * getManualTouchPowerMultiplier(permanent);
+    const nextRate = Math.min(
+      getLingeringCareMaxRate(permanent),
+      state.lingeringCarePerSecond + stackRate,
+    );
+    lingeringCareAddedPerSecond = Math.max(0, nextRate - state.lingeringCarePerSecond);
+    state.lingeringCarePerSecond = nextRate;
+    state.lingeringCareRemainingMs = LINGERING_CARE_DURATION_MS;
+  }
   const dewGained = addResource(state, "dew", totalPower * 1.15);
   const growthGained = state.runNumber === 1
     ? 0
@@ -1438,6 +1509,8 @@ export function touchFieldTile(
     affectedTileCount: impacts.size,
     totalPower,
     healedHp,
+    lingeringCareAddedPerSecond,
+    lingeringCarePerSecond: state.lingeringCarePerSecond,
     dewGained,
     growthGained,
     runTouchesGained,
@@ -1534,6 +1607,7 @@ export function setPrototypeFieldSize(
 export function unlockAllPrototypeMemories(permanent: PermanentEcosystemState): void {
   permanent.maxFieldTier = FIELD_SIZE_LADDER.length - 1;
   permanent.heartwoodRank = 6;
+  permanent.lingeringCareRank = 10;
   permanent.fastTouchRank = 10;
   permanent.broadPalmRank = 10;
   permanent.manyHandsRank = 10;

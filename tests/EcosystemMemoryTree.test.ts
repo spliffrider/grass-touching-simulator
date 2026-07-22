@@ -59,8 +59,8 @@ function angleBetweenVectors(left: Point, right: Point): number {
 }
 
 describe("Ecosystem Memory Tree", () => {
-  it("defines a stable, expandable 55-node web", () => {
-    expect(ECOSYSTEM_MEMORY_NODES).toHaveLength(55);
+  it("defines a stable, expandable 56-node web", () => {
+    expect(ECOSYSTEM_MEMORY_NODES).toHaveLength(56);
     expect(new Set(ECOSYSTEM_MEMORY_NODES.map((node) => node.id)).size).toBe(ECOSYSTEM_MEMORY_NODES.length);
     expect(ECOSYSTEM_MEMORY_NODE_BY_ID.get("touch:fastTouch")).toMatchObject({
       kind: "touchRank",
@@ -72,6 +72,12 @@ describe("Ecosystem Memory Tree", () => {
       kind: "fieldHealth",
       label: "Ancient Heartwood",
       prerequisites: [ECOSYSTEM_MEMORY_ROOT_ID],
+    });
+    expect(ECOSYSTEM_MEMORY_NODE_BY_ID.get("touch:lingeringCare")).toMatchObject({
+      kind: "touchRank",
+      label: "Green Afterglow",
+      prerequisites: ["field:heartwood"],
+      touchKind: "lingeringCare",
     });
   });
 
@@ -234,6 +240,11 @@ describe("Ecosystem Memory Tree", () => {
     expect(firstBranches.has("touch:manyHands")).toBe(false);
     expect(firstBranches.has("field:tier")).toBe(true);
     expect(firstBranches.has("field:heartwood")).toBe(true);
+    expect(firstBranches.has("touch:lingeringCare")).toBe(false);
+
+    permanent.heartwoodRank = 1;
+    const heartwoodBranches = getRevealedEcosystemMemoryNodeIds(permanent);
+    expect(heartwoodBranches.has("touch:lingeringCare")).toBe(true);
 
     permanent.grassTouches = getHelperUnlockCost("fieldMouse");
     expect(unlockHelper(permanent, "fieldMouse")).toBe(true);
