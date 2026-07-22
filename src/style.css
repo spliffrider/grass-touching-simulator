@@ -277,19 +277,69 @@ canvas {
 
 .ecosystem-playtest-panel {
   position: absolute;
-  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
   bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 2;
   display: grid;
   grid-template-columns: repeat(2, minmax(104px, 1fr));
   gap: 6px;
   width: min(300px, calc(100vw - 20px));
+  max-height: calc(100dvh - 20px);
   box-sizing: border-box;
   padding: 9px;
+  overflow: auto;
   border: 2px solid rgba(224, 163, 108, 0.9);
   background: rgba(6, 25, 15, 0.92);
   color: #f2e8d5;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.38);
   pointer-events: auto;
+}
+
+.ecosystem-playtest-panel:not([open]) {
+  display: block;
+  width: auto;
+  padding: 0;
+  overflow: hidden;
+}
+
+.ecosystem-playtest-summary {
+  grid-column: 1 / -1;
+  min-width: 128px;
+  box-sizing: border-box;
+  padding: 8px 34px 8px 12px;
+  color: #fff3c2;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  list-style: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.ecosystem-playtest-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ecosystem-playtest-summary::after {
+  position: absolute;
+  top: 7px;
+  right: 11px;
+  content: "+";
+  color: #8de7ff;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.ecosystem-playtest-panel[open] .ecosystem-playtest-summary::after {
+  content: "-";
+}
+
+.ecosystem-playtest-summary:hover,
+.ecosystem-playtest-summary:focus-visible {
+  color: #ffffff;
+  background: rgba(38, 114, 63, 0.98);
+  outline: 2px solid #8de7ff;
+  outline-offset: -2px;
 }
 
 .ecosystem-playtest-status {
@@ -371,8 +421,16 @@ canvas {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     width: calc(100vw - 16px);
     left: 8px;
+    right: 8px;
     bottom: 8px;
     padding: 6px;
+  }
+
+  .ecosystem-playtest-panel:not([open]) {
+    right: 8px;
+    left: auto;
+    width: auto;
+    padding: 0;
   }
 
   .ecosystem-playtest-button {

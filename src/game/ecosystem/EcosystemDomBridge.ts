@@ -282,9 +282,19 @@ export class EcosystemDomBridge {
     this.root.append(memories);
 
     if (playtest) {
-      const panel = document.createElement("section");
+      const panel = showPlaytestPanel
+        ? document.createElement("details")
+        : document.createElement("section");
       panel.className = showPlaytestPanel ? "ecosystem-playtest-panel" : "ecosystem-agent-controls";
+      panel.dataset.testid = "ecosystem-playtest-panel";
       panel.setAttribute("aria-label", "Ecosystem playtest controls");
+      if (showPlaytestPanel) {
+        const summary = document.createElement("summary");
+        summary.className = "ecosystem-playtest-summary";
+        summary.dataset.testid = "ecosystem-debug-toggle";
+        summary.textContent = "Playtest tools";
+        panel.append(summary);
+      }
       this.playtestStatus = document.createElement("output");
       this.playtestStatus.className = showPlaytestPanel ? "ecosystem-playtest-status" : "ecosystem-agent-readable";
       const buttonClass = showPlaytestPanel ? "ecosystem-playtest-button" : "";
