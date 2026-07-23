@@ -1,4 +1,5 @@
 import {
+  FIELD_SIZE_LADDER,
   GRASS_TOUCHES_LABEL,
   HELPER_IDS,
   HELPERS,
@@ -392,8 +393,24 @@ export class EcosystemDomBridge {
     this.setOutput(this.readable, lines.join("\n"));
     this.setInputMax(this.xInput, `${Math.max(0, state.field.width - 1)}`);
     this.setInputMax(this.yInput, `${Math.max(0, state.field.height - 1)}`);
-    this.setDisabled(this.cultivateButton, !state.active || state.resources.growth.amount < getCultivationCost(state));
-    this.setText(this.cultivateButton, `Buy Cultivation ${Math.min(10, state.field.cultivationRank + 1)}/10 for ${getCultivationCost(state)} Growth`);
+    const cultivationCost = getCultivationCost(state);
+    const cultivationComplete = state.field.cultivationRank >= 10;
+    const nextFieldSize = FIELD_SIZE_LADDER[state.field.sizeIndex + 1];
+    const expandsOnPurchase = state.field.cultivationRank === 9
+      && nextFieldSize !== undefined
+      && state.field.sizeIndex < permanent.maxFieldTier;
+    this.setDisabled(
+      this.cultivateButton,
+      !state.active || cultivationComplete || state.resources.growth.amount < cultivationCost,
+    );
+    this.setText(
+      this.cultivateButton,
+      cultivationComplete
+        ? "Cultivation complete"
+        : expandsOnPurchase
+        ? `Expand field to ${nextFieldSize} by ${nextFieldSize} for ${cultivationCost} Growth`
+        : `Buy Cultivation ${Math.min(10, state.field.cultivationRank + 1)}/10 for ${cultivationCost} Growth`,
+    );
     this.setText(this.worksButton, worksOpen ? "Close Ecosystem Works" : "Open Ecosystem Works");
     this.setHidden(this.worksButton, !worksAvailable);
     this.setDisabled(this.worksButton, !worksAvailable);

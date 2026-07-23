@@ -2338,8 +2338,17 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       }
       const cultivationCost = getCultivationCost(this.state);
       const cultivationComplete = this.state.field.cultivationRank >= 10;
+      const nextFieldSize = FIELD_SIZE_LADDER[this.state.field.sizeIndex + 1];
+      const expandsOnPurchase = !cultivationComplete
+        && this.state.field.cultivationRank === 9
+        && nextFieldSize !== undefined
+        && this.state.field.sizeIndex < this.permanent.maxFieldTier;
       this.cultivationButton
-        .setLabel(cultivationComplete ? "Cultivation complete" : `Cultivate ${this.state.field.cultivationRank + 1}/10 | ${cultivationCost} Growth`)
+        .setLabel(cultivationComplete
+          ? "Cultivation complete"
+          : expandsOnPurchase
+            ? `Expand to ${nextFieldSize}x${nextFieldSize} | ${cultivationCost} Growth`
+            : `Cultivate ${this.state.field.cultivationRank + 1}/10 | ${cultivationCost} Growth`)
         .setEnabled(!cultivationComplete && this.state.resources.growth.amount >= cultivationCost);
       this.zoomOutButton.setEnabled(this.fieldView.zoom > FIELD_MIN_ZOOM + 0.01);
       this.zoomInButton.setEnabled(this.fieldView.zoom < FIELD_MAX_ZOOM - 0.01);
@@ -3644,10 +3653,21 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private buyCultivation(): void {
     const previousSize = this.state.field.width;
     if (buyCultivationRank(this.state, this.permanent)) {
-      this.audio.play(previousSize !== this.state.field.width ? "milestone" : "upgrade");
-      if (previousSize !== this.state.field.width) {
+      const expanded = previousSize !== this.state.field.width;
+      this.audio.play(expanded ? "milestone" : "upgrade");
+      this.tweens.killTweensOf(this.cultivationButton.container);
+      this.cultivationButton.container.setScale(1);
+      this.tweens.add({
+        targets: this.cultivationButton.container,
+        scale: expanded ? 1.08 : 1.04,
+        yoyo: true,
+        duration: expanded ? 180 : 110,
+        ease: "Back.easeOut",
+      });
+      if (expanded) {
         this.layout(this.scale.width, this.scale.height);
         this.resetFieldView();
+        this.showFieldExpansion(previousSize, this.state.field.width);
       } else {
         this.renderField(true);
       }
@@ -3656,6 +3676,38 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     } else {
       this.audio.play("blocked");
     }
+  }
+
+  private showFieldExpansion(previousSize: number, nextSize: number): void {
+    const x = this.fieldBounds.x + this.fieldBounds.width / 2;
+    const y = this.fieldBounds.y + Math.min(128, this.fieldBounds.height * 0.2);
+    this.helperAnnouncementText
+      .setText(`FIELD EXPANDED  ${previousSize}x${previousSize} -> ${nextSize}x${nextSize}`)
+      .setColor("#d9f58b")
+      .setPosition(x, y)
+      .setScale(0.78)
+      .setAlpha(0)
+      .setVisible(true);
+    this.tweens.killTweensOf(this.helperAnnouncementText);
+    this.tweens.add({
+      targets: this.helperAnnouncementText,
+      y: y - 18,
+      scale: 1,
+      alpha: 1,
+      duration: 260,
+      ease: "Back.easeOut",
+      onComplete: () => {
+        this.tweens.add({
+          targets: this.helperAnnouncementText,
+          y: y - 42,
+          alpha: 0,
+          delay: 700,
+          duration: 650,
+          ease: "Cubic.easeIn",
+          onComplete: () => this.helperAnnouncementText.setVisible(false),
+        });
+      },
+    });
   }
 
   private cycleHelperMode(helperId: HelperId): void {

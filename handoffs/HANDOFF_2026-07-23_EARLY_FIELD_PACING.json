@@ -1,0 +1,58 @@
+{
+  "date": "2026-07-23",
+  "topic": "Faster early unlocks and field expansion",
+  "currentUserGoal": "Make the ecosystem unlock cadence faster, especially the first field expansion, without flattening the long-term route to 100x100.",
+  "workCompleted": [
+    "Replaced the oversized Cultivation formula with a field-width curve that costs 43 Growth for 1x1, then roughly 90, 140, 250, and 425 Growth for the next tracks before climbing into the thousands for large fields.",
+    "Kept ten run-local Cultivation purchases per field size so early Growth now creates frequent decisions instead of one distant wall.",
+    "Reduced the first Expanding Field Memory to 2 Grass Touches, exactly matching the currency left after the guaranteed 7-touch first-collapse reward buys Tiny Sprinkler for 5.",
+    "Shifted later field-size Memory costs down one step while preserving a progressively expensive late-game tail.",
+    "Changed the final Cultivation button label to explicitly announce the next field size before purchase.",
+    "Added a field-expansion milestone pulse, announcement, and accessible DOM label.",
+    "Fixed the accessible Cultivation control remaining enabled after rank ten at the current field ceiling.",
+    "Added deterministic checks for early and late Growth totals, first-collapse affordability, and an active Run 2 reaching 2x2 while still alive.",
+    "Updated the durable ecosystem design document with the new progression targets."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-23_EARLY_FIELD_PACING.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "Focused EcosystemSystem verification passed: 50 tests.",
+    "npm run check passed: ESLint, 197 Vitest tests across 23 files, strict TypeScript, and the Vite production build.",
+    "The deterministic active-play simulation completes all ten 1x1 Cultivation ranks, reaches 2x2 between 35 and 55 seconds, and remains alive at expansion.",
+    "The progression tests lock total Cultivation costs at 43 Growth for 1x1, 90 for 2x2, and 140 for 3x3 while requiring more than 2,000 Growth at 32x32 and more than 5,000 at 75x75.",
+    "The local playtest returned HTTP 200.",
+    "Visual browser verification was blocked by the in-app browser localhost URL policy, so the milestone animation still needs a quick user refresh and hands-on check.",
+    "git diff --check passed apart from normal Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Early-field pacing checkpoint committed locally; master should be one commit ahead of origin/master until explicitly pushed.",
+    "baseCommit": "639ac57",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The model proves active Run 2 can reach 2x2, but the exact hands-on rhythm and expansion presentation still need user judgment.",
+    "Existing saves with many unlocked field tiers immediately receive the cheaper run-local Cultivation curve; this is intentional for the current alpha balance pass.",
+    "The change is local only until the user approves a push and Vercel deployment."
+  ],
+  "nextRecommendedSteps": [
+    "Refresh the local ecosystem playtest, reset the prototype, and play through the first collapse plus the Tiny Sprinkler run.",
+    "Confirm that early Cultivation purchases arrive often and that the 2x2 expansion lands before Run 2 feels exhausted.",
+    "Tune the 43-Growth opening total slightly up or down from hands-on feedback, then push and deploy when approved.",
+    "After early pacing is approved, inspect the 2x2-to-3x3 and 3x3-to-5x5 chapter durations rather than changing the entire ladder at once."
+  ],
+  "doNotRevert": [
+    "Do not restore the previous 736-Growth first expansion wall.",
+    "Do not flatten the large-field curve; the late ladder is still intended to support long saved sessions.",
+    "Do not make Cultivation permanent across Game Over without a separate design decision; this slice preserves the authored run-local contract.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md in this checkpoint without explicit user direction."
+  ]
+}

@@ -256,7 +256,9 @@ const STARTING_STOCK_RESOURCE: Record<HelperId, ProductionResourceId> = {
   meadowRabbit: "seeds",
 };
 
-const FIELD_TIER_COSTS = [0, 8, 14, 22, 34, 52, 78, 116, 170, 250, 370] as const;
+// The first threshold spends the two Grass Touches left after the guaranteed
+// Tiny Sprinkler unlock. Later thresholds retain an increasingly long tail.
+const FIELD_TIER_COSTS = [0, 2, 8, 14, 22, 34, 52, 78, 116, 170, 250] as const;
 const TOUCH_RANK_BASE_COST: Record<PermanentTouchRankKind, number> = {
   fastTouch: 9,
   broadPalm: 7,
@@ -762,7 +764,8 @@ export function switchHelperMode(
 
 export function getCultivationCost(state: EcosystemState): number {
   const rank = Math.min(CULTIVATION_RANKS_PER_SIZE - 1, state.field.cultivationRank);
-  return Math.ceil(7 * Math.pow(rank + 1, 1.34) * (1 + state.field.sizeIndex * 0.72));
+  const fieldScale = Math.pow(state.field.width, 1.15);
+  return Math.ceil(0.7 * (rank + 1) * fieldScale);
 }
 
 export function buyCultivationRank(state: EcosystemState, permanent: PermanentEcosystemState): boolean {

@@ -206,6 +206,16 @@ size Memory is owned. Expansion preserves old tiles in the center and creates
 new dormant tiles around them. At the current permanent ceiling, rank ten
 remains a useful maximum-rank production bonus.
 
+The opening track is deliberately quick enough to complete during active Run 2
+play: its ten ranks cost `43 Growth` in total. The next tracks cost roughly
+`90`, `140`, `250`, and `425 Growth`, then climb with field width so the route
+to `100x100` remains a long-term project. Individual rank costs rise linearly
+within each field size, giving frequent early purchases instead of one distant
+Growth wall. The first Expanding Field Memory costs the two Grass Touches left
+after buying the guaranteed Tiny Sprinkler Memory, so the first `2x2` reveal is
+available in the first automation run. Later size Memories and Cultivation
+tracks become progressively more expensive.
+
 ## Manual Touch Batches
 
 A touch always applies full power to its primary tile. It heals HP, generates

@@ -30,6 +30,8 @@ import {
   getBroadPalmRadius,
   getBeeHiveStatus,
   getFirstAutomationStatus,
+  getCultivationCost,
+  getFieldTierUnlockCost,
   getFieldMouseStatus,
   getManyHandsPower,
   getHelperCycleIntervalMs,
@@ -142,6 +144,46 @@ describe("EcosystemSystem", () => {
       sprinklerPurchasedAtMs,
       hpAtPurchase,
       grassTouchesAwarded: state.endedSummary?.grassTouchesAwarded ?? 0,
+    };
+  }
+
+  function simulateFirstFieldExpansionAtFullTouchRate(): {
+    expandedAtMs: number | null;
+    hpAtExpansion: number | null;
+    cultivationPurchases: number;
+  } {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    permanent.maxFieldTier = 1;
+    const state = createEcosystemState(permanent, { seed: 9_011 });
+    const touchCooldownMs = getManualTouchCooldownMs(0);
+    let wallElapsedMs = 0;
+    let nextTouchAtMs = 0;
+    let cultivationPurchases = 0;
+
+    while (state.active && wallElapsedMs < 90_000 && state.field.width === 1) {
+      if (wallElapsedMs >= nextTouchAtMs) {
+        touchFieldTile(state, permanent, 0);
+        nextTouchAtMs += touchCooldownMs;
+      }
+      if (
+        state.helpers.tinySprinkler.count === 0
+        && state.runTouches >= getHelperPurchaseCost(state, "tinySprinkler")
+      ) {
+        buyHelper(state, permanent, "tinySprinkler");
+      }
+      while (state.field.width === 1 && buyCultivationRank(state, permanent)) {
+        cultivationPurchases += 1;
+      }
+      advanceEcosystem(state, permanent, 10);
+      wallElapsedMs += 10;
+    }
+
+    return {
+      expandedAtMs: state.field.width === 2 ? wallElapsedMs : null,
+      hpAtExpansion: state.field.width === 2 ? state.hp : null,
+      cultivationPurchases,
     };
   }
 
@@ -608,6 +650,43 @@ describe("EcosystemSystem", () => {
 
     expect(growthGained).toBeCloseTo(7);
     expect(state.resources.growth.amount).toBeCloseTo(7);
+  });
+
+  it("front-loads field progress while preserving a steep large-field Growth curve", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.maxFieldTier = FIELD_SIZE_LADDER.length - 1;
+
+    const totalTrackCost = (fieldSizeIndex: number): number => {
+      const state = createEcosystemState(permanent, { fieldSizeIndex, seed: 7_700 + fieldSizeIndex });
+      let total = 0;
+      for (let rank = 0; rank < 10; rank += 1) {
+        state.field.cultivationRank = rank;
+        total += getCultivationCost(state);
+      }
+      return total;
+    };
+
+    expect(totalTrackCost(0)).toBe(43);
+    expect(totalTrackCost(1)).toBe(90);
+    expect(totalTrackCost(2)).toBe(140);
+    expect(totalTrackCost(7)).toBeGreaterThan(2_000);
+    expect(totalTrackCost(9)).toBeGreaterThan(5_000);
+  });
+
+  it("lets the guaranteed opening reward reveal the first field threshold", () => {
+    expect(getHelperUnlockCost("tinySprinkler") + getFieldTierUnlockCost(1)).toBe(7);
+    expect(getFieldTierUnlockCost(2)).toBe(8);
+  });
+
+  it("reaches 2x2 during the first Tiny Sprinkler run with active play", () => {
+    const result = simulateFirstFieldExpansionAtFullTouchRate();
+
+    expect(result.cultivationPurchases).toBe(10);
+    expect(result.expandedAtMs).not.toBeNull();
+    expect(result.expandedAtMs!).toBeGreaterThanOrEqual(35_000);
+    expect(result.expandedAtMs!).toBeLessThanOrEqual(55_000);
+    expect(result.hpAtExpansion).not.toBeNull();
+    expect(result.hpAtExpansion!).toBeGreaterThan(0);
   });
 
   it("gives every helper storage Memory at least one real buffer to expand", () => {
