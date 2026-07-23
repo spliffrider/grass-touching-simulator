@@ -14,6 +14,10 @@ import {
 } from "../data/credits";
 import { GRASS_TOUCHES_LABEL } from "../ecosystem/EcosystemCatalog";
 import {
+  getTitleAtmosphereBudget,
+  getTitleScourgeStrength,
+} from "../ecosystem/EcosystemTitleAtmosphere";
+import {
   clearEcosystemProgress,
   getEcosystemSaveSummary,
   type EcosystemSaveSummary,
@@ -24,6 +28,13 @@ import { AudioSystem } from "../systems/AudioSystem";
 const TITLE_BACKGROUND_LANDSCAPE = "ecosystem-title-landscape";
 const TITLE_BACKGROUND_PORTRAIT = "ecosystem-title-portrait";
 const TITLE_MOTE_COUNT = 18;
+const TITLE_CLOUD_COUNT = 5;
+const TITLE_BIRD_COUNT = 5;
+const TITLE_BEE_COUNT = 4;
+const TITLE_CLOUD_TEXTURE = "ecosystem-title-scourge-cloud";
+const TITLE_SCOURGE_VEIL_TEXTURE = "ecosystem-title-scourge-veil";
+const TITLE_BIRD_UP_TEXTURE = "ecosystem-title-bird-up";
+const TITLE_BIRD_DOWN_TEXTURE = "ecosystem-title-bird-down";
 const NEW_FIELD_CONFIRM_MS = 4_500;
 
 type MenuAction = "continue" | "newField" | "options" | "credits";
@@ -96,6 +107,24 @@ export class EcosystemTitleScene extends Phaser.Scene {
   private readonly moteLanes = new Float32Array(TITLE_MOTE_COUNT);
   private readonly moteDepthFactors = new Float32Array(TITLE_MOTE_COUNT);
   private readonly moteModes = new Uint8Array(TITLE_MOTE_COUNT);
+  private scourgeVeil!: Phaser.GameObjects.Image;
+  private readonly scourgeClouds: Phaser.GameObjects.Image[] = [];
+  private readonly cloudPhases = new Float32Array(TITLE_CLOUD_COUNT);
+  private readonly cloudSpeeds = new Float32Array(TITLE_CLOUD_COUNT);
+  private readonly cloudLanes = new Float32Array(TITLE_CLOUD_COUNT);
+  private readonly cloudDepthFactors = new Float32Array(TITLE_CLOUD_COUNT);
+  private readonly birds: Phaser.GameObjects.Image[] = [];
+  private readonly birdPhases = new Float32Array(TITLE_BIRD_COUNT);
+  private readonly birdSpeeds = new Float32Array(TITLE_BIRD_COUNT);
+  private readonly birdLanes = new Float32Array(TITLE_BIRD_COUNT);
+  private readonly bees: Phaser.GameObjects.Image[] = [];
+  private readonly beePhases = new Float32Array(TITLE_BEE_COUNT);
+  private readonly beeSpeeds = new Float32Array(TITLE_BEE_COUNT);
+  private readonly beeLanes = new Float32Array(TITLE_BEE_COUNT);
+  private atmosphereStartedAt = 0;
+  private visibleCloudCount = TITLE_CLOUD_COUNT;
+  private visibleBirdCount = TITLE_BIRD_COUNT;
+  private visibleBeeCount = TITLE_BEE_COUNT;
   private backgroundBaseX = 0;
   private backgroundBaseY = 0;
   private backgroundBaseScale = 1;
@@ -133,12 +162,16 @@ export class EcosystemTitleScene extends Phaser.Scene {
     this.load.image("ecosystem-title-selector-left", "/assets/title-selector-leaf.png");
     this.load.image("ecosystem-title-selector-right", "/assets/title-selector-flower.png");
     this.load.image("ecosystem-title-pollen", "/assets/effects/pollen-fleck.png");
+    this.load.image("ecosystem-title-bee", "/assets/effects/bee-pixel.png");
   }
 
   create(): void {
     this.buttons.length = 0;
     this.sliders.length = 0;
     this.motes.length = 0;
+    this.scourgeClouds.length = 0;
+    this.birds.length = 0;
+    this.bees.length = 0;
     this.semanticMenuButtons.clear();
     this.confirmingNewField = false;
     this.transitioning = false;
@@ -156,6 +189,7 @@ export class EcosystemTitleScene extends Phaser.Scene {
     this.parallaxY = 0;
     this.parallaxTargetX = 0;
     this.parallaxTargetY = 0;
+    this.atmosphereStartedAt = this.time.now;
     this.saveSummary = getEcosystemSaveSummary();
     this.musicVolume = readStoredMusicVolume();
     this.sfxVolume = readStoredSfxVolume();
@@ -163,8 +197,16 @@ export class EcosystemTitleScene extends Phaser.Scene {
     this.audio.setVolume(this.sfxVolume);
 
     this.background = this.add.image(0, 0, TITLE_BACKGROUND_LANDSCAPE).setOrigin(0.5).setDepth(0);
+    this.createAtmosphereTextures();
+    this.scourgeVeil = this.add.image(0, 0, TITLE_SCOURGE_VEIL_TEXTURE)
+      .setOrigin(0.5, 0)
+      .setDepth(0.25)
+      .setBlendMode(Phaser.BlendModes.MULTIPLY);
+    this.createScourgeClouds();
     this.shade = this.add.graphics().setDepth(1);
+    this.createBirds();
     this.createMotes();
+    this.createBees();
 
     this.titleTop = this.createText("GRASS TOUCHING", 66, "#f2e8d5", "bold")
       .setOrigin(0.5)
@@ -229,6 +271,11 @@ export class EcosystemTitleScene extends Phaser.Scene {
       )
       .setScale(this.backgroundBaseScale * backgroundBreath);
 
+    const atmosphereElapsed = Math.max(0, time - this.atmosphereStartedAt);
+    const scourgeStrength = getTitleScourgeStrength(atmosphereElapsed);
+    this.updateScourgeAtmosphere(time, scourgeStrength);
+    this.updateWildlife(time, scourgeStrength);
+
     for (let index = 0; index < this.motes.length; index += 1) {
       const mote = this.motes[index];
       const phase = this.motePhases[index];
@@ -256,6 +303,162 @@ export class EcosystemTitleScene extends Phaser.Scene {
       const size = this.selectorDisplaySize * pulse;
       this.selectorLeft.setDisplaySize(size, size);
       this.selectorRight.setDisplaySize(size, size);
+    }
+  }
+
+  private createAtmosphereTextures(): void {
+    if (!this.textures.exists(TITLE_SCOURGE_VEIL_TEXTURE)) {
+      const veil = this.add.graphics();
+      for (let band = 0; band < 32; band += 1) {
+        const progress = band / 31;
+        const alpha = 0.55 * Math.pow(1 - progress, 1.45);
+        veil.fillStyle(band < 12 ? 0x192230 : 0x33233c, alpha);
+        veil.fillRect(0, band * 8, 8, 8);
+      }
+      veil.generateTexture(TITLE_SCOURGE_VEIL_TEXTURE, 8, 256);
+      veil.destroy();
+    }
+
+    if (!this.textures.exists(TITLE_CLOUD_TEXTURE)) {
+      const cloud = this.add.graphics();
+      cloud.fillStyle(0x282638, 0.18);
+      cloud.fillEllipse(280, 125, 540, 150);
+      cloud.fillStyle(0x212532, 0.64);
+      cloud.fillEllipse(105, 132, 210, 104);
+      cloud.fillEllipse(235, 96, 260, 152);
+      cloud.fillEllipse(370, 116, 300, 132);
+      cloud.fillEllipse(475, 145, 180, 88);
+      cloud.fillStyle(0x3d2b46, 0.56);
+      cloud.fillEllipse(75, 154, 165, 66);
+      cloud.fillEllipse(208, 155, 250, 76);
+      cloud.fillEllipse(360, 160, 290, 82);
+      cloud.fillEllipse(495, 166, 155, 58);
+      cloud.fillStyle(0x746275, 0.22);
+      cloud.fillEllipse(226, 70, 148, 74);
+      cloud.fillEllipse(382, 102, 172, 74);
+      cloud.lineStyle(3, 0xa94c79, 0.22);
+      cloud.lineBetween(168, 157, 201, 184);
+      cloud.lineBetween(201, 184, 228, 161);
+      cloud.lineBetween(390, 163, 415, 191);
+      cloud.lineBetween(415, 191, 440, 166);
+      cloud.generateTexture(TITLE_CLOUD_TEXTURE, 560, 220);
+      cloud.destroy();
+    }
+
+    if (!this.textures.exists(TITLE_BIRD_UP_TEXTURE)) {
+      const bird = this.add.graphics();
+      bird.fillStyle(0x1b2a27, 1);
+      bird.fillTriangle(14, 10, 1, 2, 9, 12);
+      bird.fillTriangle(14, 10, 29, 2, 20, 12);
+      bird.fillCircle(14, 10, 2.4);
+      bird.generateTexture(TITLE_BIRD_UP_TEXTURE, 30, 16);
+      bird.destroy();
+    }
+
+    if (!this.textures.exists(TITLE_BIRD_DOWN_TEXTURE)) {
+      const bird = this.add.graphics();
+      bird.fillStyle(0x1b2a27, 1);
+      bird.fillTriangle(14, 7, 2, 14, 9, 5);
+      bird.fillTriangle(14, 7, 28, 14, 20, 5);
+      bird.fillCircle(14, 7, 2.4);
+      bird.generateTexture(TITLE_BIRD_DOWN_TEXTURE, 30, 16);
+      bird.destroy();
+    }
+  }
+
+  private createScourgeClouds(): void {
+    const tints = [0x7d7282, 0x5f556b, 0x83727e, 0x51495d, 0x766373] as const;
+    for (let index = 0; index < TITLE_CLOUD_COUNT; index += 1) {
+      const cloud = this.add.image(0, 0, TITLE_CLOUD_TEXTURE)
+        .setOrigin(0.5)
+        .setDepth(0.55 + index * 0.025)
+        .setTint(tints[index]);
+      if (index % 2 === 1) cloud.setFlipX(true);
+      this.cloudPhases[index] = (index * 0.213) % 1;
+      this.cloudSpeeds[index] = 0.0000072 + index * 0.0000008;
+      this.cloudLanes[index] = 0.045 + (index % 3) * 0.085;
+      this.cloudDepthFactors[index] = 0.72 + index * 0.09;
+      this.scourgeClouds.push(cloud);
+    }
+  }
+
+  private createBirds(): void {
+    for (let index = 0; index < TITLE_BIRD_COUNT; index += 1) {
+      const bird = this.add.image(0, 0, TITLE_BIRD_UP_TEXTURE)
+        .setOrigin(0.5)
+        .setDepth(1.35 + index * 0.01)
+        .setTint(index % 2 === 0 ? 0x263a36 : 0x4a403b);
+      this.birdPhases[index] = (index * 0.227) % 1;
+      this.birdSpeeds[index] = 0.000035 + index * 0.000002;
+      this.birdLanes[index] = 0.09 + (index % 3) * 0.065;
+      this.birds.push(bird);
+    }
+  }
+
+  private createBees(): void {
+    this.textures.get("ecosystem-title-bee").setFilter(Phaser.Textures.FilterMode.NEAREST);
+    for (let index = 0; index < TITLE_BEE_COUNT; index += 1) {
+      const bee = this.add.image(0, 0, "ecosystem-title-bee")
+        .setOrigin(0.5)
+        .setDepth(2.35 + index * 0.02);
+      this.beePhases[index] = (index * 0.271) % 1;
+      this.beeSpeeds[index] = 0.000028 + index * 0.000002;
+      this.beeLanes[index] = 0.59 + (index % 3) * 0.105;
+      this.bees.push(bee);
+    }
+  }
+
+  private updateScourgeAtmosphere(time: number, strength: number): void {
+    this.scourgeVeil.alpha = strength * 0.72;
+    for (let index = 0; index < this.visibleCloudCount; index += 1) {
+      const cloud = this.scourgeClouds[index];
+      const travel = (time * this.cloudSpeeds[index] + this.cloudPhases[index]) % 1;
+      const depthFactor = this.cloudDepthFactors[index];
+      cloud.x = this.scale.width * (1.24 - travel * 1.52)
+        + this.parallaxX * 10 * depthFactor;
+      cloud.y = this.scale.height * this.cloudLanes[index]
+        + Math.sin(time * (0.00013 + index * 0.000015) + index * 1.7) * 10 * depthFactor
+        + this.parallaxY * 6 * depthFactor;
+      cloud.alpha = strength * (0.42 + index * 0.055);
+    }
+  }
+
+  private updateWildlife(time: number, scourgeStrength: number): void {
+    for (let index = 0; index < this.visibleBirdCount; index += 1) {
+      const bird = this.birds[index];
+      const travel = (time * this.birdSpeeds[index] + this.birdPhases[index]) % 1;
+      const rightward = index % 2 === 0;
+      const horizontalProgress = rightward ? travel : 1 - travel;
+      bird.x = -40 + horizontalProgress * (this.scale.width + 80)
+        + this.parallaxX * (5 + index);
+      bird.y = this.scale.height * this.birdLanes[index]
+        + Math.sin(time * 0.00085 + index * 1.9) * (5 + index * 1.4)
+        + this.parallaxY * 4;
+      const wingUp = Math.sin(time * 0.011 + index * 1.35) >= 0;
+      const textureKey = wingUp ? TITLE_BIRD_UP_TEXTURE : TITLE_BIRD_DOWN_TEXTURE;
+      if (bird.texture.key !== textureKey) bird.setTexture(textureKey);
+      bird.setFlipX(!rightward);
+      bird.scaleY = bird.scaleX * (0.88 + Math.sin(time * 0.011 + index) * 0.08);
+      bird.rotation = Math.sin(time * 0.001 + index * 2.1) * 0.06;
+      bird.alpha = 0.76 - scourgeStrength * 0.24;
+    }
+
+    for (let index = 0; index < this.visibleBeeCount; index += 1) {
+      const bee = this.bees[index];
+      const travel = (time * this.beeSpeeds[index] + this.beePhases[index]) % 1;
+      const rightward = index % 2 === 0;
+      const horizontalProgress = rightward ? travel : 1 - travel;
+      bee.x = -28 + horizontalProgress * (this.scale.width + 56)
+        + Math.sin(time * 0.0014 + index * 2.3) * 24
+        + this.parallaxX * 12;
+      bee.y = this.scale.height * this.beeLanes[index]
+        + Math.sin(time * (0.0021 + index * 0.00017) + index) * 18
+        + Math.cos(time * 0.0007 + index * 1.7) * 9
+        + this.parallaxY * 8;
+      bee.setFlipX(!rightward);
+      bee.scaleY = bee.scaleX * (0.9 + Math.sin(time * 0.018 + index) * 0.1);
+      bee.rotation = Math.sin(time * 0.0032 + index * 1.4) * 0.12;
+      bee.alpha = 0.76 + Math.sin(time * 0.0015 + index) * 0.12;
     }
   }
 
@@ -814,6 +1017,7 @@ export class EcosystemTitleScene extends Phaser.Scene {
     this.background
       .setScale(this.backgroundBaseScale)
       .setPosition(this.backgroundBaseX, this.backgroundBaseY);
+    this.layoutAtmosphere(width, height, portrait);
 
     this.shade.clear();
     this.shade
@@ -894,6 +1098,36 @@ export class EcosystemTitleScene extends Phaser.Scene {
     this.buildLabel.setPosition(width - 12, height - 10);
     this.layoutModals(width, height, mobile);
     this.layoutSemanticControls();
+  }
+
+  private layoutAtmosphere(width: number, height: number, portrait: boolean): void {
+    const budget = getTitleAtmosphereBudget(width, height);
+    this.visibleCloudCount = budget.clouds;
+    this.visibleBirdCount = budget.birds;
+    this.visibleBeeCount = budget.bees;
+    this.scourgeVeil
+      .setPosition(width / 2, 0)
+      .setDisplaySize(width, Math.max(280, height * (portrait ? 0.58 : 0.62)));
+
+    for (let index = 0; index < this.scourgeClouds.length; index += 1) {
+      const cloud = this.scourgeClouds[index];
+      const cloudWidth = Math.max(320, width * (portrait ? 0.82 : 0.5) * (0.88 + index * 0.075));
+      cloud
+        .setVisible(index < this.visibleCloudCount)
+        .setDisplaySize(cloudWidth, cloudWidth * (220 / 560));
+    }
+
+    const sceneScale = Phaser.Math.Clamp(Math.min(width / 1280, height / 720), 0.68, 1.2);
+    for (let index = 0; index < this.birds.length; index += 1) {
+      this.birds[index]
+        .setVisible(index < this.visibleBirdCount)
+        .setScale(sceneScale * (0.72 + index * 0.06));
+    }
+    for (let index = 0; index < this.bees.length; index += 1) {
+      this.bees[index]
+        .setVisible(index < this.visibleBeeCount)
+        .setScale(sceneScale * (1.18 + index * 0.09));
+    }
   }
 
   private layoutSelectors(): void {

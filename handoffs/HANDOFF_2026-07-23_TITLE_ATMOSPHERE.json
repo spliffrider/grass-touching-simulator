@@ -1,0 +1,53 @@
+{
+  "date": "2026-07-23",
+  "topic": "Animated title-screen Scourge, birds, and bees",
+  "currentUserGoal": "Keep the beloved wholesome title artwork while making the scene more alive and showing ominous Scourge clouds slowly replace the blue sky, with birds and bees moving through the landscape.",
+  "workCompleted": [
+    "Added a deterministic 42-second title atmosphere cycle that begins mostly clear, brews to full Scourge cover over about eighteen seconds, holds briefly, then releases the sky before repeating.",
+    "Added a multiply-blended sky veil and five layered, slowly drifting Scourge cloud banks with muted violet storm color and subtle pink fissures.",
+    "Added five distant birds with two generated wing poses, alternating travel direction, bobbing flight, and reduced visibility as the Scourge strengthens.",
+    "Added four animated bees using the existing pixel bee asset, with independent wandering flight paths, buzzing scale, direction changes, and gentle rotation.",
+    "Kept all title actors pooled and allocation-free during update; runtime textures are generated once and reused across title-scene visits.",
+    "Added responsive animation budgets: desktop uses at most 5 clouds, 5 birds, and 4 bees; phone uses 3 clouds, 3 birds, and 2 bees.",
+    "Preserved the existing background parallax, breathing, pollen motes, selectors, title layout, menus, credits, and audio behavior.",
+    "Added pure atmosphere timing and viewport-budget tests."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemTitleAtmosphere.ts",
+    "src/game/scenes/EcosystemTitleScene.ts",
+    "tests/EcosystemTitleAtmosphere.test.ts",
+    "handoffs/HANDOFF_2026-07-23_TITLE_ATMOSPHERE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "Focused EcosystemTitleAtmosphere verification passed: 3 tests.",
+    "npm run check passed after the final motion tuning: ESLint, 200 Vitest tests across 24 files, strict TypeScript, and the Vite production build.",
+    "The local public title route returned HTTP 200.",
+    "Tests enforce the clear-to-full-to-clear Scourge cycle and bounded desktop, tablet, and phone actor counts.",
+    "Visual browser verification remains blocked by the in-app browser localhost URL policy, so the final layering and taste judgment require a user refresh.",
+    "git diff --check passed apart from normal Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "expectedAfterCommit": "Title-atmosphere checkpoint committed locally on top of the unpushed early-field pacing checkpoint; master should be two commits ahead of origin/master.",
+    "baseCommit": "5be7967",
+    "pushRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The generated clouds, birds, and bee paths compile and are bounded, but their final visual balance against the title artwork needs the user's hands-on judgment.",
+    "The Scourge is intentionally cyclical so the wholesome sky returns; this can be changed to a one-way takeover if the repeating story feels too gentle.",
+    "The title animation is local only until explicitly pushed and deployed."
+  ],
+  "nextRecommendedSteps": [
+    "Refresh the local root title screen and remain on it for at least twenty-five seconds to watch the full Scourge build and hold.",
+    "Check that birds remain readable in the upper sky, bees are noticeable without crossing important menu copy, and storm cover feels ominous without obscuring the artwork.",
+    "Tune cloud darkness, cycle duration, or wildlife size from hands-on feedback, then push and deploy with the early-field pacing commit when approved."
+  ],
+  "doNotRevert": [
+    "Do not replace the wholesome title background; the Scourge is a separate reversible overlay by design.",
+    "Do not turn the atmospheric actors into per-frame allocations, particles, or unbounded tweens.",
+    "Do not increase phone actor counts without measuring the public title route.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md in this checkpoint without explicit user direction."
+  ]
+}
