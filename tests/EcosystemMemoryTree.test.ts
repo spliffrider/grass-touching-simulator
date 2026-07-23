@@ -9,6 +9,8 @@ import {
   ECOSYSTEM_MEMORY_MIN_STATUS_SCREEN_PX,
   ECOSYSTEM_MEMORY_MIN_TITLE_SCREEN_PX,
   FIRST_ECOSYSTEM_MEMORY_NODE_ID,
+  HELPER_MEMORY_CATEGORY_STYLES,
+  getEcosystemMemoryCategory,
   getEcosystemMemoryEntryNodeId,
   getEcosystemMemoryNodeVisualRadius,
   getEcosystemMemoryTextScale,
@@ -16,12 +18,14 @@ import {
   getHelperRankMemoryId,
   getHelperRankMemoryLabel,
   getHelperUnlockMemoryId,
+  getRecommendedAutomationMemoryNodeId,
   getRevealedEcosystemMemoryNodeIds,
 } from "../src/game/ecosystem/EcosystemMemoryTree";
 import {
   createPermanentEcosystemState,
   getHelperUnlockCost,
   getTouchRankCost,
+  purchasePermanentRank,
   unlockHelper,
 } from "../src/game/ecosystem/EcosystemSystem";
 
@@ -206,6 +210,45 @@ describe("Ecosystem Memory Tree", () => {
     expect(getHelperRankMemoryLabel("tinySprinkler", "throughput")).toBe("Clockwork Nozzle");
     expect(getHelperRankMemoryLabel("fieldMouse", "throughput")).toBe("Quick Paws");
     expect(getHelperRankMemoryLabel("meadowRabbit", "storage")).toBe("Burrow Network");
+  });
+
+  it("uses one consistent color language for helper upgrade purposes", () => {
+    const sprinklerUnlock = ECOSYSTEM_MEMORY_NODE_BY_ID.get(getHelperUnlockMemoryId("tinySprinkler"))!;
+    const sprinklerSpeed = ECOSYSTEM_MEMORY_NODE_BY_ID.get(getHelperRankMemoryId("tinySprinkler", "throughput"))!;
+    const mouseSpeed = ECOSYSTEM_MEMORY_NODE_BY_ID.get(getHelperRankMemoryId("fieldMouse", "throughput"))!;
+    const sprinklerStorage = ECOSYSTEM_MEMORY_NODE_BY_ID.get(getHelperRankMemoryId("tinySprinkler", "storage"))!;
+    const sprinklerMode = ECOSYSTEM_MEMORY_NODE_BY_ID.get(getHelperModeMemoryId("tinySprinkler"))!;
+
+    expect(getEcosystemMemoryCategory(sprinklerUnlock)).toEqual(HELPER_MEMORY_CATEGORY_STYLES.unlock);
+    expect(getEcosystemMemoryCategory(sprinklerSpeed)).toEqual(HELPER_MEMORY_CATEGORY_STYLES.throughput);
+    expect(sprinklerSpeed.color).toBe(mouseSpeed.color);
+    expect(sprinklerSpeed.color).not.toBe(sprinklerStorage.color);
+    expect(sprinklerMode.color).toBe(HELPER_MEMORY_CATEGORY_STYLES.mode.color);
+    expect(getEcosystemMemoryCategory(ECOSYSTEM_MEMORY_NODE_BY_ID.get("touch:broadPalm")!)).toBeNull();
+  });
+
+  it("guides early players through unlock and automation-speed milestones", () => {
+    const permanent = createPermanentEcosystemState();
+
+    expect(getRecommendedAutomationMemoryNodeId(permanent)).toBe(
+      getHelperUnlockMemoryId("tinySprinkler"),
+    );
+
+    permanent.grassTouches = 100;
+    expect(unlockHelper(permanent, "tinySprinkler")).toBe(true);
+    expect(getRecommendedAutomationMemoryNodeId(permanent)).toBe(
+      getHelperRankMemoryId("tinySprinkler", "throughput"),
+    );
+
+    expect(purchasePermanentRank(permanent, "tinySprinkler", "throughput")).toBe(true);
+    expect(getRecommendedAutomationMemoryNodeId(permanent)).toBe(
+      getHelperUnlockMemoryId("fieldMouse"),
+    );
+
+    expect(unlockHelper(permanent, "fieldMouse")).toBe(true);
+    expect(getRecommendedAutomationMemoryNodeId(permanent)).toBe(
+      getHelperRankMemoryId("fieldMouse", "throughput"),
+    );
   });
 
   it("leads progression descriptions with their gameplay effect", () => {

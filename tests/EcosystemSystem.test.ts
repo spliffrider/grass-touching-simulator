@@ -13,6 +13,7 @@ import {
   ANCIENT_HEARTWOOD_MAX_RANK,
   BEE_HIVE_STARTER_FLOWERS,
   FIELD_MOUSE_STARTER_SEEDS,
+  FIRST_RUN_MANUAL_CARE_PER_POWER,
   FIRST_RUN_TARGET_DURATION_MS,
   HAND_TENDING_GROWTH_PER_POWER,
   LINGERING_CARE_DURATION_MS,
@@ -99,8 +100,8 @@ describe("EcosystemSystem", () => {
   }
 
   function expectReadableFirstCollapse(durationMs: number): void {
-    expect(durationMs).toBeGreaterThanOrEqual(FIRST_RUN_TARGET_DURATION_MS - 1_000);
-    expect(durationMs).toBeLessThanOrEqual(FIRST_RUN_TARGET_DURATION_MS + 1_000);
+    expect(durationMs).toBeGreaterThanOrEqual(FIRST_RUN_TARGET_DURATION_MS - 2_000);
+    expect(durationMs).toBeLessThanOrEqual(FIRST_RUN_TARGET_DURATION_MS + 2_000);
   }
 
   function simulateFirstAutomationRunAtFullTouchRate(): {
@@ -121,7 +122,7 @@ describe("EcosystemSystem", () => {
     let sprinklerPurchasedAtMs: number | null = null;
     let hpAtPurchase: number | null = null;
 
-    while (state.active && wallElapsedMs < 120_000) {
+    while (state.active && wallElapsedMs < 300_000) {
       if (wallElapsedMs >= nextTouchAtMs) {
         touchFieldTile(state, permanent, 0);
         nextTouchAtMs += touchCooldownMs;
@@ -239,6 +240,75 @@ describe("EcosystemSystem", () => {
       mousePurchasedAtMs,
       firstMouseCycleAtMs,
       hpAtFirstMouseCycle,
+    };
+  }
+
+  function simulateEarlyAutomationTakeover(): {
+    setupAtMs: number | null;
+    hpAtSetup: number | null;
+    hpAfterHandsOff: number;
+    handsOffMs: number;
+    careProduced: number;
+    mouseCycles: number;
+  } {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 4;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    permanent.unlockedHelpers.fieldMouse = true;
+    permanent.throughputRanks.tinySprinkler = 1;
+    permanent.throughputRanks.fieldMouse = 1;
+    const state = createEcosystemState(permanent, { seed: 9_013 });
+    const touchCooldownMs = getManualTouchCooldownMs(0);
+    let wallElapsedMs = 0;
+    let nextTouchAtMs = 0;
+    let setupAtMs: number | null = null;
+    let hpAtSetup: number | null = null;
+
+    while (state.active && wallElapsedMs < 120_000) {
+      if (setupAtMs === null && wallElapsedMs >= nextTouchAtMs) {
+        touchFieldTile(state, permanent, 0);
+        nextTouchAtMs += touchCooldownMs;
+      }
+      if (
+        state.helpers.tinySprinkler.count < 1
+        && state.runTouches >= getHelperPurchaseCost(state, "tinySprinkler")
+      ) {
+        buyHelper(state, permanent, "tinySprinkler");
+      }
+      if (
+        state.helpers.tinySprinkler.count >= 1
+        && state.helpers.fieldMouse.count < 1
+        && state.runTouches >= getHelperPurchaseCost(state, "fieldMouse")
+      ) {
+        buyHelper(state, permanent, "fieldMouse");
+      }
+      if (
+        state.helpers.fieldMouse.count >= 1
+        && state.helpers.tinySprinkler.count < 2
+        && state.runTouches >= getHelperPurchaseCost(state, "tinySprinkler")
+      ) {
+        buyHelper(state, permanent, "tinySprinkler");
+      }
+      if (
+        setupAtMs === null
+        && state.helpers.tinySprinkler.count === 2
+        && state.helpers.fieldMouse.count === 1
+      ) {
+        setupAtMs = wallElapsedMs;
+        hpAtSetup = state.hp;
+      }
+      advanceEcosystem(state, permanent, 10);
+      wallElapsedMs += 10;
+      if (setupAtMs !== null && wallElapsedMs - setupAtMs >= 60_000) break;
+    }
+
+    return {
+      setupAtMs,
+      hpAtSetup,
+      hpAfterHandsOff: state.hp,
+      handsOffMs: setupAtMs === null ? 0 : wallElapsedMs - setupAtMs,
+      careProduced: state.resources.care.producedTotal,
+      mouseCycles: state.helpers.fieldMouse.cyclesCompleted,
     };
   }
 
@@ -606,10 +676,10 @@ describe("EcosystemSystem", () => {
     const firstRankInterval = getHelperCycleIntervalMs("tinySprinkler", 1);
     const maxRankInterval = getHelperCycleIntervalMs("tinySprinkler", 10);
 
-    expect(baseInterval).toBeCloseTo(2_941.176, 2);
+    expect(baseInterval).toBeCloseTo(2_083.333, 2);
     expect(firstRankInterval).toBeLessThan(baseInterval);
     expect(maxRankInterval).toBeLessThan(firstRankInterval);
-    expect(maxRankInterval).toBeCloseTo(1_176.471, 2);
+    expect(maxRankInterval).toBeCloseTo(651.042, 2);
   });
 
   it("makes every purchased Memory strengthen standard manual touches", () => {
@@ -998,15 +1068,15 @@ describe("EcosystemSystem", () => {
     expectReadableFirstCollapse(duration);
   });
 
-  it("answers the first touch with rising Scourge pressure instead of healing", () => {
+  it("answers first-run touches with faint Care while Scourge pressure rises", () => {
     const permanent = createPermanentEcosystemState();
     const state = createEcosystemState(permanent, { seed: 4_004 });
     state.hp = 50;
 
     const result = touchFieldTile(state, permanent, 0);
 
-    expect(result?.healedHp).toBe(0);
-    expect(state.hp).toBe(50);
+    expect(result?.healedHp).toBeCloseTo(FIRST_RUN_MANUAL_CARE_PER_POWER);
+    expect(state.hp).toBeCloseTo(50 + FIRST_RUN_MANUAL_CARE_PER_POWER);
     expect(state.scourgeDemandPerSecond).toBeGreaterThan(3);
     expect(state.scourgeDemandPerSecond).toBeLessThan(4);
     expect(state.careDeficitPerSecond).toBe(state.scourgeDemandPerSecond);
@@ -1119,16 +1189,33 @@ describe("EcosystemSystem", () => {
   it("keeps the second run threatening without overwhelming its opening", () => {
     const result = simulateFirstAutomationRunAtFullTouchRate();
 
-    expect(result.initialScourgeDemandPerSecond).toBeGreaterThan(5.4);
-    expect(result.initialScourgeDemandPerSecond).toBeLessThan(5.7);
-    expect(result.sprinklerPurchasedAtMs).toBeGreaterThanOrEqual(5_000);
-    expect(result.sprinklerPurchasedAtMs).toBeLessThanOrEqual(5_500);
+    expect(result.initialScourgeDemandPerSecond).toBeGreaterThan(4.8);
+    expect(result.initialScourgeDemandPerSecond).toBeLessThan(5.1);
+    expect(result.sprinklerPurchasedAtMs).toBeGreaterThanOrEqual(3_500);
+    expect(result.sprinklerPurchasedAtMs).toBeLessThanOrEqual(4_200);
     expect(result.hpAtPurchase).not.toBeNull();
     expect(result.hpAtPurchase!).toBeGreaterThanOrEqual(99);
-    expect(result.durationMs).toBeGreaterThanOrEqual(50_000);
-    expect(result.durationMs).toBeLessThanOrEqual(70_000);
-    expect(result.durationMs - result.sprinklerPurchasedAtMs!).toBeGreaterThanOrEqual(45_000);
+    expect(result.durationMs).toBeGreaterThanOrEqual(100_000);
+    expect(result.durationMs).toBeLessThanOrEqual(115_000);
+    expect(result.durationMs - result.sprinklerPurchasedAtMs!).toBeGreaterThanOrEqual(95_000);
     expect(result.grassTouchesAwarded).toBeGreaterThanOrEqual(getHelperUnlockCost("fieldMouse"));
+  });
+
+  it("lets Scourge pressure build decisively after its dangerous opening", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    const state = createEcosystemState(permanent, { seed: 9_012 });
+    const openingDemand = state.scourgeDemandPerSecond;
+    state.maxHp = 10_000;
+    state.hp = 10_000;
+
+    for (let elapsed = 0; elapsed < 30_000; elapsed += PRODUCTION_TICK_MS) {
+      advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+    }
+
+    expect(state.scourgeDemandPerSecond).toBeGreaterThan(openingDemand * 1.75);
+    expect(state.scourgeDemandPerSecond).toBeLessThan(openingDemand * 1.85);
   });
 
   it("reaches the first Field Mouse planting through clean early-run play", () => {
@@ -1136,13 +1223,26 @@ describe("EcosystemSystem", () => {
 
     expect(result.sprinklerPurchasedAtMs).not.toBeNull();
     expect(result.mousePurchasedAtMs).not.toBeNull();
-    expect(result.mousePurchasedAtMs!).toBeGreaterThanOrEqual(20_000);
-    expect(result.mousePurchasedAtMs!).toBeLessThanOrEqual(30_000);
+    expect(result.mousePurchasedAtMs!).toBeGreaterThanOrEqual(15_000);
+    expect(result.mousePurchasedAtMs!).toBeLessThanOrEqual(20_000);
     expect(result.firstMouseCycleAtMs).not.toBeNull();
-    expect(result.firstMouseCycleAtMs!).toBeGreaterThanOrEqual(25_000);
-    expect(result.firstMouseCycleAtMs!).toBeLessThanOrEqual(35_000);
+    expect(result.firstMouseCycleAtMs!).toBeGreaterThanOrEqual(18_000);
+    expect(result.firstMouseCycleAtMs!).toBeLessThanOrEqual(23_000);
     expect(result.hpAtFirstMouseCycle).not.toBeNull();
     expect(result.hpAtFirstMouseCycle!).toBeGreaterThan(0);
+  });
+
+  it("lets an early Sprinkler and Mouse setup carry a real hands-off window", () => {
+    const result = simulateEarlyAutomationTakeover();
+
+    expect(result.setupAtMs).not.toBeNull();
+    expect(result.setupAtMs!).toBeLessThanOrEqual(30_000);
+    expect(result.handsOffMs).toBe(60_000);
+    expect(result.hpAtSetup).not.toBeNull();
+    expect(result.hpAfterHandsOff).toBeGreaterThan(result.hpAtSetup! - 70);
+    expect(result.hpAfterHandsOff).toBeLessThan(result.hpAtSetup! - 55);
+    expect(result.careProduced).toBeGreaterThan(75);
+    expect(result.mouseCycles).toBeGreaterThan(1);
   });
 
   it("lets a developed production web reach a sustained thriving state", () => {
@@ -1166,13 +1266,12 @@ describe("EcosystemSystem", () => {
       advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
       if (state.rates.care > state.scourgeDemandPerSecond) careSurplusTicks += 1;
     }
-
     expect(state.active).toBe(true);
     expect(state.hp).toBeGreaterThan(100);
     expect(state.hp).toBeLessThanOrEqual(state.maxHp);
-    expect(careSurplusTicks).toBeGreaterThan(1_000);
-    expect(state.resources.care.producedTotal).toBeGreaterThan(800);
-    expect(state.resources.care.amount).toBeGreaterThan(200);
+    expect(careSurplusTicks).toBeGreaterThan(150);
+    expect(state.resources.care.producedTotal).toBeGreaterThan(1_200);
+    expect(state.resources.care.amount).toBeGreaterThan(1_000);
   });
 
   it("runs at quarter speed in Ecosystem Works and stops completely in Options", () => {

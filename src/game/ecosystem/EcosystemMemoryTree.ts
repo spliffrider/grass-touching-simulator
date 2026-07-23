@@ -49,15 +49,31 @@ export interface EcosystemMemoryEdge {
 
 export const ECOSYSTEM_MEMORY_ROOT_ID = "root:field-heir";
 export const FIRST_ECOSYSTEM_MEMORY_NODE_ID = "helper:tinySprinkler:unlock";
-const HELPER_COLORS: Record<HelperId, number> = {
-  tinySprinkler: 0x78d9ef,
-  fieldMouse: 0x9bd66f,
-  beeHive: 0xf0cc62,
-  chickenPatrol: 0xe69a5b,
-  earthwormCrew: 0xc68c68,
-  ancientRoots: 0x66c69d,
-  sheepLoop: 0xd7d9c8,
-  meadowRabbit: 0xd99fc4,
+export type HelperMemoryCategory = PermanentRankKind | "unlock" | "mode";
+
+export interface HelperMemoryCategoryStyle {
+  id: HelperMemoryCategory;
+  label: string;
+  detailLabel: string;
+  color: number;
+}
+
+export const HELPER_MEMORY_CATEGORY_ORDER: readonly HelperMemoryCategory[] = [
+  "unlock",
+  "throughput",
+  "efficiency",
+  "storage",
+  "startingStock",
+  "mode",
+] as const;
+
+export const HELPER_MEMORY_CATEGORY_STYLES: Record<HelperMemoryCategory, HelperMemoryCategoryStyle> = {
+  unlock: { id: "unlock", label: "UNLOCK", detailLabel: "New helper", color: 0x72e69a },
+  throughput: { id: "throughput", label: "SPEED", detailLabel: "Automation speed", color: 0x78d9ef },
+  efficiency: { id: "efficiency", label: "EFFICIENCY", detailLabel: "Recipe efficiency", color: 0xb7e66f },
+  storage: { id: "storage", label: "STORAGE", detailLabel: "Resource storage", color: 0x78aef2 },
+  startingStock: { id: "startingStock", label: "START STOCK", detailLabel: "Starting resources", color: 0xf0cc62 },
+  mode: { id: "mode", label: "MODE", detailLabel: "Helper mode", color: 0xd99fc4 },
 };
 
 interface HelperMemoryLayout {
@@ -523,7 +539,7 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       description: helperId === "fieldMouse"
         ? "Awakens Field Mouse and its Seed routes. When a Tiny Sprinkler is installed, Moisture waters Damp Furrows for bonus Growth and Care."
         : `Awakens ${helper.label}, reveals it in the Living Ledger, and adds its recipes to Ecosystem Works.`,
-      color: HELPER_COLORS[helperId],
+      color: HELPER_MEMORY_CATEGORY_STYLES.unlock.color,
       iconKey: `eco-helper-${helperId}`,
       x,
       y,
@@ -542,7 +558,7 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
         label: copy.label,
         branch: helper.label,
         description: copy.description,
-        color: HELPER_COLORS[helperId],
+        color: HELPER_MEMORY_CATEGORY_STYLES[kind].color,
         iconKey: visualMeta.iconKey,
         iconPath: visualMeta.iconPath,
         x: x + scalePosition(offset.x),
@@ -561,7 +577,7 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       label: alternateMode.label,
       branch: `${helper.label} mode`,
       description: alternateMode.description,
-      color: HELPER_COLORS[helperId],
+      color: HELPER_MEMORY_CATEGORY_STYLES.mode.color,
       iconKey: "memory-icon-helper-mode",
       iconPath: "/assets/ui/skills/helper-routes.png",
       x: x + scalePosition(layout.mode.x),
@@ -600,6 +616,58 @@ export function getHelperRankMemoryLabel(helperId: HelperId, kind: PermanentRank
 
 export function getHelperModeMemoryId(helperId: HelperId): string {
   return helperModeId(helperId);
+}
+
+export function getEcosystemMemoryCategory(
+  node: EcosystemMemoryNodeDefinition,
+): HelperMemoryCategoryStyle | null {
+  if (node.kind === "helperUnlock") return HELPER_MEMORY_CATEGORY_STYLES.unlock;
+  if (node.kind === "helperMode") return HELPER_MEMORY_CATEGORY_STYLES.mode;
+  if (node.kind === "helperRank" && node.rankKind) {
+    return HELPER_MEMORY_CATEGORY_STYLES[node.rankKind];
+  }
+  return null;
+}
+
+export function getRecommendedAutomationMemoryNodeId(
+  permanent: PermanentEcosystemState,
+): string | null {
+  for (const helperId of HELPER_IDS) {
+    if (
+      permanent.unlockedHelpers[helperId]
+      && permanent.throughputRanks[helperId] === 0
+    ) {
+      return helperRankId(helperId, "throughput");
+    }
+  }
+
+  for (const helperId of HELPER_IDS) {
+    if (permanent.unlockedHelpers[helperId]) continue;
+    const prerequisite = HELPERS[helperId].unlockRequires;
+    if (!prerequisite || permanent.unlockedHelpers[prerequisite]) {
+      return helperUnlockId(helperId);
+    }
+  }
+
+  for (const helperId of HELPER_IDS) {
+    if (
+      permanent.unlockedHelpers[helperId]
+      && permanent.throughputRanks[helperId] < 3
+    ) {
+      return helperRankId(helperId, "throughput");
+    }
+  }
+
+  for (const helperId of HELPER_IDS) {
+    if (
+      permanent.unlockedHelpers[helperId]
+      && permanent.efficiencyRanks[helperId] < 2
+    ) {
+      return helperRankId(helperId, "efficiency");
+    }
+  }
+
+  return null;
 }
 
 function isMemoryNodeOwned(

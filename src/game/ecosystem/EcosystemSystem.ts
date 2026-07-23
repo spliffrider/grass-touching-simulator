@@ -21,7 +21,7 @@ import {
 
 export const ECOSYSTEM_PERMANENT_VERSION = 1;
 export const ECOSYSTEM_ACTIVE_VERSION = 1;
-export const FIELD_MOUSE_STARTER_SEEDS = 3;
+export const FIELD_MOUSE_STARTER_SEEDS = 8;
 export const BEE_HIVE_STARTER_FLOWERS = 4;
 export const ECOSYSTEM_BASE_MAX_HP = 100;
 export const ANCIENT_HEARTWOOD_MAX_RANK = 10;
@@ -29,23 +29,25 @@ export const ANCIENT_HEARTWOOD_HP_PER_RANK = 15;
 export const LINGERING_CARE_MAX_RANK = 10;
 export const LINGERING_CARE_DURATION_MS = 4_000;
 export const VERDANT_AEGIS_MAX_RANK = 10;
-export const FIRST_RUN_TARGET_DURATION_MS = 16_000;
+export const FIRST_RUN_TARGET_DURATION_MS = 19_000;
+export const FIRST_RUN_MANUAL_CARE_PER_POWER = 0.6;
 export const MANUAL_TOUCH_CARE_PER_POWER = 6;
 export const MANUAL_TOUCH_POWER_PER_MEMORY = 0.015;
-export const HELPER_THROUGHPUT_PER_RANK = 0.15;
+export const HELPER_THROUGHPUT_PER_RANK = 0.22;
 export const DAMP_FURROWS_MOISTURE_PER_CYCLE = 0.3;
-export const DAMP_FURROWS_GROWTH_PER_CYCLE = 0.45;
-export const DAMP_FURROWS_CARE_PER_CYCLE = 0.22;
+export const DAMP_FURROWS_GROWTH_PER_CYCLE = 0.75;
+export const DAMP_FURROWS_CARE_PER_CYCLE = 1.05;
 export const HAND_TENDING_GROWTH_PER_POWER = 0.35;
 export const STARTER_SPRINKLER_GROWTH_PER_CYCLE = 0.08;
-// Run 1 cannot produce Care, so this curve creates a readable but inevitable first collapse.
+// Run 1 touch Care is intentionally faint, so this curve still creates an inevitable first collapse.
 const FIRST_RUN_SCOURGE_BASE = 3.7;
 const FIRST_RUN_SCOURGE_RAMP_SECONDS = 30;
 const PRE_AUTOMATION_SCOURGE_RAMP_SECONDS = 0.2;
-const FIRST_AUTOMATION_SCOURGE_RAMP_SECONDS = 55;
-const MULTI_AUTOMATION_SCOURGE_RAMP_SECONDS = 36;
+const FIRST_AUTOMATION_SCOURGE_RAMP_SECONDS = 80;
+const MULTI_AUTOMATION_SCOURGE_RAMP_SECONDS = 48;
 const LATE_AUTOMATION_SCOURGE_RAMP_SECONDS = 1_800;
-const EARLY_SCOURGE_BASE_BY_CAPABILITY = [10, 5, 2.05, 1.28, 0.88, 0.68] as const;
+const SCOURGE_ACCELERATION_POWER = 1.82;
+const EARLY_SCOURGE_BASE_BY_CAPABILITY = [10, 4.45, 1.45, 1, 0.74, 0.57] as const;
 
 export type HelperRankRecord = Record<HelperId, number>;
 export type HelperUnlockRecord = Record<HelperId, boolean>;
@@ -1218,7 +1220,10 @@ function performRecipe(
 function getScourgeDemand(state: EcosystemState, permanent: PermanentEcosystemState): number {
   const ageSeconds = state.elapsedMs / 1_000;
   if (state.runNumber === 1) {
-    return FIRST_RUN_SCOURGE_BASE * Math.pow(1 + ageSeconds / FIRST_RUN_SCOURGE_RAMP_SECONDS, 2.12);
+    return FIRST_RUN_SCOURGE_BASE * Math.pow(
+      1 + ageSeconds / FIRST_RUN_SCOURGE_RAMP_SECONDS,
+      SCOURGE_ACCELERATION_POWER,
+    );
   }
   const unlockedHelperCount = HELPER_IDS.reduce(
     (count, helperId) => count + (permanent.unlockedHelpers[helperId] ? 1 : 0),
@@ -1244,7 +1249,7 @@ function getScourgeDemand(state: EcosystemState, permanent: PermanentEcosystemSt
   const baseDemand = capabilityTier <= 5
     ? EARLY_SCOURGE_BASE_BY_CAPABILITY[capabilityTier]
     : 0.72;
-  return baseDemand * tileScale * Math.pow(1 + ageRatio, 2.12);
+  return baseDemand * tileScale * Math.pow(1 + ageRatio, SCOURGE_ACCELERATION_POWER);
 }
 
 function advanceRepresentativeTiles(state: EcosystemState): void {
@@ -1346,8 +1351,16 @@ function healAncientGrass(
   permanent: PermanentEcosystemState,
   amount: number,
   countAsManualCare: boolean,
+  allowFirstRun = false,
 ): number {
-  if (!state.active || state.runNumber === 1 || state.hp <= 0 || amount <= EPSILON) return 0;
+  if (
+    !state.active
+    || (state.runNumber === 1 && !allowFirstRun)
+    || state.hp <= 0
+    || amount <= EPSILON
+  ) {
+    return 0;
+  }
   const missingHp = Math.max(0, state.maxHp - state.hp);
   const healed = Math.min(missingHp, amount);
   state.hp += healed;
@@ -1594,11 +1607,15 @@ export function touchFieldTile(
   }
   const totalPower = baseTotalPower * getManualTouchPowerMultiplier(permanent);
   const shieldBeforeTouch = state.overhealShield;
+  const carePerPower = state.runNumber === 1
+    ? FIRST_RUN_MANUAL_CARE_PER_POWER
+    : MANUAL_TOUCH_CARE_PER_POWER;
   const healedHp = healAncientGrass(
     state,
     permanent,
-    totalPower * MANUAL_TOUCH_CARE_PER_POWER,
+    totalPower * carePerPower,
     true,
+    state.runNumber === 1,
   );
   const shieldGained = Math.max(0, state.overhealShield - shieldBeforeTouch);
   let lingeringCareAddedPerSecond = 0;

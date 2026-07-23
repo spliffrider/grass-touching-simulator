@@ -53,12 +53,16 @@ import {
   ECOSYSTEM_MEMORY_WORLD_HEIGHT,
   ECOSYSTEM_MEMORY_WORLD_WIDTH,
   FIRST_ECOSYSTEM_MEMORY_NODE_ID,
+  HELPER_MEMORY_CATEGORY_ORDER,
+  HELPER_MEMORY_CATEGORY_STYLES,
+  getEcosystemMemoryCategory,
   getEcosystemMemoryEntryNodeId,
   getEcosystemMemoryNodeVisualRadius,
   getEcosystemMemoryTextScale,
   getHelperModeMemoryId,
   getHelperRankMemoryId,
   getHelperUnlockMemoryId,
+  getRecommendedAutomationMemoryNodeId,
   getRevealedEcosystemMemoryNodeIds,
   type EcosystemMemoryNodeDefinition,
 } from "../ecosystem/EcosystemMemoryTree";
@@ -95,6 +99,7 @@ import {
   ANCIENT_HEARTWOOD_MAX_RANK,
   BEE_HIVE_STARTER_FLOWERS,
   FIELD_MOUSE_STARTER_SEEDS,
+  FIRST_RUN_MANUAL_CARE_PER_POWER,
   LINGERING_CARE_DURATION_MS,
   MANUAL_TOUCH_CARE_PER_POWER,
   MANUAL_TOUCH_POWER_PER_MEMORY,
@@ -319,7 +324,6 @@ interface TouchRecoveryVisualState {
   startedAtMs: number;
   readyAtMs: number;
   blockedAtMs: number;
-  readyShown: boolean;
 }
 
 export class EcosystemPrototypeScene extends Phaser.Scene {
@@ -424,7 +428,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private touchCooldownShade!: Phaser.GameObjects.Rectangle;
   private touchCooldownBarBack!: Phaser.GameObjects.Rectangle;
   private touchCooldownBarFill!: Phaser.GameObjects.Rectangle;
-  private touchCooldownText!: Phaser.GameObjects.Text;
   private readonly touchCooldowns = new Map<number, number>();
   private touchRecoveryVisual: TouchRecoveryVisualState | null = null;
   private helperIcons = {} as Record<HelperId, Phaser.GameObjects.Image>;
@@ -518,6 +521,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private memoryCurrencyLabel!: Phaser.GameObjects.Text;
   private memoryCurrencyValue!: Phaser.GameObjects.Text;
   private memoryTreeTitle!: Phaser.GameObjects.Text;
+  private memoryRecommendationText!: Phaser.GameObjects.Text;
+  private memoryCategoryLegend: Array<{
+    swatch: Phaser.GameObjects.Rectangle;
+    label: Phaser.GameObjects.Text;
+  }> = [];
   private memoryTreeWorld!: Phaser.GameObjects.Container;
   private memoryTreeLines!: Phaser.GameObjects.Graphics;
   private memoryTreeMaskShape!: Phaser.GameObjects.Graphics;
@@ -1071,16 +1079,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.touchCooldownBarFill = this.add.rectangle(0, 0, 1, 1, 0x8de7ff, 1)
       .setOrigin(0, 0.5)
       .setVisible(false);
-    this.touchCooldownText = this.createText("TOUCH RECOVERING", 12, "#bff4ff", "bold")
-      .setOrigin(0.5)
-      .setBackgroundColor("#06190f")
-      .setPadding(7, 3, 7, 3)
-      .setVisible(false);
     this.effectLayer.add([
       this.touchCooldownShade,
       this.touchCooldownBarBack,
       this.touchCooldownBarFill,
-      this.touchCooldownText,
       this.helperAnnouncementText,
       this.helperLinkAnnouncementText,
     ]);
@@ -1150,6 +1152,16 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.memoryCurrencyLabel = this.createText(`AVAILABLE ${GRASS_TOUCHES_LABEL.toUpperCase()}`, 10, "#cde99b", "bold");
     this.memoryCurrencyValue = this.createText("0", 22, "#ffe889", "bold");
     this.memoryTreeTitle = this.createText("Memory Web", 20, "#fff3c2", "bold");
+    this.memoryRecommendationText = this.createText("", 10, "#78d9ef", "bold")
+      .setInteractive({ useHandCursor: true })
+      .on("pointerup", () => this.focusRecommendedAutomationMemory());
+    for (const categoryId of HELPER_MEMORY_CATEGORY_ORDER) {
+      const category = HELPER_MEMORY_CATEGORY_STYLES[categoryId];
+      this.memoryCategoryLegend.push({
+        swatch: this.add.rectangle(0, 0, 7, 7, category.color, 1).setOrigin(0),
+        label: this.createText(category.label, 8, `#${category.color.toString(16).padStart(6, "0")}`, "bold"),
+      });
+    }
     this.memoryDetailTitle = this.createText("", 24, "#fff3c2", "bold");
     this.memoryDetailBranch = this.createText("", 12, "#8de7ff", "bold");
     this.memoryDetail = this.createText("", 13, "#e3f3d6");
@@ -1177,6 +1189,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.memoryCurrencyLabel,
       this.memoryCurrencyValue,
       this.memoryTreeTitle,
+      this.memoryRecommendationText,
+      ...this.memoryCategoryLegend.flatMap(({ swatch, label }) => [swatch, label]),
       this.memoryDetailIconGlow,
       this.memoryDetailIconFrame,
       this.memoryDetailIcon,
@@ -1817,11 +1831,24 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.memoryZoomOutButton.setPosition(zoomOutX, zoomY).setSize(mobile ? 30 : 34, mobile ? 26 : 30);
     this.memoryZoomResetButton.setPosition(zoomResetX, zoomY).setSize(mobile ? 44 : 52, mobile ? 26 : 30);
     this.memoryZoomInButton.setPosition(zoomInX, zoomY).setSize(mobile ? 30 : 34, mobile ? 26 : 30);
+    this.memoryRecommendationText
+      .setFontSize(mobile ? 8 : 10)
+      .setPosition(treePanelX + 18, treePanelY + (mobile ? 43 : 45))
+      .setWordWrapWidth(treePanelWidth - 36);
+    const showLegend = !mobile && treePanelWidth >= 560;
+    let legendX = treePanelX + 18;
+    const legendY = treePanelY + 67;
+    for (const item of this.memoryCategoryLegend) {
+      item.swatch.setVisible(showLegend).setPosition(legendX, legendY + 2);
+      item.label.setVisible(showLegend).setFontSize(8).setPosition(legendX + 11, legendY - 1);
+      legendX += item.label.width + 25;
+    }
+    const memoryHeaderHeight = mobile ? 70 : showLegend ? 92 : 70;
     this.memoryTreeViewport = {
       x: treePanelX + 10,
-      y: treePanelY + (mobile ? 48 : 58),
+      y: treePanelY + memoryHeaderHeight,
       width: treePanelWidth - 20,
-      height: treePanelHeight - (mobile ? 58 : 70),
+      height: treePanelHeight - memoryHeaderHeight - 12,
     };
     this.memoryTreeMaskShape.clear().fillStyle(0xffffff, 1).fillRect(
       this.memoryTreeViewport.x,
@@ -2112,7 +2139,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.setTextIfChanged(this.bottleneckText, `Bottleneck: ${readout.bottleneck}`);
       const palmRadius = this.permanent.broadPalmRank > 0 ? 1 + Math.floor((this.permanent.broadPalmRank - 1) / 2) : 0;
       this.setTextIfChanged(this.caretakerStats, [
-        `Touch yield     ${this.state.runNumber === 1 ? "0 Care (overwhelmed)" : `${MANUAL_TOUCH_CARE_PER_POWER.toFixed(1)} Care`}`,
+        `Touch yield     ${
+          this.state.runNumber === 1
+            ? `${FIRST_RUN_MANUAL_CARE_PER_POWER.toFixed(1)} Care (outmatched)`
+            : `${MANUAL_TOUCH_CARE_PER_POWER.toFixed(1)} Care`
+        }`,
         "Dew gathered    1.15",
         `Hand Tending    ${this.state.runNumber === 1 ? "after first collapse" : "+0.35 Growth"}`,
         "Run Touches     +0.92",
@@ -2961,13 +2992,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const barWidth = Phaser.Math.Clamp(visualSize * 0.56, 16, 180);
     const barHeight = Phaser.Math.Clamp(visualSize * 0.024, 3, 8);
     const barY = visualSize >= 72 ? centerY - visualSize * 0.31 : centerY;
-    const labelY = centerY - visualSize * 0.4;
 
     if (ready) {
-      if (!feedback.readyShown) {
-        feedback.readyShown = true;
-        this.touchCooldownText.setText("TOUCH READY").setColor("#dfff8f");
-      }
       const readyAlpha = 1 - Phaser.Math.Clamp((now - feedback.readyAtMs) / TOUCH_READY_FLASH_MS, 0, 1);
       this.touchCooldownShade
         .setPosition(centerX, centerY)
@@ -2978,10 +3004,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         .setVisible(true);
       this.touchCooldownBarBack.setVisible(false);
       this.touchCooldownBarFill.setVisible(false);
-      this.touchCooldownText
-        .setPosition(centerX, labelY)
-        .setAlpha(readyAlpha)
-        .setVisible(visualSize >= 72);
       return;
     }
 
@@ -3004,17 +3026,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       .setSize(Math.max(1, barWidth * progress), barHeight)
       .setFillStyle(cooldownColor, 1)
       .setVisible(true);
-    this.touchCooldownText
-      .setPosition(centerX, labelY)
-      .setAlpha(0.9 + blockedPulse * 0.1)
-      .setVisible(visualSize >= 72);
   }
 
   private setTouchRecoveryVisible(visible: boolean): void {
     this.touchCooldownShade.setVisible(visible);
     this.touchCooldownBarBack.setVisible(visible);
     this.touchCooldownBarFill.setVisible(visible);
-    this.touchCooldownText.setVisible(visible);
   }
 
   private resetTouchRecovery(): void {
@@ -3473,9 +3490,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const aegisSummary = result.shieldGained > 0
       ? `  Aegis +${result.shieldGained.toFixed(1)}`
       : "";
+    const careSummary = result.healedHp > 0
+      ? `  +${result.healedHp.toFixed(1)} Care`
+      : "";
     const touchSummary = this.scale.width < 760
-      ? `+${result.dewGained.toFixed(1)} Dew${growthSummary}\n+${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}${afterglowSummary}${aegisSummary}`
-      : `${result.affectedTileCount} tile${result.affectedTileCount === 1 ? "" : "s"} cared for  |  +${result.dewGained.toFixed(1)} Dew${growthSummary}  +${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}${afterglowSummary}${aegisSummary}`;
+      ? `+${result.dewGained.toFixed(1)} Dew${growthSummary}${careSummary}\n+${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}${afterglowSummary}${aegisSummary}`
+      : `${result.affectedTileCount} tile${result.affectedTileCount === 1 ? "" : "s"} cared for  |  +${result.dewGained.toFixed(1)} Dew${growthSummary}${careSummary}  +${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}${afterglowSummary}${aegisSummary}`;
     this.touchSummaryText
       .setText(touchSummary)
       .setColor(result.shieldGained > 0 ? "#bffff0" : result.lingeringCarePerSecond > 0 ? "#d9ff9f" : "#fff3c2")
@@ -3581,9 +3601,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         startedAtMs: cooldown.readyAtMs - cooldownMs,
         readyAtMs: cooldown.readyAtMs,
         blockedAtMs: now,
-        readyShown: false,
       };
-      this.touchCooldownText.setText("TOUCH RECOVERING").setColor("#ffb1d3");
       this.audio.play("touch_cooldown");
       this.animateTouchRecovery(now);
       return;
@@ -3594,9 +3612,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       startedAtMs: now,
       readyAtMs: cooldown.readyAtMs,
       blockedAtMs: -Infinity,
-      readyShown: false,
     };
-    this.touchCooldownText.setText("TOUCH RECOVERING").setColor("#bff4ff");
     this.animateTouchRecovery(now);
     const result = touchFieldTile(this.state, this.permanent, tileIndex);
     if (!result) return;
@@ -4096,11 +4112,29 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           : [...revealedNodeIds][0] ?? ECOSYSTEM_MEMORY_ROOT_ID;
     }
     this.updateCurrencyValue(this.memoryCurrencyValue, `${Math.floor(this.permanent.grassTouches)}`, true);
+    const recommendedNodeId = getRecommendedAutomationMemoryNodeId(this.permanent);
+    const recommendedDefinition = recommendedNodeId
+      ? ECOSYSTEM_MEMORY_NODE_BY_ID.get(recommendedNodeId)
+      : null;
+    const recommendationVisible = Boolean(
+      recommendedDefinition
+      && revealedNodeIds.has(recommendedDefinition.id),
+    );
+    this.memoryRecommendationText
+      .setVisible(recommendationVisible)
+      .setText(recommendedDefinition
+        ? `AUTOMATION PICK  >  ${recommendedDefinition.label.toUpperCase()}  |  click to focus`
+        : "")
+      .setColor(recommendedDefinition
+        ? `#${recommendedDefinition.color.toString(16).padStart(6, "0")}`
+        : "#78d9ef");
     this.drawMemoryTreeConnectors(revealedNodeIds);
     for (const view of this.memoryNodeViews.values()) {
       const runtime = this.getMemoryNodeRuntime(view.definition);
       const selected = view.definition.id === this.selectedMemoryNodeId;
       const hovered = view.definition.id === this.hoveredMemoryNodeId;
+      const recommended = view.definition.id === recommendedNodeId;
+      const category = getEcosystemMemoryCategory(view.definition);
       const frameKey = selected || hovered
         ? "memory-node-selected"
         : runtime.complete
@@ -4111,9 +4145,15 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       view.frame.setTexture(frameKey).setAlpha(runtime.unlocked || runtime.complete ? 1 : 0.58);
       view.icon.setAlpha(runtime.unlocked || runtime.complete ? 1 : 0.34);
       view.glow
-        .setFillStyle(view.definition.color, selected || hovered ? 0.2 : runtime.complete ? 0.12 : runtime.affordable ? 0.1 : 0.035)
-        .setStrokeStyle(selected || hovered ? 4 : 2, view.definition.color, selected || hovered ? 0.9 : runtime.complete ? 0.56 : 0.24);
-      view.title.setColor(runtime.unlocked || runtime.complete ? "#fff3c2" : "#718371");
+        .setFillStyle(view.definition.color, selected || hovered ? 0.2 : recommended ? 0.15 : runtime.complete ? 0.12 : runtime.affordable ? 0.1 : 0.035)
+        .setStrokeStyle(selected || hovered || recommended ? 4 : 2, view.definition.color, selected || hovered ? 0.9 : recommended ? 0.78 : runtime.complete ? 0.56 : 0.24);
+      view.title.setColor(
+        runtime.unlocked || runtime.complete
+          ? category
+            ? `#${category.color.toString(16).padStart(6, "0")}`
+            : "#fff3c2"
+          : "#718371",
+      );
       view.status.setText(runtime.status).setColor(runtime.affordable ? "#ffe889" : runtime.complete ? "#9bd66f" : "#8fa08e");
       this.refreshMemoryRankPips(view, runtime.rank);
     }
@@ -4201,7 +4241,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       .setFillStyle(definition.color, runtime.complete ? 0.16 : runtime.affordable ? 0.12 : 0.06)
       .setStrokeStyle(2, definition.color, runtime.unlocked || runtime.complete ? 0.62 : 0.28);
     this.memoryDetailTitle.setText(definition.label);
-    this.memoryDetailBranch.setText(`${definition.branch.toUpperCase()} MEMORY`);
+    const category = getEcosystemMemoryCategory(definition);
+    this.memoryDetailBranch
+      .setText(category
+        ? `${category.detailLabel.toUpperCase()}  |  ${definition.branch.toUpperCase()}`
+        : `${definition.branch.toUpperCase()} MEMORY`)
+      .setColor(category
+        ? `#${category.color.toString(16).padStart(6, "0")}`
+        : "#8de7ff");
     const rankLine = runtime.maxRank > 1 ? `Rank ${runtime.rank} / ${runtime.maxRank}` : runtime.complete ? "Remembered" : "Single memory";
     const manualTouchBonus = getManualTouchPowerBonusPercent(this.permanent);
     const detailCopy = mobile
@@ -4263,6 +4310,21 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         .setPosition(0, 0)
         .setScale(Number(view.icon.getData("baseScaleX")), Number(view.icon.getData("baseScaleY")));
     }
+    this.refreshMemoryTree();
+  }
+
+  private focusRecommendedAutomationMemory(): void {
+    if (this.state.active || this.optionsOpen) return;
+    const nodeId = getRecommendedAutomationMemoryNodeId(this.permanent);
+    const node = nodeId ? ECOSYSTEM_MEMORY_NODE_BY_ID.get(nodeId) : null;
+    if (!node || !this.getRevealedMemoryNodeIds().has(node.id)) return;
+    this.selectedMemoryNodeId = node.id;
+    const targetZoom = this.scale.width < 760 ? 5.2 : 4.2;
+    const targetScale = this.memoryTreeFitScale * targetZoom;
+    this.memoryTreeZoom = targetZoom;
+    this.memoryTreePanX = -node.x * targetScale;
+    this.memoryTreePanY = -node.y * targetScale;
+    this.audio.play("skill_select");
     this.refreshMemoryTree();
   }
 

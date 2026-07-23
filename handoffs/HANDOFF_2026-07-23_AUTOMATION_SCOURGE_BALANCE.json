@@ -1,0 +1,56 @@
+{
+  "date": "2026-07-23",
+  "topic": "Early automation, Memory Web guidance, and Scourge balance",
+  "currentUserGoal": "Make early automation arrive sooner and matter more, make useful automation upgrades easier to find, and restore enough Scourge pressure that the field cannot coast unattended.",
+  "workCompleted": [
+    "Lowered early Tiny Sprinkler, Field Mouse, and Bee Hive Run Touch costs and softened their repeat-purchase cost growth.",
+    "Raised early helper recipe speed and output, increased throughput-rank value, and gave the first Field Mouse enough starting Seeds to demonstrate its loop.",
+    "Strengthened Damp Furrows so the Tiny Sprinkler and Field Mouse form a meaningful early production link.",
+    "Added first-run manual Care feedback while preserving the inevitable first collapse at approximately nineteen seconds.",
+    "Removed the redundant TOUCH READY and TOUCH RECOVERING field labels while retaining the visible cooldown bar.",
+    "Added semantic Memory Web colors for helper unlocks, speed, efficiency, storage, starting stock, and modes.",
+    "Added a clickable AUTOMATION PICK recommendation that focuses the next useful automation Memory.",
+    "Retuned post-first-run Scourge upward after the automation pass: Run 2 opens at 4.94 Care per second and reaches approximately 1.79 times that demand after thirty seconds.",
+    "Locked the intended pressure band with deterministic simulations: ideal Run 2 play lasts about 106 seconds, while two Sprinklers and one Mouse leave about 36.7 HP after a sixty-second hands-off window."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemMemoryTree.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-23_AUTOMATION_SCOURGE_BALANCE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "Focused EcosystemSystem and EcosystemMemoryTree verification passed: 66 tests.",
+    "npm run check passed: ESLint, 204 Vitest tests across 24 files, strict TypeScript, and the Vite production build.",
+    "The served ecosystem playtest entered Run 2 with the expected 4.94 Care per second Scourge demand.",
+    "The live route reported no browser errors.",
+    "git diff --check passed apart from normal Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "baseCommit": "3f0e111",
+    "pushRequested": true,
+    "deploymentRequested": true,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The deterministic targets are intentionally firmer, but the final feel still needs hands-on play across several consecutive runs.",
+    "The automation recommendation currently prioritizes unlocked helper speed, then the next helper unlock, then additional speed and efficiency ranks.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and is not part of this release."
+  ],
+  "nextRecommendedSteps": [
+    "Play Runs 2 through 5 without debug bonuses and judge whether automation creates breathing room without removing the need to intervene.",
+    "Tune individual helper recipes rather than globally weakening Scourge if one production chapter remains underpowered.",
+    "Expand the recommendation system if players still struggle to identify health, field-growth, or helper-mode progression."
+  ],
+  "doNotRevert": [
+    "Do not restore the TOUCH READY or TOUCH RECOVERING labels; the cooldown bar is the approved field feedback.",
+    "Do not undo the semantic Memory category colors or clickable automation recommendation.",
+    "Do not weaken the newly accelerated helpers when adjusting Scourge; these systems are now covered by separate balance guards.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}
