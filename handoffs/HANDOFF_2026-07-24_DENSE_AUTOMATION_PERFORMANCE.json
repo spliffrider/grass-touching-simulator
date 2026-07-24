@@ -1,0 +1,65 @@
+{
+  "date": "2026-07-24",
+  "topic": "Dense automation presentation scheduler and redesign stress harness",
+  "currentUserGoal": "Keep the ecosystem game fast and smooth even when a 100x100 field has many helpers and effects active at once.",
+  "workCompleted": [
+    "Profiled the actual ecosystem redesign route before optimizing; the measured risk was visual and tween congestion rather than fixed-tick simulation cost.",
+    "Added a fixed-size round-robin helper-effect scheduler that batches repeated mechanical pulses into representative presentations.",
+    "Kept every automated touch, heal, Run Touch, resource conversion, and field-stage update on the original deterministic production tick.",
+    "Set representative presentation gaps to 120 ms on desktop and 210 ms on phone-sized views.",
+    "Set per-helper repeat gaps to 620 ms on desktop and 900 ms on phone-sized views so one fast helper cannot monopolize the field.",
+    "Added fair helper rotation so all eight helper families remain visible under sustained automation.",
+    "Metered automated grass-touch audio using the same adaptive cadence to avoid redundant simultaneous sound starts.",
+    "Added a one-click Stress automation playtest control that creates a 100x100 field with 12 copies of every helper and maximum relevant ranks.",
+    "Extended the redesign harness with automation rate, cadence, pending pulse payload, representative launches, represented pulses, and visible helper feedback counts.",
+    "Added focused scheduler tests for batching, cadence, fairness, repeat limits, phone budgets, requeueing, and reset behavior.",
+    "Updated the durable ecosystem design and performance notes with the new presentation contract and measured results."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "docs/PERFORMANCE_NOTES.md",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemHelperEffectScheduler.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemHelperEffectScheduler.test.ts",
+    "handoffs/HANDOFF_2026-07-24_DENSE_AUTOMATION_PERFORMANCE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 216 Vitest tests across 25 files, strict TypeScript, and the Vite production build.",
+    "The repeatable stress scenario held 10,000 logical tiles and 100 rendered chunk views without per-frame full-field scans.",
+    "A 390x844 browser viewport at about 5,537 automated touches per second showed zero frame spikes and about 0.086 ms average frame work in the sampled window.",
+    "An eight-second sustained phone-sized sample kept pending pulse payload between 48 and 71 while presentations continued, rather than accumulating indefinitely.",
+    "A 1280x720 sample at about 3,228 automated touches per second showed zero frame spikes, about 0.145 ms average frame work, and 2 ms maximum frame work.",
+    "A clean post-build phone stress pass had no browser errors or warnings, zero full-field scans, zero frame spikes, 10 active effects, and 15 active tweens at capture.",
+    "A one-sprinkler regression pass kept zero queued pulse backlog, visible field and healing feedback, and immediate automation behavior.",
+    "Production deployment dpl_5JHZyDRBe5UrrWqDdh4efjawH1Pc reached READY and grasstouchingsimulator.com served the new scheduler bundle."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "previousCommit": "190794d",
+    "featureCommit": "d9c548b",
+    "pushed": true,
+    "deploymentUrl": "https://grasstouchingsimulator.com",
+    "macSynced": true,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The 390x844 measurement changes viewport size but does not emulate a physically slow phone CPU or GPU.",
+    "Real-device phone testing remains necessary before claiming a universal hardware FPS floor.",
+    "The stress control intentionally mutates playtest save state; Reset prototype restores a clean Run 1 afterward.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and is not part of this slice."
+  ],
+  "nextRecommendedSteps": [
+    "Run the deployed stress scenario on one real phone and record frame pacing during ten seconds of dense automation.",
+    "Keep later helper-specific effects inside the scheduler instead of adding independent unbounded emitters.",
+    "Use the new harness metrics whenever helper animation duration, particle count, or cadence changes."
+  ],
+  "doNotRevert": [
+    "Do not delay or discard mechanical helper output to solve presentation load.",
+    "Do not launch one visual or sound per automated touch.",
+    "Do not replace the fair round-robin scheduler with first-helper-wins scanning.",
+    "Do not use the legacy 1,200-tile harness as evidence for ecosystem performance.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}
