@@ -1,0 +1,53 @@
+{
+  "date": "2026-07-24",
+  "topic": "Non-repeating pitch variation for ecosystem automation sounds",
+  "currentUserGoal": "Make frequently repeated helper and automated-touch sound effects feel less monotonous without adding performance cost or destabilizing the mix.",
+  "workCompleted": [
+    "Added small discrete pitch-and-gain palettes for water, organic helper, and field-impact sounds.",
+    "Made each palette avoid choosing the same variant on two consecutive plays.",
+    "Applied water variation to Tiny Sprinkler launches.",
+    "Applied organic variation to Field Mouse and Bee Hive helper sounds.",
+    "Applied impact variation to representative automated grass-touch sounds.",
+    "Kept milestone, purchase, unlock, blocked, and other UI sounds neutral and recognizable.",
+    "Kept the existing adaptive automation sound cadence and did not add any additional simultaneous sound starts.",
+    "Added deterministic tests for neutral playback, repeat avoidance, bounded variation, and independent sound families."
+  ],
+  "filesChanged": [
+    "src/game/systems/SoundVariation.ts",
+    "src/game/systems/AudioSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/SoundVariation.test.ts",
+    "handoffs/HANDOFF_2026-07-24_SFX_PITCH_VARIATION.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 220 Vitest tests across 26 files, strict TypeScript, and the Vite production build.",
+    "Desktop redesign stress verification used a 100x100 field at about 5,537 automated touches per second and reported 144 FPS, zero frame spikes, no full-field scans, and no browser warnings or errors.",
+    "Phone-sized 390x844 stress verification used the existing 210 ms representative-effect cadence and reported 144 FPS, zero frame spikes, no full-field scans, and no browser warnings or errors.",
+    "Variation tests confirm all repeated profiles stay between 0.94x and 1.07x pitch and between 0.94x and 1.03x gain."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "featureCommit": "888d85e",
+    "pushed": false,
+    "deploymentUrl": "pending",
+    "macSynced": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "Automated listening still needs subjective human audition on speakers or headphones; numeric and browser verification can prove bounds and stability but not taste.",
+    "The phone viewport test does not emulate a physically slow mobile CPU or speaker.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and is not part of this slice."
+  ],
+  "nextRecommendedSteps": [
+    "Audition several sprinklers and Field Mice together and tune individual palette width only if one family sounds too animated or too subtle.",
+    "Give later helper families their own sound recipes before widening the variation palettes.",
+    "Keep all dense automation audio behind the existing adaptive scheduler."
+  ],
+  "doNotRevert": [
+    "Do not launch one sound per automated touch; variation belongs on representative scheduled sounds.",
+    "Do not apply random pitch variation to UI confirmations or major musical milestones.",
+    "Do not replace discrete bounded palettes with unrestricted random playback rates.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}
