@@ -702,6 +702,20 @@ export function getHelperCycleIntervalMs(
   return 1_000 / (recipe.cyclesPerSecond * getHelperThroughputMultiplier(throughputRank));
 }
 
+export function getHelperStackCycleIntervalMs(
+  state: Pick<EcosystemState, "helpers">,
+  permanent: Pick<PermanentEcosystemState, "throughputRanks">,
+  helperId: HelperId,
+): number {
+  const helper = state.helpers[helperId];
+  if (helper.count <= 0) return Number.POSITIVE_INFINITY;
+  return getHelperCycleIntervalMs(
+    helperId,
+    permanent.throughputRanks[helperId],
+    helper.modeId,
+  ) / helper.count;
+}
+
 export function hasDampFurrowsLink(state: Pick<EcosystemState, "helpers">): boolean {
   return state.helpers.tinySprinkler.count > 0 && state.helpers.fieldMouse.count > 0;
 }
@@ -1258,7 +1272,7 @@ function performRecipe(
     }
   }
   for (const output of recipe.outputs) {
-    if (output.amount <= 0) continue;
+    if (output.amount <= 0 || output.allowOverflow) continue;
     const buffer = state.resources[output.resourceId];
     const roomCycles = (buffer.capacity - buffer.amount) / output.amount;
     if (roomCycles < cycles) {

@@ -132,6 +132,7 @@ import {
   getHelperAutomatedTouchYield,
   getHelperAutomationRates,
   getHelperCycleIntervalMs,
+  getHelperStackCycleIntervalMs,
   getHelperPurchaseCost,
   getHelperStorageResourceIds,
   getHelperUnlockCost,
@@ -2351,11 +2352,18 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           .setEnabled(equipmentAvailable && this.state.runTouches >= cost);
         const actor = this.helperActors[helperId];
         if (helper.count > 0) {
+          const stackCycleIntervalMs = getHelperStackCycleIntervalMs(this.state, this.permanent, helperId);
+          const cycleCopy = stackCycleIntervalMs < 1_000
+            ? `${(stackCycleIntervalMs / 1_000).toFixed(2)}s`
+            : `${(stackCycleIntervalMs / 1_000).toFixed(1)}s`;
+          const pauseCopy = helper.lastPauseReason?.startsWith("Needs ")
+            ? `NO ${helper.lastPauseReason.slice("Needs ".length).toUpperCase()}`
+            : "PAUSED";
           this.setTextIfChanged(
             actor.countText,
             helper.lastPauseReason
-              ? `x${helper.count}  |  PAUSED`
-              : `x${helper.count}  |  ${automation.touchesPerSecond.toFixed(1)}/s`,
+              ? `x${helper.count}  |  ${pauseCopy}`
+              : `x${helper.count}  |  ${cycleCopy}`,
           );
           const progressRatio = helper.lastPauseReason ? 0 : Phaser.Math.Clamp(helper.pulseProgress, 0, 1);
           actor.progressFill.setDisplaySize(Math.max(1, (actor.badgeWidth - 4) * progressRatio), 3);

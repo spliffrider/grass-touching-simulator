@@ -50,6 +50,7 @@ import {
   getModeUnlockCost,
   getPermanentRankCost,
   getHelperPurchaseCost,
+  getHelperStackCycleIntervalMs,
   getHelperStorageResourceIds,
   getHelperUnlockCost,
   getLingeringCareMaxRate,
@@ -339,6 +340,36 @@ describe("EcosystemSystem", () => {
 
     expect(state.resources.growth.amount).toBe(state.resources.growth.capacity);
     expect(state.resources.care.producedTotal).toBeGreaterThan(0);
+    expect(state.helpers.tinySprinkler.lastPauseReason).toBeNull();
+  });
+
+  it("keeps stacked sprinklers cycling when the Moisture byproduct tank is full", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 2;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    permanent.throughputRanks.tinySprinkler = 1;
+    const state = createEcosystemState(permanent, { seed: 6 });
+    state.helpers.tinySprinkler.count = 6;
+    state.resources.dew.capacity = 10_000;
+    state.resources.dew.amount = 10_000;
+    state.resources.moisture.amount = state.resources.moisture.capacity;
+    state.resources.care.capacity = 10_000;
+    state.resources.care.amount = 0;
+
+    const stackCycleIntervalMs = getHelperStackCycleIntervalMs(
+      state,
+      permanent,
+      "tinySprinkler",
+    );
+    for (let step = 0; step < 40; step += 1) {
+      advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+    }
+
+    expect(stackCycleIntervalMs).toBeCloseTo(267.094, 2);
+    expect(state.resources.moisture.amount).toBe(state.resources.moisture.capacity);
+    expect(state.helpers.tinySprinkler.cyclesCompleted).toBeCloseTo(37.44, 8);
+    expect(state.automatedTouchCount).toBeCloseTo(37.44, 8);
+    expect(state.automatedHealingTotal).toBeGreaterThan(0);
     expect(state.helpers.tinySprinkler.lastPauseReason).toBeNull();
   });
 

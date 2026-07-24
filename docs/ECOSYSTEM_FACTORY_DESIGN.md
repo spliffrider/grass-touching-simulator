@@ -70,6 +70,11 @@ Every resource is capacity constrained. A recipe pauses, without consuming its
 input, when any required output has no room. The Living Ledger identifies those
 pauses and reports the resource currently limiting Care throughput.
 
+Some recipes mark a secondary byproduct as overflow-safe. A full byproduct tank
+does not cancel the recipe's primary output, automated touch, or healing. Tiny
+Sprinkler Moisture is overflow-safe so a saturated Moisture tank cannot silently
+shut down Care; an empty Dew tank still pauses the sprinkler normally.
+
 ### Automated Touch Contract
 
 Every completed helper cycle is also an automated grass-touch event. This is a

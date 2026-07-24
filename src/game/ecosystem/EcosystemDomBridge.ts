@@ -30,6 +30,7 @@ import {
   getFirstAutomationStatus,
   getHelperAutomationRates,
   getHelperPurchaseCost,
+  getHelperStackCycleIntervalMs,
   getHelperUnlockCost,
   getManualTouchPowerBonusPercent,
   getModeUnlockCost,
@@ -590,6 +591,11 @@ export class EcosystemDomBridge {
     this.setDataset(this.root, "state", state.active ? "active" : "memory");
     this.setDataset(this.root, "worksOpen", `${worksOpen}`);
     this.setDataset(this.root, "optionsOpen", `${optionsOpen}`);
+    const tinySprinklerCycleMs = getHelperStackCycleIntervalMs(
+      state,
+      permanent,
+      "tinySprinkler",
+    );
     const prototypeSnapshot = JSON.stringify({
       active: state.active,
       hp: Number(state.hp.toFixed(3)),
@@ -636,6 +642,15 @@ export class EcosystemDomBridge {
       revealedMemoryNodes: state.active ? 0 : revealedMemoryNodeIds.size,
       equipmentAvailable,
       tinySprinklers: equipmentAvailable ? tinySprinkler.count : 0,
+      tinySprinklerCycles: Number(tinySprinkler.cyclesCompleted.toFixed(3)),
+      tinySprinklerCycleProgress: Number(tinySprinkler.pulseProgress.toFixed(3)),
+      tinySprinklerCycleMs: Number.isFinite(tinySprinklerCycleMs)
+        ? Number(tinySprinklerCycleMs.toFixed(3))
+        : null,
+      tinySprinklerPauseReason: tinySprinkler.lastPauseReason,
+      dew: Number(state.resources.dew.amount.toFixed(3)),
+      moisture: Number(state.resources.moisture.amount.toFixed(3)),
+      care: Number(state.resources.care.amount.toFixed(3)),
       firstSprinklerCost,
       firstSprinklerProgress: !equipmentAvailable
         ? 0
