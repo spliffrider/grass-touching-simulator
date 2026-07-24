@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-24",
-  "latestHandoff": "HANDOFF_2026-07-24_SFX_PITCH_VARIATION.json",
+  "updatedAt": "2026-07-25",
+  "latestHandoff": "HANDOFF_2026-07-25_SPRINKLER_STALL_FIX.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

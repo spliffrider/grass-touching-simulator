@@ -1,0 +1,60 @@
+{
+  "date": "2026-07-25",
+  "topic": "Stacked Tiny Sprinkler stall and visible cycle timing",
+  "currentUserGoal": "Prevent accumulated Tiny Sprinklers from appearing to stop after a while, make their combined cycle shorten as more are owned, and clearly distinguish real resource starvation from a broken cooldown.",
+  "workCompleted": [
+    "Traced the apparent cooldown stack to recipe capacity behavior rather than timer accumulation.",
+    "Found that a full Moisture buffer clamped the entire Tiny Sprinkler recipe to zero, silently canceling Care or Growth output, automated touches, healing, pulses, and animation.",
+    "Added overflow-safe secondary recipe outputs and marked Tiny Sprinkler Moisture overflow-safe in both Caretaker and Cultivator modes.",
+    "Preserved genuine recipe pauses: an empty Dew buffer still stops the sprinkler and a full primary Care or Growth buffer still applies normal capacity behavior.",
+    "Added a shared stack-cycle interval calculation so additional sprinklers visibly shorten the combined cycle time.",
+    "Changed helper field badges from touches-per-second to the real stack interval, such as 0.27s for six rank-one sprinklers.",
+    "Changed input-starvation badge copy to explicit labels such as NO DEW instead of an unexplained PAUSED state.",
+    "Extended the redesign DOM snapshot with Tiny Sprinkler cycles, progress, interval, pause reason, and relevant resource buffers.",
+    "Added deterministic regression coverage for six rank-one sprinklers running for ten seconds with a saturated Moisture tank."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-25_SPRINKLER_STALL_FIX.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 221 Vitest tests across 26 files, strict TypeScript, and the Vite production build.",
+    "The regression test confirms six rank-one sprinklers have an approximately 267.094 ms combined cycle and complete 37.44 cycles in ten seconds while Moisture remains full.",
+    "Desktop redesign verification at 100x100 with twelve sprinklers showed cycles advancing, a 43.403 ms combined cycle, no pause, 144 FPS, zero frame spikes, and no full-field scans.",
+    "Phone-sized 390x844 verification showed cycles continuing, no final pause, 144 FPS, zero frame spikes, no full-field scans, and no browser warnings or errors.",
+    "Vercel production deployment dpl_FktCoLuj3wYCDAPN1UdWXdSfU3Be reached READY and was aliased to grasstouchingsimulator.com.",
+    "The Mac mini fast-forwarded to 20582ea and completed its own strict TypeScript and Vite production build."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "featureCommit": "20582ea",
+    "pushed": true,
+    "deploymentUrl": "https://grasstouchingsimulator.com",
+    "deploymentId": "dpl_FktCoLuj3wYCDAPN1UdWXdSfU3Be",
+    "macSyncedThroughFeatureCommit": true,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "A sprinkler can still correctly pause when Dew is exhausted or its primary output is full; the field badge now exposes Dew starvation explicitly.",
+    "Overflow-safe Moisture is intentionally discarded when its tank is full so the sprinkler can continue its primary work.",
+    "The browser stress metrics reflect the current desktop display and a responsive phone viewport, not a physically slow phone CPU.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and is not part of this slice."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test a long run with several sprinklers and watch for the cycle badge to shorten as copies are purchased.",
+    "Confirm NO DEW is understandable when the actual input buffer runs dry.",
+    "Apply overflow-safe byproducts to other recipes only when their secondary storage demonstrably cancels a more important primary action."
+  ],
+  "doNotRevert": [
+    "Do not make a full Moisture tank cancel Tiny Sprinkler Care, Growth, automated touches, healing, or pulses.",
+    "Do not add one independent timer or Phaser event per helper copy; stack throughput remains aggregate model work.",
+    "Do not label genuine input starvation as a generic unexplained cooldown.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}
