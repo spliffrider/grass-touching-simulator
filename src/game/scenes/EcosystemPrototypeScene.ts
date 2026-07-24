@@ -469,17 +469,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private caretakerTitle!: Phaser.GameObjects.Text;
   private caretakerRole!: Phaser.GameObjects.Text;
   private caretakerStats!: Phaser.GameObjects.Text;
-  private balanceTitle!: Phaser.GameObjects.Text;
-  private balanceStatus!: Phaser.GameObjects.Text;
-  private balanceDetail!: Phaser.GameObjects.Text;
-  private balanceBarBack!: Phaser.GameObjects.Rectangle;
-  private balanceBarFill!: Phaser.GameObjects.Rectangle;
-  private balanceGoalMarker!: Phaser.GameObjects.Rectangle;
-  private scourgeHalo!: Phaser.GameObjects.Arc;
-  private scourgeCore!: Phaser.GameObjects.Arc;
   private plotStageText!: Phaser.GameObjects.Text;
   private plotDetailText!: Phaser.GameObjects.Text;
-  private openingPanelsVisible = false;
+  private openingCaretakerVisible = false;
   private displayedHpRatio = 1;
   private displayedShieldRatio = 0;
   private lastObservedShield = 0;
@@ -726,7 +718,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.lastGameOverState = false;
     this.firstSprinklerCycleCelebrated = false;
     this.automationGoalReadyForPurchase = false;
-    this.openingPanelsVisible = false;
+    this.openingCaretakerVisible = false;
     this.displayedHpRatio = 1;
     this.displayedShieldRatio = 0;
     this.lastObservedShield = 0;
@@ -933,14 +925,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.caretakerTitle = this.createText("FIELD HEIR", 22, "#fff3c2", "bold");
     this.caretakerRole = this.createText("Manual caretaker", 12, "#8de7ff", "bold");
     this.caretakerStats = this.createText("", 13, "#dff6ca");
-    this.balanceTitle = this.createText("SCOURGE VS CARE", 22, "#fff3c2", "bold");
-    this.balanceStatus = this.createText("", 16, "#f1a6ce", "bold");
-    this.balanceDetail = this.createText("", 13, "#e3f3d6");
-    this.balanceBarBack = this.add.rectangle(0, 0, 100, 18, 0x071b11, 0.98).setOrigin(0, 0.5).setStrokeStyle(2, 0x5b3926, 0.9);
-    this.balanceBarFill = this.add.rectangle(0, 0, 100, 12, 0x83d765, 1).setOrigin(0, 0.5);
-    this.balanceGoalMarker = this.add.rectangle(0, 0, 3, 24, 0xffe889, 0.92).setOrigin(0.5);
-    this.scourgeHalo = this.add.circle(0, 0, 38, 0x5d213d, 0.22).setStrokeStyle(3, 0xf07ab2, 0.72);
-    this.scourgeCore = this.add.circle(0, 0, 15, 0x9d315f, 0.7).setStrokeStyle(2, 0xffb1d3, 0.9);
     this.plotStageText = this.createText("", 20, "#fff3c2", "bold").setOrigin(0.5);
     this.plotDetailText = this.createText("", 12, "#b8d9a4", "bold").setOrigin(0.5);
     this.fieldRoot.add([
@@ -974,14 +958,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.caretakerTitle,
       this.caretakerRole,
       this.caretakerStats,
-      this.balanceTitle,
-      this.balanceStatus,
-      this.balanceDetail,
-      this.balanceBarBack,
-      this.balanceBarFill,
-      this.balanceGoalMarker,
-      this.scourgeHalo,
-      this.scourgeCore,
       this.plotStageText,
       this.plotDetailText,
     ]);
@@ -1539,9 +1515,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     let ledgerHeight = 0;
     let caretakerX = 0;
     let caretakerWidth = 0;
-    let balanceX = 0;
-    let balanceWidth = 0;
-    this.openingPanelsVisible = !mobile && !ledgerUnlocked && width >= 1100;
+    this.openingCaretakerVisible = !mobile && !ledgerUnlocked && width >= 1100;
     if (mobile) {
       const fieldY = header.y + header.height + 8;
       const fieldHeight = ledgerUnlocked ? Math.min(350, Math.max(250, height * 0.43)) : height - fieldY - 10;
@@ -1564,18 +1538,16 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           width: contentWidth - ledgerWidth - 14,
           height: ledgerHeight,
         };
-      } else if (this.openingPanelsVisible) {
+      } else if (this.openingCaretakerVisible) {
         const gap = 14;
-        caretakerWidth = Phaser.Math.Clamp(contentWidth * 0.19, 240, 310);
-        balanceWidth = caretakerWidth;
+        caretakerWidth = Phaser.Math.Clamp(contentWidth * 0.21, 250, 330);
         caretakerX = contentX;
         this.fieldBounds = {
           x: caretakerX + caretakerWidth + gap,
           y: ledgerY,
-          width: contentWidth - caretakerWidth - balanceWidth - gap * 2,
+          width: contentWidth - caretakerWidth - gap,
           height: ledgerHeight,
         };
-        balanceX = this.fieldBounds.x + this.fieldBounds.width + gap;
       } else {
         const fieldWidth = Math.min(contentWidth, 900);
         this.fieldBounds = {
@@ -1588,12 +1560,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
     this.drawPanel(this.fieldChrome, this.fieldBounds.x, this.fieldBounds.y, this.fieldBounds.width, this.fieldBounds.height, 0.84);
     if (ledgerUnlocked) this.drawPanel(this.fieldChrome, ledgerX, ledgerY, ledgerWidth, ledgerHeight, 0.94);
-    if (this.openingPanelsVisible) {
+    if (this.openingCaretakerVisible) {
       this.drawPanel(this.fieldChrome, caretakerX, ledgerY, caretakerWidth, ledgerHeight, 0.94);
-      this.drawPanel(this.fieldChrome, balanceX, ledgerY, balanceWidth, ledgerHeight, 0.94);
       this.fieldChrome.lineStyle(2, 0xd8b66a, 0.38);
       this.fieldChrome.lineBetween(caretakerX + 18, ledgerY + 58, caretakerX + caretakerWidth - 18, ledgerY + 58);
-      this.fieldChrome.lineBetween(balanceX + 18, ledgerY + 58, balanceX + balanceWidth - 18, ledgerY + 58);
     }
 
     const fieldSurfaceTop = firstRunGuideVisible ? 82 : 42;
@@ -1624,17 +1594,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.caretakerTitle,
       this.caretakerRole,
       this.caretakerStats,
-      this.balanceTitle,
-      this.balanceStatus,
-      this.balanceDetail,
-      this.balanceBarBack,
-      this.balanceBarFill,
-      this.balanceGoalMarker,
-      this.scourgeHalo,
-      this.scourgeCore,
     ];
-    for (const object of openingObjects) object.setVisible(this.openingPanelsVisible);
-    if (this.openingPanelsVisible) {
+    for (const object of openingObjects) object.setVisible(this.openingCaretakerVisible);
+    if (this.openingCaretakerVisible) {
       const portraitSize = Math.min(118, caretakerWidth - 72);
       this.caretakerTitle.setFontSize(20).setPosition(caretakerX + 18, ledgerY + 18);
       this.playerPortrait
@@ -1643,16 +1605,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         .setData("baseY", ledgerY + 124);
       this.caretakerRole.setOrigin(0.5, 0).setPosition(caretakerX + caretakerWidth / 2, ledgerY + 190);
       this.caretakerStats.setPosition(caretakerX + 20, ledgerY + 230).setWordWrapWidth(caretakerWidth - 40);
-
-      this.balanceTitle.setFontSize(20).setPosition(balanceX + 18, ledgerY + 18);
-      this.scourgeHalo.setPosition(balanceX + balanceWidth / 2, ledgerY + 120);
-      this.scourgeCore.setPosition(balanceX + balanceWidth / 2, ledgerY + 120);
-      this.balanceStatus.setOrigin(0.5, 0).setPosition(balanceX + balanceWidth / 2, ledgerY + 176);
-      const careBarWidth = balanceWidth - 42;
-      this.balanceBarBack.setPosition(balanceX + 21, ledgerY + 224).setSize(careBarWidth, 20);
-      this.balanceBarFill.setPosition(balanceX + 24, ledgerY + 224).setSize(careBarWidth - 6, 14);
-      this.balanceGoalMarker.setPosition(balanceX + balanceWidth - 24, ledgerY + 224).setSize(3, 26);
-      this.balanceDetail.setPosition(balanceX + 21, ledgerY + 254).setWordWrapWidth(balanceWidth - 42);
     }
 
     this.ledgerTitle.setVisible(ledgerUnlocked);
@@ -2195,38 +2147,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         `Broad Palm      ${palmRadius > 0 ? `radius ${palmRadius}` : "single plot"}`,
         `Many Hands      ${this.permanent.manyHandsRank * 2} echoes`,
         `Touches made    ${this.state.manualTouchCount}`,
-      ].join("\n"));
-      const careRatio = readout.scourgeDemandPerSecond <= 0
-        ? 1
-        : readout.careProductionPerSecond / readout.scourgeDemandPerSecond;
-      const careBarWidth = Math.max(1, this.balanceBarBack.width - 6);
-      const careDisplayWidth = Math.max(1, careBarWidth * Math.min(1, careRatio));
-      if (Math.abs(this.balanceBarFill.displayWidth - careDisplayWidth) > 0.1) {
-        this.balanceBarFill.setDisplaySize(careDisplayWidth, this.balanceBarFill.height);
-      }
-      const careColor = careRatio >= 1 ? 0x83d765 : careRatio >= 0.55 ? 0xf0c85b : 0xe8616a;
-      if (this.balanceBarFill.fillColor !== careColor) this.balanceBarFill.setFillStyle(careColor, 1);
-      const balanceStatus = awaitingFirstTouch
-        ? "TOUCH TO BEGIN"
-        : careRatio >= 1
-          ? "CARE HOLDS"
-          : careRatio >= 0.55
-            ? "PRESSURE RISING"
-            : "THE FIELD IS DRAINING";
-      if (this.balanceStatus.text !== balanceStatus) {
-        this.balanceStatus
-          .setText(balanceStatus)
-          .setColor(awaitingFirstTouch ? "#fff3c2" : careRatio >= 1 ? "#9be27c" : careRatio >= 0.55 ? "#ffe889" : "#f1a6ce");
-      }
-      this.setTextIfChanged(this.balanceDetail, [
-        `Scourge drain  ${readout.scourgeDemandPerSecond.toFixed(2)} HP/s`,
-        `Helper Care    ${readout.careProductionPerSecond.toFixed(2)} HP/s`,
-        `Net drain      ${Math.max(0, readout.scourgeDemandPerSecond - readout.careProductionPerSecond).toFixed(2)} HP/s`,
-        "",
-        "Touching restores HP immediately.",
-        "Helpers provide steady Care in later fields.",
-        "",
-        `First collapse banks ${GRASS_TOUCHES_LABEL}.`,
       ].join("\n"));
       const firstStage = this.state.field.stages[0] as TileStage;
       this.setTextIfChanged(this.plotStageText, TILE_STAGE_LABELS[firstStage].toUpperCase());
@@ -2893,12 +2813,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       mote.rotation = angle + Math.sin(now * 0.0008 + phase) * 0.24;
       mote.alpha = 0.22 + (index % 4) * 0.07 + (Math.sin(now * 0.0015 + phase) + 1) * 0.06;
     }
-    if (this.openingPanelsVisible) {
+    if (this.openingCaretakerVisible) {
       const portraitBaseY = Number(this.playerPortrait.getData("baseY"));
       this.playerPortrait.y = portraitBaseY + Math.sin(now * 0.00115) * 2.5;
-      const scourgePulse = 1 + Math.sin(now * 0.0022) * 0.055;
-      this.scourgeHalo.setScale(scourgePulse).setAlpha(0.78 + Math.sin(now * 0.0017) * 0.12);
-      this.scourgeCore.setScale(1 + Math.sin(now * 0.0031 + 0.8) * 0.09);
     }
     if (this.automationGoalText.visible) {
       this.automationGoalText.setAlpha(this.automationGoalReadyForPurchase
