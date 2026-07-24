@@ -41,10 +41,12 @@
   ],
   "gitStatus": {
     "branch": "master",
-    "baseCommit": "4239a73",
-    "committed": false,
-    "pushRequested": true,
-    "deploymentRequested": true,
+    "previousCommit": "4239a73",
+    "featureCommit": "fa80bc2",
+    "committed": true,
+    "pushed": true,
+    "deploymentUrl": "https://grasstouchingsimulator.com",
+    "macSynced": true,
     "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
   },
   "knownIssues": [
