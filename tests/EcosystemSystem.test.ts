@@ -23,7 +23,7 @@ import {
   LINGERING_CARE_DURATION_MS,
   VERDANT_AEGIS_MAX_RANK,
   advanceEcosystem,
-  buyCultivationRank,
+  buyFieldExpansion,
   buyHelper,
   canBeginNextEcosystemRun,
   consumeHelperPulses,
@@ -35,7 +35,7 @@ import {
   getBroadPalmRadius,
   getBeeHiveStatus,
   getFirstAutomationStatus,
-  getCultivationCost,
+  getFieldExpansionRunTouchCost,
   getFieldTierUnlockCost,
   getFieldMouseStatus,
   getManyHandsPower,
@@ -57,6 +57,7 @@ import {
   getVerdantAegisCapacityRatio,
   getVerdantAegisConversion,
   getVerdantAegisDurationMs,
+  hasUnlockedFieldExpansion,
   isFirstCollapseAwaitingSprinkler,
   isFirstEcosystemCollapse,
   isFirstMemoryPending,
@@ -151,46 +152,6 @@ describe("EcosystemSystem", () => {
       sprinklerPurchasedAtMs,
       hpAtPurchase,
       grassTouchesAwarded: state.endedSummary?.grassTouchesAwarded ?? 0,
-    };
-  }
-
-  function simulateFirstFieldExpansionAtFullTouchRate(): {
-    expandedAtMs: number | null;
-    hpAtExpansion: number | null;
-    cultivationPurchases: number;
-  } {
-    const permanent = createPermanentEcosystemState();
-    permanent.completedRuns = 1;
-    permanent.unlockedHelpers.tinySprinkler = true;
-    permanent.maxFieldTier = 1;
-    const state = createEcosystemState(permanent, { seed: 9_011 });
-    const touchCooldownMs = getManualTouchCooldownMs(0);
-    let wallElapsedMs = 0;
-    let nextTouchAtMs = 0;
-    let cultivationPurchases = 0;
-
-    while (state.active && wallElapsedMs < 90_000 && state.field.width === 1) {
-      if (wallElapsedMs >= nextTouchAtMs) {
-        touchFieldTile(state, permanent, 0);
-        nextTouchAtMs += touchCooldownMs;
-      }
-      if (
-        state.helpers.tinySprinkler.count === 0
-        && state.runTouches >= getHelperPurchaseCost(state, "tinySprinkler")
-      ) {
-        buyHelper(state, permanent, "tinySprinkler");
-      }
-      while (state.field.width === 1 && buyCultivationRank(state, permanent)) {
-        cultivationPurchases += 1;
-      }
-      advanceEcosystem(state, permanent, 10);
-      wallElapsedMs += 10;
-    }
-
-    return {
-      expandedAtMs: state.field.width === 2 ? wallElapsedMs : null,
-      hpAtExpansion: state.field.width === 2 ? state.hp : null,
-      cultivationPurchases,
     };
   }
 
@@ -754,41 +715,30 @@ describe("EcosystemSystem", () => {
     expect(state.resources.growth.amount).toBeCloseTo(7);
   });
 
-  it("front-loads field progress while preserving a steep large-field Growth curve", () => {
-    const permanent = createPermanentEcosystemState();
-    permanent.maxFieldTier = FIELD_SIZE_LADDER.length - 1;
+  it("doubles the Run Touches price at every field expansion", () => {
+    const costs = FIELD_SIZE_LADDER
+      .slice(1)
+      .map((_, index) => getFieldExpansionRunTouchCost(index + 1));
 
-    const totalTrackCost = (fieldSizeIndex: number): number => {
-      const state = createEcosystemState(permanent, { fieldSizeIndex, seed: 7_700 + fieldSizeIndex });
-      let total = 0;
-      for (let rank = 0; rank < 10; rank += 1) {
-        state.field.cultivationRank = rank;
-        total += getCultivationCost(state);
-      }
-      return total;
-    };
-
-    expect(totalTrackCost(0)).toBe(43);
-    expect(totalTrackCost(1)).toBe(90);
-    expect(totalTrackCost(2)).toBe(140);
-    expect(totalTrackCost(7)).toBeGreaterThan(2_000);
-    expect(totalTrackCost(9)).toBeGreaterThan(5_000);
+    expect(costs).toEqual([
+      500,
+      1_000,
+      2_000,
+      4_000,
+      8_000,
+      16_000,
+      32_000,
+      64_000,
+      128_000,
+      256_000,
+    ]);
+    expect(getFieldExpansionRunTouchCost(0)).toBe(0);
+    expect(getFieldExpansionRunTouchCost(FIELD_SIZE_LADDER.length)).toBe(0);
   });
 
   it("lets the guaranteed opening reward reveal the first field threshold", () => {
     expect(getHelperUnlockCost("tinySprinkler") + getFieldTierUnlockCost(1)).toBe(7);
     expect(getFieldTierUnlockCost(2)).toBe(8);
-  });
-
-  it("reaches 2x2 during the first Tiny Sprinkler run with active play", () => {
-    const result = simulateFirstFieldExpansionAtFullTouchRate();
-
-    expect(result.cultivationPurchases).toBe(10);
-    expect(result.expandedAtMs).not.toBeNull();
-    expect(result.expandedAtMs!).toBeGreaterThanOrEqual(35_000);
-    expect(result.expandedAtMs!).toBeLessThanOrEqual(55_000);
-    expect(result.hpAtExpansion).not.toBeNull();
-    expect(result.hpAtExpansion!).toBeGreaterThan(0);
   });
 
   it("gives every helper storage Memory at least one real buffer to expand", () => {
@@ -1078,23 +1028,60 @@ describe("EcosystemSystem", () => {
     expect(result.changedChunks).toBe(0);
   });
 
-  it("expands only after cultivation rank ten and an owned field memory", () => {
+  it("spends 500 Run Touches on the first owned field expansion", () => {
     const permanent = createPermanentEcosystemState();
     permanent.maxFieldTier = 1;
     const state = createEcosystemState(permanent);
-    for (let rank = 0; rank < 9; rank += 1) {
-      state.resources.growth.amount = state.resources.growth.capacity;
-      expect(buyCultivationRank(state, permanent)).toBe(true);
-      expect(state.field.width).toBe(1);
-    }
-    state.resources.growth.amount = state.resources.growth.capacity;
-    expect(buyCultivationRank(state, permanent)).toBe(true);
+    state.runTouches = 500;
+    state.resources.growth.amount = 17;
+
+    expect(buyFieldExpansion(state, permanent)).toBe(true);
     expect(state.field.width).toBe(2);
+    expect(state.runTouches).toBe(0);
+    expect(state.resources.growth.amount).toBe(17);
     expect(state.field.cultivationRank).toBe(0);
   });
 
   it("gives the first onboarding failure time to be read", () => {
     expectReadableFirstCollapse(simulateManualRun(0, 0));
+  });
+
+  it("keeps field expansion unavailable until its Memory is owned and its Run Touches price is met", () => {
+    const permanent = createPermanentEcosystemState();
+    const state = createEcosystemState(permanent);
+    state.runTouches = 500;
+
+    expect(hasUnlockedFieldExpansion(state, permanent)).toBe(false);
+    expect(buyFieldExpansion(state, permanent)).toBe(false);
+    expect(state.field.width).toBe(1);
+    expect(state.runTouches).toBe(500);
+
+    permanent.grassTouches = getFieldTierUnlockCost(1);
+    expect(unlockNextFieldTier(permanent)).toBe(true);
+    expect(hasUnlockedFieldExpansion(state, permanent)).toBe(true);
+    state.runTouches = 499;
+    expect(buyFieldExpansion(state, permanent)).toBe(false);
+    expect(state.field.width).toBe(1);
+    expect(state.runTouches).toBe(499);
+
+    state.runTouches = 500;
+    expect(buyFieldExpansion(state, permanent)).toBe(true);
+    expect(state.field.width).toBe(2);
+    expect(state.runTouches).toBe(0);
+  });
+
+  it("charges the next exponential price after the field grows", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.maxFieldTier = 2;
+    const state = createEcosystemState(permanent);
+    state.runTouches = 1_500;
+
+    expect(buyFieldExpansion(state, permanent)).toBe(true);
+    expect(state.field.width).toBe(2);
+    expect(state.runTouches).toBe(1_000);
+    expect(buyFieldExpansion(state, permanent)).toBe(true);
+    expect(state.field.width).toBe(3);
+    expect(state.runTouches).toBe(0);
   });
 
   it("overpowers a first-run player touching at every legal cooldown", () => {

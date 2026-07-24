@@ -23,9 +23,10 @@ import {
   canBeginNextEcosystemRun,
   getBeeHiveStatus,
   getAncientHeartwoodRankCost,
-  getCultivationCost,
+  getFieldExpansionRunTouchCost,
   getDominantChunkStage,
   getFieldMouseStatus,
+  getFieldTierUnlockCost,
   getFirstAutomationStatus,
   getHelperPurchaseCost,
   getHelperUnlockCost,
@@ -33,6 +34,7 @@ import {
   getModeUnlockCost,
   getPermanentRankCost,
   getTouchRankCost,
+  hasUnlockedFieldExpansion,
   isFirstEcosystemCollapse,
   isFirstMemoryPending,
   isRunEquipmentAvailable,
@@ -49,7 +51,7 @@ export interface EcosystemDomActions {
   touchCoordinates(x: number, y: number): void;
   buyHelper(helperId: HelperId): void;
   switchMode(helperId: HelperId, modeId: string): void;
-  buyCultivation(): void;
+  buyFieldExpansion(): void;
   toggleWorks(): void;
   toggleOptions(): void;
   returnToTitle(): void;
@@ -151,7 +153,7 @@ export class EcosystemDomBridge {
   private readonly buyButtons: DynamicButton[] = [];
   private readonly modeButtons: DynamicButton[] = [];
   private readonly memoryButtons: DynamicButton[] = [];
-  private readonly cultivateButton: HTMLButtonElement;
+  private readonly fieldExpansionButton: HTMLButtonElement;
   private readonly worksButton: HTMLButtonElement;
   private readonly optionsButton: HTMLButtonElement;
   private readonly titleButton: HTMLButtonElement;
@@ -188,7 +190,11 @@ export class EcosystemDomBridge {
     controls.append(this.createButton("Touch coordinates", () => {
       this.actions.touchCoordinates(Number(this.xInput.value), Number(this.yInput.value));
     }, "ecosystem-touch-coordinates"));
-    this.cultivateButton = this.createButton("Buy Cultivation", () => this.actions.buyCultivation(), "ecosystem-cultivate");
+    this.fieldExpansionButton = this.createButton(
+      "Expand field",
+      () => this.actions.buyFieldExpansion(),
+      "ecosystem-expand-field",
+    );
     this.worksButton = this.createButton("Open Ecosystem Works", () => this.actions.toggleWorks(), "ecosystem-toggle-works");
     this.optionsButton = this.createButton("Open Options", () => this.actions.toggleOptions(), "ecosystem-toggle-options");
     this.titleButton = this.createButton(
@@ -200,7 +206,7 @@ export class EcosystemDomBridge {
     this.titleButton.disabled = true;
     this.nextRunButton = this.createButton("Begin next run", () => this.actions.beginNextRun(), "ecosystem-next-run");
     controls.append(
-      this.cultivateButton,
+      this.fieldExpansionButton,
       this.worksButton,
       this.optionsButton,
       this.titleButton,
@@ -350,6 +356,7 @@ export class EcosystemDomBridge {
       : getRevealedEcosystemMemoryNodeIds(permanent, firstMemoryPending);
     const equipmentAvailable = isRunEquipmentAvailable(state);
     const worksAvailable = equipmentAvailable && permanent.unlockedHelpers.tinySprinkler;
+    const fieldExpansionUnlocked = hasUnlockedFieldExpansion(state, permanent);
     const lines = [
       `Ecosystem prototype | Run ${state.runNumber} | ${state.active ? "active" : "Game Over"}`,
       ...(firstMemoryPending
@@ -359,7 +366,7 @@ export class EcosystemDomBridge {
         : []),
       `Ancient HP ${state.hp.toFixed(1)} / ${state.maxHp.toFixed(0)}`,
       `Scourge demand ${state.scourgeDemandPerSecond.toFixed(2)} Care/s | Care production ${state.rates.care.toFixed(2)}/s`,
-      `Field ${state.field.width}x${state.field.height} | Cultivation ${state.field.cultivationRank}/10 | ${RUN_TOUCHES_LABEL} ${state.runTouches.toFixed(1)} | ${GRASS_TOUCHES_LABEL} ${permanent.grassTouches.toFixed(0)}`,
+      `Field ${state.field.width}x${state.field.height} | ${RUN_TOUCHES_LABEL} ${state.runTouches.toFixed(1)} | ${GRASS_TOUCHES_LABEL} ${permanent.grassTouches.toFixed(0)}`,
       `Remembered Touch +${getManualTouchPowerBonusPercent(permanent)}% manual power`,
       ...(permanent.lingeringCareRank > 0
         ? [`Lingering Care ${state.lingeringCarePerSecond.toFixed(2)} Care/s | ${(state.lingeringCareRemainingMs / 1_000).toFixed(1)}s remaining`]
@@ -390,28 +397,28 @@ export class EcosystemDomBridge {
             return `${HELPERS[helperId].label}: ${helper.count}, ${helper.modeId}${helper.lastPauseReason ? `, ${helper.lastPauseReason}` : ""}`;
           }),
         ]
-        : ["Equipment: unavailable during Run 1"]),
+        : [state.runNumber === 1
+          ? "Equipment: unavailable during Run 1"
+          : "Equipment: paused while the field is still"]),
     ];
     this.setOutput(this.readable, lines.join("\n"));
     this.setInputMax(this.xInput, `${Math.max(0, state.field.width - 1)}`);
     this.setInputMax(this.yInput, `${Math.max(0, state.field.height - 1)}`);
-    const cultivationCost = getCultivationCost(state);
-    const cultivationComplete = state.field.cultivationRank >= 10;
     const nextFieldSize = FIELD_SIZE_LADDER[state.field.sizeIndex + 1];
-    const expandsOnPurchase = state.field.cultivationRank === 9
-      && nextFieldSize !== undefined
-      && state.field.sizeIndex < permanent.maxFieldTier;
+    const expansionCost = getFieldExpansionRunTouchCost(state.field.sizeIndex + 1);
     this.setDisabled(
-      this.cultivateButton,
-      !state.active || cultivationComplete || state.resources.growth.amount < cultivationCost,
+      this.fieldExpansionButton,
+      !state.active
+        || !fieldExpansionUnlocked
+        || nextFieldSize === undefined
+        || state.runTouches < expansionCost,
     );
+    this.setHidden(this.fieldExpansionButton, !state.active || !fieldExpansionUnlocked);
     this.setText(
-      this.cultivateButton,
-      cultivationComplete
-        ? "Cultivation complete"
-        : expandsOnPurchase
-        ? `Expand field to ${nextFieldSize} by ${nextFieldSize} for ${cultivationCost} Growth`
-        : `Buy Cultivation ${Math.min(10, state.field.cultivationRank + 1)}/10 for ${cultivationCost} Growth`,
+      this.fieldExpansionButton,
+      nextFieldSize === undefined
+        ? "Field fully expanded"
+        : `Expand field to ${nextFieldSize} by ${nextFieldSize} for ${expansionCost} ${RUN_TOUCHES_LABEL}`,
     );
     this.setText(this.worksButton, worksOpen ? "Close Ecosystem Works" : "Open Ecosystem Works");
     this.setHidden(this.worksButton, !worksAvailable);
@@ -554,7 +561,18 @@ export class EcosystemDomBridge {
         ? `Ancient Heartwood ${heartwoodRank}/${ANCIENT_HEARTWOOD_MAX_RANK}; complete`
         : `Ancient Heartwood ${heartwoodRank}/${ANCIENT_HEARTWOOD_MAX_RANK}; next ${heartwoodCost} ${GRASS_TOUCHES_LABEL}`,
     );
+    const fieldTierComplete = permanent.maxFieldTier >= FIELD_SIZE_LADDER.length - 1;
+    const nextFieldTier = Math.min(FIELD_SIZE_LADDER.length - 1, permanent.maxFieldTier + 1);
+    const nextFieldCost = fieldTierComplete ? 0 : getFieldTierUnlockCost(nextFieldTier);
+    const nextRememberedFieldSize = FIELD_SIZE_LADDER[nextFieldTier];
     this.setHidden(this.fieldTierButton, state.active || !revealedMemoryNodeIds.has("field:tier"));
+    this.setDisabled(this.fieldTierButton, fieldTierComplete || permanent.grassTouches < nextFieldCost);
+    this.setText(
+      this.fieldTierButton,
+      fieldTierComplete
+        ? "Expanding Field complete; 100 by 100 remembered"
+        : `Remember ${nextRememberedFieldSize} by ${nextRememberedFieldSize} field for ${nextFieldCost} ${GRASS_TOUCHES_LABEL}`,
+    );
     this.setHidden(
       this.fieldEmbraceButton,
       state.active || !revealedMemoryNodeIds.has("touch:fieldEmbrace"),
@@ -573,7 +591,8 @@ export class EcosystemDomBridge {
       elapsedMs: state.elapsedMs,
       field: `${state.field.width}x${state.field.height}`,
       logicalTiles: state.field.stages.length,
-      cultivation: state.field.cultivationRank,
+      fieldExpansionUnlocked,
+      fieldExpansionCost: expansionCost,
       growth: Number(state.resources.growth.amount.toFixed(3)),
       runTouches: Number(state.runTouches.toFixed(3)),
       grassTouches: Number(permanent.grassTouches.toFixed(3)),

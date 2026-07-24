@@ -147,7 +147,7 @@ Run-local state resets at Game Over:
 - HP, resources, RT, resource capacities, and measured rates
 - bought helper counts and selected modes
 - helper reconfiguration timers
-- cultivation rank, current field size, and all tile stages
+- current field size and all tile stages
 - Scourge age and touch counters
 
 Permanent Memories retain:
@@ -193,28 +193,36 @@ Sprinkler Caretaker spray also produces a small Growth trickle while preserving
 its primary Moisture and Care role. Run 1 grants no Hand Tending Growth because
 its first touch is still the deliberate onboarding collapse.
 
-## Field Ladder And Cultivation
+## Field Ladder And Expansion
 
 ```text
 1x1 -> 2x2 -> 3x3 -> 5x5 -> 8x8 -> 12x12
     -> 20x20 -> 32x32 -> 50x50 -> 75x75 -> 100x100
 ```
 
-Each size has ten run-local Cultivation ranks bought with Growth. A rank adds
-Dew yield and field storage. Rank ten expands the logical field if the next
-size Memory is owned. Expansion preserves old tiles in the center and creates
-new dormant tiles around them. At the current permanent ceiling, rank ten
-remains a useful maximum-rank production bonus.
+Field growth is a major run milestone, not a ten-step Growth sink. The next
+Expanding Field Memory first permits a larger size. During a later active run,
+the player buys that expansion once with Run Touches, the same currency used
+for helpers such as Tiny Sprinkler.
 
-The opening track is deliberately quick enough to complete during active Run 2
-play: its ten ranks cost `43 Growth` in total. The next tracks cost roughly
-`90`, `140`, `250`, and `425 Growth`, then climb with field width so the route
-to `100x100` remains a long-term project. Individual rank costs rise linearly
-within each field size, giving frequent early purchases instead of one distant
-Growth wall. The first Expanding Field Memory costs the two Grass Touches left
-after buying the guaranteed Tiny Sprinkler Memory, so the first `2x2` reveal is
-available in the first automation run. Later size Memories and Cultivation
-tracks become progressively more expensive.
+| Expansion | Run Touches |
+| --- | ---: |
+| `1x1 -> 2x2` | 500 |
+| `2x2 -> 3x3` | 1,000 |
+| `3x3 -> 5x5` | 2,000 |
+| `5x5 -> 8x8` | 4,000 |
+| `8x8 -> 12x12` | 8,000 |
+| `12x12 -> 20x20` | 16,000 |
+| `20x20 -> 32x32` | 32,000 |
+| `32x32 -> 50x50` | 64,000 |
+| `50x50 -> 75x75` | 128,000 |
+| `75x75 -> 100x100` | 256,000 |
+
+The cost doubles at every rung. Growth remains an ecosystem production
+resource and is never spent to resize the field. Expansion preserves old tiles
+in the center, creates new dormant tiles around them, recenters the view, and
+plays a dedicated milestone presentation. The larger field remains run-local
+and resets at Game Over.
 
 ## Manual Touch Batches
 
@@ -273,11 +281,12 @@ visible-tile information for keyboard and agent access.
 - HP, Scourge age, fixed-tick accumulator, deterministic RNG state
 - all resource buffers and measured totals
 - helper counts, modes, cooldowns, and recipe progress
-- field size, cultivation, compact base64 tile bytes, and sparse exceptions
+- field size, compact base64 tile bytes, and sparse exceptions
 - RT, touch counters, production totals, and current view state
 
-Snapshots are written after purchases, mode changes, cultivation, periodically,
-and on page hide. Loading reconstructs chunk counts from compact tile bytes.
+Snapshots are written after purchases, mode changes, field expansion,
+periodically, and on page hide. Loading reconstructs chunk counts from compact
+tile bytes.
 Wall-clock timestamps are informational only; elapsed real time is never fed
 back into the simulation.
 

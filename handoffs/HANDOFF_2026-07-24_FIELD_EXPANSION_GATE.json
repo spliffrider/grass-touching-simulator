@@ -1,0 +1,60 @@
+{
+  "date": "2026-07-24",
+  "topic": "Clarified first-field Care pressure and gated Cultivation behind Expanding Field",
+  "currentUserGoal": "Make the first-run Care panel understandable and prevent any field Cultivation or expansion control from appearing or working before the relevant Expanding Field Memory is owned.",
+  "workCompleted": [
+    "Renamed the first-run Care Balance panel to Scourge vs Care.",
+    "Rewrote the panel to explain Scourge HP drain, helper Care, net drain, immediate manual healing, later steady Care, and the permanent reward from the first collapse.",
+    "Carried the Care-versus-Scourge comparison into the later Living Ledger status line.",
+    "Added a shared hasUnlockedFieldExpansion rule to the headless economy model.",
+    "Blocked Cultivation purchases at the model layer unless the next field-size Memory is owned.",
+    "Removed the Cultivation label and button from the Phaser field UI until that Memory is owned.",
+    "Removed the Cultivation control and progress text from the accessible DOM until that Memory is owned.",
+    "Normalized contradictory old active saves back to zero Cultivation when no next-field Memory is owned.",
+    "Improved the accessible Expanding Field Memory label, cost, and disabled state.",
+    "Corrected the accessible equipment message shown while a later field is in Memory Grove."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemSave.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSave.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-24_FIELD_EXPANSION_GATE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "Focused Ecosystem System and Save tests passed: 65 tests.",
+    "npm run check passed: ESLint, 207 Vitest tests across 24 files, strict TypeScript, and the Vite production build.",
+    "A clean Run 1 showed the revised Scourge vs Care lesson without overlap.",
+    "A clean Run 2 without Expanding Field showed no Cultivation label, visible button, or accessible control.",
+    "After remembering Expanding Field, Cultivation progress and the Growth purchase control appeared.",
+    "The 390x844 phone layout remained clean.",
+    "The browser reported no warnings or errors."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "baseCommit": "79f5ef2",
+    "committed": false,
+    "pushRequested": false,
+    "deploymentRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The large Scourge vs Care lesson is desktop-only; mobile retains the compact top pressure readout.",
+    "The Expanding Field Memory cost curve may still need hands-on progression tuning.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and is not part of this slice."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test the first three runs and verify the new pressure explanation feels useful instead of tutorial-heavy.",
+    "Judge whether Expanding Field should remain on the first post-Sprinkler frontier or reveal after one additional Memory.",
+    "Continue the contextual Field Notes onboarding slice for first automation, first Growth, and first equipment purchase."
+  ],
+  "doNotRevert": [
+    "Do not show or enable Cultivation when state.field.sizeIndex is not below permanent.maxFieldTier.",
+    "Do not preserve hidden Cultivation progress from saves that do not own the next field-size Memory.",
+    "Do not restore the ambiguous Care Balance copy that omitted the relationship between manual healing and helper Care.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

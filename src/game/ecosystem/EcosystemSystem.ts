@@ -1,5 +1,4 @@
 import {
-  CULTIVATION_RANKS_PER_SIZE,
   FIELD_CHUNK_SIZE,
   FIELD_SIZE_LADDER,
   HELPER_IDS,
@@ -37,6 +36,8 @@ export const HELPER_THROUGHPUT_PER_RANK = 0.3;
 export const HELPER_STORAGE_CAPACITY_PER_RANK = 0.25;
 export const HELPER_EFFICIENCY_PER_RANK = 0.06;
 export const HELPER_STARTING_STOCK_PER_RANK = 6;
+export const FIELD_EXPANSION_BASE_RUN_TOUCH_COST = 500;
+export const FIELD_EXPANSION_RUN_TOUCH_MULTIPLIER = 2;
 export const DAMP_FURROWS_MOISTURE_PER_CYCLE = 0.3;
 export const DAMP_FURROWS_GROWTH_PER_CYCLE = 0.75;
 export const DAMP_FURROWS_CARE_PER_CYCLE = 1.05;
@@ -440,9 +441,8 @@ function getCapacity(resourceId: ProductionResourceId, permanent: PermanentEcosy
     }
   }
   const memoryMultiplier = 1 + relevantStorageRanks * HELPER_STORAGE_CAPACITY_PER_RANK;
-  const cultivationMultiplier = 1 + field.cultivationRank * 0.08;
   const fieldMultiplier = 1 + Math.sqrt(field.width * field.height) * 0.12;
-  return BASE_RESOURCE_CAPACITY[resourceId] * memoryMultiplier * cultivationMultiplier * fieldMultiplier;
+  return BASE_RESOURCE_CAPACITY[resourceId] * memoryMultiplier * fieldMultiplier;
 }
 
 function createField(sizeIndex: number, seed: number): EcosystemFieldState {
@@ -767,30 +767,35 @@ export function switchHelperMode(
   return true;
 }
 
-export function getCultivationCost(state: EcosystemState): number {
-  const rank = Math.min(CULTIVATION_RANKS_PER_SIZE - 1, state.field.cultivationRank);
-  const fieldScale = Math.pow(state.field.width, 1.15);
-  return Math.ceil(0.7 * (rank + 1) * fieldScale);
+export function getFieldExpansionRunTouchCost(targetTier: number): number {
+  const safeTier = Math.floor(targetTier);
+  if (safeTier <= 0 || safeTier >= FIELD_SIZE_LADDER.length) {
+    return 0;
+  }
+  return Math.round(
+    FIELD_EXPANSION_BASE_RUN_TOUCH_COST
+      * Math.pow(FIELD_EXPANSION_RUN_TOUCH_MULTIPLIER, safeTier - 1),
+  );
 }
 
-export function buyCultivationRank(state: EcosystemState, permanent: PermanentEcosystemState): boolean {
-  if (!state.active || state.field.cultivationRank >= CULTIVATION_RANKS_PER_SIZE) {
+export function hasUnlockedFieldExpansion(
+  state: EcosystemState,
+  permanent: PermanentEcosystemState,
+): boolean {
+  return state.field.sizeIndex < permanent.maxFieldTier
+    && state.field.sizeIndex < FIELD_SIZE_LADDER.length - 1;
+}
+
+export function buyFieldExpansion(state: EcosystemState, permanent: PermanentEcosystemState): boolean {
+  if (!state.active || !hasUnlockedFieldExpansion(state, permanent)) {
     return false;
   }
-  const cost = getCultivationCost(state);
-  if (state.resources.growth.amount + EPSILON < cost) {
+  const cost = getFieldExpansionRunTouchCost(state.field.sizeIndex + 1);
+  if (cost <= 0 || state.runTouches + EPSILON < cost) {
     return false;
   }
-  consumeResource(state, "growth", cost);
-  state.field.cultivationRank += 1;
-  refreshResourceCapacities(state, permanent);
-  if (
-    state.field.cultivationRank >= CULTIVATION_RANKS_PER_SIZE &&
-    state.field.sizeIndex < permanent.maxFieldTier &&
-    state.field.sizeIndex < FIELD_SIZE_LADDER.length - 1
-  ) {
-    expandField(state, permanent);
-  }
+  state.runTouches -= cost;
+  expandField(state, permanent);
   return true;
 }
 
@@ -1484,7 +1489,7 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
       continue;
     }
     const naturalScale = recipe.id === "natural-dew"
-      ? fieldScale * (1 + state.field.cultivationRank * 0.12)
+      ? fieldScale
       : Math.max(1, fieldScale * 0.18);
     performRecipe(state, permanent, recipe, recipe.cyclesPerSecond * naturalScale * tickSeconds, producedThisTick);
   }

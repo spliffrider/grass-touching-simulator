@@ -287,7 +287,8 @@ export function restoreActiveFieldSnapshot(
   enforceRunOneBareHands(state);
 
   state.field.stages.set(stages);
-  state.field.cultivationRank = Math.max(0, Math.min(10, Math.floor(finiteNumber(input.field.cultivationRank, 0, 0))));
+  // Cultivation ranks predate the single Run Touches expansion purchase.
+  state.field.cultivationRank = 0;
   state.field.stageCursor = Math.floor(finiteNumber(input.field.stageCursor, 0, 0)) % state.field.stages.length;
   state.field.stageProgress = finiteNumber(input.field.stageProgress, 0, 0);
   state.field.sparseWounds.clear();

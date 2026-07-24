@@ -1,0 +1,66 @@
+{
+  "date": "2026-07-24",
+  "topic": "Replaced Growth Cultivation with expensive Run Touches field expansion",
+  "currentUserGoal": "Make field expansion a major, expensive milestone paid with the same Run Touches currency as helpers, beginning at 500 and growing exponentially.",
+  "workCompleted": [
+    "Removed the ten-purchase Cultivation track from the active game loop and visible UI.",
+    "Kept Expanding Field Memories as permanent permission gates for each next size.",
+    "Made each field size a single in-run Run Touches purchase.",
+    "Set the exact doubling curve to 500, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 128000, and 256000 Run Touches.",
+    "Kept Growth as an ecosystem production resource and stopped consuming it for field expansion.",
+    "Updated Phaser and semantic DOM controls to show the next dimensions, exact Run Touches price, locked state, and affordability.",
+    "Removed Cultivation progress from field labels and Game Over summaries.",
+    "Added a bounded milestone flash and camera shake to the existing field-expansion announcement.",
+    "Retired legacy saved Cultivation progress by restoring it as zero while retaining the old snapshot field for compatibility.",
+    "Updated Expanding Field Memory copy and the durable ecosystem design document."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/ecosystem/EcosystemSave.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSave.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-24_FIELD_EXPANSION_GATE.json",
+    "handoffs/HANDOFF_2026-07-24_RUN_TOUCH_FIELD_EXPANSION.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "Focused Ecosystem System and Save tests passed: 65 tests.",
+    "npm run check passed: ESLint, 207 Vitest tests across 24 files, strict TypeScript, and the Vite production build.",
+    "Desktop browser flow verified the control remains hidden before its Memory is owned.",
+    "After Tiny Sprinkler and Expanding Field were remembered, Run 2 exposed Expand field to 2 by 2 for 500 Run Touches.",
+    "The browser purchase expanded 1x1 to 2x2 and reduced Run Touches from 500 to zero.",
+    "The 390x844 phone layout rendered the Memory copy and expansion state without text overlap.",
+    "The browser playtest save was reset to a clean Run 1 after verification.",
+    "git diff --check passed with only expected Windows line-ending notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "baseCommit": "79f5ef2",
+    "committed": false,
+    "pushRequested": false,
+    "deploymentRequested": false,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The exact expansion prices are mechanically locked but still need hands-on pacing feedback across real runs.",
+    "The deprecated cultivationRank field remains in active-save data at zero for backward compatibility.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and is not part of this slice."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test how long an engaged automation run takes to earn the first 500 Run Touches.",
+    "Tune Run Touches production or the expansion curve only from observed run pacing.",
+    "Continue the contextual Field Notes onboarding slice for first automation, first helper purchase, and the first expansion goal."
+  ],
+  "doNotRevert": [
+    "Do not use Growth or ten Cultivation ranks to buy field sizes.",
+    "Do not show or enable field expansion before state.field.sizeIndex is below permanent.maxFieldTier.",
+    "Do not silently lower the 500 base or doubling curve without new hands-on pacing feedback.",
+    "Do not restore the ambiguous Care Balance copy that omitted the relationship between manual healing and helper Care.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

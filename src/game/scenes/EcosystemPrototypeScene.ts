@@ -107,7 +107,7 @@ import {
   MANUAL_TOUCH_CARE_PER_POWER,
   MANUAL_TOUCH_POWER_PER_MEMORY,
   advanceEcosystem,
-  buyCultivationRank,
+  buyFieldExpansion,
   buyHelper,
   canBeginNextEcosystemRun,
   clearDirtyChunks,
@@ -117,10 +117,10 @@ import {
   createPermanentEcosystemState,
   forceGameOver,
   getAncientHeartwoodRankCost,
-  getCultivationCost,
   getBeeHiveStatus,
   getDominantChunkStage,
   getEcosystemReadout,
+  getFieldExpansionRunTouchCost,
   getFieldMouseStatus,
   getFieldTierUnlockCost,
   getFirstAutomationStatus,
@@ -138,6 +138,7 @@ import {
   getVerdantAegisCapacityRatio,
   getVerdantAegisConversion,
   getVerdantAegisDurationMs,
+  hasUnlockedFieldExpansion,
   isFirstEcosystemCollapse,
   isFirstMemoryPending,
   isDampFurrowsFlowing,
@@ -489,7 +490,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private verdantAegisHitPulse = 0;
   private optionsButton!: SceneButton;
   private worksButton!: SceneButton;
-  private cultivationButton!: SceneButton;
+  private fieldExpansionButton!: SceneButton;
   private zoomOutButton!: SceneButton;
   private zoomResetButton!: SceneButton;
   private zoomInButton!: SceneButton;
@@ -932,7 +933,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.caretakerTitle = this.createText("FIELD HEIR", 22, "#fff3c2", "bold");
     this.caretakerRole = this.createText("Manual caretaker", 12, "#8de7ff", "bold");
     this.caretakerStats = this.createText("", 13, "#dff6ca");
-    this.balanceTitle = this.createText("CARE BALANCE", 22, "#fff3c2", "bold");
+    this.balanceTitle = this.createText("SCOURGE VS CARE", 22, "#fff3c2", "bold");
     this.balanceStatus = this.createText("", 16, "#f1a6ce", "bold");
     this.balanceDetail = this.createText("", 13, "#e3f3d6");
     this.balanceBarBack = this.add.rectangle(0, 0, 100, 18, 0x071b11, 0.98).setOrigin(0, 0.5).setStrokeStyle(2, 0x5b3926, 0.9);
@@ -987,7 +988,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
     this.optionsButton = this.createButton(this.fieldRoot, "Options", () => this.toggleOptions());
     this.worksButton = this.createButton(this.fieldRoot, "Ecosystem Works", () => this.toggleWorks(), 0x245a3a);
-    this.cultivationButton = this.createButton(this.fieldRoot, "Cultivate", () => this.buyCultivation(), 0x356c35);
+    this.fieldExpansionButton = this.createButton(
+      this.fieldRoot,
+      "Expand Field",
+      () => this.buyFieldExpansion(),
+      0x356c35,
+    );
     this.zoomOutButton = this.createButton(this.fieldRoot, "-", () => this.adjustFieldZoom(0.78));
     this.zoomResetButton = this.createButton(this.fieldRoot, "Fit", () => this.resetFieldView());
     this.zoomInButton = this.createButton(this.fieldRoot, "+", () => this.adjustFieldZoom(1.28));
@@ -1304,7 +1310,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       touchCoordinates: (x, y) => this.touchCoordinates(x, y),
       buyHelper: (helperId) => this.buyHelperFromUi(helperId),
       switchMode: (helperId, modeId) => this.switchModeFromUi(helperId, modeId),
-      buyCultivation: () => this.buyCultivation(),
+      buyFieldExpansion: () => this.buyFieldExpansion(),
       toggleWorks: () => this.toggleWorks(),
       toggleOptions: () => this.toggleOptions(),
       returnToTitle: () => this.returnToTitle(),
@@ -1455,6 +1461,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const mobile = width < 760;
     const ledgerUnlocked = isRunEquipmentAvailable(this.state)
       && this.permanent.unlockedHelpers.tinySprinkler;
+    const fieldExpansionUnlocked = hasUnlockedFieldExpansion(this.state, this.permanent);
     const firstRunGuideVisible = this.state.active && this.state.runNumber === 1 && !ledgerUnlocked;
     const contentWidth = mobile ? width - 16 : Math.min(MAX_SCENE_CONTENT_WIDTH, width - 44);
     const contentX = (width - contentWidth) / 2;
@@ -1656,7 +1663,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.automationGoalBack.setVisible(ledgerUnlocked || firstRunGuideVisible);
     this.automationGoalFill.setVisible(ledgerUnlocked || firstRunGuideVisible);
     this.worksButton.setVisible(ledgerUnlocked);
-    this.cultivationButton.setVisible(ledgerUnlocked);
+    this.fieldExpansionButton.setVisible(ledgerUnlocked && fieldExpansionUnlocked);
     if (ledgerUnlocked) {
       this.ledgerTitle.setFontSize(mobile ? 18 : 22).setPosition(ledgerX + 16, ledgerY + 12);
       this.bottleneckText.setPosition(ledgerX + 16, ledgerY + 42).setWordWrapWidth(ledgerWidth - 32);
@@ -1684,7 +1691,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         }
       }
       this.worksButton.setPosition(ledgerX + 14, ledgerY + ledgerHeight - 72).setSize(ledgerWidth - 28, 32);
-      this.cultivationButton.setPosition(ledgerX + 14, ledgerY + ledgerHeight - 36).setSize(ledgerWidth - 28, 28);
+      this.fieldExpansionButton.setPosition(ledgerX + 14, ledgerY + ledgerHeight - 36).setSize(ledgerWidth - 28, 28);
     } else {
       if (firstRunGuideVisible) {
         const guideWidth = Math.min(this.fieldBounds.width - 32, mobile ? 340 : 640);
@@ -2150,14 +2157,23 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.setTextIfChanged(this.hpText, `Ancient HP ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}${hpStatusCopy}`);
       this.setTextIfChanged(this.pressureText, awaitingFirstTouch
         ? "Scourge dormant  |  Touch the grass to begin"
-        : `Scourge ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s  |  produced ${readout.careProductionPerSecond.toFixed(2)}/s`);
+        : `Scourge ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s  |  helper Care ${readout.careProductionPerSecond.toFixed(2)}/s`);
       this.updateCurrencyValue(this.runTouchesValue, readout.runTouches.toFixed(0));
       this.updateCurrencyValue(this.grassTouchesValue, this.permanent.grassTouches.toFixed(0), true);
-      this.setTextIfChanged(this.fieldLabelText, this.scale.width < 760
-        ? `${readout.fieldSize}x${readout.fieldSize} | Cultivation ${readout.cultivationRank}/10`
-        : `${readout.fieldSize}x${readout.fieldSize} Living Field  |  Cultivation ${readout.cultivationRank}/10`);
+      this.setTextIfChanged(
+        this.fieldLabelText,
+        `${readout.fieldSize}x${readout.fieldSize}${this.scale.width < 760 ? "" : " Living Field"}`,
+      );
       this.setTextIfChanged(this.fieldHintText, `${this.projection?.lod ?? "near"} view  |  wheel / +/- to zoom`);
-      this.setTextIfChanged(this.bottleneckText, `Bottleneck: ${readout.bottleneck}`);
+      const careDelta = readout.careProductionPerSecond - readout.scourgeDemandPerSecond;
+      this.setTextIfChanged(
+        this.bottleneckText,
+        `Care ${readout.careProductionPerSecond.toFixed(1)}/s | Scourge ${readout.scourgeDemandPerSecond.toFixed(1)}/s | ${careDelta >= 0 ? "+" : ""}${careDelta.toFixed(1)}/s`,
+      );
+      const careBalanceColor = careDelta >= 0 ? "#9be27c" : careDelta >= -2 ? "#ffe889" : "#ffcf8b";
+      if (this.bottleneckText.getData("careBalanceColor") !== careBalanceColor) {
+        this.bottleneckText.setData("careBalanceColor", careBalanceColor).setColor(careBalanceColor);
+      }
       const palmRadius = this.permanent.broadPalmRank > 0 ? 1 + Math.floor((this.permanent.broadPalmRank - 1) / 2) : 0;
       this.setTextIfChanged(this.caretakerStats, [
         `Touch yield     ${
@@ -2196,19 +2212,21 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           ? "CARE HOLDS"
           : careRatio >= 0.55
             ? "PRESSURE RISING"
-            : "SCOURGE ADVANCES";
+            : "THE FIELD IS DRAINING";
       if (this.balanceStatus.text !== balanceStatus) {
         this.balanceStatus
           .setText(balanceStatus)
           .setColor(awaitingFirstTouch ? "#fff3c2" : careRatio >= 1 ? "#9be27c" : careRatio >= 0.55 ? "#ffe889" : "#f1a6ce");
       }
       this.setTextIfChanged(this.balanceDetail, [
-        `Demand         ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s`,
-        `Production     ${readout.careProductionPerSecond.toFixed(2)} Care/s`,
-        `Deficit        ${Math.max(0, readout.scourgeDemandPerSecond - readout.careProductionPerSecond).toFixed(2)} Care/s`,
+        `Scourge drain  ${readout.scourgeDemandPerSecond.toFixed(2)} HP/s`,
+        `Helper Care    ${readout.careProductionPerSecond.toFixed(2)} HP/s`,
+        `Net drain      ${Math.max(0, readout.scourgeDemandPerSecond - readout.careProductionPerSecond).toFixed(2)} HP/s`,
         "",
-        `Ancient HP     ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}`,
-        `Field stage    ${TILE_STAGE_LABELS[this.state.field.stages[0] as TileStage]}`,
+        "Touching restores HP immediately.",
+        "Helpers provide steady Care in later fields.",
+        "",
+        `First collapse banks ${GRASS_TOUCHES_LABEL}.`,
       ].join("\n"));
       const firstStage = this.state.field.stages[0] as TileStage;
       this.setTextIfChanged(this.plotStageText, TILE_STAGE_LABELS[firstStage].toUpperCase());
@@ -2393,20 +2411,17 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           }
         }
       }
-      const cultivationCost = getCultivationCost(this.state);
-      const cultivationComplete = this.state.field.cultivationRank >= 10;
       const nextFieldSize = FIELD_SIZE_LADDER[this.state.field.sizeIndex + 1];
-      const expandsOnPurchase = !cultivationComplete
-        && this.state.field.cultivationRank === 9
-        && nextFieldSize !== undefined
-        && this.state.field.sizeIndex < this.permanent.maxFieldTier;
-      this.cultivationButton
-        .setLabel(cultivationComplete
-          ? "Cultivation complete"
-          : expandsOnPurchase
-            ? `Expand to ${nextFieldSize}x${nextFieldSize} | ${cultivationCost} Growth`
-            : `Cultivate ${this.state.field.cultivationRank + 1}/10 | ${cultivationCost} Growth`)
-        .setEnabled(!cultivationComplete && this.state.resources.growth.amount >= cultivationCost);
+      const expansionCost = getFieldExpansionRunTouchCost(this.state.field.sizeIndex + 1);
+      this.fieldExpansionButton
+        .setLabel(nextFieldSize === undefined
+          ? "Field fully expanded"
+          : `Expand to ${nextFieldSize}x${nextFieldSize} | ${expansionCost} ${RUN_TOUCHES_LABEL}`)
+        .setEnabled(
+          hasUnlockedFieldExpansion(this.state, this.permanent)
+            && nextFieldSize !== undefined
+            && this.state.runTouches >= expansionCost,
+        );
       this.zoomOutButton.setEnabled(this.fieldView.zoom > FIELD_MIN_ZOOM + 0.01);
       this.zoomInButton.setEnabled(this.fieldView.zoom < FIELD_MAX_ZOOM - 0.01);
     }
@@ -2494,7 +2509,6 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
             `+${summary.grassTouchesAwarded} Grass Touches`,
             "",
             `Field reached: ${summary.fieldSize}x${summary.fieldSize}`,
-            `Cultivation: ${summary.cultivationRank}/10`,
             `Care produced: ${summary.careProduced.toFixed(1)}`,
             `Manual Care: ${summary.manualCare.toFixed(1)}`,
             `Helpers bought: ${summary.helpersBought}`,
@@ -3699,27 +3713,22 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
   }
 
-  private buyCultivation(): void {
+  private buyFieldExpansion(): void {
     const previousSize = this.state.field.width;
-    if (buyCultivationRank(this.state, this.permanent)) {
-      const expanded = previousSize !== this.state.field.width;
-      this.audio.play(expanded ? "milestone" : "upgrade");
-      this.tweens.killTweensOf(this.cultivationButton.container);
-      this.cultivationButton.container.setScale(1);
+    if (buyFieldExpansion(this.state, this.permanent)) {
+      this.audio.play("milestone");
+      this.tweens.killTweensOf(this.fieldExpansionButton.container);
+      this.fieldExpansionButton.container.setScale(1);
       this.tweens.add({
-        targets: this.cultivationButton.container,
-        scale: expanded ? 1.08 : 1.04,
+        targets: this.fieldExpansionButton.container,
+        scale: 1.08,
         yoyo: true,
-        duration: expanded ? 180 : 110,
+        duration: 180,
         ease: "Back.easeOut",
       });
-      if (expanded) {
-        this.layout(this.scale.width, this.scale.height);
-        this.resetFieldView();
-        this.showFieldExpansion(previousSize, this.state.field.width);
-      } else {
-        this.renderField(true);
-      }
+      this.layout(this.scale.width, this.scale.height);
+      this.resetFieldView();
+      this.showFieldExpansion(previousSize, this.state.field.width);
       this.persistAll();
       this.refreshUi(false);
     } else {
@@ -3730,6 +3739,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private showFieldExpansion(previousSize: number, nextSize: number): void {
     const x = this.fieldBounds.x + this.fieldBounds.width / 2;
     const y = this.fieldBounds.y + Math.min(128, this.fieldBounds.height * 0.2);
+    this.cameras.main.flash(180, 185, 255, 150, false);
+    this.cameras.main.shake(220, 0.0025);
     this.helperAnnouncementText
       .setText(`FIELD EXPANDED  ${previousSize}x${previousSize} -> ${nextSize}x${nextSize}`)
       .setColor("#d9f58b")
@@ -3998,8 +4009,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         action: () => unlockNextFieldTier(this.permanent),
         status: complete ? "100x100 remembered" : `${currentSize}x${currentSize}\n${cost} ${GRASS_TOUCHES_LABEL}`,
         effect: complete
-          ? "Cultivation may expand a run all the way to 100x100."
-          : `Current maximum ${currentSize}x${currentSize}; next memory permits ${nextSize}x${nextSize}.`,
+          ? "Run Touches may expand a field all the way to 100x100."
+          : `Current maximum ${currentSize}x${currentSize}; next memory permits the ${nextSize}x${nextSize} Run Touches purchase.`,
         requirement: "",
       };
     }

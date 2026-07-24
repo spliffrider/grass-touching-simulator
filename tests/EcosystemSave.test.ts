@@ -124,6 +124,19 @@ describe("EcosystemSave", () => {
     expect(loaded?.state.overhealShieldRemainingMs).toBe(0);
   });
 
+  it("drops legacy Cultivation progress after conversion to one Run Touches purchase", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    permanent.maxFieldTier = 1;
+    const state = createEcosystemState(permanent, { seed: 809 });
+    state.field.cultivationRank = 9;
+
+    const loaded = restoreActiveFieldSnapshot(createActiveFieldSnapshot(state), permanent);
+
+    expect(loaded?.state.field.width).toBe(1);
+    expect(loaded?.state.field.cultivationRank).toBe(0);
+  });
+
   it("loads active saves created before helper cycle totals were recorded", () => {
     const permanent = createPermanentEcosystemState();
     permanent.completedRuns = 2;

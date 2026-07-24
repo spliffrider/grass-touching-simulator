@@ -243,7 +243,6 @@ export const PRODUCTION_RECIPES: readonly ProductionRecipe[] = [
 
 export const FIELD_SIZE_LADDER = [1, 2, 3, 5, 8, 12, 20, 32, 50, 75, 100] as const;
 export const FIELD_CHUNK_SIZE = 10;
-export const CULTIVATION_RANKS_PER_SIZE = 10;
 
 export enum TileStage {
   Dormant = 0,
