@@ -24,14 +24,18 @@
     "npm run check passed: ESLint, 220 Vitest tests across 26 files, strict TypeScript, and the Vite production build.",
     "Desktop redesign stress verification used a 100x100 field at about 5,537 automated touches per second and reported 144 FPS, zero frame spikes, no full-field scans, and no browser warnings or errors.",
     "Phone-sized 390x844 stress verification used the existing 210 ms representative-effect cadence and reported 144 FPS, zero frame spikes, no full-field scans, and no browser warnings or errors.",
-    "Variation tests confirm all repeated profiles stay between 0.94x and 1.07x pitch and between 0.94x and 1.03x gain."
+    "Variation tests confirm all repeated profiles stay between 0.94x and 1.07x pitch and between 0.94x and 1.03x gain.",
+    "Production deployment dpl_4Tp1RmuoLhp9qRQuPosGxqdBY8Xh reached READY and was aliased to grasstouchingsimulator.com.",
+    "The Mac mini fast-forwarded to c149ada and completed its own strict TypeScript and Vite production build."
   ],
   "gitStatus": {
     "branch": "master",
     "featureCommit": "888d85e",
-    "pushed": false,
-    "deploymentUrl": "pending",
-    "macSynced": false,
+    "handoffCommitBeforeFinalStatus": "c149ada",
+    "pushed": true,
+    "deploymentUrl": "https://grasstouchingsimulator.com",
+    "deploymentId": "dpl_4Tp1RmuoLhp9qRQuPosGxqdBY8Xh",
+    "macSynced": true,
     "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
   },
   "knownIssues": [
