@@ -368,7 +368,9 @@ export class EcosystemDomBridge {
         ? [`Verdant Aegis ${state.overhealShield.toFixed(1)} / ${state.maxOverhealShield.toFixed(1)} shield | ${(state.overhealShieldRemainingMs / 1_000).toFixed(1)}s remaining`]
         : []),
       state.runNumber === 1
-        ? "Hand Tending unlocks after the first collapse"
+        ? state.manualTouchCount === 0
+          ? "First lesson: touch the living field to wake the Ancient Grass"
+          : `First lesson: touch when the recovery line clears; collapse banks ${GRASS_TOUCHES_LABEL}`
         : "Hand Tending: each recovered manual touch produces Growth",
       ...(automationLine ? [automationLine] : []),
       ...(fieldMouseLine ? [fieldMouseLine] : []),

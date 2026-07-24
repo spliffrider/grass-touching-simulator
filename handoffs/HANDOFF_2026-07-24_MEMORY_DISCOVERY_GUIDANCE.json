@@ -1,0 +1,57 @@
+{
+  "date": "2026-07-24",
+  "topic": "Staged Memory discovery and contextual first-run guidance",
+  "currentUserGoal": "Reveal fewer Memory nodes at once, guide new players through the live systems, and make the opening loop immediately easier to understand and engage with.",
+  "workCompleted": [
+    "Replaced broad type-based Memory visibility with graph-driven discovery prerequisites.",
+    "Reduced the first post-Tiny-Sprinkler Memory frontier from 12 visible nodes to 8.",
+    "Staged each helper cluster so its speed Memory appears first, speed reveals efficiency and storage, storage reveals starting stock, and efficiency reveals the alternate mode.",
+    "Preserved the existing no-crossing connector geometry by separating visual prerequisites from discovery prerequisites.",
+    "Added Run 1 contextual guidance: the first prompt asks for the waking touch, then a Memory-forming progress bar explains recovery timing and the permanent reward from collapse.",
+    "Removed the duplicate first-touch callout that overlapped the new guide.",
+    "Moved successful-touch reward text below the guide during Run 1.",
+    "Updated the Memory Grove subtitle to explain that remembering a node reveals its attached discoveries.",
+    "Updated the accessible DOM state with the same first-run lesson."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemMemoryTree.test.ts",
+    "handoffs/HANDOFF_2026-07-24_MEMORY_DISCOVERY_GUIDANCE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "Focused Memory Tree and Ecosystem System tests passed: 67 tests.",
+    "npm run check passed: ESLint, 205 Vitest tests across 24 files, strict TypeScript, and the Vite production build.",
+    "A clean first run collapsed in approximately 17 seconds and awarded the guaranteed 7 Grass Touches.",
+    "The first Memory Grove showed only Tiny Sprinkler; remembering it revealed the expected 8-node frontier.",
+    "Buying Clockwork Nozzle revealed exactly Fine Mist and Dew Cistern, while starting stock and mode remained hidden.",
+    "Desktop and 390x844 phone checks showed no guidance or reward-text overlap.",
+    "The browser reported no warnings or errors."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "baseCommit": "004669a",
+    "pushRequested": true,
+    "deploymentRequested": true,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The discovery cadence now needs a hands-on multi-run judgment before release.",
+    "The first frontier still deliberately includes the root touch, vitality, field-size, automation-speed, and next-helper choices.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and is not part of this slice."
+  ],
+  "nextRecommendedSteps": [
+    "Play through the first three Groves and judge whether each reveal feels exciting rather than restrictive.",
+    "Prototype Tending Rhythm: successful recovered touches build a short streak, with a five-touch Dew Surge that rewards cadence without making Run 1 survivable.",
+    "Add contextual Field Notes that highlight the exact control or resource named by the active objective.",
+    "Introduce later Scourge omens only after the touch rhythm proves fun, so two new engagement systems are not balanced simultaneously."
+  ],
+  "doNotRevert": [
+    "Do not reconnect all helper rank and mode nodes to immediate visibility; the staged discovery order is intentional.",
+    "Do not restore the duplicate TOUCH THE GRASS TO BEGIN field callout.",
+    "Do not place touch reward text over the fixed Run 1 guidance strip.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

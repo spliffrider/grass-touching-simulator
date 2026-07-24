@@ -1,6 +1,6 @@
 {
   "updatedAt": "2026-07-24",
-  "latestHandoff": "HANDOFF_2026-07-24_MEMORY_VALUE_BALANCE.json",
+  "latestHandoff": "HANDOFF_2026-07-24_MEMORY_DISCOVERY_GUIDANCE.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

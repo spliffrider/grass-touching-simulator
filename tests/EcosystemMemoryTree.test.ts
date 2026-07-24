@@ -276,13 +276,16 @@ describe("Ecosystem Memory Tree", () => {
     expect(unlockHelper(permanent, "tinySprinkler")).toBe(true);
     const firstBranches = getRevealedEcosystemMemoryNodeIds(permanent);
 
-    expect(firstBranches.size).toBe(12);
+    expect(firstBranches.size).toBe(8);
     expect(firstBranches.has(ECOSYSTEM_MEMORY_ROOT_ID)).toBe(true);
     expect(firstBranches.has(FIRST_ECOSYSTEM_MEMORY_NODE_ID)).toBe(true);
     expect(firstBranches.has(getHelperUnlockMemoryId("fieldMouse"))).toBe(true);
     expect(firstBranches.has(getHelperUnlockMemoryId("beeHive"))).toBe(false);
     expect(firstBranches.has(getHelperRankMemoryId("tinySprinkler", "throughput"))).toBe(true);
-    expect(firstBranches.has(getHelperModeMemoryId("tinySprinkler"))).toBe(true);
+    expect(firstBranches.has(getHelperRankMemoryId("tinySprinkler", "efficiency"))).toBe(false);
+    expect(firstBranches.has(getHelperRankMemoryId("tinySprinkler", "storage"))).toBe(false);
+    expect(firstBranches.has(getHelperRankMemoryId("tinySprinkler", "startingStock"))).toBe(false);
+    expect(firstBranches.has(getHelperModeMemoryId("tinySprinkler"))).toBe(false);
     expect(firstBranches.has(getHelperRankMemoryId("fieldMouse", "throughput"))).toBe(false);
     expect(firstBranches.has("touch:fastTouch")).toBe(true);
     expect(firstBranches.has("touch:broadPalm")).toBe(true);
@@ -290,6 +293,22 @@ describe("Ecosystem Memory Tree", () => {
     expect(firstBranches.has("field:tier")).toBe(true);
     expect(firstBranches.has("field:heartwood")).toBe(true);
     expect(firstBranches.has("touch:lingeringCare")).toBe(false);
+
+    permanent.grassTouches = 500;
+    expect(purchasePermanentRank(permanent, "tinySprinkler", "throughput")).toBe(true);
+    const sprinklerSpeedBranches = getRevealedEcosystemMemoryNodeIds(permanent);
+    expect(sprinklerSpeedBranches.has(getHelperRankMemoryId("tinySprinkler", "efficiency"))).toBe(true);
+    expect(sprinklerSpeedBranches.has(getHelperRankMemoryId("tinySprinkler", "storage"))).toBe(true);
+    expect(sprinklerSpeedBranches.has(getHelperRankMemoryId("tinySprinkler", "startingStock"))).toBe(false);
+    expect(sprinklerSpeedBranches.has(getHelperModeMemoryId("tinySprinkler"))).toBe(false);
+
+    expect(purchasePermanentRank(permanent, "tinySprinkler", "efficiency")).toBe(true);
+    const sprinklerEfficiencyBranches = getRevealedEcosystemMemoryNodeIds(permanent);
+    expect(sprinklerEfficiencyBranches.has(getHelperModeMemoryId("tinySprinkler"))).toBe(true);
+
+    expect(purchasePermanentRank(permanent, "tinySprinkler", "storage")).toBe(true);
+    const sprinklerStorageBranches = getRevealedEcosystemMemoryNodeIds(permanent);
+    expect(sprinklerStorageBranches.has(getHelperRankMemoryId("tinySprinkler", "startingStock"))).toBe(true);
 
     permanent.heartwoodRank = 1;
     const heartwoodBranches = getRevealedEcosystemMemoryNodeIds(permanent);
@@ -306,6 +325,8 @@ describe("Ecosystem Memory Tree", () => {
 
     expect(mouseBranches.has(getHelperUnlockMemoryId("beeHive"))).toBe(true);
     expect(mouseBranches.has(getHelperRankMemoryId("fieldMouse", "throughput"))).toBe(true);
+    expect(mouseBranches.has(getHelperRankMemoryId("fieldMouse", "efficiency"))).toBe(false);
+    expect(mouseBranches.has(getHelperModeMemoryId("fieldMouse"))).toBe(false);
     expect(mouseBranches.has(getHelperUnlockMemoryId("chickenPatrol"))).toBe(false);
   });
 

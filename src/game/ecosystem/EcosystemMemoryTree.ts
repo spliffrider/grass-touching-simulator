@@ -37,6 +37,7 @@ export interface EcosystemMemoryNodeDefinition {
   y: number;
   visualScale?: number;
   prerequisites: readonly string[];
+  discoveryPrerequisites?: readonly string[];
   helperId?: HelperId;
   rankKind?: PermanentRankKind;
   touchKind?: PermanentTouchRankKind;
@@ -552,6 +553,11 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       const visualMeta = RANK_VISUAL_META[kind];
       const copy = HELPER_RANK_COPY[helperId][kind];
       const offset = layout.ranks[kind];
+      const discoveryPrerequisite = kind === "throughput"
+        ? helperUnlockId(helperId)
+        : kind === "startingStock"
+          ? helperRankId(helperId, "storage")
+          : helperRankId(helperId, "throughput");
       nodes.push({
         id: helperRankId(helperId, kind),
         kind: "helperRank",
@@ -565,6 +571,7 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
         y: y + scalePosition(offset.y),
         visualScale: RANK_VISUAL_SCALES[kind],
         prerequisites: [helperUnlockId(helperId)],
+        discoveryPrerequisites: [discoveryPrerequisite],
         helperId,
         rankKind: kind,
       });
@@ -584,6 +591,7 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       y: y + scalePosition(layout.mode.y),
       visualScale: 0.86,
       prerequisites: [helperUnlockId(helperId)],
+      discoveryPrerequisites: [helperRankId(helperId, "efficiency")],
       helperId,
     });
   }
@@ -708,25 +716,14 @@ export function isEcosystemMemoryNodeRevealed(
     return node.id === FIRST_ECOSYSTEM_MEMORY_NODE_ID;
   }
   if (isMemoryNodeOwned(node, permanent)) return true;
-  if (node.kind === "helperUnlock") {
-    const prerequisite = HELPERS[node.helperId!].unlockRequires;
-    return !prerequisite || permanent.unlockedHelpers[prerequisite];
-  }
-  if (node.kind === "helperMode" || node.kind === "helperRank") {
-    return permanent.unlockedHelpers[node.helperId!];
-  }
-  if (node.kind === "fieldTier") return true;
-  if (node.kind === "fieldHealth") return true;
-  if (node.kind === "touchRank") {
-    if (node.touchKind === "manyHands") return permanent.broadPalmRank >= 2;
-    if (node.touchKind === "lingeringCare") return permanent.heartwoodRank >= 1;
-    if (node.touchKind === "verdantAegis") return permanent.lingeringCareRank >= 1;
-    return true;
-  }
   if (node.kind === "capstone") {
     return permanent.broadPalmRank >= 10 && permanent.manyHandsRank >= 10;
   }
-  return true;
+  const discoveryPrerequisites = node.discoveryPrerequisites ?? node.prerequisites;
+  return discoveryPrerequisites.some((prerequisiteId) => {
+    const prerequisite = ECOSYSTEM_MEMORY_NODE_BY_ID.get(prerequisiteId);
+    return prerequisite ? isMemoryNodeOwned(prerequisite, permanent) : false;
+  });
 }
 
 export function getRevealedEcosystemMemoryNodeIds(

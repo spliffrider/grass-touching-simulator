@@ -1455,6 +1455,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const mobile = width < 760;
     const ledgerUnlocked = isRunEquipmentAvailable(this.state)
       && this.permanent.unlockedHelpers.tinySprinkler;
+    const firstRunGuideVisible = this.state.active && this.state.runNumber === 1 && !ledgerUnlocked;
     const contentWidth = mobile ? width - 16 : Math.min(MAX_SCENE_CONTENT_WIDTH, width - 44);
     const contentX = (width - contentWidth) / 2;
     const backgroundScale = Math.max(width / this.background.width, height / this.background.height);
@@ -1588,16 +1589,17 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.fieldChrome.lineBetween(balanceX + 18, ledgerY + 58, balanceX + balanceWidth - 18, ledgerY + 58);
     }
 
+    const fieldSurfaceTop = firstRunGuideVisible ? 82 : 42;
     this.fieldMaskShape.clear().fillStyle(0xffffff, 1).fillRect(
       this.fieldBounds.x + 6,
-      this.fieldBounds.y + 42,
+      this.fieldBounds.y + fieldSurfaceTop,
       this.fieldBounds.width - 12,
-      this.fieldBounds.height - 48,
+      this.fieldBounds.height - fieldSurfaceTop - 6,
     );
     const fieldSurfaceWidth = this.fieldBounds.width - 12;
-    const fieldSurfaceHeight = this.fieldBounds.height - 48;
+    const fieldSurfaceHeight = this.fieldBounds.height - fieldSurfaceTop - 6;
     this.fieldSurface
-      .setPosition(this.fieldBounds.x + 6, this.fieldBounds.y + 42)
+      .setPosition(this.fieldBounds.x + 6, this.fieldBounds.y + fieldSurfaceTop)
       .setSize(fieldSurfaceWidth, fieldSurfaceHeight);
     resizeFieldInputHitArea(this.fieldSurface.input?.hitArea, fieldSurfaceWidth, fieldSurfaceHeight);
     this.fieldLabelText.setFontSize(mobile ? 12 : 16).setPosition(this.fieldBounds.x + 16, this.fieldBounds.y + (mobile ? 13 : 10));
@@ -1606,7 +1608,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.zoomOutButton.setVisible(fieldCanZoom).setPosition(this.fieldBounds.x + this.fieldBounds.width - 138, this.fieldBounds.y + 8).setSize(36, 28);
     this.zoomResetButton.setVisible(fieldCanZoom).setPosition(this.fieldBounds.x + this.fieldBounds.width - 98, this.fieldBounds.y + 8).setSize(52, 28);
     this.zoomInButton.setVisible(fieldCanZoom).setPosition(this.fieldBounds.x + this.fieldBounds.width - 42, this.fieldBounds.y + 8).setSize(34, 28);
-    this.touchSummaryText.setOrigin(0.5).setPosition(this.fieldBounds.x + this.fieldBounds.width / 2, this.fieldBounds.y + 52);
+    this.touchSummaryText
+      .setOrigin(0.5)
+      .setPosition(this.fieldBounds.x + this.fieldBounds.width / 2, this.fieldBounds.y + fieldSurfaceTop + 10);
 
     const openingObjects = [
       this.playerPortrait,
@@ -1648,9 +1652,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.ledgerStocksLeft.setVisible(ledgerUnlocked);
     this.ledgerStocksRight.setVisible(ledgerUnlocked);
     this.bottleneckText.setVisible(ledgerUnlocked);
-    this.automationGoalText.setVisible(ledgerUnlocked);
-    this.automationGoalBack.setVisible(ledgerUnlocked);
-    this.automationGoalFill.setVisible(ledgerUnlocked);
+    this.automationGoalText.setVisible(ledgerUnlocked || firstRunGuideVisible);
+    this.automationGoalBack.setVisible(ledgerUnlocked || firstRunGuideVisible);
+    this.automationGoalFill.setVisible(ledgerUnlocked || firstRunGuideVisible);
     this.worksButton.setVisible(ledgerUnlocked);
     this.cultivationButton.setVisible(ledgerUnlocked);
     if (ledgerUnlocked) {
@@ -1682,6 +1686,20 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.worksButton.setPosition(ledgerX + 14, ledgerY + ledgerHeight - 72).setSize(ledgerWidth - 28, 32);
       this.cultivationButton.setPosition(ledgerX + 14, ledgerY + ledgerHeight - 36).setSize(ledgerWidth - 28, 28);
     } else {
+      if (firstRunGuideVisible) {
+        const guideWidth = Math.min(this.fieldBounds.width - 32, mobile ? 340 : 640);
+        const guideX = this.fieldBounds.x + (this.fieldBounds.width - guideWidth) / 2;
+        this.automationGoalText
+          .setFontSize(mobile ? 9 : 11)
+          .setPosition(guideX, this.fieldBounds.y + 39)
+          .setWordWrapWidth(guideWidth);
+        this.automationGoalBack
+          .setPosition(guideX, this.fieldBounds.y + 68)
+          .setSize(guideWidth, 9);
+        this.automationGoalFill
+          .setPosition(guideX + 2, this.fieldBounds.y + 68)
+          .setSize(guideWidth - 4, 5);
+      }
       for (const helperId of HELPER_IDS) {
         this.helperIcons[helperId].setVisible(false);
         this.helperBuyButtons[helperId].setVisible(false);
@@ -2196,10 +2214,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.setTextIfChanged(this.plotStageText, TILE_STAGE_LABELS[firstStage].toUpperCase());
       this.setTextIfChanged(this.plotDetailText, `Stage ${firstStage + 1} / ${TILE_TEXTURE_KEYS.length}   |   ${this.state.manualTouchCount} touches`);
       if (awaitingFirstTouch) {
-        this.touchSummaryText
-          .setText("TOUCH THE GRASS TO BEGIN")
-          .setY(this.fieldBounds.y + 39)
-          .setAlpha(1);
+        this.touchSummaryText.setAlpha(0);
       }
 
       const firstAutomation = getFirstAutomationStatus(this.state, this.permanent);
@@ -2218,7 +2233,15 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       let automationProgress = 0;
       let automationColor: number;
       let automationCopy: string;
-      if (showBeeHiveChapter) {
+      if (firstAutomation.stage === "locked") {
+        automationProgress = awaitingFirstTouch
+          ? 0
+          : Phaser.Math.Clamp(1 - readout.hpRatio, 0, 1);
+        automationColor = awaitingFirstTouch ? 0xffe889 : 0xb9ff9c;
+        automationCopy = awaitingFirstTouch
+          ? "FIRST TOUCH  |  Tap the living patch to wake the Ancient Grass"
+          : `MEMORY FORMING ${Math.round(automationProgress * 100)}%  |  Touch when the recovery line clears; collapse banks ${GRASS_TOUCHES_LABEL}`;
+      } else if (showBeeHiveChapter) {
         switch (beeHive.stage) {
           case "ready":
             automationProgress = 1;
@@ -2427,8 +2450,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.setTextIfChanged(this.memorySubtitle, firstMemoryPending
         ? `The first field was overwhelmed. Spend ${getHelperUnlockCost("tinySprinkler")} ${GRASS_TOUCHES_LABEL} to remember Tiny Sprinkler.`
         : firstCollapse
-          ? "Tiny Sprinkler is remembered. Run 2 can turn Dew into its first steady Care."
-          : "The field is still. Spend Grass Touches on what the next run remembers.");
+          ? "Tiny Sprinkler is remembered. Its connected Memories have emerged; Run 2 can now build steady Care."
+          : `Choose a connected Memory. Remembering it reveals the next attached nodes.`);
       this.setTextIfChanged(
         this.memoryTreeTitle,
         firstMemoryPending ? "First Memory" : "Memory Web",
@@ -3499,13 +3522,20 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const touchSummary = this.scale.width < 760
       ? `+${result.dewGained.toFixed(1)} Dew${growthSummary}${careSummary}\n+${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}${afterglowSummary}${aegisSummary}`
       : `${result.affectedTileCount} tile${result.affectedTileCount === 1 ? "" : "s"} cared for  |  +${result.dewGained.toFixed(1)} Dew${growthSummary}${careSummary}  +${result.runTouchesGained.toFixed(1)} ${RUN_TOUCHES_LABEL}${afterglowSummary}${aegisSummary}`;
+    const firstRunGuideOffset = this.state.runNumber === 1 ? 40 : 0;
     this.touchSummaryText
       .setText(touchSummary)
       .setColor(result.shieldGained > 0 ? "#bffff0" : result.lingeringCarePerSecond > 0 ? "#d9ff9f" : "#fff3c2")
       .setAlpha(1)
-      .setY(this.fieldBounds.y + 56);
+      .setY(this.fieldBounds.y + 56 + firstRunGuideOffset);
     this.tweens.killTweensOf(this.touchSummaryText);
-    this.tweens.add({ targets: this.touchSummaryText, y: this.fieldBounds.y + 39, alpha: 0, duration: 1_100, ease: "Cubic.easeOut" });
+    this.tweens.add({
+      targets: this.touchSummaryText,
+      y: this.fieldBounds.y + 39 + firstRunGuideOffset,
+      alpha: 0,
+      duration: 1_100,
+      ease: "Cubic.easeOut",
+    });
   }
 
   private showLingeringCareEffect(result: TouchBatchResult): void {
