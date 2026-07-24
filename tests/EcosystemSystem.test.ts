@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   HELPER_IDS,
   HELPER_RECONFIGURE_MS,
+  HELPERS,
   FIELD_SIZE_LADDER,
   PRODUCTION_RESOURCE_IDS,
   PRODUCTION_TICK_MS,
@@ -17,8 +18,11 @@ import {
   FIRST_RUN_TARGET_DURATION_MS,
   HAND_TENDING_GROWTH_PER_POWER,
   HELPER_EFFICIENCY_PER_RANK,
+  HELPER_HEALING_PER_IMPACT_RANK,
+  HELPER_HEALING_PER_TOUCH,
   HELPER_STARTING_STOCK_PER_RANK,
   HELPER_STORAGE_CAPACITY_PER_RANK,
+  HELPER_TOUCH_YIELD_PER_IMPACT_RANK,
   HELPER_THROUGHPUT_PER_RANK,
   LINGERING_CARE_DURATION_MS,
   VERDANT_AEGIS_MAX_RANK,
@@ -40,6 +44,9 @@ import {
   getFieldMouseStatus,
   getManyHandsPower,
   getHelperCycleIntervalMs,
+  getHelperAutomatedHealingPerTouch,
+  getHelperAutomatedTouchYield,
+  getHelperAutomationRates,
   getModeUnlockCost,
   getPermanentRankCost,
   getHelperPurchaseCost,
@@ -352,6 +359,86 @@ describe("EcosystemSystem", () => {
     expect(state.resources.care.producedTotal).toBeGreaterThan(0);
     expect(consumeHelperPulses(state).tinySprinkler).toBe(1);
     expect(consumeHelperPulses(state).tinySprinkler).toBe(0);
+  });
+
+  it("turns every helper activation into tiered automated touches and healing", () => {
+    const tierYields = HELPER_IDS.map((helperId) => HELPERS[helperId].touchesPerCycle);
+    expect(tierYields).toEqual([1, 2, 3, 5, 8, 13, 21, 34]);
+
+    for (const helperId of HELPER_IDS) {
+      for (const mode of HELPERS[helperId].modes) {
+        const permanent = createPermanentEcosystemState();
+        permanent.completedRuns = 8;
+        permanent.unlockedHelpers[helperId] = true;
+        const state = createEcosystemState(permanent, { seed: 44_000 + HELPER_IDS.indexOf(helperId) });
+        state.maxHp = 1_000_000;
+        state.hp = 500_000;
+        state.helpers[helperId].count = 1;
+        state.helpers[helperId].modeId = mode.id;
+        for (const resourceId of PRODUCTION_RESOURCE_IDS) {
+          state.resources[resourceId].amount = state.resources[resourceId].capacity * 0.5;
+        }
+
+        for (let step = 0; step < 20; step += 1) {
+          advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+        }
+
+        expect(state.helpers[helperId].cyclesCompleted, `${helperId}:${mode.id}`).toBeGreaterThan(0);
+        expect(state.automatedTouchCount, `${helperId}:${mode.id}`).toBeGreaterThan(0);
+        expect(state.automatedHealingTotal, `${helperId}:${mode.id}`).toBeGreaterThan(0);
+        expect(state.runTouches, `${helperId}:${mode.id}`).toBeCloseTo(state.automatedTouchCount, 8);
+        expect(state.automationTouchRate, `${helperId}:${mode.id}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("scales automation continuously with copies, Speed, and Impact Memories", () => {
+    const simulateSprinklers = (
+      count: number,
+      throughputRank: number,
+      impactRank: number,
+    ) => {
+      const permanent = createPermanentEcosystemState();
+      permanent.completedRuns = 2;
+      permanent.unlockedHelpers.tinySprinkler = true;
+      permanent.throughputRanks.tinySprinkler = throughputRank;
+      permanent.efficiencyRanks.tinySprinkler = impactRank;
+      const state = createEcosystemState(permanent, { seed: 45_000 });
+      state.maxHp = 1_000_000;
+      state.hp = 500_000;
+      state.helpers.tinySprinkler.count = count;
+      state.resources.dew.amount = state.resources.dew.capacity;
+      state.resources.moisture.amount = 0;
+      state.resources.care.amount = 0;
+      for (let step = 0; step < 16; step += 1) {
+        advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+      }
+      return state;
+    };
+
+    const baseline = simulateSprinklers(1, 0, 0);
+    const threeCopies = simulateSprinklers(3, 0, 0);
+    const faster = simulateSprinklers(1, 1, 0);
+    const harder = simulateSprinklers(1, 0, 1);
+
+    expect(threeCopies.automatedTouchCount).toBeCloseTo(baseline.automatedTouchCount * 3, 8);
+    expect(faster.automatedTouchCount).toBeCloseTo(
+      baseline.automatedTouchCount * (1 + HELPER_THROUGHPUT_PER_RANK),
+      8,
+    );
+    expect(harder.automatedTouchCount).toBeCloseTo(
+      baseline.automatedTouchCount * (1 + HELPER_TOUCH_YIELD_PER_IMPACT_RANK),
+      8,
+    );
+    expect(harder.automatedHealingTotal).toBeCloseTo(
+      baseline.automatedHealingTotal
+        * (1 + HELPER_TOUCH_YIELD_PER_IMPACT_RANK)
+        * (1 + HELPER_HEALING_PER_IMPACT_RANK),
+      8,
+    );
+    expect(getHelperAutomatedTouchYield("tinySprinkler", 0)).toBe(1);
+    expect(getHelperAutomatedHealingPerTouch(0)).toBe(HELPER_HEALING_PER_TOUCH);
+    expect(getHelperAutomationRates(harder, createPermanentEcosystemState(), "tinySprinkler").touchesPerCycle).toBe(1);
   });
 
   it("carries the first loss into a purchasable sprinkler Care and Growth chain", () => {
@@ -1245,10 +1332,10 @@ describe("EcosystemSystem", () => {
 
     expect(result.sprinklerPurchasedAtMs).not.toBeNull();
     expect(result.mousePurchasedAtMs).not.toBeNull();
-    expect(result.mousePurchasedAtMs!).toBeGreaterThanOrEqual(15_000);
+    expect(result.mousePurchasedAtMs!).toBeGreaterThanOrEqual(14_000);
     expect(result.mousePurchasedAtMs!).toBeLessThanOrEqual(20_000);
     expect(result.firstMouseCycleAtMs).not.toBeNull();
-    expect(result.firstMouseCycleAtMs!).toBeGreaterThanOrEqual(18_000);
+    expect(result.firstMouseCycleAtMs!).toBeGreaterThanOrEqual(17_000);
     expect(result.firstMouseCycleAtMs!).toBeLessThanOrEqual(23_000);
     expect(result.hpAtFirstMouseCycle).not.toBeNull();
     expect(result.hpAtFirstMouseCycle!).toBeGreaterThan(0);
@@ -1262,7 +1349,7 @@ describe("EcosystemSystem", () => {
     expect(result.handsOffMs).toBe(60_000);
     expect(result.hpAtSetup).not.toBeNull();
     expect(result.hpAfterHandsOff).toBeGreaterThan(result.hpAtSetup! - 70);
-    expect(result.hpAfterHandsOff).toBeLessThan(result.hpAtSetup! - 55);
+    expect(result.hpAfterHandsOff).toBeLessThan(result.hpAtSetup! - 48);
     expect(result.careProduced).toBeGreaterThan(75);
     expect(result.mouseCycles).toBeGreaterThan(1);
   });

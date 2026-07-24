@@ -78,7 +78,6 @@ export interface ProductionRecipe {
   inputs: readonly RecipeAmount[];
   outputs: readonly RecipeAmount[];
   cyclesPerSecond: number;
-  runTouchesPerCycle?: number;
   natural?: boolean;
 }
 
@@ -88,6 +87,7 @@ export interface HelperDefinition {
   assetPath: string;
   baseCost: number;
   costGrowth: number;
+  touchesPerCycle: number;
   unlockCost: number;
   unlockRequires: HelperId | null;
   modes: readonly HelperMode[];
@@ -104,6 +104,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/world/tiny-sprinkler.png",
     baseCost: 10,
     costGrowth: 1.42,
+    touchesPerCycle: 1,
     unlockCost: 5,
     unlockRequires: null,
     modes: modes(
@@ -118,6 +119,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/world/field-mouse.png",
     baseCost: 32,
     costGrowth: 1.46,
+    touchesPerCycle: 2,
     unlockCost: 20,
     unlockRequires: "tinySprinkler",
     modes: modes(
@@ -132,6 +134,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/world/bee-hive.png",
     baseCost: 82,
     costGrowth: 1.5,
+    touchesPerCycle: 3,
     unlockCost: 34,
     unlockRequires: "fieldMouse",
     modes: modes(
@@ -146,6 +149,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/world/chicken.png",
     baseCost: 320,
     costGrowth: 1.64,
+    touchesPerCycle: 5,
     unlockCost: 52,
     unlockRequires: "beeHive",
     modes: modes(
@@ -160,6 +164,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/world/earthworm.png",
     baseCost: 850,
     costGrowth: 1.67,
+    touchesPerCycle: 8,
     unlockCost: 74,
     unlockRequires: "chickenPatrol",
     modes: modes(
@@ -174,6 +179,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/ui/skills/root-network.png",
     baseCost: 2200,
     costGrowth: 1.7,
+    touchesPerCycle: 13,
     unlockCost: 104,
     unlockRequires: "earthwormCrew",
     modes: modes(
@@ -188,6 +194,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/world/sheep.png",
     baseCost: 6200,
     costGrowth: 1.74,
+    touchesPerCycle: 21,
     unlockCost: 142,
     unlockRequires: "ancientRoots",
     modes: modes(
@@ -202,6 +209,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/world/meadow-rabbit.png",
     baseCost: 18000,
     costGrowth: 1.78,
+    touchesPerCycle: 34,
     unlockCost: 190,
     unlockRequires: "sheepLoop",
     modes: modes(
@@ -225,12 +233,12 @@ export const PRODUCTION_RECIPES: readonly ProductionRecipe[] = [
   { id: "natural-care", helperId: null, modeId: null, label: "Ancient resilience", inputs: [{ resourceId: "rootEnergy", amount: 1 }], outputs: [{ resourceId: "care", amount: 0.7 }], cyclesPerSecond: 0.008, natural: true },
   { id: "sprinkler-care", helperId: "tinySprinkler", modeId: "caretaker", label: "Caretaker spray", inputs: [{ resourceId: "dew", amount: 1 }], outputs: [{ resourceId: "moisture", amount: 1 }, { resourceId: "care", amount: 1.35 }], cyclesPerSecond: 0.48 },
   { id: "sprinkler-grow", helperId: "tinySprinkler", modeId: "cultivator", label: "Cultivating spray", inputs: [{ resourceId: "dew", amount: 1 }], outputs: [{ resourceId: "moisture", amount: 1.25 }, { resourceId: "growth", amount: 0.28 }], cyclesPerSecond: 0.48 },
-  { id: "mouse-spread", helperId: "fieldMouse", modeId: "spread", label: "Seed spreading", inputs: [{ resourceId: "seeds", amount: 1 }], outputs: [{ resourceId: "growth", amount: 1.5 }], cyclesPerSecond: 0.34, runTouchesPerCycle: 0.34 },
-  { id: "mouse-cache", helperId: "fieldMouse", modeId: "cache", label: "Careful cache", inputs: [{ resourceId: "seeds", amount: 0.68 }], outputs: [{ resourceId: "growth", amount: 1.12 }], cyclesPerSecond: 0.27, runTouchesPerCycle: 0.22 },
+  { id: "mouse-spread", helperId: "fieldMouse", modeId: "spread", label: "Seed spreading", inputs: [{ resourceId: "seeds", amount: 1 }], outputs: [{ resourceId: "growth", amount: 1.5 }], cyclesPerSecond: 0.34 },
+  { id: "mouse-cache", helperId: "fieldMouse", modeId: "cache", label: "Careful cache", inputs: [{ resourceId: "seeds", amount: 0.68 }], outputs: [{ resourceId: "growth", amount: 1.12 }], cyclesPerSecond: 0.27 },
   { id: "bee-pollinate", helperId: "beeHive", modeId: "pollinate", label: "Hive pollination", inputs: [{ resourceId: "flowers", amount: 1 }], outputs: [{ resourceId: "pollinatedBlooms", amount: 1.5 }], cyclesPerSecond: 0.42 },
   { id: "bee-honey", helperId: "beeHive", modeId: "honeyReserve", label: "Honey reserve", inputs: [{ resourceId: "flowers", amount: 1 }], outputs: [{ resourceId: "pollinatedBlooms", amount: 1.12 }, { resourceId: "care", amount: 0.9 }], cyclesPerSecond: 0.34 },
-  { id: "chicken-scratch", helperId: "chickenPatrol", modeId: "scratch", label: "Compost scratching", inputs: [{ resourceId: "clippings", amount: 1 }], outputs: [{ resourceId: "compost", amount: 1.45 }], cyclesPerSecond: 0.34, runTouchesPerCycle: 0.42 },
-  { id: "chicken-forage", helperId: "chickenPatrol", modeId: "forage", label: "Field forage", inputs: [{ resourceId: "growth", amount: 1 }], outputs: [{ resourceId: "clippings", amount: 1.22 }, { resourceId: "compost", amount: 0.22 }], cyclesPerSecond: 0.3, runTouchesPerCycle: 0.2 },
+  { id: "chicken-scratch", helperId: "chickenPatrol", modeId: "scratch", label: "Compost scratching", inputs: [{ resourceId: "clippings", amount: 1 }], outputs: [{ resourceId: "compost", amount: 1.45 }], cyclesPerSecond: 0.34 },
+  { id: "chicken-forage", helperId: "chickenPatrol", modeId: "forage", label: "Field forage", inputs: [{ resourceId: "growth", amount: 1 }], outputs: [{ resourceId: "clippings", amount: 1.22 }, { resourceId: "compost", amount: 0.22 }], cyclesPerSecond: 0.3 },
   { id: "worm-aerate", helperId: "earthwormCrew", modeId: "aerate", label: "Deep aeration", inputs: [{ resourceId: "compost", amount: 1 }], outputs: [{ resourceId: "humus", amount: 1.5 }], cyclesPerSecond: 0.38 },
   { id: "worm-triage", helperId: "earthwormCrew", modeId: "triage", label: "Root triage", inputs: [{ resourceId: "compost", amount: 1 }], outputs: [{ resourceId: "humus", amount: 1.08 }, { resourceId: "care", amount: 0.5 }], cyclesPerSecond: 0.3 },
   { id: "roots-anchor", helperId: "ancientRoots", modeId: "anchor", label: "Ancient anchoring", inputs: [{ resourceId: "humus", amount: 1 }], outputs: [{ resourceId: "rootEnergy", amount: 1.4 }, { resourceId: "care", amount: 0.42 }], cyclesPerSecond: 0.34 },

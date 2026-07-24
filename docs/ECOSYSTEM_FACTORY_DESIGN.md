@@ -58,9 +58,9 @@ a run. Helper recipes provide the useful throughput:
 | Helper | Primary role | Alternate mode |
 | --- | --- | --- |
 | Tiny Sprinkler | Dew to Moisture, starter Growth, and Care | Cultivator favors Moisture and Growth |
-| Field Mouse | Seeds to Growth and RT | Cache favors input efficiency |
+| Field Mouse | Seeds to Growth | Cache favors input efficiency |
 | Bee Hive | Flowers to Pollinated Blooms | Honey Reserve adds Care at lower throughput |
-| Chicken Patrol | Clippings to Compost and RT | Forage also produces Clippings from Growth |
+| Chicken Patrol | Clippings to Compost | Forage also produces Clippings from Growth |
 | Earthworm Crew | Compost to Humus | Triage adds Care at lower throughput |
 | Ancient Roots | Humus to Root Energy and Care | Wellspring spends Root Energy on Dew and Care |
 | Sheep Loop | Growth to Clippings and Care | Close Crop favors Clippings |
@@ -70,10 +70,39 @@ Every resource is capacity constrained. A recipe pauses, without consuming its
 input, when any required output has no room. The Living Ledger identifies those
 pauses and reports the resource currently limiting Care throughput.
 
+### Automated Touch Contract
+
+Every completed helper cycle is also an automated grass-touch event. This is a
+universal rule rather than a special payout on selected recipes:
+
+| Helper tier | Automated touches per cycle |
+| --- | ---: |
+| Tiny Sprinkler | 1 |
+| Field Mouse | 2 |
+| Bee Hive | 3 |
+| Chicken Patrol | 5 |
+| Earthworm Crew | 8 |
+| Ancient Roots | 13 |
+| Sheep Loop | 21 |
+| Meadow Rabbit | 34 |
+
+Automated touches add current-run Run Touches, advance aggregate field stages,
+and restore Ancient HP. Extra copies scale cycle output linearly. The Speed
+Memory increases cycle frequency by 30% per rank. The helper's Impact Memory
+raises touches per activation by 15% per rank, raises healing per automated
+touch by 12% per rank, and retains the existing 6% input-cost reduction.
+
+Simulation applies these values as aggregate fixed-tick counters. It never loops
+once per automated touch and never scans the field. Presentation summarizes
+completed cycles through pooled helper actions, field-impact rings, touch and
+healing numbers, grass-touch audio, and a pooled restorative mote that travels
+from the impact to the Ancient HP bar. Additional simultaneous cycles increase
+the displayed payload without creating proportional actors or particles.
+
 ### First Automation
 
 Remembering Tiny Sprinkler reveals the Living Ledger on the following run. A
-fixed First Automation strip fills from current RT toward the first 14 RT
+fixed First Automation strip fills from current RT toward the first 10 RT
 sprinkler purchase. Once bought, the same strip becomes its production-cycle
 meter and explicitly reports `Dew -> Moisture + Growth + Care`; if the recipe pauses for
 Dew, it tells the player to touch the field. The first purchase uses the pooled
@@ -93,7 +122,7 @@ guided production chapter. The Ledger tracks RT toward its first purchase, then
 switches to the mouse's planting cycle, Seed reserve, Growth output, and any
 blocked or starved state.
 
-The first Field Mouse bought in each run discovers a three-Seed starter cache.
+The first Field Mouse bought in each run discovers an eight-Seed starter cache.
 This guarantees an immediate planting demonstration without bypassing the
 long-term Seed economy. Later mice do not create more starter stock. Spread mode
 plants quickly for stronger Growth and RT throughput; Cache mode works more
@@ -131,10 +160,12 @@ recipes. A tick:
    runs.
 2. Adds field Dew and runs natural fallback recipes.
 3. Runs helper recipes in graph order, limited by input, output capacity,
-   efficiency rank, helper count, and any reconfiguration timer.
-4. Consumes buffered Care against Scourge demand and applies only the deficit
+   Impact rank, helper count, and any reconfiguration timer.
+4. Converts every completed helper cycle into tiered automated touches, field
+   stage progress, Run Touches, and direct Ancient HP restoration.
+5. Consumes buffered Care against Scourge demand and applies only the deficit
    to Ancient HP.
-5. Advances a bounded number of representative tile stages and records rates,
+6. Advances a bounded number of representative tile stages and records rates,
    pauses, and helper pulses for presentation.
 
 The Ecosystem Works view applies one production tick for each second of real
@@ -145,6 +176,7 @@ time, making the active run operate at quarter speed. Options pauses the model.
 Run-local state resets at Game Over:
 
 - HP, resources, RT, resource capacities, and measured rates
+- automated-touch and automated-healing totals
 - bought helper counts and selected modes
 - helper reconfiguration timers
 - current field size and all tile stages
@@ -155,7 +187,7 @@ Permanent Memories retain:
 - banked GT and completed-run count
 - helper and alternate-mode unlocks
 - field-size ceilings
-- named helper ranks for action speed, storage, efficiency, and starting stock
+- named helper ranks for action speed, storage, Impact, and starting stock
 - Fast Touch, Broad Palm, Many Hands, and Field Embrace
 
 Helper unlocks reveal their equipment row and recipes; hidden helpers cannot be
@@ -167,18 +199,18 @@ Every helper cluster contains a dependable ten-rank skill that improves the
 helper's basic action rhythm. These skills use helper-specific identities in the
 Memory Web instead of exposing internal system labels. Tiny Sprinkler's
 `Clockwork Nozzle`, for example, lowers its Caretaker spray cooldown from about
-2.94 seconds at rank zero to about 1.34 seconds at rank ten. The equivalent
+2.08 seconds at rank zero to about 0.52 seconds at rank ten. The equivalent
 Field Mouse, Bee Hive, and later-helper skills shorten their own trips, flights,
 or production cycles.
 
-Storage, efficiency, and starting-stock ranks also have helper-specific names
-and copy. Every storage rank expands the actual input or output buffers used by
-its helper; no helper may expose a storage Memory with no mechanical target.
-The underlying rank fields retain their stable save identifiers, so existing
-permanent saves receive the new presentation and behavior without migration.
+Storage, Impact, and starting-stock ranks also have helper-specific names and
+copy. Every storage rank expands the actual input or output buffers used by its
+helper; no helper may expose a storage Memory with no mechanical target. Impact
+uses the existing internal `efficiency` save field, so permanent saves receive
+the stronger touch and healing behavior without migration.
 
 Every permanent Memory purchase also contributes one point of Remembered
-Touch. Each point adds 1% to the power of ordinary manual touch batches,
+Touch. Each point adds 3% to the power of ordinary manual touch batches,
 including HP restored, Dew gathered, Growth tended, and RT earned. Unlocks, alternate modes,
 field tiers, capstones, and each numeric rank all contribute one point. This
 keeps the player's hands relevant as automation grows and makes every branch a
@@ -282,7 +314,8 @@ visible-tile information for keyboard and agent access.
 - all resource buffers and measured totals
 - helper counts, modes, cooldowns, and recipe progress
 - field size, compact base64 tile bytes, and sparse exceptions
-- RT, touch counters, production totals, and current view state
+- RT, manual and automated touch counters, automated healing, production
+  totals, measured automation rates, and current view state
 
 Snapshots are written after purchases, mode changes, field expansion,
 periodically, and on page hide. Loading reconstructs chunk counts from compact

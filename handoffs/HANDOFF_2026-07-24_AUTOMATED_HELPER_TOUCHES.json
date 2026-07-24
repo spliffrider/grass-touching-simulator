@@ -1,0 +1,67 @@
+{
+  "date": "2026-07-24",
+  "topic": "Universal tiered helper touches with visible field and health impact",
+  "currentUserGoal": "Make every helper activation count as automation touches, with stronger later helpers, Memory scaling, and clear animated impact on the field and Ancient HP.",
+  "workCompleted": [
+    "Added a universal automated-touch contract to every helper recipe instead of special-casing individual outputs.",
+    "Set the base touches-per-activation ladder to Tiny Sprinkler 1, Field Mouse 2, Bee Hive 3, Chicken Patrol 5, Earthworm Crew 8, Ancient Roots 13, Sheep Loop 21, and Meadow Rabbit 34.",
+    "Made every completed helper activation award Run Touches, advance the field, and restore Ancient HP.",
+    "Made helper copies and Speed Memories increase activation frequency.",
+    "Reframed the compatible efficiency rank as Impact: each rank adds 15 percent automated touches, 12 percent healing per touch, and retains 6 percent recipe input savings.",
+    "Added aggregate automation-touch and automation-healing totals and live rates to runtime state, readouts, summaries, saves, the semantic DOM, and browser debug data.",
+    "Kept old active-run saves compatible by defaulting the new additive snapshot fields to zero.",
+    "Added live automation touches-per-second to the header, equipment rows, helper badges, Ecosystem Works, and accessible control descriptions.",
+    "Added per-activation touch and healing projections to Impact Memory descriptions.",
+    "Added bounded field-impact rings, automated-touch feedback, grass-touch audio, a pooled restorative mote traveling toward the HP bar, and HP or Aegis heartbeat feedback.",
+    "Kept simulation aggregate and presentation pooled so higher helper counts do not create one actor or particle per automated touch.",
+    "Updated the durable ecosystem design document and corrected stale first-sprinkler, Field Mouse cache, and Remembered Touch values."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/ecosystem/EcosystemSave.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSave.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-24_AUTOMATED_HELPER_TOUCHES.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "Focused Ecosystem System and Save tests passed: 68 tests.",
+    "npm run check passed: ESLint, 210 Vitest tests across 24 files, strict TypeScript, and the Vite production build.",
+    "Desktop browser verification began from a clean Run 1 with zero helpers and zero automated touches.",
+    "A controlled later run verified two Tiny Sprinklers producing 5.1072 automated touches per second, Run Touches, effective healing, field-stage progress, and Aegis gain.",
+    "The animation harness observed three bounded active effects and a live Aegis gain pulse during a sprinkler activation.",
+    "The 390x844 phone pass retained the 5.1072 touches-per-second rate, bounded visible objects, approximately 143 sampled FPS, and zero frame spikes.",
+    "Browser diagnostics contained only normal Vite and Phaser startup messages, with no errors or warnings.",
+    "git diff --check passed with only expected Windows line-ending notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "baseCommit": "4239a73",
+    "committed": false,
+    "pushRequested": true,
+    "deploymentRequested": true,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The exact touch and healing ladder still needs hands-on progression balance across real helper tiers.",
+    "The internal permanent-state field remains named efficiencyRanks for save compatibility even though the player-facing Memory is now Impact.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and is not part of this slice."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test whether the first Tiny Sprinkler becomes meaningful quickly enough without replacing manual touch play.",
+    "Tune Speed and Impact prices against observed survival and field-expansion pacing.",
+    "Add helper-specific audiovisual variants as each later helper enters live progression."
+  ],
+  "doNotRevert": [
+    "Do not make helper touches cosmetic-only; every completed helper cycle must update the aggregate model.",
+    "Do not restore recipe-specific Run Touch payouts for only Mouse or Chicken.",
+    "Do not loop once per automated touch or create effects proportional to large helper counts.",
+    "Do not rename the serialized efficiencyRanks field without an explicit save migration.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

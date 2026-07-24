@@ -91,6 +91,10 @@ describe("EcosystemSave", () => {
     expect(loaded?.state.fixedTicks).toBe(state.fixedTicks);
     expect(loaded?.state.resources).toEqual(state.resources);
     expect(loaded?.state.helpers).toEqual(state.helpers);
+    expect(loaded?.state.automatedTouchCount).toBe(state.automatedTouchCount);
+    expect(loaded?.state.automatedHealingTotal).toBe(state.automatedHealingTotal);
+    expect(loaded?.state.automationTouchRate).toBe(state.automationTouchRate);
+    expect(loaded?.state.automationHealingRate).toBe(state.automationHealingRate);
     expect(loaded?.state.lingeringCarePerSecond).toBe(state.lingeringCarePerSecond);
     expect(loaded?.state.lingeringCareRemainingMs).toBe(state.lingeringCareRemainingMs);
     expect(loaded?.state.overhealShield).toBe(state.overhealShield);
@@ -148,6 +152,24 @@ describe("EcosystemSave", () => {
     const loaded = restoreActiveFieldSnapshot(snapshot, permanent);
 
     expect(loaded?.state.helpers.fieldMouse.cyclesCompleted).toBe(0);
+  });
+
+  it("defaults active saves from before automated-touch accounting to zero", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 2;
+    const state = createEcosystemState(permanent, { seed: 8_154 });
+    const snapshot = createActiveFieldSnapshot(state);
+    delete (snapshot as Partial<typeof snapshot>).automatedTouchCount;
+    delete (snapshot as Partial<typeof snapshot>).automatedHealingTotal;
+    delete (snapshot as Partial<typeof snapshot>).automationTouchRate;
+    delete (snapshot as Partial<typeof snapshot>).automationHealingRate;
+
+    const loaded = restoreActiveFieldSnapshot(snapshot, permanent);
+
+    expect(loaded?.state.automatedTouchCount).toBe(0);
+    expect(loaded?.state.automatedHealingTotal).toBe(0);
+    expect(loaded?.state.automationTouchRate).toBe(0);
+    expect(loaded?.state.automationHealingRate).toBe(0);
   });
 
   it("defaults active saves created before Green Afterglow to no active healing", () => {

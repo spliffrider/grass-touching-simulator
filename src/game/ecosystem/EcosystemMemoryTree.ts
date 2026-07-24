@@ -71,7 +71,7 @@ export const HELPER_MEMORY_CATEGORY_ORDER: readonly HelperMemoryCategory[] = [
 export const HELPER_MEMORY_CATEGORY_STYLES: Record<HelperMemoryCategory, HelperMemoryCategoryStyle> = {
   unlock: { id: "unlock", label: "UNLOCK", detailLabel: "New helper", color: 0x72e69a },
   throughput: { id: "throughput", label: "SPEED", detailLabel: "Automation speed", color: 0x78d9ef },
-  efficiency: { id: "efficiency", label: "EFFICIENCY", detailLabel: "Recipe efficiency", color: 0xb7e66f },
+  efficiency: { id: "efficiency", label: "IMPACT", detailLabel: "Touch yield and healing", color: 0xb7e66f },
   storage: { id: "storage", label: "STORAGE", detailLabel: "Resource storage", color: 0x78aef2 },
   startingStock: { id: "startingStock", label: "START STOCK", detailLabel: "Starting resources", color: 0xf0cc62 },
   mode: { id: "mode", label: "MODE", detailLabel: "Helper mode", color: 0xd99fc4 },
@@ -244,7 +244,7 @@ const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCop
     },
     efficiency: {
       label: "Fine Mist",
-      description: "Reduces the Dew spent by every spray without weakening its output.",
+      description: "Makes every spray use less Dew while adding more automated touches and restoring more Ancient HP.",
     },
     startingStock: {
       label: "Dawn Condensation",
@@ -262,7 +262,7 @@ const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCop
     },
     efficiency: {
       label: "Careful Nibbles",
-      description: "Reduces the Seeds spent on every Field Mouse trip.",
+      description: "Makes every trip use fewer Seeds while adding more automated touches and restoring more Ancient HP.",
     },
     startingStock: {
       label: "Hidden Cache",
@@ -280,7 +280,7 @@ const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCop
     },
     efficiency: {
       label: "Pollen Savvy",
-      description: "Reduces the Flowers spent on every pollination flight.",
+      description: "Makes every flight use fewer Flowers while adding more automated touches and restoring more Ancient HP.",
     },
     startingStock: {
       label: "First Blossoms",
@@ -298,7 +298,7 @@ const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCop
     },
     efficiency: {
       label: "Clean Scratch",
-      description: "Reduces the field material spent on every Chicken Patrol cycle.",
+      description: "Makes every patrol use less material while adding more automated touches and restoring more Ancient HP.",
     },
     startingStock: {
       label: "Dawn Forage",
@@ -316,7 +316,7 @@ const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCop
     },
     efficiency: {
       label: "Rich Castings",
-      description: "Reduces the Compost spent by every Earthworm Crew cycle.",
+      description: "Makes every aeration use less Compost while adding more automated touches and restoring more Ancient HP.",
     },
     startingStock: {
       label: "Warm Heap",
@@ -334,7 +334,7 @@ const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCop
     },
     efficiency: {
       label: "Patient Absorption",
-      description: "Reduces the resources spent by every Ancient Root conversion.",
+      description: "Makes every conversion use fewer resources while adding more automated touches and restoring more Ancient HP.",
     },
     startingStock: {
       label: "Old Soil",
@@ -352,7 +352,7 @@ const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCop
     },
     efficiency: {
       label: "Gentle Bite",
-      description: "Reduces the Growth spent on every Sheep Loop cycle.",
+      description: "Makes every graze use less Growth while adding more automated touches and restoring more Ancient HP.",
     },
     startingStock: {
       label: "Fresh Pasture",
@@ -370,7 +370,7 @@ const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCop
     },
     efficiency: {
       label: "Light Landing",
-      description: "Reduces the Seeds spent on every Meadow Rabbit run.",
+      description: "Makes every run use fewer Seeds while adding more automated touches and restoring more Ancient HP.",
     },
     startingStock: {
       label: "Buried Snack",

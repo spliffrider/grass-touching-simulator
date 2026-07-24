@@ -36,6 +36,9 @@ export const HELPER_THROUGHPUT_PER_RANK = 0.3;
 export const HELPER_STORAGE_CAPACITY_PER_RANK = 0.25;
 export const HELPER_EFFICIENCY_PER_RANK = 0.06;
 export const HELPER_STARTING_STOCK_PER_RANK = 6;
+export const HELPER_TOUCH_YIELD_PER_IMPACT_RANK = 0.15;
+export const HELPER_HEALING_PER_TOUCH = 0.45;
+export const HELPER_HEALING_PER_IMPACT_RANK = 0.12;
 export const FIELD_EXPANSION_BASE_RUN_TOUCH_COST = 500;
 export const FIELD_EXPANSION_RUN_TOUCH_MULTIPLIER = 2;
 export const DAMP_FURROWS_MOISTURE_PER_CYCLE = 0.3;
@@ -118,9 +121,11 @@ export interface EcosystemRunSummary {
   cultivationRank: number;
   careProduced: number;
   manualCare: number;
+  automatedHealing: number;
   runTouchesEarned: number;
   helpersBought: number;
   touches: number;
+  automatedTouches: number;
   grassTouchesAwarded: number;
 }
 
@@ -140,6 +145,10 @@ export interface EcosystemState {
   runTouchesEarned: number;
   manualTouchCount: number;
   manualCareTotal: number;
+  automatedTouchCount: number;
+  automatedHealingTotal: number;
+  automationTouchRate: number;
+  automationHealingRate: number;
   lingeringCarePerSecond: number;
   lingeringCareRemainingMs: number;
   overhealShield: number;
@@ -177,6 +186,10 @@ export interface EcosystemReadout {
   careProductionPerSecond: number;
   careDeficitPerSecond: number;
   runTouches: number;
+  automatedTouchCount: number;
+  automatedHealingTotal: number;
+  automationTouchRate: number;
+  automationHealingRate: number;
   bottleneck: string;
   fixedTicks: number;
   logicalTiles: number;
@@ -543,6 +556,10 @@ export function createEcosystemState(
     runTouchesEarned: 0,
     manualTouchCount: 0,
     manualCareTotal: 0,
+    automatedTouchCount: 0,
+    automatedHealingTotal: 0,
+    automationTouchRate: 0,
+    automationHealingRate: 0,
     lingeringCarePerSecond: 0,
     lingeringCareRemainingMs: 0,
     overhealShield: 0,
@@ -578,6 +595,10 @@ export function enforceRunOneBareHands(state: EcosystemState): void {
     return;
   }
   state.helperPurchaseCount = 0;
+  state.automatedTouchCount = 0;
+  state.automatedHealingTotal = 0;
+  state.automationTouchRate = 0;
+  state.automationHealingRate = 0;
   state.overhealShield = 0;
   state.maxOverhealShield = 0;
   state.overhealShieldRemainingMs = 0;
@@ -625,6 +646,48 @@ export function getFirstAutomationStatus(
 export function getHelperThroughputMultiplier(rank: number): number {
   const safeRank = clampRank(rank, 10);
   return 1 + safeRank * HELPER_THROUGHPUT_PER_RANK;
+}
+
+export function getHelperAutomatedTouchYield(helperId: HelperId, impactRank: number): number {
+  return HELPERS[helperId].touchesPerCycle
+    * (1 + clampRank(impactRank, 10) * HELPER_TOUCH_YIELD_PER_IMPACT_RANK);
+}
+
+export function getHelperAutomatedHealingPerTouch(impactRank: number): number {
+  return HELPER_HEALING_PER_TOUCH
+    * (1 + clampRank(impactRank, 10) * HELPER_HEALING_PER_IMPACT_RANK);
+}
+
+export interface HelperAutomationRates {
+  touchesPerCycle: number;
+  healingPerCycle: number;
+  touchesPerSecond: number;
+  healingPerSecond: number;
+}
+
+export function getHelperAutomationRates(
+  state: EcosystemState,
+  permanent: PermanentEcosystemState,
+  helperId: HelperId,
+): HelperAutomationRates {
+  const helper = state.helpers[helperId];
+  const impactRank = permanent.efficiencyRanks[helperId];
+  const touchesPerCycle = getHelperAutomatedTouchYield(helperId, impactRank);
+  const healingPerCycle = touchesPerCycle * getHelperAutomatedHealingPerTouch(impactRank);
+  const recipe = PRODUCTION_RECIPES.find(
+    (candidate) => candidate.helperId === helperId && candidate.modeId === helper.modeId,
+  );
+  const cyclesPerSecond = recipe && helper.count > 0 && !helper.lastPauseReason
+    ? recipe.cyclesPerSecond
+      * helper.count
+      * getHelperThroughputMultiplier(permanent.throughputRanks[helperId])
+    : 0;
+  return {
+    touchesPerCycle,
+    healingPerCycle,
+    touchesPerSecond: touchesPerCycle * cyclesPerSecond,
+    healingPerSecond: healingPerCycle * cyclesPerSecond,
+  };
 }
 
 export function getHelperCycleIntervalMs(
@@ -1219,11 +1282,6 @@ function performRecipe(
     const added = addResource(state, output.resourceId, output.amount * cycles);
     producedThisTick[output.resourceId] += added;
   }
-  if (recipe.runTouchesPerCycle) {
-    const gained = recipe.runTouchesPerCycle * cycles;
-    state.runTouches += gained;
-    state.runTouchesEarned += gained;
-  }
   if (recipe.helperId) {
     const helper = state.helpers[recipe.helperId];
     helper.cyclesCompleted += cycles;
@@ -1234,8 +1292,33 @@ function performRecipe(
       state.helperPulses[recipe.helperId] += pulses;
     }
   }
-  state.field.stageProgress += cycles * (recipe.natural ? 0.18 : 0.62);
+  if (recipe.natural) state.field.stageProgress += cycles * 0.18;
   return cycles;
+}
+
+interface AutomatedTouchCycleResult {
+  touches: number;
+  healedHp: number;
+}
+
+function performAutomatedTouches(
+  state: EcosystemState,
+  permanent: PermanentEcosystemState,
+  helperId: HelperId,
+  completedCycles: number,
+): AutomatedTouchCycleResult {
+  if (completedCycles <= EPSILON) return { touches: 0, healedHp: 0 };
+
+  const impactRank = permanent.efficiencyRanks[helperId];
+  const touches = completedCycles * getHelperAutomatedTouchYield(helperId, impactRank);
+  const healing = touches * getHelperAutomatedHealingPerTouch(impactRank);
+  const healedHp = healAncientGrass(state, permanent, healing, false);
+  state.runTouches += touches;
+  state.runTouchesEarned += touches;
+  state.automatedTouchCount += touches;
+  state.automatedHealingTotal += healedHp;
+  state.field.stageProgress += touches;
+  return { touches, healedHp };
 }
 
 function getScourgeDemand(state: EcosystemState, permanent: PermanentEcosystemState): number {
@@ -1324,7 +1407,8 @@ function finishRun(state: EcosystemState, permanent: PermanentEcosystemState): v
     : 5;
   const award = Math.max(
     minimumAward,
-    Math.floor((careProduced + state.manualCareTotal) / 7.5) + Math.floor(state.field.sizeIndex * 2.5),
+    Math.floor((careProduced + state.manualCareTotal + state.automatedHealingTotal) / 7.5)
+      + Math.floor(state.field.sizeIndex * 2.5),
   );
   permanent.grassTouches += award;
   permanent.completedRuns += 1;
@@ -1334,9 +1418,11 @@ function finishRun(state: EcosystemState, permanent: PermanentEcosystemState): v
     cultivationRank: state.field.cultivationRank,
     careProduced,
     manualCare: state.manualCareTotal,
+    automatedHealing: state.automatedHealingTotal,
     runTouchesEarned: state.runTouchesEarned,
     helpersBought: state.helperPurchaseCount,
     touches: state.manualTouchCount,
+    automatedTouches: state.automatedTouchCount,
     grassTouchesAwarded: award,
   };
 }
@@ -1451,6 +1537,8 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
   state.elapsedMs += PRODUCTION_TICK_MS;
   state.fixedTicks += 1;
   const producedThisTick = createRateRecord();
+  let automatedTouchesThisTick = 0;
+  let automatedHealingThisTick = 0;
   const equipmentAvailable = isRunEquipmentAvailable(state);
 
   for (const helperId of HELPER_IDS) {
@@ -1480,6 +1568,14 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
       const throughput = getHelperThroughputMultiplier(permanent.throughputRanks[recipe.helperId]);
       const requested = recipe.cyclesPerSecond * helper.count * throughput * tickSeconds;
       const completedCycles = performRecipe(state, permanent, recipe, requested, producedThisTick);
+      const automated = performAutomatedTouches(
+        state,
+        permanent,
+        recipe.helperId,
+        completedCycles,
+      );
+      automatedTouchesThisTick += automated.touches;
+      automatedHealingThisTick += automated.healedHp;
       if (recipe.id === "sprinkler-care") {
         performStarterSprouting(state, completedCycles, producedThisTick);
       }
@@ -1509,6 +1605,8 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
   for (const resourceId of PRODUCTION_RESOURCE_IDS) {
     state.rates[resourceId] = producedThisTick[resourceId] / tickSeconds;
   }
+  state.automationTouchRate = automatedTouchesThisTick / tickSeconds;
+  state.automationHealingRate = automatedHealingThisTick / tickSeconds;
   advanceRepresentativeTiles(state);
   updateBottleneck(state);
   if (state.hp <= 0) {
@@ -1732,6 +1830,10 @@ export function getEcosystemReadout(state: EcosystemState): EcosystemReadout {
     careProductionPerSecond: state.rates.care,
     careDeficitPerSecond: state.careDeficitPerSecond,
     runTouches: state.runTouches,
+    automatedTouchCount: state.automatedTouchCount,
+    automatedHealingTotal: state.automatedHealingTotal,
+    automationTouchRate: state.automationTouchRate,
+    automationHealingRate: state.automationHealingRate,
     bottleneck: state.bottleneck,
     fixedTicks: state.fixedTicks,
     logicalTiles: state.field.stages.length,

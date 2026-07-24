@@ -61,6 +61,10 @@ export interface ActiveFieldSnapshot {
   runTouchesEarned: number;
   manualTouchCount: number;
   manualCareTotal: number;
+  automatedTouchCount: number;
+  automatedHealingTotal: number;
+  automationTouchRate: number;
+  automationHealingRate: number;
   lingeringCarePerSecond: number;
   lingeringCareRemainingMs: number;
   overhealShield: number;
@@ -128,7 +132,13 @@ function base64ToBytes(value: string): Uint8Array {
 }
 
 function cloneSummary(summary: EcosystemRunSummary | null): EcosystemRunSummary | null {
-  return summary ? { ...summary } : null;
+  return summary
+    ? {
+      ...summary,
+      automatedHealing: finiteNumber(summary.automatedHealing, 0, 0),
+      automatedTouches: finiteNumber(summary.automatedTouches, 0, 0),
+    }
+    : null;
 }
 
 export function createActiveFieldSnapshot(
@@ -162,6 +172,10 @@ export function createActiveFieldSnapshot(
     runTouchesEarned: state.runTouchesEarned,
     manualTouchCount: state.manualTouchCount,
     manualCareTotal: state.manualCareTotal,
+    automatedTouchCount: state.automatedTouchCount,
+    automatedHealingTotal: state.automatedHealingTotal,
+    automationTouchRate: state.automationTouchRate,
+    automationHealingRate: state.automationHealingRate,
     lingeringCarePerSecond: state.lingeringCarePerSecond,
     lingeringCareRemainingMs: state.lingeringCareRemainingMs,
     overhealShield: state.overhealShield,
@@ -241,6 +255,10 @@ export function restoreActiveFieldSnapshot(
   state.runTouchesEarned = finiteNumber(input.runTouchesEarned, 0, 0);
   state.manualTouchCount = Math.floor(finiteNumber(input.manualTouchCount, 0, 0));
   state.manualCareTotal = finiteNumber(input.manualCareTotal, 0, 0);
+  state.automatedTouchCount = finiteNumber(input.automatedTouchCount, 0, 0);
+  state.automatedHealingTotal = finiteNumber(input.automatedHealingTotal, 0, 0);
+  state.automationTouchRate = finiteNumber(input.automationTouchRate, 0, 0);
+  state.automationHealingRate = finiteNumber(input.automationHealingRate, 0, 0);
   state.lingeringCarePerSecond = finiteNumber(input.lingeringCarePerSecond, 0, 0);
   state.lingeringCareRemainingMs = finiteNumber(input.lingeringCareRemainingMs, 0, 0);
   if (state.lingeringCareRemainingMs <= 0) state.lingeringCarePerSecond = 0;

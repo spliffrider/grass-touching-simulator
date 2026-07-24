@@ -124,6 +124,9 @@ import {
   getFieldMouseStatus,
   getFieldTierUnlockCost,
   getFirstAutomationStatus,
+  getHelperAutomatedHealingPerTouch,
+  getHelperAutomatedTouchYield,
+  getHelperAutomationRates,
   getHelperCycleIntervalMs,
   getHelperPurchaseCost,
   getHelperStorageResourceIds,
@@ -207,9 +210,9 @@ const HELPER_EFFECT_COLOR: Record<HelperId, number> = {
 
 const HELPER_PULSE_COPY: Record<HelperId, string> = {
   tinySprinkler: "MOISTURE + GROWTH + CARE",
-  fieldMouse: "GROWTH + RUN TOUCHES",
+  fieldMouse: "SEEDS SPREAD + GROWTH",
   beeHive: "POLLINATED BLOOMS",
-  chickenPatrol: "COMPOST + RUN TOUCHES",
+  chickenPatrol: "CLIPPINGS + COMPOST",
   earthwormCrew: "HUMUS",
   ancientRoots: "ROOT ENERGY + CARE",
   sheepLoop: "CLIPPINGS + CARE",
@@ -2109,7 +2112,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.setTextIfChanged(this.hpText, `Ancient HP ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}${hpStatusCopy}`);
       this.setTextIfChanged(this.pressureText, awaitingFirstTouch
         ? "Scourge dormant  |  Touch the grass to begin"
-        : `Scourge ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s  |  helper Care ${readout.careProductionPerSecond.toFixed(2)}/s`);
+        : this.scale.width < 760
+          ? `Scourge ${readout.scourgeDemandPerSecond.toFixed(1)}/s  |  Auto ${readout.automationTouchRate.toFixed(1)} touches/s`
+          : `Scourge ${readout.scourgeDemandPerSecond.toFixed(2)} Care/s  |  helper Care ${readout.careProductionPerSecond.toFixed(2)}/s  |  automation ${readout.automationTouchRate.toFixed(2)} touches/s`);
       this.updateCurrencyValue(this.runTouchesValue, readout.runTouches.toFixed(0));
       this.updateCurrencyValue(this.grassTouchesValue, this.permanent.grassTouches.toFixed(0), true);
       this.setTextIfChanged(
@@ -2150,7 +2155,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       ].join("\n"));
       const firstStage = this.state.field.stages[0] as TileStage;
       this.setTextIfChanged(this.plotStageText, TILE_STAGE_LABELS[firstStage].toUpperCase());
-      this.setTextIfChanged(this.plotDetailText, `Stage ${firstStage + 1} / ${TILE_TEXTURE_KEYS.length}   |   ${this.state.manualTouchCount} touches`);
+      this.setTextIfChanged(
+        this.plotDetailText,
+        `Stage ${firstStage + 1} / ${TILE_TEXTURE_KEYS.length}   |   ${this.state.manualTouchCount} hand + ${this.state.automatedTouchCount.toFixed(0)} auto`,
+      );
       if (awaitingFirstTouch) {
         this.touchSummaryText.setAlpha(0);
       }
@@ -2300,6 +2308,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
       for (const helperId of HELPER_IDS) {
         const helper = this.state.helpers[helperId];
+        const automation = getHelperAutomationRates(this.state, this.permanent, helperId);
         const cost = getHelperPurchaseCost(this.state, helperId);
         const pause = helper.lastPauseReason ? ` | ${helper.lastPauseReason}` : "";
         const label = helperId === "tinySprinkler" && helper.count === 0
@@ -2314,13 +2323,18 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
             ? this.state.runTouches >= cost
               ? `Establish Bee Hive  |  ${cost} ${RUN_TOUCHES_LABEL}`
               : `Bee Hive  |  ${Math.floor(this.state.runTouches)} / ${cost} ${RUN_TOUCHES_LABEL}`
-          : `${HELPERS[helperId].label} x${helper.count}  Buy ${cost} ${RUN_TOUCHES_LABEL}${pause}`;
+          : `${HELPERS[helperId].label} x${helper.count}  |  ${automation.touchesPerSecond.toFixed(1)} touches/s  |  Buy ${cost}${pause}`;
         this.helperBuyButtons[helperId]
           .setLabel(label)
           .setEnabled(equipmentAvailable && this.state.runTouches >= cost);
         const actor = this.helperActors[helperId];
         if (helper.count > 0) {
-          this.setTextIfChanged(actor.countText, helper.lastPauseReason ? `x${helper.count}  |  PAUSED` : `x${helper.count}`);
+          this.setTextIfChanged(
+            actor.countText,
+            helper.lastPauseReason
+              ? `x${helper.count}  |  PAUSED`
+              : `x${helper.count}  |  ${automation.touchesPerSecond.toFixed(1)}/s`,
+          );
           const progressRatio = helper.lastPauseReason ? 0 : Phaser.Math.Clamp(helper.pulseProgress, 0, 1);
           actor.progressFill.setDisplaySize(Math.max(1, (actor.badgeWidth - 4) * progressRatio), 3);
           const progressColor = helper.lastPauseReason ? 0xe8616a : HELPER_EFFECT_COLOR[helperId];
@@ -2349,11 +2363,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     if (this.state.active && this.worksOpen) {
       for (const helperId of HELPER_IDS) {
         const helper = this.state.helpers[helperId];
+        const automation = getHelperAutomationRates(this.state, this.permanent, helperId);
         const cost = getHelperPurchaseCost(this.state, helperId);
         const unlocked = equipmentAvailable && this.permanent.unlockedHelpers[helperId];
         this.factoryHelperButtons[helperId]
           .setVisible(unlocked)
-          .setLabel(`${HELPERS[helperId].label} x${helper.count} | Buy ${cost} ${RUN_TOUCHES_LABEL}`)
+          .setLabel(`${HELPERS[helperId].label} x${helper.count} | ${automation.touchesPerSecond.toFixed(1)} touches/s | Buy ${cost}`)
           .setEnabled(this.state.runTouches >= cost);
         const mode = HELPERS[helperId].modes.find((candidate) => candidate.id === helper.modeId)!;
         const availableModes = HELPERS[helperId].modes.filter((candidate) => this.permanent.unlockedModes[helperId].includes(candidate.id));
@@ -2431,8 +2446,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
             `Field reached: ${summary.fieldSize}x${summary.fieldSize}`,
             `Care produced: ${summary.careProduced.toFixed(1)}`,
             `Manual Care: ${summary.manualCare.toFixed(1)}`,
+            `Automation healing: ${(summary.automatedHealing ?? 0).toFixed(1)}`,
             `Helpers bought: ${summary.helpersBought}`,
             `Manual touches: ${summary.touches}`,
+            `Automated touches: ${(summary.automatedTouches ?? 0).toFixed(1)}`,
             "",
             `Available ${GRASS_TOUCHES_LABEL}: ${this.permanent.grassTouches.toFixed(0)}`,
           ].join("\n")
@@ -3210,6 +3227,15 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   ): void {
     const dampFurrowsPulse = helperId === "fieldMouse" && isDampFurrowsFlowing(this.state);
     const color = dampFurrowsPulse ? 0x8de7c5 : HELPER_EFFECT_COLOR[helperId];
+    const impactRank = this.permanent.efficiencyRanks[helperId];
+    const automatedTouches = getHelperAutomatedTouchYield(helperId, impactRank) * pulseCount;
+    const automatedHealing = automatedTouches * getHelperAutomatedHealingPerTouch(impactRank);
+    const touchCopy = automatedTouches >= 10
+      ? automatedTouches.toFixed(0)
+      : automatedTouches.toFixed(1);
+    const healingCopy = automatedHealing >= 10
+      ? automatedHealing.toFixed(0)
+      : automatedHealing.toFixed(1);
     if (!priming
       && (helperId === "fieldMouse" || helperId === "beeHive")
       && this.time.now - this.lastHelperSoundAt >= HELPER_SOUND_INTERVAL_MS) {
@@ -3218,11 +3244,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
     const impact = this.impactPool.find((candidate) => !candidate.visible);
     if (impact) {
+      const impactScale = 2.1 + Math.min(1.2, Math.log2(automatedTouches + 1) * 0.18);
       impact.setPosition(x, y).setRadius(14).setFillStyle(color, 0.1).setStrokeStyle(3, color, 0.9).setAlpha(1).setScale(0.4).setVisible(true);
       this.tweens.killTweensOf(impact);
       this.tweens.add({
         targets: impact,
-        scale: 2.1,
+        scale: impactScale,
         alpha: 0,
         duration: 460,
         ease: "Cubic.easeOut",
@@ -3238,7 +3265,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           ? "MOISTURE + GROWTH"
           : HELPER_PULSE_COPY[helperId];
       feedback
-        .setText(`${modeCopy}${pulseCount > 1 ? ` x${pulseCount}` : ""}`)
+        .setText(`${modeCopy}\n+${touchCopy} AUTO TOUCH${automatedTouches >= 1.5 ? "ES" : ""}  |  +${healingCopy} HP`)
         .setColor(`#${color.toString(16).padStart(6, "0")}`)
         .setPosition(x, y - 18)
         .setAlpha(1)
@@ -3252,14 +3279,62 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         ease: "Cubic.easeOut",
         onComplete: () => feedback.setVisible(false),
       });
+      this.audio.playGrassTouch("normal", "normal", false, 0);
+      this.showAutomationHealingEffect(x, y, color, automatedHealing);
     }
 
-    if (!priming && helperId === "tinySprinkler" && this.state.helpers.tinySprinkler.modeId === "caretaker") {
-      this.tweens.killTweensOf(this.hpBarFill);
-      this.hpBarFill.setAlpha(1);
-      this.tweens.add({ targets: this.hpBarFill, alpha: 0.64, yoyo: true, duration: 120, onComplete: () => this.hpBarFill.setAlpha(1) });
-    }
     if (celebrateFirstCare) this.showFirstCareOnline();
+  }
+
+  private showAutomationHealingEffect(
+    sourceX: number,
+    sourceY: number,
+    color: number,
+    healing: number,
+  ): void {
+    const pulse = this.lingeringCarePulsePool.find((candidate) => !candidate.visible);
+    if (!pulse) {
+      this.lingeringCareArrivalPulse = Math.min(1, this.lingeringCareArrivalPulse + 0.5);
+      return;
+    }
+    const targetX = this.hpBarFill.x + Math.max(8, this.hpBarFill.displayWidth * 0.72);
+    const targetY = this.hpBarFill.y;
+    const visualSize = Phaser.Math.Clamp(
+      (this.scale.width < 760 ? 14 : 18) + Math.sqrt(Math.max(0, healing)) * 1.8,
+      14,
+      this.scale.width < 760 ? 24 : 30,
+    );
+    pulse
+      .clearTint()
+      .setTexture("eco-effect-spore")
+      .setPosition(sourceX, sourceY)
+      .setDisplaySize(visualSize, visualSize)
+      .setTint(color)
+      .setAlpha(1)
+      .setRotation(-0.25)
+      .setVisible(true);
+    const targetScaleX = pulse.scaleX;
+    const targetScaleY = pulse.scaleY;
+    pulse.setScale(targetScaleX * 0.62, targetScaleY * 0.62);
+    this.tweens.killTweensOf(pulse);
+    this.tweens.add({
+      targets: pulse,
+      x: targetX,
+      y: targetY,
+      scaleX: targetScaleX * 1.05,
+      scaleY: targetScaleY * 1.05,
+      rotation: Math.PI * 1.75,
+      alpha: 0.88,
+      duration: this.scale.width < 760 ? 390 : 520,
+      ease: "Sine.easeInOut",
+      onComplete: () => {
+        pulse.clearTint().setVisible(false);
+        this.lingeringCareArrivalPulse = Math.min(
+          1,
+          this.lingeringCareArrivalPulse + 0.55 + Math.min(0.35, healing * 0.02),
+        );
+      },
+    });
   }
 
   private showFirstCareOnline(): void {
@@ -3881,16 +3956,27 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const storageLabels = getHelperStorageResourceIds(helperId)
         .map((resourceId) => PRODUCTION_RESOURCES[resourceId].label)
         .join(", ");
+      const currentAutomatedTouches = getHelperAutomatedTouchYield(helperId, rank);
+      const nextAutomatedTouches = getHelperAutomatedTouchYield(helperId, nextRank);
+      const currentAutomatedHealing = currentAutomatedTouches * getHelperAutomatedHealingPerTouch(rank);
+      const nextAutomatedHealing = nextAutomatedTouches * getHelperAutomatedHealingPerTouch(nextRank);
       const effects: Record<PermanentRankKind, string> = {
         throughput: complete
-          ? `${HELPERS[helperId].label} cycle cooldown: ${formatInterval(currentIntervalMs)}.`
-          : `${HELPERS[helperId].label} cycle cooldown: ${formatInterval(currentIntervalMs)} -> ${formatInterval(nextIntervalMs)} next rank.`,
+          ? `${HELPERS[helperId].label} automated-touch cooldown: ${formatInterval(currentIntervalMs)}.`
+          : `${HELPERS[helperId].label} automated-touch cooldown: ${formatInterval(currentIntervalMs)} -> ${formatInterval(nextIntervalMs)} next rank.`,
         storage: complete
           ? `${storageLabels} capacity: +${Math.round(rank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% from this Memory.`
           : `${storageLabels} capacity: +${Math.round(rank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% -> +${Math.round(nextRank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% next rank.`,
         efficiency: complete
-          ? `Recipe input cost: -${Math.round(rank * HELPER_EFFICIENCY_PER_RANK * 100)}%.`
-          : `Recipe input cost: -${Math.round(rank * HELPER_EFFICIENCY_PER_RANK * 100)}% -> -${Math.round(nextRank * HELPER_EFFICIENCY_PER_RANK * 100)}% next rank.`,
+          ? [
+            `Each activation: ${currentAutomatedTouches.toFixed(1)} touches and ${currentAutomatedHealing.toFixed(1)} HP.`,
+            `Recipe input cost: -${Math.round(rank * HELPER_EFFICIENCY_PER_RANK * 100)}%.`,
+          ].join("\n")
+          : [
+            `Touches per activation: ${currentAutomatedTouches.toFixed(1)} -> ${nextAutomatedTouches.toFixed(1)}.`,
+            `Healing per activation: ${currentAutomatedHealing.toFixed(1)} -> ${nextAutomatedHealing.toFixed(1)} HP.`,
+            `Input savings: ${Math.round(rank * HELPER_EFFICIENCY_PER_RANK * 100)}% -> ${Math.round(nextRank * HELPER_EFFICIENCY_PER_RANK * 100)}%.`,
+          ].join("\n"),
         startingStock: complete
           ? `Each new field starts with +${rank * HELPER_STARTING_STOCK_PER_RANK} stock.`
           : `Starting stock: +${rank * HELPER_STARTING_STOCK_PER_RANK} -> +${nextRank * HELPER_STARTING_STOCK_PER_RANK} next rank.`,

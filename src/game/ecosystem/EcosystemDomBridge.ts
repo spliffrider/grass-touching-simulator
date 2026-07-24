@@ -28,6 +28,7 @@ import {
   getFieldMouseStatus,
   getFieldTierUnlockCost,
   getFirstAutomationStatus,
+  getHelperAutomationRates,
   getHelperPurchaseCost,
   getHelperUnlockCost,
   getManualTouchPowerBonusPercent,
@@ -367,6 +368,7 @@ export class EcosystemDomBridge {
       `Ancient HP ${state.hp.toFixed(1)} / ${state.maxHp.toFixed(0)}`,
       `Scourge demand ${state.scourgeDemandPerSecond.toFixed(2)} Care/s | Care production ${state.rates.care.toFixed(2)}/s`,
       `Field ${state.field.width}x${state.field.height} | ${RUN_TOUCHES_LABEL} ${state.runTouches.toFixed(1)} | ${GRASS_TOUCHES_LABEL} ${permanent.grassTouches.toFixed(0)}`,
+      `Automation ${state.automationTouchRate.toFixed(2)} touches/s | ${state.automationHealingRate.toFixed(2)} HP/s | ${state.automatedTouchCount.toFixed(1)} touches completed`,
       `Remembered Touch +${getManualTouchPowerBonusPercent(permanent)}% manual power`,
       ...(permanent.lingeringCareRank > 0
         ? [`Lingering Care ${state.lingeringCarePerSecond.toFixed(2)} Care/s | ${(state.lingeringCareRemainingMs / 1_000).toFixed(1)}s remaining`]
@@ -394,7 +396,8 @@ export class EcosystemDomBridge {
           "Helpers:",
           ...HELPER_IDS.filter((helperId) => permanent.unlockedHelpers[helperId]).map((helperId) => {
             const helper = state.helpers[helperId];
-            return `${HELPERS[helperId].label}: ${helper.count}, ${helper.modeId}${helper.lastPauseReason ? `, ${helper.lastPauseReason}` : ""}`;
+            const automation = getHelperAutomationRates(state, permanent, helperId);
+            return `${HELPERS[helperId].label}: ${helper.count}, ${helper.modeId}, ${automation.touchesPerSecond.toFixed(2)} touches/s${helper.lastPauseReason ? `, ${helper.lastPauseReason}` : ""}`;
           }),
         ]
         : [state.runNumber === 1
@@ -440,6 +443,7 @@ export class EcosystemDomBridge {
       const helperId = button.helperId!;
       const unlocked = permanent.unlockedHelpers[helperId];
       const cost = getHelperPurchaseCost(state, helperId);
+      const automation = getHelperAutomationRates(state, permanent, helperId);
       this.setHidden(button.element, !equipmentAvailable || !unlocked);
       this.setDisabled(button.element, !equipmentAvailable || state.runTouches < cost);
       this.setText(button.element, helperId === "tinySprinkler" && state.helpers.tinySprinkler.count === 0
@@ -454,7 +458,7 @@ export class EcosystemDomBridge {
           ? state.runTouches >= cost
             ? `Establish first Bee Hive for ${cost} ${RUN_TOUCHES_LABEL}`
             : `First Bee Hive: ${Math.floor(state.runTouches)} / ${cost} ${RUN_TOUCHES_LABEL}`
-        : `Buy ${HELPERS[helperId].label} for ${cost} ${RUN_TOUCHES_LABEL}`);
+        : `Buy ${HELPERS[helperId].label} for ${cost} ${RUN_TOUCHES_LABEL}; current automation ${automation.touchesPerSecond.toFixed(2)} touches per second`);
     }
     for (const button of this.modeButtons) {
       const helperId = button.helperId!;
@@ -595,6 +599,10 @@ export class EcosystemDomBridge {
       fieldExpansionCost: expansionCost,
       growth: Number(state.resources.growth.amount.toFixed(3)),
       runTouches: Number(state.runTouches.toFixed(3)),
+      automatedTouches: Number(state.automatedTouchCount.toFixed(3)),
+      automationTouchesPerSecond: Number(state.automationTouchRate.toFixed(4)),
+      automationHealing: Number(state.automatedHealingTotal.toFixed(3)),
+      automationHealingPerSecond: Number(state.automationHealingRate.toFixed(4)),
       grassTouches: Number(permanent.grassTouches.toFixed(3)),
       manualTouchBonusPercent: getManualTouchPowerBonusPercent(permanent),
       heartwoodRank: permanent.heartwoodRank,
