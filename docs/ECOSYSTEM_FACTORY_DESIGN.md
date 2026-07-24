@@ -97,7 +97,11 @@ once per automated touch and never scans the field. Presentation summarizes
 completed cycles through pooled helper actions, field-impact rings, touch and
 healing numbers, grass-touch audio, and a pooled restorative mote that travels
 from the impact to the Ancient HP bar. Additional simultaneous cycles increase
-the displayed payload without creating proportional actors or particles.
+the displayed payload without creating proportional actors or particles. A
+round-robin presentation scheduler batches fast repeated helper pulses and
+meters representative launches at 120 ms on desktop or 210 ms on phone-sized
+views. The model still resolves every cycle immediately; only redundant visual
+and audio presentations wait and combine.
 
 ### First Automation
 

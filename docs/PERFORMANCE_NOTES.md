@@ -167,7 +167,7 @@ the title screen or the first playable field from appearing.
 Near-field motion also has explicit per-frame budgets:
 
 - Desktop: at most 144 representative tile transforms.
-- Phone: at most 72 representative tile transforms.
+- Phone: at most 48 representative tile transforms.
 
 The sample is distributed across the visible tile pool, while every rendered
 tile keeps real state and is reset to a stable transform when the projection is
@@ -181,3 +181,44 @@ affordability flag rather than recomputing purchase cost every frame.
 These changes are structural guardrails, not new benchmark claims. Re-run the
 ecosystem-specific desktop and phone harness after hands-on title/gameplay
 verification before merging to `master`.
+
+## 2026-07-24 Dense Automation Presentation Budget
+
+The universal automated-touch system was profiled on the ecosystem redesign
+route before changing its presentation path. A 100x100 field with all eight
+helper families active at about 245 automated touches per second remained
+computationally inexpensive, but a 390x844 viewport could overlap 28 pooled
+effects, 35 tweens, and several large helper labels. The measured problem was
+presentation congestion rather than simulation work.
+
+Helper pulses now enter a fixed-size round-robin scheduler. Repeated cycles from
+the same helper combine into one payload, every helper gets a fair turn, and
+only the representative animation and audio are delayed. Mechanical touches,
+healing, Run Touches, resources, and field progress still resolve on the
+original fixed production tick.
+
+The playtest panel includes a repeatable `Stress automation` control. It creates
+a 100x100 field with 12 copies of all eight helpers, rank-ten Speed and Impact,
+filled production buffers, and 10,000 compact logical tiles. The redesign
+harness now reports presentation cadence, queued pulse payload, launches,
+represented pulses, active feedback labels, effects, and tweens.
+
+Measured after scheduling on
+`?redesign&ecosystemPrototype&playtest&debugPanel`:
+
+- 390x844 viewport at roughly 5,537 automated touches per second: zero frame
+  spikes, about 0.086 ms average frame work, 1.3 ms maximum frame work in the
+  sampled window, 6 active effects, and 9 active tweens at capture.
+- An eight-second sustained phone-sized sample kept queued pulse payload between
+  48 and 71 while presentations continued, confirming batching rather than an
+  accumulating backlog.
+- 1280x720 at roughly 3,228 automated touches per second: zero frame spikes,
+  about 0.145 ms average frame work, 2 ms maximum frame work, 8 active effects,
+  and 12 active tweens at capture.
+- Both views represented the 100x100 field with 100 chunk views and performed no
+  per-frame full-field scan.
+
+The phone-sized result is a browser viewport measurement, not physical
+low-powered phone emulation. It proves bounded architecture and catches visual
+regressions; a real-device pass is still required before making hardware-wide
+FPS claims. The legacy 1,200-tile harness was not used.

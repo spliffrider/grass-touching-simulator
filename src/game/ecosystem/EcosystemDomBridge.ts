@@ -68,6 +68,7 @@ export interface EcosystemDomActions {
   forceGameOver(): void;
   setPrototypeField(size: number): void;
   unlockPrototype(): void;
+  stressAutomation(): void;
   resetPrototypeSave(): void;
 }
 
@@ -315,6 +316,7 @@ export class EcosystemDomBridge {
         this.createButton("32x32", () => this.actions.setPrototypeField(32), "ecosystem-debug-field-32", buttonClass),
         this.createButton("50x50", () => this.actions.setPrototypeField(50), "ecosystem-debug-field-50", buttonClass),
         this.createButton("100x100", () => this.actions.setPrototypeField(100), "ecosystem-debug-field-100", buttonClass),
+        this.createButton("Stress automation", () => this.actions.stressAutomation(), "ecosystem-debug-automation-stress", buttonClass),
         this.createButton("Force Game Over", () => this.actions.forceGameOver(), "ecosystem-debug-game-over", buttonClass),
         this.createButton("Reset prototype", () => this.actions.resetPrototypeSave(), "ecosystem-debug-reset", buttonClass),
       );

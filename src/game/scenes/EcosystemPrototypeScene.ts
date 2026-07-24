@@ -66,6 +66,10 @@ import {
   getRevealedEcosystemMemoryNodeIds,
   type EcosystemMemoryNodeDefinition,
 } from "../ecosystem/EcosystemMemoryTree";
+import {
+  EcosystemHelperEffectScheduler,
+  getHelperEffectGapMs,
+} from "../ecosystem/EcosystemHelperEffectScheduler";
 import { EcosystemPerformanceMonitor } from "../ecosystem/EcosystemPerformanceMonitor";
 import {
   getManualTouchCooldownMs,
@@ -385,6 +389,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private displayObjectCount = 0;
   private lastGameOverState = false;
   private firstSprinklerCycleCelebrated = false;
+  private pendingFirstCareCelebration = false;
+  private helperEffectScheduler = new EcosystemHelperEffectScheduler();
+  private helperPresentationsStarted = 0;
+  private helperPresentationPulses = 0;
   private automationGoalReadyForPurchase = false;
   private returnToTitleAvailable = false;
   private lastLayoutWidth = 0;
@@ -557,6 +565,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private musicVolume = 0;
   private sfxVolume = 0;
   private lastHelperSoundAt = -Infinity;
+  private lastAutomationTouchSoundAt = -Infinity;
   private readonly handlePageHide = (): void => this.persistAll();
 
   constructor() {
@@ -720,6 +729,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.displayObjectCount = 0;
     this.lastGameOverState = false;
     this.firstSprinklerCycleCelebrated = false;
+    this.pendingFirstCareCelebration = false;
+    this.helperEffectScheduler.clear();
+    this.helperPresentationsStarted = 0;
+    this.helperPresentationPulses = 0;
     this.automationGoalReadyForPurchase = false;
     this.openingCaretakerVisible = false;
     this.displayedHpRatio = 1;
@@ -730,6 +743,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.lingeringCareArrivalPulse = 0;
     this.verdantAegisGainPulse = 0;
     this.verdantAegisHitPulse = 0;
+    this.lastHelperSoundAt = -Infinity;
+    this.lastAutomationTouchSoundAt = -Infinity;
     this.tilePool.length = 0;
     this.chunkPool.length = 0;
     this.impactPool.length = 0;
@@ -771,15 +786,20 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         const celebrateFirstCare = helperId === "tinySprinkler"
           && this.state.helpers.tinySprinkler.modeId === "caretaker"
           && !this.firstSprinklerCycleCelebrated;
-        if (celebrateFirstCare) this.firstSprinklerCycleCelebrated = true;
-        this.spawnHelperEffect(helperId, pulses[helperId], false, celebrateFirstCare);
+        if (celebrateFirstCare) {
+          this.firstSprinklerCycleCelebrated = true;
+          this.pendingFirstCareCelebration = true;
+        }
       }
+      this.helperEffectScheduler.enqueue(pulses);
     }
     if (!this.state.active && !this.lastGameOverState) {
       this.lastGameOverState = true;
       this.worksOpen = false;
       this.memoryRevealHoldIds = null;
       this.memoryRevealSequenceActive = false;
+      this.helperEffectScheduler.clear(this.time.now);
+      this.pendingFirstCareCelebration = false;
       this.resetTouchRecovery();
       this.audio.play("dormancy");
       this.prepareMemoryGroveView(true);
@@ -794,6 +814,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const simulationMs = performance.now() - simulationStart;
 
     const animationStart = performance.now();
+    this.flushHelperEffectQueue();
     this.animateHealthBar(this.time.now, delta);
     this.animateLivingField(this.time.now);
     this.animateMemoryTree(this.time.now);
@@ -1336,6 +1357,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         this.refreshMemoryTree();
         this.persistAll();
       },
+      stressAutomation: () => this.startAutomationStressPrototype(),
       resetPrototypeSave: () => this.resetPrototypeSave(),
     };
     this.domBridge = new EcosystemDomBridge(
@@ -3014,21 +3036,29 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.setTouchRecoveryVisible(false);
   }
 
-  private spawnHelperEffect(helperId: HelperId, pulseCount = 1, priming = false, celebrateFirstCare = false): void {
+  private flushHelperEffectQueue(): void {
+    if (!this.state.active || this.worksOpen || this.optionsOpen || !this.fieldRoot.visible) return;
+    const batch = this.helperEffectScheduler.takeNext(this.time.now, this.scale.width < 760);
+    if (!batch) return;
+    const celebrateFirstCare = batch.helperId === "tinySprinkler" && this.pendingFirstCareCelebration;
+    if (!this.spawnHelperEffect(batch.helperId, batch.pulseCount, false, celebrateFirstCare)) {
+      this.helperEffectScheduler.requeue(batch);
+      return;
+    }
+    if (celebrateFirstCare) this.pendingFirstCareCelebration = false;
+    this.helperPresentationsStarted += 1;
+    this.helperPresentationPulses += batch.pulseCount;
+  }
+
+  private spawnHelperEffect(helperId: HelperId, pulseCount = 1, priming = false, celebrateFirstCare = false): boolean {
     const actor = this.helperActors[helperId];
-    if (!actor.image.visible || !this.state.active || this.worksOpen) return;
+    if (!actor.image.visible || !this.state.active || this.worksOpen) return false;
     actor.pulseStartedAt = this.time.now;
     if (helperId === "fieldMouse") {
-      if (!priming) this.spawnFieldMouseScurry(actor, pulseCount);
-      return;
+      return priming || this.spawnFieldMouseScurry(actor, pulseCount);
     }
     if (helperId === "beeHive") {
-      if (!priming) this.spawnBeeFlight(actor, pulseCount);
-      return;
-    }
-    if (helperId === "tinySprinkler" && this.time.now - this.lastHelperSoundAt >= HELPER_SOUND_INTERVAL_MS) {
-      this.lastHelperSoundAt = this.time.now;
-      this.audio.play("sprinkler");
+      return priming || this.spawnBeeFlight(actor, pulseCount);
     }
     const singlePlot = this.state.field.stages.length === 1 && this.projection.lod === "near";
     const burstCount = helperId === "tinySprinkler"
@@ -3043,9 +3073,15 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const singlePlotVisualSize = singlePlot
       ? Math.min(420, this.projection.cellSize * 0.86, this.fieldBounds.height * 0.72)
       : 0;
+    let launched = false;
     for (let burstIndex = 0; burstIndex < burstCount; burstIndex += 1) {
       const effect = this.effectPool.find((candidate) => !candidate.visible);
       if (!effect) break;
+      if (!launched && helperId === "tinySprinkler" && this.time.now - this.lastHelperSoundAt >= HELPER_SOUND_INTERVAL_MS) {
+        this.lastHelperSoundAt = this.time.now;
+        this.audio.play("sprinkler");
+      }
+      launched = true;
       const targetX = singlePlot
         ? centerX + (burstIndex - (burstCount - 1) / 2) * Math.min(42, singlePlotVisualSize * 0.13) + (Math.random() - 0.5) * 12
         : Phaser.Math.Clamp(
@@ -3084,15 +3120,16 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         },
       });
     }
+    return launched;
   }
 
-  private spawnBeeFlight(actor: HelperActorView, pulseCount: number): void {
+  private spawnBeeFlight(actor: HelperActorView, pulseCount: number): boolean {
     if (actor.beeFlightActive) {
       actor.beeFlightPulseCount += pulseCount;
-      return;
+      return true;
     }
     const bee = this.effectPool.find((candidate) => !candidate.visible);
-    if (!bee) return;
+    if (!bee) return false;
     const singlePlot = this.state.field.stages.length === 1 && this.projection.lod === "near";
     const centerX = this.projection.originX + this.projection.worldWidth / 2;
     const centerY = this.projection.originY + this.projection.worldHeight / 2;
@@ -3153,6 +3190,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         }
       },
     });
+    return true;
   }
 
   private spawnBeePollinationBurst(x: number, y: number): void {
@@ -3181,10 +3219,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
   }
 
-  private spawnFieldMouseScurry(actor: HelperActorView, pulseCount: number): void {
+  private spawnFieldMouseScurry(actor: HelperActorView, pulseCount: number): boolean {
     if (this.time.now - actor.scurryStartedAt < FIELD_MOUSE_SCURRY_MS) {
       actor.scurryPulseCount += pulseCount;
-      return;
+      return true;
     }
     const singlePlot = this.state.field.stages.length === 1 && this.projection.lod === "near";
     const centerX = this.projection.originX + this.projection.worldWidth / 2;
@@ -3215,6 +3253,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       .setPosition(actor.baseX, actor.baseY - actor.actorSize * 0.22)
       .setAlpha(0)
       .setVisible(true);
+    return true;
   }
 
   private completeHelperEffect(
@@ -3279,7 +3318,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         ease: "Cubic.easeOut",
         onComplete: () => feedback.setVisible(false),
       });
-      this.audio.playGrassTouch("normal", "normal", false, 0);
+      const automationSoundGapMs = getHelperEffectGapMs(this.scale.width < 760);
+      if (this.time.now - this.lastAutomationTouchSoundAt >= automationSoundGapMs) {
+        this.lastAutomationTouchSoundAt = this.time.now;
+        this.audio.playGrassTouch("normal", "normal", false, 0);
+      }
       this.showAutomationHealingEffect(x, y, color, automatedHealing);
     }
 
@@ -3824,6 +3867,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.verdantAegisGainPulse = 0;
     this.verdantAegisHitPulse = 0;
     this.firstSprinklerCycleCelebrated = false;
+    this.pendingFirstCareCelebration = false;
+    this.helperEffectScheduler.clear(this.time.now);
     this.memoryRevealHoldIds = null;
     this.memoryRevealSequenceActive = false;
     this.memoryEntryTween?.stop();
@@ -4955,6 +5000,57 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     saveActiveField(this.state, view);
   }
 
+  private startAutomationStressPrototype(): void {
+    unlockAllPrototypeMemories(this.permanent);
+    this.permanent.completedRuns = Math.max(12, this.permanent.completedRuns);
+    for (const helperId of HELPER_IDS) {
+      this.permanent.throughputRanks[helperId] = 10;
+      this.permanent.storageRanks[helperId] = 10;
+      this.permanent.efficiencyRanks[helperId] = 10;
+      this.permanent.startingStockRanks[helperId] = 5;
+    }
+
+    this.state = createNextEcosystemRun(this.permanent);
+    setPrototypeFieldSize(this.state, this.permanent, 100);
+    for (const helperId of HELPER_IDS) {
+      this.state.helpers[helperId].count = 12;
+      this.state.helpers[helperId].pulseProgress = 0.92;
+    }
+    for (const resourceId of PRODUCTION_RESOURCE_IDS) {
+      this.state.resources[resourceId].amount = this.state.resources[resourceId].capacity * 0.45;
+    }
+    this.state.runTouches = 1_000_000;
+    this.state.hp = this.state.maxHp;
+    this.state.overhealShield = this.state.maxOverhealShield;
+    this.state.overhealShieldRemainingMs = getVerdantAegisDurationMs(this.permanent.verdantAegisRank);
+
+    this.displayedHpRatio = 1;
+    this.displayedShieldRatio = this.state.maxOverhealShield > 0 ? 1 : 0;
+    this.lastObservedShield = this.state.overhealShield;
+    this.lastObservedShieldRemainingMs = this.state.overhealShieldRemainingMs;
+    this.hpHeartbeatPulse = 0;
+    this.lingeringCareArrivalPulse = 0;
+    this.verdantAegisGainPulse = 0;
+    this.verdantAegisHitPulse = 0;
+    this.firstSprinklerCycleCelebrated = true;
+    this.pendingFirstCareCelebration = false;
+    this.helperEffectScheduler.clear(this.time.now);
+    this.helperPresentationsStarted = 0;
+    this.helperPresentationPulses = 0;
+    this.resetTouchRecovery();
+    this.lastGameOverState = false;
+    this.worksOpen = false;
+    this.optionsOpen = false;
+    this.fieldView = { centerX: 0.5, centerY: 0.5, zoom: 1 };
+    this.lastRenderedProjection = null;
+    this.layout(this.scale.width, this.scale.height);
+    this.syncViewVisibility();
+    this.resetFieldView();
+    this.renderField(true);
+    this.persistAll();
+    this.refreshUi(true);
+  }
+
   private resetPrototypeSave(): void {
     clearActiveField();
     localStorage.removeItem("grass-touching-simulator.ecosystem-memory.v1");
@@ -4969,6 +5065,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.verdantAegisGainPulse = 0;
     this.verdantAegisHitPulse = 0;
     this.firstSprinklerCycleCelebrated = false;
+    this.pendingFirstCareCelebration = false;
+    this.helperEffectScheduler.clear(this.time.now);
+    this.helperPresentationsStarted = 0;
+    this.helperPresentationPulses = 0;
     this.memoryRevealHoldIds = null;
     this.memoryRevealSequenceActive = false;
     this.memoryEntryTween?.stop();
@@ -4995,6 +5095,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     for (const effect of this.effectPool) activeEffects += effect.visible ? 1 : 0;
     for (const pulse of this.lingeringCarePulsePool) activeEffects += pulse.visible ? 1 : 0;
     for (const impact of this.impactPool) activeEffects += impact.visible ? 1 : 0;
+    let visibleHelperFeedbacks = 0;
+    for (const helperId of HELPER_IDS) {
+      visibleHelperFeedbacks += this.helperFeedbackTexts[helperId].visible ? 1 : 0;
+    }
     document.documentElement.dataset.grassEcosystemHarness = JSON.stringify({
       route: "ecosystemPrototype",
       active: this.state.active,
@@ -5034,6 +5138,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       dirtyChunks: readout.dirtyChunks,
       fixedTicks: readout.fixedTicks,
       activeEffects,
+      visibleHelperFeedbacks,
+      automationTouchesPerSecond: Number(this.state.automationTouchRate.toFixed(4)),
+      helperEffectGapMs: getHelperEffectGapMs(this.scale.width < 760),
+      pendingHelperEffectPulses: Number(this.helperEffectScheduler.getPendingPulseCount().toFixed(3)),
+      helperPresentationsStarted: this.helperPresentationsStarted,
+      helperPresentationPulses: Number(this.helperPresentationPulses.toFixed(3)),
       latestFrameDeltaMs: Number(this.latestFrameDeltaMs.toFixed(2)),
       maxFrameDeltaMs: Number(this.maxFrameDeltaMs.toFixed(2)),
       frameSpikes: this.frameSpikes,
