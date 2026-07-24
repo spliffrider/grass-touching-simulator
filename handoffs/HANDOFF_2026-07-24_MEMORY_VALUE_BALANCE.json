@@ -1,0 +1,59 @@
+{
+  "date": "2026-07-24",
+  "topic": "Higher-value Memories and slower post-onboarding unlock cadence",
+  "currentUserGoal": "Make second-tier Memories cost enough to require choices while making every purchase feel substantially more powerful in the active field.",
+  "workCompleted": [
+    "Kept the mandatory Tiny Sprinkler Memory at 5 Grass Touches and the first field-growth threshold at 2 so onboarding still works.",
+    "Raised helper unlock costs progressively from Field Mouse through Meadow Rabbit, with later helpers now representing major progression goals.",
+    "Raised ranked Memory costs and their growth curves so a typical early reward cannot buy most of a tier at once.",
+    "Doubled the manual-touch benefit of every Memory purchase from 1.5% to 3%.",
+    "Strengthened helper throughput, storage, efficiency, and starting-stock ranks.",
+    "Strengthened Fast Touch, Broad Palm, Many Hands, Ancient Heartwood, Green Afterglow, and Verdant Aegis.",
+    "Made Memory Grove descriptions derive their effect numbers from shared gameplay constants.",
+    "Added progression-budget coverage proving that 50 Grass Touches can buy the three cheapest available post-onboarding choices, but not four.",
+    "Reduced phone Memory Web clutter by showing rank, pips, and price details only for the focused node while keeping node names visible."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/ecosystem/EcosystemTouchCooldown.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemMemoryTree.test.ts",
+    "tests/EcosystemSave.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "tests/EcosystemTouchCooldown.test.ts",
+    "handoffs/HANDOFF_2026-07-24_MEMORY_VALUE_BALANCE.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, 205 Vitest tests across 24 files, strict TypeScript, and the Vite production build.",
+    "Desktop Memory Grove verification confirmed the stronger Clockwork Nozzle effect, +3% manual-touch contribution, and higher next-rank cost.",
+    "Phone verification at 390x844 confirmed readable node names, focused-node details, and no all-node cost-label crowding.",
+    "The local ecosystem playtest remains available at http://127.0.0.1:5173/?redesign&ecosystemPrototype&playtest&debugPanel.",
+    "git diff --check passed apart from normal Windows LF-to-CRLF notices."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "baseCommit": "f1a2ace",
+    "pushRequested": true,
+    "deploymentRequested": true,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The new economy is protected by deterministic budget tests but still needs a clean hands-on three-to-five-run balance pass.",
+    "Existing saves keep their purchased ranks and immediately receive the stronger effects.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and is not part of this slice."
+  ],
+  "nextRecommendedSteps": [
+    "Play three clean runs and record how many Grass Touches remain after each purchase decision.",
+    "Judge whether the stronger Memories are immediately perceptible in touch cadence, helper output, survivability, and automation.",
+    "Adjust individual outlier Memories instead of flattening the whole cost curve if one branch still feels weak."
+  ],
+  "doNotRevert": [
+    "Do not raise the mandatory Tiny Sprinkler unlock above 5 Grass Touches without changing the guaranteed first-collapse reward.",
+    "Do not raise the first field-growth threshold above 2; the user explicitly wanted field expansion to arrive sooner.",
+    "Do not reduce Memory value by changing UI copy only; shared constants now drive both gameplay and descriptions.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

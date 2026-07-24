@@ -71,7 +71,7 @@ describe("Ecosystem Memory Tree", () => {
       prerequisites: ["root:field-heir"],
       touchKind: "fastTouch",
     });
-    expect(getTouchRankCost("fastTouch", 0)).toBe(9);
+    expect(getTouchRankCost("fastTouch", 0)).toBe(16);
     expect(ECOSYSTEM_MEMORY_NODE_BY_ID.get("field:heartwood")).toMatchObject({
       kind: "fieldHealth",
       label: "Ancient Heartwood",

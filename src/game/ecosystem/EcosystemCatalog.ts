@@ -118,7 +118,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/world/field-mouse.png",
     baseCost: 32,
     costGrowth: 1.46,
-    unlockCost: 12,
+    unlockCost: 20,
     unlockRequires: "tinySprinkler",
     modes: modes(
       "fieldMouse",
@@ -132,7 +132,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/world/bee-hive.png",
     baseCost: 82,
     costGrowth: 1.5,
-    unlockCost: 18,
+    unlockCost: 34,
     unlockRequires: "fieldMouse",
     modes: modes(
       "beeHive",
@@ -146,7 +146,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/world/chicken.png",
     baseCost: 320,
     costGrowth: 1.64,
-    unlockCost: 24,
+    unlockCost: 52,
     unlockRequires: "beeHive",
     modes: modes(
       "chickenPatrol",
@@ -160,7 +160,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/world/earthworm.png",
     baseCost: 850,
     costGrowth: 1.67,
-    unlockCost: 32,
+    unlockCost: 74,
     unlockRequires: "chickenPatrol",
     modes: modes(
       "earthwormCrew",
@@ -174,7 +174,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/ui/skills/root-network.png",
     baseCost: 2200,
     costGrowth: 1.7,
-    unlockCost: 42,
+    unlockCost: 104,
     unlockRequires: "earthwormCrew",
     modes: modes(
       "ancientRoots",
@@ -188,7 +188,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/world/sheep.png",
     baseCost: 6200,
     costGrowth: 1.74,
-    unlockCost: 56,
+    unlockCost: 142,
     unlockRequires: "ancientRoots",
     modes: modes(
       "sheepLoop",
@@ -202,7 +202,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     assetPath: "/assets/world/meadow-rabbit.png",
     baseCost: 18000,
     costGrowth: 1.78,
-    unlockCost: 72,
+    unlockCost: 190,
     unlockRequires: "sheepLoop",
     modes: modes(
       "meadowRabbit",

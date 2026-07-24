@@ -12,8 +12,8 @@ import {
 describe("EcosystemTouchCooldown", () => {
   it("has a rank-ready recovery curve without making taps instantaneous", () => {
     expect(getManualTouchCooldownMs()).toBe(380);
-    expect(getManualTouchCooldownMs(5)).toBe(260);
-    expect(getManualTouchCooldownMs(10)).toBe(140);
+    expect(getManualTouchCooldownMs(5)).toBe(220);
+    expect(getManualTouchCooldownMs(10)).toBe(80);
   });
 
   it("blocks the same tile until its short recovery expires", () => {

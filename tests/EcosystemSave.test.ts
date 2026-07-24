@@ -65,7 +65,7 @@ describe("EcosystemSave", () => {
     expect(loaded.heartwoodRank).toBe(3);
     expect(loaded.lingeringCareRank).toBe(4);
     expect(loaded.verdantAegisRank).toBe(5);
-    expect(nextField.maxHp).toBe(145);
+    expect(nextField.maxHp).toBe(175);
     expect(nextField.maxOverhealShield).toBeGreaterThan(0);
   });
 

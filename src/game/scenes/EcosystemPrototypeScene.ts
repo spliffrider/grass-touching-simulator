@@ -100,6 +100,9 @@ import {
   BEE_HIVE_STARTER_FLOWERS,
   FIELD_MOUSE_STARTER_SEEDS,
   FIRST_RUN_MANUAL_CARE_PER_POWER,
+  HELPER_EFFICIENCY_PER_RANK,
+  HELPER_STARTING_STOCK_PER_RANK,
+  HELPER_STORAGE_CAPACITY_PER_RANK,
   LINGERING_CARE_DURATION_MS,
   MANUAL_TOUCH_CARE_PER_POWER,
   MANUAL_TOUCH_POWER_PER_MEMORY,
@@ -3925,14 +3928,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           ? `${HELPERS[helperId].label} cycle cooldown: ${formatInterval(currentIntervalMs)}.`
           : `${HELPERS[helperId].label} cycle cooldown: ${formatInterval(currentIntervalMs)} -> ${formatInterval(nextIntervalMs)} next rank.`,
         storage: complete
-          ? `${storageLabels} capacity: +${rank * 15}% from this Memory.`
-          : `${storageLabels} capacity: +${rank * 15}% -> +${nextRank * 15}% next rank.`,
+          ? `${storageLabels} capacity: +${Math.round(rank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% from this Memory.`
+          : `${storageLabels} capacity: +${Math.round(rank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% -> +${Math.round(nextRank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% next rank.`,
         efficiency: complete
-          ? `Recipe input cost: -${(rank * 3.5).toFixed(1)}%.`
-          : `Recipe input cost: -${(rank * 3.5).toFixed(1)}% -> -${(nextRank * 3.5).toFixed(1)}% next rank.`,
+          ? `Recipe input cost: -${Math.round(rank * HELPER_EFFICIENCY_PER_RANK * 100)}%.`
+          : `Recipe input cost: -${Math.round(rank * HELPER_EFFICIENCY_PER_RANK * 100)}% -> -${Math.round(nextRank * HELPER_EFFICIENCY_PER_RANK * 100)}% next rank.`,
         startingStock: complete
-          ? `Each new field starts with +${rank * 3} stock.`
-          : `Starting stock: +${rank * 3} -> +${nextRank * 3} next rank.`,
+          ? `Each new field starts with +${rank * HELPER_STARTING_STOCK_PER_RANK} stock.`
+          : `Starting stock: +${rank * HELPER_STARTING_STOCK_PER_RANK} -> +${nextRank * HELPER_STARTING_STOCK_PER_RANK} next rank.`,
       };
       return {
         rank,
@@ -4024,12 +4027,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           : `Each tile recovers in ${recoveryMs} ms; the next rank lowers it to ${nextRecoveryMs} ms.`;
       } else if (kind === "broadPalm" && rank > 0) {
         const radius = 1 + Math.floor((rank - 1) / 2);
-        const effectiveness = Math.round(40 + ((rank - 1) / 9) * 60);
+        const effectiveness = Math.round(50 + ((rank - 1) / 9) * 50);
         effect = `Nearby tiles within radius ${radius} receive ${effectiveness}% touch strength.`;
       } else if (kind === "manyHands") {
-        const effectiveness = rank > 0 ? Math.round(35 + ((rank - 1) / 9) * 45) : 35;
+        const effectiveness = rank > 0 ? Math.round(45 + ((rank - 1) / 9) * 45) : 45;
         effect = rank > 0
-          ? `${rank * 2} distant tiles receive ${effectiveness}% touch strength.`
+          ? `${rank * 3} distant tiles receive ${effectiveness}% touch strength.`
           : "Distant touch echoes have not been remembered yet.";
       } else if (kind === "lingeringCare") {
         const displayRank = Math.max(1, rank);
@@ -4642,6 +4645,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const showLabels = this.memoryTreeZoom >= 2.65;
     const showStatus = this.memoryTreeZoom >= 4;
     const showPips = this.memoryTreeZoom >= 2.4;
+    const compactOverview = this.scale.width < 760;
     for (const view of this.memoryNodeViews.values()) {
       const screenX = centerX + this.memoryTreePanX + view.definition.x * scale;
       const screenY = centerY + this.memoryTreePanY + view.definition.y * scale;
@@ -4672,8 +4676,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       view.title.setScale(titleScale).setY(view.titleBaseY);
       view.status.setScale(statusScale).setY(statusY);
       view.title.setVisible(visible && (showLabels || highlighted));
-      view.status.setVisible(visible && (showStatus || highlighted));
-      view.rankPips?.setVisible(visible && (showPips || highlighted));
+      view.status.setVisible(visible && (highlighted || (!compactOverview && showStatus)));
+      view.rankPips?.setVisible(visible && (highlighted || (!compactOverview && showPips)));
     }
     this.memoryZoomOutButton.setEnabled(this.memoryTreeZoom > 1.001);
     this.memoryZoomInButton.setEnabled(this.memoryTreeZoom < 7.999);

@@ -16,6 +16,10 @@ import {
   FIRST_RUN_MANUAL_CARE_PER_POWER,
   FIRST_RUN_TARGET_DURATION_MS,
   HAND_TENDING_GROWTH_PER_POWER,
+  HELPER_EFFICIENCY_PER_RANK,
+  HELPER_STARTING_STOCK_PER_RANK,
+  HELPER_STORAGE_CAPACITY_PER_RANK,
+  HELPER_THROUGHPUT_PER_RANK,
   LINGERING_CARE_DURATION_MS,
   VERDANT_AEGIS_MAX_RANK,
   advanceEcosystem,
@@ -36,6 +40,8 @@ import {
   getFieldMouseStatus,
   getManyHandsPower,
   getHelperCycleIntervalMs,
+  getModeUnlockCost,
+  getPermanentRankCost,
   getHelperPurchaseCost,
   getHelperStorageResourceIds,
   getHelperUnlockCost,
@@ -665,10 +671,10 @@ describe("EcosystemSystem", () => {
   it("uses the approved touch rank curves", () => {
     expect(getBroadPalmRadius(1)).toBe(1);
     expect(getBroadPalmRadius(10)).toBe(5);
-    expect(getBroadPalmPower(1)).toBeCloseTo(0.4);
+    expect(getBroadPalmPower(1)).toBeCloseTo(0.5);
     expect(getBroadPalmPower(10)).toBeCloseTo(1);
-    expect(getManyHandsPower(1)).toBeCloseTo(0.35);
-    expect(getManyHandsPower(10)).toBeCloseTo(0.8);
+    expect(getManyHandsPower(1)).toBeCloseTo(0.45);
+    expect(getManyHandsPower(10)).toBeCloseTo(0.9);
   });
 
   it("turns helper speed ranks into shorter, measurable action cooldowns", () => {
@@ -679,7 +685,33 @@ describe("EcosystemSystem", () => {
     expect(baseInterval).toBeCloseTo(2_083.333, 2);
     expect(firstRankInterval).toBeLessThan(baseInterval);
     expect(maxRankInterval).toBeLessThan(firstRankInterval);
-    expect(maxRankInterval).toBeCloseTo(651.042, 2);
+    expect(firstRankInterval).toBeCloseTo(1_602.564, 2);
+    expect(maxRankInterval).toBeCloseTo(520.833, 2);
+    expect(HELPER_THROUGHPUT_PER_RANK).toBe(0.3);
+  });
+
+  it("makes post-onboarding Memories expensive enough to remain choices", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.unlockedHelpers.tinySprinkler = true;
+    const earlyCosts = [
+      getPermanentRankCost(permanent, "tinySprinkler", "throughput"),
+      getPermanentRankCost(permanent, "tinySprinkler", "storage"),
+      getPermanentRankCost(permanent, "tinySprinkler", "efficiency"),
+      getPermanentRankCost(permanent, "tinySprinkler", "startingStock"),
+      getModeUnlockCost("tinySprinkler"),
+      getHelperUnlockCost("fieldMouse"),
+      getTouchRankCost("fastTouch", 0),
+      getTouchRankCost("broadPalm", 0),
+      getAncientHeartwoodRankCost(0),
+    ].sort((left, right) => left - right);
+
+    expect(getHelperUnlockCost("tinySprinkler")).toBe(5);
+    expect(getHelperUnlockCost("fieldMouse")).toBe(20);
+    expect(earlyCosts.slice(0, 3).reduce((sum, cost) => sum + cost, 0)).toBeLessThanOrEqual(50);
+    expect(earlyCosts.slice(0, 4).reduce((sum, cost) => sum + cost, 0)).toBeGreaterThan(50);
+    expect(HELPER_STORAGE_CAPACITY_PER_RANK).toBe(0.25);
+    expect(HELPER_EFFICIENCY_PER_RANK).toBe(0.06);
+    expect(HELPER_STARTING_STOCK_PER_RANK).toBe(6);
   });
 
   it("makes every purchased Memory strengthen standard manual touches", () => {
@@ -694,18 +726,18 @@ describe("EcosystemSystem", () => {
     expect(purchaseTouchRank(permanent, "broadPalm")).toBe(true);
 
     expect(getPermanentMemoryInvestmentCount(permanent)).toBe(5);
-    expect(getManualTouchPowerBonusPercent(permanent)).toBe(7.5);
-    expect(getManualTouchPowerMultiplier(permanent)).toBeCloseTo(1.075);
+    expect(getManualTouchPowerBonusPercent(permanent)).toBe(15);
+    expect(getManualTouchPowerMultiplier(permanent)).toBeCloseTo(1.15);
 
     const state = createEcosystemState(permanent, { seed: 3_141 });
     state.hp = 50;
     const result = touchFieldTile(state, permanent, 0);
 
-    expect(result?.totalPower).toBeCloseTo(1.075);
-    expect(result?.healedHp).toBeCloseTo(6.45);
-    expect(result?.dewGained).toBeCloseTo(1.23625);
-    expect(result?.growthGained).toBeCloseTo(1.075 * HAND_TENDING_GROWTH_PER_POWER);
-    expect(result?.runTouchesGained).toBeCloseTo(0.989);
+    expect(result?.totalPower).toBeCloseTo(1.15);
+    expect(result?.healedHp).toBeCloseTo(6.9);
+    expect(result?.dewGained).toBeCloseTo(1.3225);
+    expect(result?.growthGained).toBeCloseTo(1.15 * HAND_TENDING_GROWTH_PER_POWER);
+    expect(result?.runTouchesGained).toBeCloseTo(1.058);
   });
 
   it("turns recovered Run 2 touches into immediate starter Growth", () => {
@@ -789,11 +821,11 @@ describe("EcosystemSystem", () => {
 
     const firstRankCost = getTouchRankCost("fastTouch", 0);
     legacy.grassTouches = firstRankCost;
-    expect(firstRankCost).toBe(9);
+    expect(firstRankCost).toBe(16);
     expect(purchaseTouchRank(legacy, "fastTouch")).toBe(true);
     expect(legacy.fastTouchRank).toBe(1);
     expect(legacy.grassTouches).toBe(0);
-    expect(getManualTouchCooldownMs(legacy.fastTouchRank)).toBe(356);
+    expect(getManualTouchCooldownMs(legacy.fastTouchRank)).toBe(348);
   });
 
   it("turns Green Afterglow ranks into capped, refreshable healing stacks", () => {
@@ -805,19 +837,21 @@ describe("EcosystemSystem", () => {
 
     permanent.heartwoodRank = 1;
     const firstRankCost = getTouchRankCost("lingeringCare", 0);
-    expect(firstRankCost).toBe(10);
+    expect(firstRankCost).toBe(20);
     expect(purchaseTouchRank(permanent, "lingeringCare")).toBe(true);
     expect(permanent.lingeringCareRank).toBe(1);
-    expect(getLingeringCareMaxStacks(1)).toBe(2);
+    expect(getLingeringCareMaxStacks(1)).toBe(3);
 
     const state = createEcosystemState(permanent, { seed: 1_616 });
     state.hp = 50;
     const expectedStackRate = getLingeringCareStackRate(1) * getManualTouchPowerMultiplier(permanent);
     const firstTouch = touchFieldTile(state, permanent, 0);
     const secondTouch = touchFieldTile(state, permanent, 0);
+    const thirdTouch = touchFieldTile(state, permanent, 0);
 
     expect(firstTouch?.lingeringCareAddedPerSecond).toBeCloseTo(expectedStackRate);
     expect(secondTouch?.lingeringCarePerSecond).toBeCloseTo(expectedStackRate * 2);
+    expect(thirdTouch?.lingeringCarePerSecond).toBeCloseTo(expectedStackRate * 3);
     expect(state.lingeringCareRemainingMs).toBe(LINGERING_CARE_DURATION_MS);
 
     state.lingeringCareRemainingMs = 750;
@@ -829,7 +863,7 @@ describe("EcosystemSystem", () => {
     state.resources.care.amount = 10_000;
     const manualCareBeforeAfterglow = state.manualCareTotal;
     advanceEcosystem(state, permanent, 1_000);
-    expect(state.manualCareTotal - manualCareBeforeAfterglow).toBeCloseTo(expectedStackRate * 2, 5);
+    expect(state.manualCareTotal - manualCareBeforeAfterglow).toBeCloseTo(expectedStackRate * 3, 5);
     for (let elapsed = 1_000; elapsed < LINGERING_CARE_DURATION_MS; elapsed += 1_000) {
       advanceEcosystem(state, permanent, 1_000);
     }
@@ -843,8 +877,8 @@ describe("EcosystemSystem", () => {
     permanent.heartwoodRank = 1;
     permanent.lingeringCareRank = 10;
 
-    expect(getLingeringCareStackRate(10)).toBeCloseTo(0.85);
-    expect(getLingeringCareMaxStacks(10)).toBe(6);
+    expect(getLingeringCareStackRate(10)).toBeCloseTo(1.6);
+    expect(getLingeringCareMaxStacks(10)).toBe(7);
 
     const state = createEcosystemState(permanent, { seed: 1_617 });
     for (let touch = 0; touch < 20; touch += 1) touchFieldTile(state, permanent, 0);
@@ -865,15 +899,15 @@ describe("EcosystemSystem", () => {
     expect(purchaseTouchRank(permanent, "verdantAegis")).toBe(false);
 
     permanent.lingeringCareRank = 1;
-    expect(getTouchRankCost("verdantAegis", 0)).toBe(18);
+    expect(getTouchRankCost("verdantAegis", 0)).toBe(32);
     expect(purchaseTouchRank(permanent, "verdantAegis")).toBe(true);
     expect(permanent.verdantAegisRank).toBe(1);
-    expect(getVerdantAegisConversion(1)).toBeCloseTo(0.5);
-    expect(getVerdantAegisCapacityRatio(1)).toBeCloseTo(0.08);
-    expect(getVerdantAegisDurationMs(1)).toBe(4_000);
+    expect(getVerdantAegisConversion(1)).toBeCloseTo(0.6);
+    expect(getVerdantAegisCapacityRatio(1)).toBeCloseTo(0.12);
+    expect(getVerdantAegisDurationMs(1)).toBe(5_000);
     expect(getVerdantAegisConversion(VERDANT_AEGIS_MAX_RANK)).toBeCloseTo(1);
-    expect(getVerdantAegisCapacityRatio(VERDANT_AEGIS_MAX_RANK)).toBeCloseTo(0.35);
-    expect(getVerdantAegisDurationMs(VERDANT_AEGIS_MAX_RANK)).toBe(6_250);
+    expect(getVerdantAegisCapacityRatio(VERDANT_AEGIS_MAX_RANK)).toBeCloseTo(0.5);
+    expect(getVerdantAegisDurationMs(VERDANT_AEGIS_MAX_RANK)).toBe(7_700);
 
     const maxed = normalizePermanentEcosystemState({ version: 1, verdantAegisRank: 999 });
     expect(maxed.verdantAegisRank).toBe(VERDANT_AEGIS_MAX_RANK);
@@ -967,7 +1001,8 @@ describe("EcosystemSystem", () => {
       advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
     }
     expect(state.overhealShield).toBeGreaterThan(0);
-    expect(state.overhealShieldRemainingMs).toBe(PRODUCTION_TICK_MS);
+    expect(state.overhealShieldRemainingMs).toBeGreaterThan(0);
+    expect(state.overhealShieldRemainingMs).toBeLessThanOrEqual(PRODUCTION_TICK_MS);
 
     advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
     expect(state.overhealShield).toBe(0);
@@ -986,18 +1021,18 @@ describe("EcosystemSystem", () => {
 
     const firstRankCost = getAncientHeartwoodRankCost(permanent.heartwoodRank);
     permanent.grassTouches = firstRankCost;
-    expect(firstRankCost).toBe(8);
+    expect(firstRankCost).toBe(16);
     expect(purchaseAncientHeartwoodRank(permanent)).toBe(true);
     expect(permanent.heartwoodRank).toBe(1);
     expect(getPermanentMaxHp(permanent)).toBe(100 + ANCIENT_HEARTWOOD_HP_PER_RANK);
 
     const nextRun = createEcosystemState(permanent, { seed: 1_515 });
-    expect(nextRun.hp).toBe(115);
-    expect(nextRun.maxHp).toBe(115);
+    expect(nextRun.hp).toBe(125);
+    expect(nextRun.maxHp).toBe(125);
 
     const maxed = normalizePermanentEcosystemState({ version: 1, heartwoodRank: 999 });
     expect(maxed.heartwoodRank).toBe(ANCIENT_HEARTWOOD_MAX_RANK);
-    expect(getPermanentMaxHp(maxed)).toBe(250);
+    expect(getPermanentMaxHp(maxed)).toBe(350);
   });
 
   it("safely normalizes the most recently purchased Memory node", () => {

@@ -25,15 +25,18 @@ export const FIELD_MOUSE_STARTER_SEEDS = 8;
 export const BEE_HIVE_STARTER_FLOWERS = 4;
 export const ECOSYSTEM_BASE_MAX_HP = 100;
 export const ANCIENT_HEARTWOOD_MAX_RANK = 10;
-export const ANCIENT_HEARTWOOD_HP_PER_RANK = 15;
+export const ANCIENT_HEARTWOOD_HP_PER_RANK = 25;
 export const LINGERING_CARE_MAX_RANK = 10;
 export const LINGERING_CARE_DURATION_MS = 4_000;
 export const VERDANT_AEGIS_MAX_RANK = 10;
 export const FIRST_RUN_TARGET_DURATION_MS = 19_000;
 export const FIRST_RUN_MANUAL_CARE_PER_POWER = 0.6;
 export const MANUAL_TOUCH_CARE_PER_POWER = 6;
-export const MANUAL_TOUCH_POWER_PER_MEMORY = 0.015;
-export const HELPER_THROUGHPUT_PER_RANK = 0.22;
+export const MANUAL_TOUCH_POWER_PER_MEMORY = 0.03;
+export const HELPER_THROUGHPUT_PER_RANK = 0.3;
+export const HELPER_STORAGE_CAPACITY_PER_RANK = 0.25;
+export const HELPER_EFFICIENCY_PER_RANK = 0.06;
+export const HELPER_STARTING_STOCK_PER_RANK = 6;
 export const DAMP_FURROWS_MOISTURE_PER_CYCLE = 0.3;
 export const DAMP_FURROWS_GROWTH_PER_CYCLE = 0.75;
 export const DAMP_FURROWS_CARE_PER_CYCLE = 1.05;
@@ -262,11 +265,11 @@ const STARTING_STOCK_RESOURCE: Record<HelperId, ProductionResourceId> = {
 // Tiny Sprinkler unlock. Later thresholds retain an increasingly long tail.
 const FIELD_TIER_COSTS = [0, 2, 8, 14, 22, 34, 52, 78, 116, 170, 250] as const;
 const TOUCH_RANK_BASE_COST: Record<PermanentTouchRankKind, number> = {
-  fastTouch: 9,
-  broadPalm: 7,
-  manyHands: 12,
-  lingeringCare: 10,
-  verdantAegis: 18,
+  fastTouch: 16,
+  broadPalm: 14,
+  manyHands: 24,
+  lingeringCare: 20,
+  verdantAegis: 32,
 };
 const FIRST_SPRINKLER_CARE_MILESTONE = 0.3;
 const EPSILON = 0.000_001;
@@ -392,12 +395,12 @@ export function getPermanentMaxHp(permanent: PermanentEcosystemState): number {
 
 export function getLingeringCareStackRate(rank: number): number {
   const safeRank = clampRank(rank, LINGERING_CARE_MAX_RANK);
-  return safeRank <= 0 ? 0 : 0.4 + (safeRank - 1) * 0.05;
+  return safeRank <= 0 ? 0 : 0.7 + (safeRank - 1) * 0.1;
 }
 
 export function getLingeringCareMaxStacks(rank: number): number {
   const safeRank = clampRank(rank, LINGERING_CARE_MAX_RANK);
-  return safeRank <= 0 ? 0 : 2 + Math.floor((safeRank - 1) / 2);
+  return safeRank <= 0 ? 0 : 3 + Math.floor((safeRank - 1) / 2);
 }
 
 export function getLingeringCareMaxRate(permanent: PermanentEcosystemState): number {
@@ -408,17 +411,17 @@ export function getLingeringCareMaxRate(permanent: PermanentEcosystemState): num
 
 export function getVerdantAegisConversion(rank: number): number {
   const safeRank = clampRank(rank, VERDANT_AEGIS_MAX_RANK);
-  return safeRank <= 0 ? 0 : 0.5 + (safeRank - 1) * (0.5 / 9);
+  return safeRank <= 0 ? 0 : 0.6 + (safeRank - 1) * (0.4 / 9);
 }
 
 export function getVerdantAegisCapacityRatio(rank: number): number {
   const safeRank = clampRank(rank, VERDANT_AEGIS_MAX_RANK);
-  return safeRank <= 0 ? 0 : 0.08 + (safeRank - 1) * 0.03;
+  return safeRank <= 0 ? 0 : 0.12 + (safeRank - 1) * (0.38 / 9);
 }
 
 export function getVerdantAegisDurationMs(rank: number): number {
   const safeRank = clampRank(rank, VERDANT_AEGIS_MAX_RANK);
-  return safeRank <= 0 ? 0 : 4_000 + (safeRank - 1) * 250;
+  return safeRank <= 0 ? 0 : 5_000 + (safeRank - 1) * 300;
 }
 
 export function getVerdantAegisCapacity(permanent: PermanentEcosystemState, maxHp: number): number {
@@ -436,7 +439,7 @@ function getCapacity(resourceId: ProductionResourceId, permanent: PermanentEcosy
       relevantStorageRanks += permanent.storageRanks[helperId];
     }
   }
-  const memoryMultiplier = 1 + relevantStorageRanks * 0.15;
+  const memoryMultiplier = 1 + relevantStorageRanks * HELPER_STORAGE_CAPACITY_PER_RANK;
   const cultivationMultiplier = 1 + field.cultivationRank * 0.08;
   const fieldMultiplier = 1 + Math.sqrt(field.width * field.height) * 0.12;
   return BASE_RESOURCE_CAPACITY[resourceId] * memoryMultiplier * cultivationMultiplier * fieldMultiplier;
@@ -493,7 +496,7 @@ function createResourceBuffers(
       continue;
     }
     const resourceId = STARTING_STOCK_RESOURCE[helperId];
-    const bonus = permanent.startingStockRanks[helperId] * 3;
+    const bonus = permanent.startingStockRanks[helperId] * HELPER_STARTING_STOCK_PER_RANK;
     buffers[resourceId].amount = Math.min(buffers[resourceId].capacity, buffers[resourceId].amount + bonus);
   }
   return buffers;
@@ -842,7 +845,7 @@ export function unlockHelper(permanent: PermanentEcosystemState, helperId: Helpe
 }
 
 export function getModeUnlockCost(helperId: HelperId): number {
-  return Math.ceil(HELPERS[helperId].unlockCost * 1.35);
+  return Math.ceil(Math.max(16, HELPERS[helperId].unlockCost * 1.5));
 }
 
 export function unlockHelperMode(permanent: PermanentEcosystemState, helperId: HelperId, modeId: string): boolean {
@@ -872,8 +875,18 @@ export function getPermanentRankCost(
   kind: PermanentRankKind,
 ): number {
   const rank = getRankRecord(permanent, kind)[helperId];
-  const kindMultiplier = kind === "startingStock" ? 0.8 : kind === "efficiency" ? 1.25 : 1;
-  return Math.ceil((4 + HELPERS[helperId].unlockCost * 0.35) * kindMultiplier * Math.pow(rank + 1, 1.32));
+  const kindMultiplier = kind === "startingStock"
+    ? 0.9
+    : kind === "efficiency"
+      ? 1.25
+      : kind === "storage"
+        ? 1.1
+        : 1;
+  return Math.ceil(
+    (10 + HELPERS[helperId].unlockCost * 0.5)
+      * kindMultiplier
+      * Math.pow(rank + 1, 1.45),
+  );
 }
 
 export function purchasePermanentRank(
@@ -917,7 +930,7 @@ export function unlockNextFieldTier(permanent: PermanentEcosystemState): boolean
 }
 
 export function getTouchRankCost(kind: PermanentTouchRankKind, rank: number): number {
-  return Math.ceil(TOUCH_RANK_BASE_COST[kind] * Math.pow(rank + 1, 1.42));
+  return Math.ceil(TOUCH_RANK_BASE_COST[kind] * Math.pow(rank + 1, 1.5));
 }
 
 export function purchaseTouchRank(permanent: PermanentEcosystemState, kind: PermanentTouchRankKind): boolean {
@@ -1085,7 +1098,7 @@ function consumeResource(state: EcosystemState, resourceId: ProductionResourceId
 
 export function getAncientHeartwoodRankCost(rank: number): number {
   const safeRank = clampRank(rank, ANCIENT_HEARTWOOD_MAX_RANK);
-  return Math.ceil(8 * Math.pow(safeRank + 1, 1.36));
+  return Math.ceil(16 * Math.pow(safeRank + 1, 1.45));
 }
 
 export function purchaseAncientHeartwoodRank(permanent: PermanentEcosystemState): boolean {
@@ -1147,7 +1160,10 @@ function getRecipeInputMultiplier(permanent: PermanentEcosystemState, recipe: Pr
   if (!recipe.helperId) {
     return 1;
   }
-  return 1 - permanent.efficiencyRanks[recipe.helperId] * 0.035;
+  return Math.max(
+    0.25,
+    1 - permanent.efficiencyRanks[recipe.helperId] * HELPER_EFFICIENCY_PER_RANK,
+  );
 }
 
 function performRecipe(
@@ -1299,10 +1315,7 @@ function finishRun(state: EcosystemState, permanent: PermanentEcosystemState): v
   state.overhealShieldRemainingMs = 0;
   const careProduced = state.resources.care.producedTotal;
   const minimumAward = permanent.completedRuns === 0
-    ? Math.max(
-      getHelperUnlockCost("tinySprinkler"),
-      getTouchRankCost("broadPalm", 0),
-    )
+    ? getHelperUnlockCost("tinySprinkler") + getFieldTierUnlockCost(1)
     : 5;
   const award = Math.max(
     minimumAward,
@@ -1526,11 +1539,11 @@ export function getBroadPalmRadius(rank: number): number {
 }
 
 export function getBroadPalmPower(rank: number): number {
-  return rank <= 0 ? 0 : 0.4 + (Math.min(10, rank) - 1) * (0.6 / 9);
+  return rank <= 0 ? 0 : 0.5 + (Math.min(10, rank) - 1) * (0.5 / 9);
 }
 
 export function getManyHandsPower(rank: number): number {
-  return rank <= 0 ? 0 : 0.35 + (Math.min(10, rank) - 1) * (0.45 / 9);
+  return rank <= 0 ? 0 : 0.45 + (Math.min(10, rank) - 1) * (0.45 / 9);
 }
 
 export function touchFieldTile(
@@ -1566,7 +1579,7 @@ export function touchFieldTile(
     }
   }
 
-  const chainCount = permanent.manyHandsRank * 2;
+  const chainCount = permanent.manyHandsRank * 3;
   const chainPower = getManyHandsPower(permanent.manyHandsRank);
   let attempts = 0;
   let addedChains = 0;

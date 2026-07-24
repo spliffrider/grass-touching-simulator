@@ -425,7 +425,7 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       kind: "fieldHealth",
       label: "Ancient Heartwood",
       branch: "Field vitality",
-      description: "Raises the Ancient Grass's maximum health by 15 with every remembered rank. Upgrade through ten ranks.",
+      description: "Raises the Ancient Grass's maximum health by 25 with every remembered rank. Upgrade through ten ranks.",
       color: 0xe69a5b,
       iconKey: "memory-icon-heartwood",
       iconPath: "/assets/ui/skills/perennial-patches.png",
