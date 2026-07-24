@@ -1,5 +1,10 @@
 import { DEFAULT_SFX_VOLUME } from "../data/audio-settings";
 import type { GrassTierId, TileTrait } from "../types/game-state";
+import {
+  SoundVariationBank,
+  type SoundVariation,
+  type SoundVariationProfile,
+} from "./SoundVariation";
 
 type SoundName =
   | "touch"
@@ -48,6 +53,7 @@ export class AudioSystem {
   private mobileGrassAudios: HTMLAudioElement[] = [];
   private mobileGrassAudioIndex = 0;
   private mobileGrassDataUris: string[] = [];
+  private readonly soundVariations = new SoundVariationBank();
 
   setVolume(volume: number): void {
     this.volume = Math.max(0, Math.min(1, volume));
@@ -108,7 +114,7 @@ export class AudioSystem {
     return SFX_MASTER_GAIN * this.volume;
   }
 
-  play(name: SoundName): void {
+  play(name: SoundName, variationProfile: SoundVariationProfile = "none"): void {
     this.unlock();
 
     if (!this.context || !this.master) {
@@ -124,11 +130,11 @@ export class AudioSystem {
         .finally(() => {
           this.resumePromise = undefined;
         });
-      void this.resumePromise.then(() => this.playNow(name));
+      void this.resumePromise.then(() => this.playNow(name, variationProfile));
       return;
     }
 
-    this.playNow(name);
+    this.playNow(name, variationProfile);
   }
 
   playGrassTouch(
@@ -137,6 +143,7 @@ export class AudioSystem {
     isCrit = false,
     comboCount = 0,
     force = false,
+    variationProfile: SoundVariationProfile = "none",
   ): boolean {
     if (this.volume <= 0) {
       return false;
@@ -149,7 +156,7 @@ export class AudioSystem {
         return false;
       }
 
-      return this.playFallbackGrassTouch(isCrit);
+      return this.playFallbackGrassTouch(isCrit, this.soundVariations.next(variationProfile));
     }
 
     if (this.context.state !== "running" || !this.unlocked) {
@@ -165,7 +172,14 @@ export class AudioSystem {
         .finally(() => {
           this.resumePromise = undefined;
         });
-      void this.resumePromise.then(() => this.playGrassTouchNow(tier, trait, isCrit, comboCount, false));
+      void this.resumePromise.then(() => this.playGrassTouchNow(
+        tier,
+        trait,
+        isCrit,
+        comboCount,
+        false,
+        this.soundVariations.next(variationProfile),
+      ));
       return true;
     }
 
@@ -173,7 +187,7 @@ export class AudioSystem {
       return false;
     }
 
-    this.playGrassTouchNow(tier, trait, isCrit, comboCount);
+    this.playGrassTouchNow(tier, trait, isCrit, comboCount, false, this.soundVariations.next(variationProfile));
     return true;
   }
 
@@ -221,10 +235,11 @@ export class AudioSystem {
     return this.playMobileGrassTouchAudio(isCrit);
   }
 
-  private playNow(name: SoundName): void {
+  private playNow(name: SoundName, variationProfile: SoundVariationProfile): void {
     if (!this.context || !this.master || this.context.state !== "running") {
       return;
     }
+    const variation = this.soundVariations.next(variationProfile);
 
     switch (name) {
       case "touch":
@@ -246,7 +261,7 @@ export class AudioSystem {
         this.playBlocked();
         break;
       case "seed":
-        this.playSeed();
+        this.playSeed(variation);
         break;
       case "gold":
         this.playGold();
@@ -270,7 +285,7 @@ export class AudioSystem {
         this.playWoundSeal();
         break;
       case "sprinkler":
-        this.playSprinkler();
+        this.playSprinkler(variation);
         break;
       case "touch_cooldown":
         this.playTouchCooldown();
@@ -284,9 +299,16 @@ export class AudioSystem {
     }
   }
 
-  private playGrassTouchNow(tier: GrassTierId, trait: TileTrait, isCrit: boolean, comboCount: number, includeFallback = false): void {
+  private playGrassTouchNow(
+    tier: GrassTierId,
+    trait: TileTrait,
+    isCrit: boolean,
+    comboCount: number,
+    includeFallback = false,
+    variation: SoundVariation = { pitchRatio: 1, gainRatio: 1, variantIndex: 0 },
+  ): void {
     if (includeFallback) {
-      this.playFallbackGrassTouch(isCrit);
+      this.playFallbackGrassTouch(isCrit, variation);
     }
 
     const now = this.now();
@@ -309,8 +331,8 @@ export class AudioSystem {
     const tierSound = tierProfile[tier];
     const traitSound = traitProfile[trait];
     const critBoost = isCrit ? 1.12 : 1;
-    const comboPitch = 1 + Math.min(40, Math.max(0, comboCount)) * 0.006;
-    const volume = tierSound.volume * traitSound.volume * critBoost * TOUCH_TRANSIENT_GAIN;
+    const comboPitch = (1 + Math.min(40, Math.max(0, comboCount)) * 0.006) * variation.pitchRatio;
+    const volume = tierSound.volume * traitSound.volume * critBoost * TOUCH_TRANSIENT_GAIN * variation.gainRatio;
 
     this.playNoiseSweep(0.26 * tierSound.duration, (tierSound.brush + traitSound.brushOffset + Math.random() * 120) * comboPitch, 0.18 * volume, now);
     this.playNoiseSweep(0.11, (tierSound.snap + traitSound.snapOffset + Math.random() * 220) * 0.74 * comboPitch, 0.055 * volume, now + 0.018);
@@ -416,12 +438,14 @@ export class AudioSystem {
     this.playTone(2200, 0.075, 0.018, "sine", now + 0.16);
   }
 
-  private playSeed(): void {
+  private playSeed(variation: SoundVariation): void {
     const now = this.now();
-    this.playNoiseSweep(0.08, 1450 + Math.random() * 380, 0.026, now);
-    this.playTone(620 + Math.random() * 50, 0.06, 0.052, "sine", now);
-    this.playTone(940 + Math.random() * 80, 0.08, 0.045, "triangle", now + 0.045);
-    this.playTone(1240 + Math.random() * 90, 0.05, 0.022, "sine", now + 0.094);
+    const pitch = variation.pitchRatio;
+    const gain = variation.gainRatio;
+    this.playNoiseSweep(0.08, (1450 + Math.random() * 380) * pitch, 0.026 * gain, now);
+    this.playTone((620 + Math.random() * 50) * pitch, 0.06, 0.052 * gain, "sine", now);
+    this.playTone((940 + Math.random() * 80) * pitch, 0.08, 0.045 * gain, "triangle", now + 0.045);
+    this.playTone((1240 + Math.random() * 90) * pitch, 0.05, 0.022 * gain, "sine", now + 0.094);
   }
 
   private playGold(): void {
@@ -491,12 +515,14 @@ export class AudioSystem {
     this.playTone(880 + Math.random() * 40, 0.16, 0.022, "sine", now + 0.2);
   }
 
-  private playSprinkler(): void {
+  private playSprinkler(variation: SoundVariation): void {
     const now = this.now();
-    this.playNoiseSweep(0.18, 2380 + Math.random() * 420, 0.032, now);
-    this.playNoiseSweep(0.11, 4100 + Math.random() * 480, 0.015, now + 0.055);
-    this.playToneSweep(620, 360, 0.13, 0.026, "sine", now + 0.015);
-    this.playTone(980 + Math.random() * 70, 0.07, 0.02, "triangle", now + 0.11);
+    const pitch = variation.pitchRatio;
+    const gain = variation.gainRatio;
+    this.playNoiseSweep(0.18, (2380 + Math.random() * 420) * pitch, 0.032 * gain, now);
+    this.playNoiseSweep(0.11, (4100 + Math.random() * 480) * pitch, 0.015 * gain, now + 0.055);
+    this.playToneSweep(620 * pitch, 360 * pitch, 0.13, 0.026 * gain, "sine", now + 0.015);
+    this.playTone((980 + Math.random() * 70) * pitch, 0.07, 0.02 * gain, "triangle", now + 0.11);
   }
 
   private playTouchCooldown(): void {
@@ -639,15 +665,19 @@ export class AudioSystem {
     noise.stop(startAt + duration + 0.01);
   }
 
-  private playFallbackGrassTouch(isCrit: boolean): boolean {
+  private playFallbackGrassTouch(
+    isCrit: boolean,
+    variation: SoundVariation = { pitchRatio: 1, gainRatio: 1, variantIndex: 0 },
+  ): boolean {
     const audio = this.getFallbackGrassAudio();
     if (!audio) {
       return false;
     }
 
-    audio.volume = Math.min(1, this.volume * (isCrit ? 0.62 : 0.5));
+    audio.volume = Math.min(1, this.volume * (isCrit ? 0.62 : 0.5) * variation.gainRatio);
     try {
-      audio.playbackRate = isCrit ? 0.96 + Math.random() * 0.05 : 0.78 + Math.random() * 0.08;
+      audio.playbackRate = (isCrit ? 0.96 + Math.random() * 0.05 : 0.78 + Math.random() * 0.08)
+        * variation.pitchRatio;
     } catch {
       // Playback-rate changes are only seasoning; the pre-rendered variants still carry the crunch.
     }

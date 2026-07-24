@@ -3079,7 +3079,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       if (!effect) break;
       if (!launched && helperId === "tinySprinkler" && this.time.now - this.lastHelperSoundAt >= HELPER_SOUND_INTERVAL_MS) {
         this.lastHelperSoundAt = this.time.now;
-        this.audio.play("sprinkler");
+        this.audio.play("sprinkler", "water");
       }
       launched = true;
       const targetX = singlePlot
@@ -3279,7 +3279,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       && (helperId === "fieldMouse" || helperId === "beeHive")
       && this.time.now - this.lastHelperSoundAt >= HELPER_SOUND_INTERVAL_MS) {
       this.lastHelperSoundAt = this.time.now;
-      this.audio.play("seed");
+      this.audio.play("seed", "organic");
     }
     const impact = this.impactPool.find((candidate) => !candidate.visible);
     if (impact) {
@@ -3321,7 +3321,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const automationSoundGapMs = getHelperEffectGapMs(this.scale.width < 760);
       if (this.time.now - this.lastAutomationTouchSoundAt >= automationSoundGapMs) {
         this.lastAutomationTouchSoundAt = this.time.now;
-        this.audio.playGrassTouch("normal", "normal", false, 0);
+        this.audio.playGrassTouch("normal", "normal", false, 0, false, "impact");
       }
       this.showAutomationHealingEffect(x, y, color, automatedHealing);
     }
