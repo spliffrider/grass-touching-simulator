@@ -168,7 +168,7 @@ Current prototype notes:
 - The run HUD and Memory Grove keep the Options button out of title/subtitle lanes. The redesign route also renders Phaser text at higher text resolution and stops forcing the canvas through CSS pixelated scaling so UI text stays more readable.
 - The large `TOUCH ROOTS` field prompt is only a first-touch learning cue. After the first Ancient Grass wake objective, wound markers and objective text carry guidance instead of a permanent label over the field.
 - The old-style Run Feed panel is hidden from the main play screen. It may remain useful as an internal event log/debug source, but it should not be treated as a core player surface unless it is deliberately redesigned.
-- Active runs use the new Lucid field source as a browser-safe WAV asset (`public/assets/music/lucid-field-theme.wav`) generated from `docs/lucid.aif`. Dormancy crossfades into the higher-fidelity mellow Memory Grove track (`public/assets/music/epic_menu_theme_mellow.wav`), and `Begin Next Run` crossfades back to the field track.
+- The title, active field, and Memory Grove use the Lucid field source as a browser-safe WAV asset (`public/assets/music/lucid-field-theme.wav`) generated from `docs/lucid.aif`.
 - Root touches now use an animation-loop-driven squash and rebound so ambient grass motion no longer overwrites impact motion. Touch flecks travel in varied upward-biased sprays, effective healing sends a small staggered stream toward the HP bar, and wound sealing, dormancy, and Last Stand each have a dedicated procedural sound signature.
 - HP collapse now presents a real game-over/meta screen: the active run loop stops, the playfield is replaced by a full-screen `Memory Grove`, the run report calls out that the run is over, the reward line shows permanent GT gained, and the skill tree is the main available action before the next run.
 - The Game Over report now spells out the current conversion: useful healing becomes permanent GT at 1 GT per 5 effective HP, while unspent Run Touches are lost.
@@ -197,7 +197,7 @@ Current prototype notes:
 - Opening Options suspends active-run simulation so audio adjustments cannot cost HP, advance wound pressure, or trigger Game Over behind the modal. Any externally forced dormancy also dismisses Options before Memory Grove appears.
 - Compact layouts shorten and reflow the Ancient Grass status panel so its Scourge row remains inside the frame and no longer overlaps the stacked player identity card.
 - Public crawler metadata now describes the Ancient Grass survival/Memory loop instead of the obsolete seed-and-companion clicker. Discord and social previews use the approved Scourge announcement poster through a versioned `og-ancient-grass-alpha.png` URL.
-- The bare production URL is the friend-facing public alpha route. `?alpha` remains a stable alias; both load the redesign without developer controls, set an Ancient Grass Alpha Test browser title, and show a small dated `ALPHA TEST` build mark on the active-run HUD. `?redesign&playtest` remains the accelerated internal route, while `?legacy` preserves the previous game as an explicit fallback. Existing legacy performance/stress harness query routes continue to select the previous game automatically.
+- The bare production URL is the friend-facing public alpha route. `?alpha` remains a stable alias; both load the ecosystem title without developer controls. `?redesign&playtest` remains the internal title-bypass route. The original incremental game and intermediate redesign are retired rather than maintained as runtime fallbacks.
 - Tiny Sprinkler is now the first recast automation system: a 24 GT permanent Memory node unlocks a run-tool purchase, each run sprinkler costs 16 RT, run-owned sprinkler count resets on the next run, and pulses heal missing Ancient HP for 2 HP per owned sprinkler while awarding Run Touches and dormancy payout only from effective healing. Sprinkler pulses prefer wounded roots when one is open.
 - Scourge Sense is now the first threat-readability Memory node: a 20 GT permanent node forecasts the next wound target earlier than baseline pressure warning, marks that root with a gold halo, updates HUD/prompt/advisor copy, and exposes `scourgeSenseTargetRootId`, `lastScourgeSenseWarningAt`, and per-root `scourgeSenseMarkerVisible` for browser checks. It does not change drain, wound timing, rewards, or dormancy math.
 - Human playtesting now has a dedicated `?redesign&playtest` route. It uses accelerated but still playable first-loop pacing and exposes visible dev controls for forcing Game Over, granting permanent GT, restarting the run, and resetting the redesign memory save.
@@ -618,7 +618,11 @@ Current prototype save boundary:
 - This key stores only permanent memory: permanent Grass Touches, purchased permanent upgrade ids, `saveVersion`, and `savedAt`.
 - It intentionally does not store active-run HP, Run Touches, wounds, Scourge pressure, timers, audio state, or old-game economy data yet.
 - `?redesign&resetMemory` clears this new-canon memory key for repeatable loop testing.
-- `document.documentElement.dataset.grassRedesignPrototype` is a browser-smoke/debug signal for the prototype, not the gameplay save contract. It includes active root hitboxes, root recovery/wound flags, Scourge presentation markers, Scourge Sense target/marker state, Last Stand revive state, intro callout visibility, summary visibility, run-ended state, dormancy payout/report text, and memory button bounds so smoke checks can use real UI targets.
+- `document.documentElement.dataset.grassEcosystemPrototype` and
+  `document.documentElement.dataset.grassEcosystemHarness` are browser-smoke and
+  performance snapshots, not gameplay save contracts. They expose current run,
+  field, input, rendering, pooling, and timing state so checks can target the
+  ecosystem runtime directly.
 - `document.documentElement.dataset.grassAgentDom` is the DOM-accessibility/agent-control readiness signal. When it is `ready`, browser agents can use stable `data-testid` controls including `redesign-root-{id}`, `redesign-dew-pulse-button`, `redesign-root-salve-button`, `redesign-tiny-sprinkler-button`, `redesign-pocket-sunshine-button`, `redesign-memory-softTouch`, `redesign-memory-deeperRoots`, `redesign-memory-tinySprinkler`, `redesign-memory-scourgeSense`, `redesign-memory-lastStand`, `redesign-begin-next-run-button`, `redesign-options-button`, `redesign-options-close-button`, `redesign-music-off-button`, `redesign-music-volume-range`, `redesign-sfx-volume-range`, `redesign-readable-state`, and `redesign-dormancy-report`.
 
 Revive behavior:
@@ -716,7 +720,7 @@ Performance constraints:
 - Keep Scourge drain global and cheap.
 - Keep automation updates staggered.
 - Run `npm run check` after implementation changes.
-- Profile performance-sensitive systems on the redesign route itself. The existing `?perfHarness&tiles=1200` route is retained for the legacy game and must not be cited as redesign evidence.
+- Profile performance-sensitive systems on the ecosystem route itself with its current debug snapshot and field-size controls.
 
 ## Test Scenarios
 

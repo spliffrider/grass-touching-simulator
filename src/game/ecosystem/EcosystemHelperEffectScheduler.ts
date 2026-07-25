@@ -14,7 +14,7 @@ export function getHelperEffectGapMs(mobile: boolean): number {
   return mobile ? PHONE_HELPER_EFFECT_GAP_MS : DESKTOP_HELPER_EFFECT_GAP_MS;
 }
 
-export function getHelperRepeatGapMs(mobile: boolean): number {
+function getHelperRepeatGapMs(mobile: boolean): number {
   return mobile ? PHONE_HELPER_REPEAT_GAP_MS : DESKTOP_HELPER_REPEAT_GAP_MS;
 }
 

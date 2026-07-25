@@ -10,8 +10,8 @@ interface ViewportStyleTarget {
   };
 }
 
-export const MIN_USABLE_VIEWPORT_WIDTH = 240;
-export const MIN_USABLE_VIEWPORT_HEIGHT = 180;
+const MIN_USABLE_VIEWPORT_WIDTH = 240;
+const MIN_USABLE_VIEWPORT_HEIGHT = 180;
 
 export function isUsableViewportSize(viewport: ViewportSize): boolean {
   return Number.isFinite(viewport.width)

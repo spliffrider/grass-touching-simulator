@@ -1,30 +1,23 @@
 import { DEFAULT_SFX_VOLUME } from "../data/audio-settings";
-import type { GrassTierId, TileTrait } from "../types/game-state";
 import {
   SoundVariationBank,
   type SoundVariation,
   type SoundVariationProfile,
 } from "./SoundVariation";
 
+type TileTrait = "normal" | "dewy" | "lush";
+type GrassTierId = "normal" | "thick" | "clover" | "golden" | "wildflower" | "moss" | "mushroom" | "crystal" | "frost";
+
 type SoundName =
-  | "touch"
-  | "regrow"
   | "upgrade"
   | "skill_select"
   | "milestone"
   | "blocked"
   | "seed"
-  | "gold"
-  | "crit"
   | "unlock"
-  | "perfect"
-  | "prick"
-  | "mower"
-  | "wound_seal"
   | "sprinkler"
   | "touch_cooldown"
-  | "dormancy"
-  | "last_stand";
+  | "dormancy";
 
 const NOISE_BUFFER_SECONDS = 0.5;
 const TOUCH_SOUND_MIN_INTERVAL_MS = 42;
@@ -34,8 +27,6 @@ const TOUCH_TRANSIENT_GAIN = 0.74;
 const TOUCH_CRUNCH_GAIN = 0.52;
 const FALLBACK_GRASS_VARIANT_COUNT = 7;
 const FALLBACK_GRASS_AUDIO_POOL_SIZE = 10;
-const MOBILE_GRASS_VARIANT_COUNT = 6;
-const MOBILE_GRASS_AUDIO_POOL_SIZE = 8;
 
 export class AudioSystem {
   private context?: AudioContext;
@@ -50,9 +41,6 @@ export class AudioSystem {
   private fallbackGrassAudios: HTMLAudioElement[] = [];
   private fallbackGrassAudioIndex = 0;
   private fallbackGrassDataUris: string[] = [];
-  private mobileGrassAudios: HTMLAudioElement[] = [];
-  private mobileGrassAudioIndex = 0;
-  private mobileGrassDataUris: string[] = [];
   private readonly soundVariations = new SoundVariationBank();
 
   setVolume(volume: number): void {
@@ -191,50 +179,6 @@ export class AudioSystem {
     return true;
   }
 
-  playFirstTouch(tier: GrassTierId = "normal", trait: TileTrait = "normal"): boolean {
-    if (this.volume <= 0) {
-      return false;
-    }
-
-    this.unlock();
-
-    if (!this.context || !this.master) {
-      this.lastGrassTouchSoundAt = performance.now();
-      return this.playFallbackGrassTouch(false);
-    }
-
-    if (this.context.state !== "running" || !this.unlocked) {
-      this.lastGrassTouchSoundAt = performance.now();
-      this.resumePromise ??= this.context
-        .resume()
-        .then(() => {
-          this.unlocked = true;
-        })
-        .finally(() => {
-          this.resumePromise = undefined;
-        });
-      void this.resumePromise.then(() => this.playFirstTouchNow(tier, trait, false));
-      return true;
-    }
-
-    this.playFirstTouchNow(tier, trait);
-    return true;
-  }
-
-  playMobileGrassTouch(isCrit = false, comboCount = 0, force = false): boolean {
-    if (this.volume <= 0) {
-      return false;
-    }
-
-    if (force) {
-      this.lastGrassTouchSoundAt = performance.now();
-    } else if (!this.shouldPlayGrassTouchSound(isCrit, comboCount)) {
-      return false;
-    }
-
-    return this.playMobileGrassTouchAudio(isCrit);
-  }
-
   private playNow(name: SoundName, variationProfile: SoundVariationProfile): void {
     if (!this.context || !this.master || this.context.state !== "running") {
       return;
@@ -242,12 +186,6 @@ export class AudioSystem {
     const variation = this.soundVariations.next(variationProfile);
 
     switch (name) {
-      case "touch":
-        this.playGrassTouchNow("normal", "normal", false, 0);
-        break;
-      case "regrow":
-        this.playRegrow();
-        break;
       case "upgrade":
         this.playUpgrade();
         break;
@@ -263,26 +201,8 @@ export class AudioSystem {
       case "seed":
         this.playSeed(variation);
         break;
-      case "gold":
-        this.playGold();
-        break;
-      case "crit":
-        this.playCrit();
-        break;
-      case "perfect":
-        this.playPerfect();
-        break;
       case "unlock":
         this.playUnlock();
-        break;
-      case "prick":
-        this.playPrick();
-        break;
-      case "mower":
-        this.playMower();
-        break;
-      case "wound_seal":
-        this.playWoundSeal();
         break;
       case "sprinkler":
         this.playSprinkler(variation);
@@ -292,9 +212,6 @@ export class AudioSystem {
         break;
       case "dormancy":
         this.playDormancy();
-        break;
-      case "last_stand":
-        this.playLastStand();
         break;
     }
   }
@@ -361,34 +278,6 @@ export class AudioSystem {
     }
   }
 
-  private playFirstTouchNow(tier: GrassTierId, trait: TileTrait, includeFallback = false): void {
-    if (!this.context || !this.master || this.context.state !== "running") {
-      return;
-    }
-
-    this.lastGrassTouchSoundAt = performance.now();
-    if (includeFallback) {
-      this.playFallbackGrassTouch(false);
-    }
-
-    const now = this.now();
-    const tierLift = tier === "crystal" || tier === "frost" ? 1.18 : tier === "golden" ? 1.12 : tier === "moss" || tier === "mushroom" ? 0.92 : 1;
-    const traitSpark = trait === "dewy" ? 1.16 : trait === "lush" ? 1.08 : 1;
-    const low = 98 * tierLift;
-    const root = 196 * tierLift;
-
-    this.playNoiseSweep(0.3, 520 * traitSpark, 0.12, now);
-    this.playNoiseSweep(0.12, 980 * traitSpark, 0.045, now + 0.018);
-    this.playCrunchTransient(1180 * traitSpark, 0.04, now + 0.012);
-    this.playCrunchTransient(1480 * traitSpark, 0.016, now + 0.044);
-    this.playTone(low, 0.19, 0.065, "sine", now);
-    this.playTone(root, 0.17, 0.055, "triangle", now + 0.012);
-    this.playTone(root * 1.5, 0.14, 0.034, "triangle", now + 0.035);
-    this.playArp([392, 523.25, 659.25, 783.99].map((frequency) => frequency * tierLift), now + 0.055, 0.042, 0.028, "triangle");
-    this.playTone(1567.98 * tierLift * traitSpark, 0.12, 0.02, "sine", now + 0.18);
-    this.playTone(2349.32 * tierLift * traitSpark, 0.08, 0.012, "sine", now + 0.235);
-  }
-
   private shouldPlayGrassTouchSound(isCrit: boolean, comboCount: number): boolean {
     const now = performance.now();
     const minInterval = isCrit ? TOUCH_SOUND_MIN_INTERVAL_MS : comboCount >= 5 ? TOUCH_SOUND_BUSY_INTERVAL_MS : TOUCH_SOUND_MIN_INTERVAL_MS;
@@ -404,15 +293,6 @@ export class AudioSystem {
     if (!force) return this.shouldPlayGrassTouchSound(isCrit, comboCount);
     this.lastGrassTouchSoundAt = performance.now();
     return true;
-  }
-
-  private playRegrow(): void {
-    const now = this.now();
-    this.playNoiseSweep(0.15, 1040 + Math.random() * 420, 0.07, now);
-    this.playNoiseSweep(0.07, 2600 + Math.random() * 520, 0.022, now + 0.035);
-    this.playTone(330 + Math.random() * 32, 0.1, 0.058, "sine", now);
-    this.playTone(510 + Math.random() * 65, 0.08, 0.048, "triangle", now + 0.045);
-    this.playTone(760 + Math.random() * 80, 0.065, 0.028, "sine", now + 0.09);
   }
 
   private playUpgrade(): void {
@@ -448,27 +328,6 @@ export class AudioSystem {
     this.playTone((1240 + Math.random() * 90) * pitch, 0.05, 0.022 * gain, "sine", now + 0.094);
   }
 
-  private playGold(): void {
-    const now = this.now();
-    this.playCoinStrike(1320, 0.12, 0.065, now);
-    this.playCoinStrike(1760, 0.1, 0.048, now + 0.055);
-    this.playTone(660, 0.06, 0.032, "triangle", now);
-    this.playTone(2460, 0.045, 0.018, "sine", now + 0.022);
-    this.playTone(2960, 0.05, 0.014, "sine", now + 0.08);
-  }
-
-  private playCrit(): void {
-    this.playCritAccent(this.now());
-  }
-
-  private playPerfect(): void {
-    const now = this.now();
-    this.playNoiseSweep(0.035, 3600 + Math.random() * 600, 0.055, now);
-    this.playTone(1760, 0.045, 0.052, "sine", now);
-    this.playTone(2640, 0.055, 0.044, "sine", now + 0.028);
-    this.playTone(1320, 0.07, 0.03, "triangle", now + 0.07);
-  }
-
   private playCritAccent(startAt: number): void {
     const now = this.now();
     const start = Math.max(now, startAt);
@@ -493,28 +352,6 @@ export class AudioSystem {
     this.playNoiseSweep(0.055, 520, 0.02, now + 0.012);
   }
 
-  private playPrick(): void {
-    const now = this.now();
-    this.playTone(1240, 0.035, 0.048, "square", now);
-    this.playTone(1820, 0.026, 0.032, "sawtooth", now + 0.018);
-    this.playNoiseSweep(0.045, 2600, 0.035, now);
-  }
-
-  private playMower(): void {
-    const now = this.now();
-    this.playTone(96, 0.28, 0.036, "sawtooth", now);
-    this.playTone(128, 0.22, 0.028, "square", now + 0.045);
-    this.playNoiseSweep(0.26, 420, 0.045, now);
-  }
-
-  private playWoundSeal(): void {
-    const now = this.now();
-    this.playNoiseSweep(0.22, 920 + Math.random() * 180, 0.04, now);
-    this.playToneSweep(112, 168, 0.24, 0.052, "sine", now);
-    this.playArp([293.66, 440, 587.33], now + 0.045, 0.065, 0.038, "sine");
-    this.playTone(880 + Math.random() * 40, 0.16, 0.022, "sine", now + 0.2);
-  }
-
   private playSprinkler(variation: SoundVariation): void {
     const now = this.now();
     const pitch = variation.pitchRatio;
@@ -537,14 +374,6 @@ export class AudioSystem {
     this.playToneSweep(196, 55, 0.74, 0.068, "triangle", now);
     this.playToneSweep(293.66, 82.41, 0.66, 0.034, "sine", now + 0.055);
     this.playTone(48, 0.52, 0.025, "sine", now + 0.22);
-  }
-
-  private playLastStand(): void {
-    const now = this.now();
-    this.playNoiseSweep(0.3, 780 + Math.random() * 160, 0.045, now);
-    this.playToneSweep(72, 154, 0.4, 0.065, "sine", now);
-    this.playArp([220, 330, 440, 660], now + 0.06, 0.07, 0.046, "triangle");
-    this.playTone(990, 0.2, 0.025, "sine", now + 0.3);
   }
 
   private playArp(frequencies: number[], startAt: number, step: number, volume: number, type: OscillatorType): void {
@@ -690,27 +519,6 @@ export class AudioSystem {
     return true;
   }
 
-  private playMobileGrassTouchAudio(isCrit: boolean): boolean {
-    const audio = this.getMobileGrassAudio();
-    if (!audio) {
-      return false;
-    }
-
-    audio.volume = Math.min(1, this.volume * (isCrit ? 0.62 : 0.5));
-    try {
-      audio.playbackRate = isCrit ? 0.94 + Math.random() * 0.06 : 0.82 + Math.random() * 0.08;
-    } catch {
-      // Playback-rate changes are optional; the source variants provide the core texture.
-    }
-    try {
-      audio.currentTime = 0;
-    } catch {
-      // Some mobile browsers reject seeking until metadata is ready; playback can still proceed.
-    }
-    void audio.play().catch(() => undefined);
-    return true;
-  }
-
   private getFallbackGrassAudio(): HTMLAudioElement | undefined {
     if (typeof Audio === "undefined") {
       return undefined;
@@ -739,122 +547,6 @@ export class AudioSystem {
     }
 
     return this.fallbackGrassDataUris;
-  }
-
-  private getMobileGrassAudio(): HTMLAudioElement | undefined {
-    if (typeof Audio === "undefined") {
-      return undefined;
-    }
-
-    if (this.mobileGrassAudios.length === 0) {
-      const sources = this.getMobileGrassDataUris();
-      this.mobileGrassAudios = Array.from({ length: MOBILE_GRASS_AUDIO_POOL_SIZE }, (_, index) => {
-        const source = sources[index % sources.length];
-        const audio = new Audio(source);
-        audio.preload = "auto";
-        audio.load();
-        return audio;
-      });
-      this.mobileGrassAudioIndex = Math.floor(Math.random() * this.mobileGrassAudios.length);
-    }
-
-    const audio = this.mobileGrassAudios[this.mobileGrassAudioIndex];
-    this.mobileGrassAudioIndex = (this.mobileGrassAudioIndex + 1) % this.mobileGrassAudios.length;
-    return audio;
-  }
-
-  private getMobileGrassDataUris(): string[] {
-    if (this.mobileGrassDataUris.length === 0) {
-      this.mobileGrassDataUris = Array.from({ length: MOBILE_GRASS_VARIANT_COUNT }, (_, index) => this.createMobileGrassDataUri(index));
-    }
-
-    return this.mobileGrassDataUris;
-  }
-
-  private createMobileGrassDataUri(variantIndex: number): string {
-    const profile = [
-      { duration: 0.142, bodyFreq: 118, bodyDecay: 10.5, leafDecay: 15.5, bodySmoothing: 0.982, leafSmoothing: 0.93, bodyGain: 0.88, leafGain: 0.055, toneGain: 0.105, dryGain: 0.002, dryChance: 0.997, drive: 0.84 },
-      { duration: 0.156, bodyFreq: 96, bodyDecay: 9.4, leafDecay: 14.2, bodySmoothing: 0.986, leafSmoothing: 0.945, bodyGain: 0.94, leafGain: 0.045, toneGain: 0.115, dryGain: 0.0015, dryChance: 0.998, drive: 0.8 },
-      { duration: 0.132, bodyFreq: 138, bodyDecay: 11.8, leafDecay: 17.5, bodySmoothing: 0.978, leafSmoothing: 0.91, bodyGain: 0.82, leafGain: 0.065, toneGain: 0.095, dryGain: 0.0025, dryChance: 0.996, drive: 0.86 },
-      { duration: 0.164, bodyFreq: 84, bodyDecay: 8.7, leafDecay: 13.6, bodySmoothing: 0.988, leafSmoothing: 0.952, bodyGain: 0.98, leafGain: 0.04, toneGain: 0.12, dryGain: 0.0012, dryChance: 0.9985, drive: 0.78 },
-      { duration: 0.126, bodyFreq: 152, bodyDecay: 12.6, leafDecay: 18.8, bodySmoothing: 0.974, leafSmoothing: 0.9, bodyGain: 0.78, leafGain: 0.075, toneGain: 0.085, dryGain: 0.003, dryChance: 0.9955, drive: 0.88 },
-      { duration: 0.15, bodyFreq: 108, bodyDecay: 10.1, leafDecay: 15.1, bodySmoothing: 0.984, leafSmoothing: 0.936, bodyGain: 0.9, leafGain: 0.05, toneGain: 0.11, dryGain: 0.0018, dryChance: 0.9975, drive: 0.82 },
-    ][variantIndex % MOBILE_GRASS_VARIANT_COUNT];
-    const sampleRate = 22050;
-    const sampleCount = Math.floor(sampleRate * profile.duration);
-    const bytesPerSample = 2;
-    const dataSize = sampleCount * bytesPerSample;
-    const buffer = new ArrayBuffer(44 + dataSize);
-    const view = new DataView(buffer);
-    let offset = 0;
-
-    const writeString = (value: string) => {
-      for (let i = 0; i < value.length; i += 1) {
-        view.setUint8(offset, value.charCodeAt(i));
-        offset += 1;
-      }
-    };
-    const writeUint16 = (value: number) => {
-      view.setUint16(offset, value, true);
-      offset += 2;
-    };
-    const writeUint32 = (value: number) => {
-      view.setUint32(offset, value, true);
-      offset += 4;
-    };
-
-    writeString("RIFF");
-    writeUint32(36 + dataSize);
-    writeString("WAVE");
-    writeString("fmt ");
-    writeUint32(16);
-    writeUint16(1);
-    writeUint16(1);
-    writeUint32(sampleRate);
-    writeUint32(sampleRate * bytesPerSample);
-    writeUint16(bytesPerSample);
-    writeUint16(16);
-    writeString("data");
-    writeUint32(dataSize);
-
-    let seed = (0x6d2b79f5 ^ ((variantIndex + 3) * 0x27d4eb2d)) >>> 0;
-    const random = () => {
-      seed = (seed * 1664525 + 1013904223) >>> 0;
-      return seed / 0x100000000;
-    };
-    const phase = random() * Math.PI * 2;
-    let bodyState = 0;
-    let leafState = 0;
-    let dryState = 0;
-
-    for (let i = 0; i < sampleCount; i += 1) {
-      const t = i / sampleRate;
-      const attack = Math.min(1, t / 0.018);
-      const release = Math.min(1, (profile.duration - t) / 0.024);
-      const edgeEnvelope = attack * release;
-      const raw = random() * 2 - 1;
-      bodyState = bodyState * profile.bodySmoothing + raw * (1 - profile.bodySmoothing);
-      leafState = leafState * profile.leafSmoothing + raw * (1 - profile.leafSmoothing);
-      dryState = dryState * 0.82 + raw * 0.18;
-      const bodyEnvelope = edgeEnvelope * Math.exp(-t * profile.bodyDecay);
-      const leafEnvelope = edgeEnvelope * Math.exp(-t * profile.leafDecay);
-      const dryEnvelope = edgeEnvelope * Math.exp(-t * 58);
-      const softBrush = bodyState * bodyEnvelope * profile.bodyGain;
-      const leafRub = (leafState - bodyState * 0.35) * leafEnvelope * profile.leafGain;
-      const bodyTone = Math.sin(2 * Math.PI * profile.bodyFreq * t + phase) * bodyEnvelope * profile.toneGain;
-      const dryAccent = random() > profile.dryChance ? dryState * dryEnvelope * profile.dryGain : 0;
-      const value = Math.tanh((softBrush + leafRub + bodyTone + dryAccent) * profile.drive) * 0.82;
-      view.setInt16(offset, Math.round(value * 32767), true);
-      offset += 2;
-    }
-
-    let binary = "";
-    const bytes = new Uint8Array(buffer);
-    for (let i = 0; i < bytes.length; i += 1) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-
-    return `data:audio/wav;base64,${btoa(binary)}`;
   }
 
   private createFallbackGrassDataUri(variantIndex: number): string {

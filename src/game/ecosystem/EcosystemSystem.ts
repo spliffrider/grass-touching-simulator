@@ -22,10 +22,10 @@ export const ECOSYSTEM_PERMANENT_VERSION = 1;
 export const ECOSYSTEM_ACTIVE_VERSION = 1;
 export const FIELD_MOUSE_STARTER_SEEDS = 8;
 export const BEE_HIVE_STARTER_FLOWERS = 4;
-export const ECOSYSTEM_BASE_MAX_HP = 100;
+const ECOSYSTEM_BASE_MAX_HP = 100;
 export const ANCIENT_HEARTWOOD_MAX_RANK = 10;
 export const ANCIENT_HEARTWOOD_HP_PER_RANK = 25;
-export const LINGERING_CARE_MAX_RANK = 10;
+const LINGERING_CARE_MAX_RANK = 10;
 export const LINGERING_CARE_DURATION_MS = 4_000;
 export const VERDANT_AEGIS_MAX_RANK = 10;
 export const FIRST_RUN_TARGET_DURATION_MS = 19_000;
@@ -39,13 +39,13 @@ export const HELPER_STARTING_STOCK_PER_RANK = 6;
 export const HELPER_TOUCH_YIELD_PER_IMPACT_RANK = 0.15;
 export const HELPER_HEALING_PER_TOUCH = 0.45;
 export const HELPER_HEALING_PER_IMPACT_RANK = 0.12;
-export const FIELD_EXPANSION_BASE_RUN_TOUCH_COST = 500;
-export const FIELD_EXPANSION_RUN_TOUCH_MULTIPLIER = 2;
-export const DAMP_FURROWS_MOISTURE_PER_CYCLE = 0.3;
-export const DAMP_FURROWS_GROWTH_PER_CYCLE = 0.75;
-export const DAMP_FURROWS_CARE_PER_CYCLE = 1.05;
+const FIELD_EXPANSION_BASE_RUN_TOUCH_COST = 500;
+const FIELD_EXPANSION_RUN_TOUCH_MULTIPLIER = 2;
+const DAMP_FURROWS_MOISTURE_PER_CYCLE = 0.3;
+const DAMP_FURROWS_GROWTH_PER_CYCLE = 0.75;
+const DAMP_FURROWS_CARE_PER_CYCLE = 1.05;
 export const HAND_TENDING_GROWTH_PER_POWER = 0.35;
-export const STARTER_SPRINKLER_GROWTH_PER_CYCLE = 0.08;
+const STARTER_SPRINKLER_GROWTH_PER_CYCLE = 0.08;
 // Run 1 touch Care is intentionally faint, so this curve still creates an inevitable first collapse.
 const FIRST_RUN_SCOURGE_BASE = 3.7;
 const FIRST_RUN_SCOURGE_RAMP_SECONDS = 30;
@@ -57,10 +57,10 @@ const SCOURGE_ACCELERATION_POWER = 1.82;
 const EARLY_SCOURGE_BASE_BY_CAPABILITY = [10, 4.45, 1.45, 1, 0.74, 0.57] as const;
 
 export type HelperRankRecord = Record<HelperId, number>;
-export type HelperUnlockRecord = Record<HelperId, boolean>;
-export type HelperModeUnlockRecord = Record<HelperId, string[]>;
-export type ProductionBufferRecord = Record<ProductionResourceId, ProductionBuffer>;
-export type ProductionRateRecord = Record<ProductionResourceId, number>;
+type HelperUnlockRecord = Record<HelperId, boolean>;
+type HelperModeUnlockRecord = Record<HelperId, string[]>;
+type ProductionBufferRecord = Record<ProductionResourceId, ProductionBuffer>;
+type ProductionRateRecord = Record<ProductionResourceId, number>;
 export type PermanentTouchRankKind =
   | "fastTouch"
   | "broadPalm"
@@ -89,7 +89,7 @@ export interface PermanentEcosystemState {
   lastPurchasedMemoryNodeId: string | null;
 }
 
-export interface HelperRuntimeState {
+interface HelperRuntimeState {
   count: number;
   modeId: string;
   reconfigureRemainingMs: number;
@@ -98,7 +98,7 @@ export interface HelperRuntimeState {
   lastPauseReason: string | null;
 }
 
-export type HelperRuntimeRecord = Record<HelperId, HelperRuntimeState>;
+type HelperRuntimeRecord = Record<HelperId, HelperRuntimeState>;
 
 export interface EcosystemFieldState {
   sizeIndex: number;
@@ -196,7 +196,7 @@ export interface EcosystemReadout {
   dirtyChunks: number;
 }
 
-export type FirstAutomationStage = "locked" | "gather" | "ready" | "firstCycle" | "sustain" | "dry" | "paused";
+type FirstAutomationStage = "locked" | "gather" | "ready" | "firstCycle" | "sustain" | "dry" | "paused";
 
 export interface FirstAutomationStatus {
   stage: FirstAutomationStage;
@@ -208,7 +208,7 @@ export interface FirstAutomationStatus {
   pauseReason: string | null;
 }
 
-export type FieldMouseStage = "locked" | "gather" | "ready" | "firstTrip" | "working" | "starved" | "blocked";
+type FieldMouseStage = "locked" | "gather" | "ready" | "firstTrip" | "working" | "starved" | "blocked";
 
 export interface FieldMouseStatus {
   stage: FieldMouseStage;
@@ -224,7 +224,7 @@ export interface FieldMouseStatus {
   pauseReason: string | null;
 }
 
-export type BeeHiveStage = "locked" | "gather" | "ready" | "firstFlight" | "working" | "starved" | "blocked";
+type BeeHiveStage = "locked" | "gather" | "ready" | "firstFlight" | "working" | "starved" | "blocked";
 
 export interface BeeHiveStatus {
   stage: BeeHiveStage;
@@ -643,7 +643,7 @@ export function getFirstAutomationStatus(
   return { stage: "sustain", ...common };
 }
 
-export function getHelperThroughputMultiplier(rank: number): number {
+function getHelperThroughputMultiplier(rank: number): number {
   const safeRank = clampRank(rank, 10);
   return 1 + safeRank * HELPER_THROUGHPUT_PER_RANK;
 }
@@ -716,7 +716,7 @@ export function getHelperStackCycleIntervalMs(
   ) / helper.count;
 }
 
-export function hasDampFurrowsLink(state: Pick<EcosystemState, "helpers">): boolean {
+function hasDampFurrowsLink(state: Pick<EcosystemState, "helpers">): boolean {
   return state.helpers.tinySprinkler.count > 0 && state.helpers.fieldMouse.count > 0;
 }
 
@@ -1103,7 +1103,7 @@ export function rebuildChunkStageCounts(field: EcosystemFieldState): void {
   }
 }
 
-export function setTileStage(field: EcosystemFieldState, tileIndex: number, nextStage: TileStage): boolean {
+function setTileStage(field: EcosystemFieldState, tileIndex: number, nextStage: TileStage): boolean {
   if (tileIndex < 0 || tileIndex >= field.stages.length) {
     return false;
   }
@@ -1801,7 +1801,7 @@ export function consumeHelperPulses(state: EcosystemState): HelperRankRecord {
   return pulses;
 }
 
-export function countDirtyChunks(field: EcosystemFieldState): number {
+function countDirtyChunks(field: EcosystemFieldState): number {
   let count = 0;
   for (let index = 0; index < field.dirtyChunks.length; index += 1) {
     count += field.dirtyChunks[index] === 1 ? 1 : 0;

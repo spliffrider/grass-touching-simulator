@@ -4,8 +4,8 @@ Grass Touching Simulator is a Phaser 3 browser game. Performance is a first-clas
 
 ## Performance Rules
 
-- Treat the redesign and legacy game as separate performance surfaces. Query parameters such as `?perf`, `?stress`, and `?perfHarness` intentionally route to the legacy `GameScene`; they do not measure the Ancient Grass redesign.
-- Profile before optimizing. For redesign work, measure the redesign route directly and add redesign-specific timing/debug instrumentation when numeric evidence is needed. Use `?perfHarness&tiles=1200` only for changes that actually touch the legacy game.
+- The Ancient Grass ecosystem is the only runtime surface. Retired query aliases such as `?legacy`, `?perf`, `?stress`, and `?perfHarness` no longer select another game.
+- Profile before optimizing. Measure the ecosystem route directly and add repeatable ecosystem-specific timing/debug instrumentation when numeric evidence is needed.
 - Treat every-frame and every-tick work as suspicious until measured: `update`, regrowth, automation systems, UI refresh, save serialization, big-number formatting, tile layout, render-texture work, tweens, particles, and object creation/destruction.
 - Do not refactor hot paths blindly. Add or use timing markers first, then make targeted changes.
 - Keep ordinary tap/regrow/automation updates from forcing board layout or common-layer redraws.
@@ -25,36 +25,34 @@ npm run check
 For redesign changes, test the actual redesign route on relevant desktop and phone viewports:
 
 ```text
-http://127.0.0.1:5173/?redesign&playtest
+http://127.0.0.1:5173/?redesign&playtest&debugPanel
 ```
 
 - Exercise the changed active-run and Memory Grove states.
 - Check browser errors and warnings.
 - Inspect the redesign DOM/debug snapshot for object state and visibility regressions.
-- For performance claims, profile the redesign itself or add a repeatable redesign harness first. Do not cite the legacy 1,200-tile harness as redesign evidence.
-
-Only for legacy `GameScene` performance changes, use `?perfHarness&tiles=1200`, read:
+- For performance claims, profile the ecosystem itself or add a repeatable ecosystem harness first.
+- Read the current snapshots from:
 
 ```js
-document.documentElement.dataset.grassPerfHarness
+document.documentElement.dataset.grassEcosystemPrototype
+document.documentElement.dataset.grassEcosystemHarness
 ```
 
 Compare at least these fields across phases:
 
-- `visibleTiles`
-- `layoutPasses`
-- `redraws`
-- `redrawQueued`
+- `fps`
 - `maxFrameDeltaMs`
 - `frameSpikes`
 - `displayObjects`
 - `activeTweens`
-- `hotspots`
+- `fullFieldScans`
+- `visibleTileViews`
+- `dirtyChunks`
 
 ## Reference Docs
 
 - `docs/PERFORMANCE_NOTES.md`: performance postmortems and guardrails.
-- `docs/PERFORMANCE_HARNESS.md`: legacy `GameScene` harness usage and exported metrics.
 - `docs/PROJECT_MANUAL.md`: project architecture and feature workflow.
 - `docs/REMOTE_MAC_MINI_SETUP.md`: SSH/GitHub/Vercel setup for the always-on Mac mini.
 - `docs/DESKTOP_MAC_SYNC_WORKFLOW.md`: daily desktop-to-Mac handoff and resume workflow.

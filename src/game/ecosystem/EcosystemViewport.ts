@@ -1,6 +1,6 @@
 import { FIELD_CHUNK_SIZE } from "./EcosystemCatalog";
 
-export type FieldLod = "near" | "mid" | "far";
+type FieldLod = "near" | "mid" | "far";
 
 export interface FieldViewportState {
   centerX: number;
@@ -15,7 +15,7 @@ export interface FieldViewportBounds {
   height: number;
 }
 
-export interface VisibleGridRange {
+interface VisibleGridRange {
   startX: number;
   endX: number;
   startY: number;
@@ -46,7 +46,7 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
 }
 
-export function clampFieldViewport(state: FieldViewportState): FieldViewportState {
+function clampFieldViewport(state: FieldViewportState): FieldViewportState {
   return {
     centerX: clamp(state.centerX, 0, 1),
     centerY: clamp(state.centerY, 0, 1),
@@ -54,7 +54,7 @@ export function clampFieldViewport(state: FieldViewportState): FieldViewportStat
   };
 }
 
-export function getFieldLod(cellSize: number): FieldLod {
+function getFieldLod(cellSize: number): FieldLod {
   if (cellSize >= 26) return "near";
   if (cellSize >= 7) return "mid";
   return "far";

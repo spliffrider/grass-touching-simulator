@@ -105,8 +105,6 @@ def main() -> None:
     maskable_512 = build_icon(512, maskable=True)
 
     outputs = {
-        "icon-512.png": (any_512, 512),
-        "icon-192.png": (any_512, 192),
         "icon-512-v2.png": (any_512, 512),
         "icon-192-v2.png": (any_512, 192),
         "icon-maskable-512-v2.png": (maskable_512, 512),

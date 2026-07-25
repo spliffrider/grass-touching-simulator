@@ -7,15 +7,16 @@ The ecosystem implementation has two entry surfaces:
 ```text
 /
 ?alpha
+?redesign&playtest
 ?redesign&ecosystemPrototype
 ```
 
 The bare production URL and `?alpha` open the dedicated ecosystem title screen.
 Players explicitly choose Continue or Begin New Field before the ecosystem
-scene loads. `?redesign&ecosystemPrototype` remains the direct developer route
-for playtests and harnesses. The older redesign remains available through
-`?redesign`, while `?legacy` and the legacy harness parameters still select the
-old `GameScene`.
+scene loads. `?redesign&playtest` and `?redesign&ecosystemPrototype` open the
+ecosystem field directly for playtests and harnesses. The retired intermediate
+redesign and original incremental game are no longer shipped. Their old query
+parameters fall through to the current ecosystem title.
 
 The ecosystem owns separate permanent and active-run saves, browser
 diagnostics, and performance harnesses. It must not read or migrate either

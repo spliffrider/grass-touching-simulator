@@ -9,7 +9,7 @@
       "size_bytes": 190488,
       "production_path": "public/assets/backgrounds/title-wholesome-landscape.webp",
       "production_url": "https://grasstouchingsimulator.com/assets/backgrounds/title-wholesome-landscape.webp",
-      "notes": "Chosen clean landscape background, currently used by TitleScene for desktop/landscape layouts."
+      "notes": "Chosen clean landscape background, currently used by EcosystemTitleScene for desktop/landscape layouts."
     },
     {
       "path": "live-assets/title-wholesome-portrait.webp",
@@ -17,7 +17,7 @@
       "size_bytes": 160036,
       "production_path": "public/assets/backgrounds/title-wholesome-portrait.webp",
       "production_url": "https://grasstouchingsimulator.com/assets/backgrounds/title-wholesome-portrait.webp",
-      "notes": "Chosen portrait crop, currently used by TitleScene for phone-shaped portrait layouts."
+      "notes": "Chosen portrait crop, currently used by EcosystemTitleScene for phone-shaped portrait layouts."
     }
   ],
   "source_previews": [
@@ -131,7 +131,7 @@
   "usage_guidance": [
     "Use live-assets/ or public/assets/backgrounds/title-wholesome-*.webp for the current shipped title screen.",
     "Use source-previews/clean-generated-preview-screenshot.png as the visual reference if regenerating a pristine high-resolution source later.",
-    "Do not use public/assets/title-screen.png raw as a background because it contains baked title/menu text and translucent artifacts.",
+    "The retired composite title-screen.png was removed because it contained baked title/menu text and translucent artifacts.",
     "If replacing the live art later, generate true art-only 16:9 and 9:16 assets with no text, logo, UI panels, buttons, translucent rectangles, or placeholders."
   ]
 }

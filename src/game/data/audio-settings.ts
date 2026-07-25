@@ -1,6 +1,6 @@
-export const MUSIC_VOLUME_STORAGE_KEY = "grassTouching.menuMusicVolume";
-export const SFX_VOLUME_STORAGE_KEY = "grassTouching.sfxVolume";
-export const DEFAULT_MUSIC_VOLUME = 0.62;
+const MUSIC_VOLUME_STORAGE_KEY = "grassTouching.menuMusicVolume";
+const SFX_VOLUME_STORAGE_KEY = "grassTouching.sfxVolume";
+const DEFAULT_MUSIC_VOLUME = 0.62;
 export const DEFAULT_SFX_VOLUME = 1;
 
 export function readStoredMusicVolume(): number {

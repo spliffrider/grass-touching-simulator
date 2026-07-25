@@ -9,12 +9,12 @@ const MEMORY_LAYOUT_SCALE = 1.3;
 
 export const ECOSYSTEM_MEMORY_WORLD_WIDTH = 3700 * MEMORY_LAYOUT_SCALE;
 export const ECOSYSTEM_MEMORY_WORLD_HEIGHT = 1800 * MEMORY_LAYOUT_SCALE;
-export const ECOSYSTEM_MEMORY_NODE_GLOW_RADIUS = 56;
+const ECOSYSTEM_MEMORY_NODE_GLOW_RADIUS = 56;
 export const ECOSYSTEM_MEMORY_CONNECTOR_GAP = 10;
 export const ECOSYSTEM_MEMORY_MIN_TITLE_SCREEN_PX = 13;
 export const ECOSYSTEM_MEMORY_MIN_STATUS_SCREEN_PX = 11;
 
-export type EcosystemMemoryNodeKind =
+type EcosystemMemoryNodeKind =
   | "root"
   | "helperUnlock"
   | "helperRank"
@@ -707,7 +707,7 @@ function isMemoryNodeOwned(
   return permanent.fieldEmbrace;
 }
 
-export function isEcosystemMemoryNodeRevealed(
+function isEcosystemMemoryNodeRevealed(
   node: EcosystemMemoryNodeDefinition,
   permanent: PermanentEcosystemState,
   firstMemoryFocus = false,

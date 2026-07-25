@@ -58,14 +58,14 @@ export const HELPER_IDS = [
 
 export type HelperId = (typeof HELPER_IDS)[number];
 
-export interface HelperMode {
+interface HelperMode {
   id: string;
   helperId: HelperId;
   label: string;
   description: string;
 }
 
-export interface RecipeAmount {
+interface RecipeAmount {
   resourceId: ProductionResourceId;
   amount: number;
   allowOverflow?: boolean;
@@ -265,16 +265,6 @@ export enum TileStage {
 }
 
 export const TILE_STAGE_COUNT = 8;
-
-export interface FieldChunk {
-  id: number;
-  column: number;
-  row: number;
-  startX: number;
-  startY: number;
-  width: number;
-  height: number;
-}
 
 export interface TouchBatchImpact {
   tileIndex: number;
