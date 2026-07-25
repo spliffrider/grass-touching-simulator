@@ -58,7 +58,7 @@ a run. Helper recipes provide the useful throughput:
 
 | Helper | Primary role | Alternate mode |
 | --- | --- | --- |
-| Tiny Sprinkler | Dew to Moisture, starter Growth, and Care | Cultivator favors Moisture and Growth |
+| Tiny Sprinkler | Fuel-free automated touches, Moisture, starter Growth, and Care | Cultivator favors Moisture and Growth |
 | Field Mouse | Seeds to Growth | Cache favors input efficiency |
 | Bee Hive | Flowers to Pollinated Blooms | Honey Reserve adds Care at lower throughput |
 | Chicken Patrol | Clippings to Compost | Forage also produces Clippings from Growth |
@@ -114,8 +114,9 @@ and audio presentations wait and combine.
 Remembering Tiny Sprinkler reveals the Living Ledger on the following run. A
 fixed First Automation strip fills from current RT toward the first 10 RT
 sprinkler purchase. Once bought, the same strip becomes its production-cycle
-meter and explicitly reports `Dew -> Moisture + Growth + Care`; if the recipe pauses for
-Dew, it tells the player to touch the field. The first purchase uses the pooled
+meter and explicitly reports its first automated touch. Sprinklers never consume
+Dew and cannot stall on full output buffers: every completed cycle always
+sprinkles and awards its automated touch. The first purchase uses the pooled
 arrival, water-spray, impact, sound, and HP-bar feedback so automation reads as
 a run milestone rather than a silent number change.
 
@@ -214,10 +215,12 @@ Field Mouse, Bee Hive, and later-helper skills shorten their own trips, flights,
 or production cycles.
 
 Storage, Impact, and starting-stock ranks also have helper-specific names and
-copy. Every storage rank expands the actual input or output buffers used by its
-helper; no helper may expose a storage Memory with no mechanical target. Impact
-uses the existing internal `efficiency` save field, so permanent saves receive
-the stronger touch and healing behavior without migration.
+copy. Most storage ranks expand actual input or output buffers. Tiny Sprinkler is
+the deliberate exception: `Dew Cistern` turns each sprinkler hit into a
+four-second, stacking healing afterglow. `Fine Mist` uses the existing internal
+`efficiency` save field but now gives each sprinkler hit a 6%-per-rank chance to
+touch every neighboring tile. It does not reduce fuel costs because sprinklers
+have no fuel.
 
 Every permanent Memory purchase also contributes one point of Remembered
 Touch. Each point adds 3% to the power of ordinary manual touch batches,

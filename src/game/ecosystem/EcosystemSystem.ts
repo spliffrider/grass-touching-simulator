@@ -36,9 +36,12 @@ export const HELPER_THROUGHPUT_PER_RANK = 0.3;
 export const HELPER_STORAGE_CAPACITY_PER_RANK = 0.25;
 export const HELPER_EFFICIENCY_PER_RANK = 0.06;
 export const HELPER_STARTING_STOCK_PER_RANK = 6;
-export const HELPER_TOUCH_YIELD_PER_IMPACT_RANK = 0.15;
+const HELPER_TOUCH_YIELD_PER_IMPACT_RANK = 0.15;
 export const HELPER_HEALING_PER_TOUCH = 0.45;
-export const HELPER_HEALING_PER_IMPACT_RANK = 0.12;
+const HELPER_HEALING_PER_IMPACT_RANK = 0.12;
+export const FINE_MIST_PROC_CHANCE_PER_RANK = 0.06;
+export const SPRINKLER_AFTERGLOW_DURATION_MS = 4_000;
+const FINE_MIST_MAX_RANDOM_ROLLS_PER_TICK = 24;
 const FIELD_EXPANSION_BASE_RUN_TOUCH_COST = 500;
 const FIELD_EXPANSION_RUN_TOUCH_MULTIPLIER = 2;
 const DAMP_FURROWS_MOISTURE_PER_CYCLE = 0.3;
@@ -151,6 +154,9 @@ export interface EcosystemState {
   automationHealingRate: number;
   lingeringCarePerSecond: number;
   lingeringCareRemainingMs: number;
+  sprinklerAfterglowPerSecond: number;
+  sprinklerAfterglowRemainingMs: number;
+  sprinklerFineMistProcCount: number;
   overhealShield: number;
   maxOverhealShield: number;
   overhealShieldRemainingMs: number;
@@ -196,14 +202,13 @@ export interface EcosystemReadout {
   dirtyChunks: number;
 }
 
-type FirstAutomationStage = "locked" | "gather" | "ready" | "firstCycle" | "sustain" | "dry" | "paused";
+type FirstAutomationStage = "locked" | "gather" | "ready" | "firstCycle" | "sustain" | "paused";
 
 export interface FirstAutomationStatus {
   stage: FirstAutomationStage;
   purchaseCost: number;
   purchaseProgress: number;
   cycleProgress: number;
-  dewAmount: number;
   careProduced: number;
   pauseReason: string | null;
 }
@@ -254,7 +259,7 @@ const BASE_RESOURCE_CAPACITY: Record<ProductionResourceId, number> = {
 };
 
 const HELPER_STORAGE_RESOURCES: Record<HelperId, readonly ProductionResourceId[]> = {
-  tinySprinkler: ["dew", "moisture"],
+  tinySprinkler: [],
   fieldMouse: ["seeds", "growth"],
   beeHive: ["flowers", "pollinatedBlooms"],
   chickenPatrol: ["growth", "clippings", "compost"],
@@ -423,6 +428,37 @@ export function getLingeringCareMaxRate(permanent: PermanentEcosystemState): num
     * getManualTouchPowerMultiplier(permanent);
 }
 
+export function getSprinklerAfterglowStackRate(rank: number): number {
+  const safeRank = clampRank(rank, 10);
+  return safeRank <= 0 ? 0 : 0.35 + (safeRank - 1) * 0.1;
+}
+
+export function getSprinklerAfterglowMaxStacks(rank: number): number {
+  const safeRank = clampRank(rank, 10);
+  return safeRank <= 0 ? 0 : 2 + Math.floor((safeRank - 1) / 2);
+}
+
+export function getSprinklerAfterglowMaxRate(rank: number): number {
+  return getSprinklerAfterglowStackRate(rank) * getSprinklerAfterglowMaxStacks(rank);
+}
+
+export function getFineMistProcChance(rank: number): number {
+  return clampRank(rank, 10) * FINE_MIST_PROC_CHANCE_PER_RANK;
+}
+
+export function getFineMistAverageSplashTouches(
+  field: Pick<EcosystemFieldState, "width" | "height">,
+): number {
+  const width = Math.max(1, Math.floor(field.width));
+  const height = Math.max(1, Math.floor(field.height));
+  const tileCount = width * height;
+  if (tileCount <= 1) return 0;
+  const horizontalNeighbors = 2 * height * Math.max(0, width - 1);
+  const verticalNeighbors = 2 * width * Math.max(0, height - 1);
+  const diagonalNeighbors = 4 * Math.max(0, width - 1) * Math.max(0, height - 1);
+  return (horizontalNeighbors + verticalNeighbors + diagonalNeighbors) / tileCount;
+}
+
 export function getVerdantAegisConversion(rank: number): number {
   const safeRank = clampRank(rank, VERDANT_AEGIS_MAX_RANK);
   return safeRank <= 0 ? 0 : 0.6 + (safeRank - 1) * (0.4 / 9);
@@ -562,6 +598,9 @@ export function createEcosystemState(
     automationHealingRate: 0,
     lingeringCarePerSecond: 0,
     lingeringCareRemainingMs: 0,
+    sprinklerAfterglowPerSecond: 0,
+    sprinklerAfterglowRemainingMs: 0,
+    sprinklerFineMistProcCount: 0,
     overhealShield: 0,
     maxOverhealShield: runNumber > 1 ? getVerdantAegisCapacity(permanent, maxHp) : 0,
     overhealShieldRemainingMs: 0,
@@ -599,6 +638,9 @@ export function enforceRunOneBareHands(state: EcosystemState): void {
   state.automatedHealingTotal = 0;
   state.automationTouchRate = 0;
   state.automationHealingRate = 0;
+  state.sprinklerAfterglowPerSecond = 0;
+  state.sprinklerAfterglowRemainingMs = 0;
+  state.sprinklerFineMistProcCount = 0;
   state.overhealShield = 0;
   state.maxOverhealShield = 0;
   state.overhealShieldRemainingMs = 0;
@@ -624,7 +666,6 @@ export function getFirstAutomationStatus(
     purchaseCost,
     purchaseProgress: Math.min(1, Math.max(0, state.runTouches / purchaseCost)),
     cycleProgress: Math.min(1, Math.max(0, sprinkler.pulseProgress)),
-    dewAmount: state.resources.dew.amount,
     careProduced: state.resources.care.producedTotal,
     pauseReason: sprinkler.lastPauseReason,
   };
@@ -635,7 +676,6 @@ export function getFirstAutomationStatus(
   if (sprinkler.count <= 0) {
     return { stage: state.runTouches >= purchaseCost ? "ready" : "gather", ...common };
   }
-  if (state.resources.dew.amount < 1) return { stage: "dry", ...common };
   if (sprinkler.lastPauseReason) return { stage: "paused", ...common };
   if (state.resources.care.producedTotal < FIRST_SPRINKLER_CARE_MILESTONE) {
     return { stage: "firstCycle", ...common };
@@ -649,8 +689,9 @@ function getHelperThroughputMultiplier(rank: number): number {
 }
 
 export function getHelperAutomatedTouchYield(helperId: HelperId, impactRank: number): number {
+  const effectiveRank = helperId === "tinySprinkler" ? 0 : clampRank(impactRank, 10);
   return HELPERS[helperId].touchesPerCycle
-    * (1 + clampRank(impactRank, 10) * HELPER_TOUCH_YIELD_PER_IMPACT_RANK);
+    * (1 + effectiveRank * HELPER_TOUCH_YIELD_PER_IMPACT_RANK);
 }
 
 export function getHelperAutomatedHealingPerTouch(impactRank: number): number {
@@ -672,8 +713,17 @@ export function getHelperAutomationRates(
 ): HelperAutomationRates {
   const helper = state.helpers[helperId];
   const impactRank = permanent.efficiencyRanks[helperId];
-  const touchesPerCycle = getHelperAutomatedTouchYield(helperId, impactRank);
-  const healingPerCycle = touchesPerCycle * getHelperAutomatedHealingPerTouch(impactRank);
+  const immediateHealingRank = helperId === "tinySprinkler" ? 0 : impactRank;
+  const splashTouches = helperId === "tinySprinkler"
+    ? getFineMistProcChance(impactRank) * getFineMistAverageSplashTouches(state.field)
+    : 0;
+  const touchesPerCycle = getHelperAutomatedTouchYield(helperId, impactRank) + splashTouches;
+  const immediateHealingPerCycle = touchesPerCycle * getHelperAutomatedHealingPerTouch(immediateHealingRank);
+  const afterglowHealingPerCycle = helperId === "tinySprinkler"
+    ? getSprinklerAfterglowStackRate(permanent.storageRanks.tinySprinkler)
+      * SPRINKLER_AFTERGLOW_DURATION_MS / 1_000
+    : 0;
+  const healingPerCycle = immediateHealingPerCycle + afterglowHealingPerCycle;
   const recipe = PRODUCTION_RECIPES.find(
     (candidate) => candidate.helperId === helperId && candidate.modeId === helper.modeId,
   );
@@ -686,7 +736,8 @@ export function getHelperAutomationRates(
     touchesPerCycle,
     healingPerCycle,
     touchesPerSecond: touchesPerCycle * cyclesPerSecond,
-    healingPerSecond: healingPerCycle * cyclesPerSecond,
+    healingPerSecond: immediateHealingPerCycle * cyclesPerSecond
+      + (helperId === "tinySprinkler" ? state.sprinklerAfterglowPerSecond : 0),
   };
 }
 
@@ -1315,17 +1366,66 @@ interface AutomatedTouchCycleResult {
   healedHp: number;
 }
 
+function resolveFineMistProcCount(
+  state: EcosystemState,
+  pulseCount: number,
+  chance: number,
+): number {
+  if (pulseCount <= 0 || chance <= EPSILON || state.field.stages.length <= 1) return 0;
+  const sampledPulses = Math.min(pulseCount, FINE_MIST_MAX_RANDOM_ROLLS_PER_TICK);
+  let procCount = 0;
+  for (let pulse = 0; pulse < sampledPulses; pulse += 1) {
+    if (randomUnit(state) < chance) procCount += 1;
+  }
+  const remainingPulses = pulseCount - sampledPulses;
+  if (remainingPulses > 0) {
+    const expectedProcs = remainingPulses * chance;
+    procCount += Math.floor(expectedProcs);
+    if (randomUnit(state) < expectedProcs % 1) procCount += 1;
+  }
+  return procCount;
+}
+
+function addSprinklerAfterglow(
+  state: EcosystemState,
+  permanent: PermanentEcosystemState,
+  pulseCount: number,
+): void {
+  const rank = permanent.storageRanks.tinySprinkler;
+  if (pulseCount <= 0 || rank <= 0 || state.runNumber === 1) return;
+  state.sprinklerAfterglowPerSecond = Math.min(
+    getSprinklerAfterglowMaxRate(rank),
+    state.sprinklerAfterglowPerSecond + getSprinklerAfterglowStackRate(rank) * pulseCount,
+  );
+  state.sprinklerAfterglowRemainingMs = SPRINKLER_AFTERGLOW_DURATION_MS;
+}
+
 function performAutomatedTouches(
   state: EcosystemState,
   permanent: PermanentEcosystemState,
   helperId: HelperId,
   completedCycles: number,
+  pulseCount: number,
 ): AutomatedTouchCycleResult {
   if (completedCycles <= EPSILON) return { touches: 0, healedHp: 0 };
 
   const impactRank = permanent.efficiencyRanks[helperId];
-  const touches = completedCycles * getHelperAutomatedTouchYield(helperId, impactRank);
-  const healing = touches * getHelperAutomatedHealingPerTouch(impactRank);
+  let touches = completedCycles * getHelperAutomatedTouchYield(helperId, impactRank);
+  let healingRank = impactRank;
+  if (helperId === "tinySprinkler") {
+    healingRank = 0;
+    const fineMistProcs = resolveFineMistProcCount(
+      state,
+      pulseCount,
+      getFineMistProcChance(impactRank),
+    );
+    if (fineMistProcs > 0) {
+      touches += fineMistProcs * getFineMistAverageSplashTouches(state.field);
+      state.sprinklerFineMistProcCount += fineMistProcs;
+    }
+    addSprinklerAfterglow(state, permanent, pulseCount);
+  }
+  const healing = touches * getHelperAutomatedHealingPerTouch(healingRank);
   const healedHp = healAncientGrass(state, permanent, healing, false);
   state.runTouches += touches;
   state.runTouchesEarned += touches;
@@ -1536,6 +1636,35 @@ function applyLingeringCare(state: EcosystemState, permanent: PermanentEcosystem
   return healed;
 }
 
+function applySprinklerAfterglow(state: EcosystemState, permanent: PermanentEcosystemState): number {
+  if (
+    state.runNumber === 1
+    || state.sprinklerAfterglowRemainingMs <= 0
+    || state.sprinklerAfterglowPerSecond <= EPSILON
+  ) {
+    state.sprinklerAfterglowRemainingMs = 0;
+    state.sprinklerAfterglowPerSecond = 0;
+    return 0;
+  }
+
+  const activeMs = Math.min(PRODUCTION_TICK_MS, state.sprinklerAfterglowRemainingMs);
+  state.sprinklerAfterglowRemainingMs = Math.max(
+    0,
+    state.sprinklerAfterglowRemainingMs - PRODUCTION_TICK_MS,
+  );
+  const healed = healAncientGrass(
+    state,
+    permanent,
+    state.sprinklerAfterglowPerSecond * activeMs / 1_000,
+    false,
+  );
+  state.automatedHealingTotal += healed;
+  if (state.sprinklerAfterglowRemainingMs <= 0) {
+    state.sprinklerAfterglowPerSecond = 0;
+  }
+  return healed;
+}
+
 function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState): void {
   if (state.runNumber === 1) {
     enforceRunOneBareHands(state);
@@ -1581,12 +1710,15 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
       }
       const throughput = getHelperThroughputMultiplier(permanent.throughputRanks[recipe.helperId]);
       const requested = recipe.cyclesPerSecond * helper.count * throughput * tickSeconds;
+      const pulseCountBefore = state.helperPulses[recipe.helperId];
       const completedCycles = performRecipe(state, permanent, recipe, requested, producedThisTick);
+      const completedPulses = state.helperPulses[recipe.helperId] - pulseCountBefore;
       const automated = performAutomatedTouches(
         state,
         permanent,
         recipe.helperId,
         completedCycles,
+        completedPulses,
       );
       automatedTouchesThisTick += automated.touches;
       automatedHealingThisTick += automated.healedHp;
@@ -1615,6 +1747,7 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
     healAncientGrass(state, permanent, 0.08 * tickSeconds, false);
   }
   applyLingeringCare(state, permanent);
+  automatedHealingThisTick += applySprinklerAfterglow(state, permanent);
 
   for (const resourceId of PRODUCTION_RESOURCE_IDS) {
     state.rates[resourceId] = producedThisTick[resourceId] / tickSeconds;

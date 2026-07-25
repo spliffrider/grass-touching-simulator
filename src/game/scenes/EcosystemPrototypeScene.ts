@@ -127,6 +127,8 @@ import {
   getFieldExpansionRunTouchCost,
   getFieldMouseStatus,
   getFieldTierUnlockCost,
+  getFineMistAverageSplashTouches,
+  getFineMistProcChance,
   getFirstAutomationStatus,
   getHelperAutomatedHealingPerTouch,
   getHelperAutomatedTouchYield,
@@ -142,6 +144,9 @@ import {
   getModeUnlockCost,
   getPermanentMaxHp,
   getPermanentRankCost,
+  getSprinklerAfterglowMaxRate,
+  getSprinklerAfterglowMaxStacks,
+  getSprinklerAfterglowStackRate,
   getTouchRankCost,
   getVerdantAegisCapacityRatio,
   getVerdantAegisConversion,
@@ -391,6 +396,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   private lastGameOverState = false;
   private firstSprinklerCycleCelebrated = false;
   private pendingFirstCareCelebration = false;
+  private presentedFineMistProcCount = 0;
   private helperEffectScheduler = new EcosystemHelperEffectScheduler();
   private helperPresentationsStarted = 0;
   private helperPresentationPulses = 0;
@@ -651,6 +657,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.fieldView = { centerX: 0.5, centerY: 0.5, zoom: 1 };
     }
     this.lastGameOverState = !this.state.active;
+    this.presentedFineMistProcCount = this.state.sprinklerFineMistProcCount;
     this.firstSprinklerCycleCelebrated = isRunEquipmentAvailable(this.state)
       && this.state.helpers.tinySprinkler.count > 0
       && getFirstAutomationStatus(this.state, this.permanent).careProduced >= 0.3;
@@ -731,6 +738,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.lastGameOverState = false;
     this.firstSprinklerCycleCelebrated = false;
     this.pendingFirstCareCelebration = false;
+    this.presentedFineMistProcCount = 0;
     this.helperEffectScheduler.clear();
     this.helperPresentationsStarted = 0;
     this.helperPresentationPulses = 0;
@@ -1337,6 +1345,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       setPrototypeField: (size) => {
         if (!this.state.active) {
           this.state = createNextEcosystemRun(this.permanent);
+          this.presentedFineMistProcCount = this.state.sprinklerFineMistProcCount;
           this.firstSprinklerCycleCelebrated = false;
           this.lastGameOverState = false;
           this.syncViewVisibility();
@@ -2116,6 +2125,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const hpColor = hpRatio > 0.55 ? 0x83d765 : hpRatio > 0.25 ? 0xf0c85b : 0xe8616a;
       const lingeringCareActive = this.state.lingeringCareRemainingMs > 0
         && this.state.lingeringCarePerSecond > 0;
+      const sprinklerAfterglowActive = this.state.sprinklerAfterglowRemainingMs > 0
+        && this.state.sprinklerAfterglowPerSecond > 0;
+      const totalAfterglowRate = (lingeringCareActive ? this.state.lingeringCarePerSecond : 0)
+        + (sprinklerAfterglowActive ? this.state.sprinklerAfterglowPerSecond : 0);
       const verdantAegisActive = this.state.overhealShieldRemainingMs > 0
         && this.state.overhealShield > 0;
       if (this.hpBarFill.fillColor !== hpColor) {
@@ -2126,12 +2139,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         ? this.scale.width < 760
           ? `  +${this.state.overhealShield.toFixed(1)} shield`
           : `  |  AEGIS +${this.state.overhealShield.toFixed(1)}  ${(this.state.overhealShieldRemainingMs / 1_000).toFixed(1)}s`
-        : lingeringCareActive
+        : totalAfterglowRate > 0
           ? this.scale.width < 760
-            ? `  +${this.state.lingeringCarePerSecond.toFixed(1)}/s`
-            : `  |  AFTERGLOW +${this.state.lingeringCarePerSecond.toFixed(1)} Care/s`
+            ? `  +${totalAfterglowRate.toFixed(1)}/s`
+            : `  |  AFTERGLOW +${totalAfterglowRate.toFixed(1)} HP/s`
           : "";
-      this.hpText.setColor(verdantAegisActive ? "#bffff0" : lingeringCareActive ? "#d9ff9f" : "#f2e8d5");
+      this.hpText.setColor(
+        verdantAegisActive ? "#bffff0" : sprinklerAfterglowActive ? "#bff4ff" : lingeringCareActive ? "#d9ff9f" : "#f2e8d5",
+      );
       this.setTextIfChanged(this.hpText, `Ancient HP ${readout.hp.toFixed(1)} / ${readout.maxHp.toFixed(0)}${hpStatusCopy}`);
       this.setTextIfChanged(this.pressureText, awaitingFirstTouch
         ? "Scourge dormant  |  Touch the grass to begin"
@@ -2286,16 +2301,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           case "firstCycle":
             automationProgress = firstAutomation.cycleProgress;
             automationColor = 0x8de7ff;
-            automationCopy = "FIRST SPRAY  |  Dew becomes Moisture + Growth + Care";
+            automationCopy = "FIRST SPRAY  |  The sprinkler touches the field automatically";
             break;
           case "sustain":
             automationProgress = firstAutomation.cycleProgress;
             automationColor = 0x83d765;
-            automationCopy = `CARE ONLINE  |  Keep Dew supplied (${Math.floor(firstAutomation.dewAmount)} Dew)`;
-            break;
-          case "dry":
-            automationColor = 0xe8616a;
-            automationCopy = "SPRINKLER DRY  |  Touch the field to gather Dew";
+            automationCopy = "AUTO TOUCHES ONLINE  |  Tiny Sprinklers never need fuel";
             break;
           case "paused":
             automationColor = 0xe8616a;
@@ -2464,7 +2475,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
               : "TINY SPRINKLER REMEMBERED",
             firstMemoryPending
               ? "Select the glowing Memory in the web."
-              : `Run 2: gather 14 ${RUN_TOUCHES_LABEL}, install it, and keep it supplied with Dew.`,
+              : `Run 2: gather 14 ${RUN_TOUCHES_LABEL}, install it, and let it sprinkle without fuel.`,
             "",
             `Collapse: ${(summary.durationMs / 1_000).toFixed(2)}s`,
             `Manual touches: ${summary.touches}`,
@@ -3275,8 +3286,17 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     const dampFurrowsPulse = helperId === "fieldMouse" && isDampFurrowsFlowing(this.state);
     const color = dampFurrowsPulse ? 0x8de7c5 : HELPER_EFFECT_COLOR[helperId];
     const impactRank = this.permanent.efficiencyRanks[helperId];
-    const automatedTouches = getHelperAutomatedTouchYield(helperId, impactRank) * pulseCount;
-    const automatedHealing = automatedTouches * getHelperAutomatedHealingPerTouch(impactRank);
+    const fineMistProcCount = helperId === "tinySprinkler"
+      ? Math.max(0, this.state.sprinklerFineMistProcCount - this.presentedFineMistProcCount)
+      : 0;
+    if (fineMistProcCount > 0) {
+      this.presentedFineMistProcCount = this.state.sprinklerFineMistProcCount;
+    }
+    const fineMistTouches = fineMistProcCount * getFineMistAverageSplashTouches(this.state.field);
+    const automatedTouches = getHelperAutomatedTouchYield(helperId, impactRank) * pulseCount
+      + fineMistTouches;
+    const healingRank = helperId === "tinySprinkler" ? 0 : impactRank;
+    const automatedHealing = automatedTouches * getHelperAutomatedHealingPerTouch(healingRank);
     const touchCopy = automatedTouches >= 10
       ? automatedTouches.toFixed(0)
       : automatedTouches.toFixed(1);
@@ -3303,16 +3323,25 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         onComplete: () => impact.setVisible(false),
       });
     }
+    if (fineMistProcCount > 0) {
+      this.showFineMistSplash(x, y, fineMistProcCount);
+    }
 
     if (!priming) {
       const feedback = this.helperFeedbackTexts[helperId];
-      const modeCopy = dampFurrowsPulse
+      const baseModeCopy = dampFurrowsPulse
         ? "DAMP FURROWS + GROWTH + CARE"
         : helperId === "tinySprinkler" && this.state.helpers.tinySprinkler.modeId === "cultivator"
           ? "MOISTURE + GROWTH"
           : HELPER_PULSE_COPY[helperId];
+      const modeCopy = fineMistProcCount > 0
+        ? `FINE MIST x${fineMistProcCount}  |  ${baseModeCopy}`
+        : baseModeCopy;
+      const afterglowCopy = helperId === "tinySprinkler" && this.state.sprinklerAfterglowPerSecond > 0
+        ? `\nAFTERGLOW +${this.state.sprinklerAfterglowPerSecond.toFixed(1)} HP/s`
+        : "";
       feedback
-        .setText(`${modeCopy}\n+${touchCopy} AUTO TOUCH${automatedTouches >= 1.5 ? "ES" : ""}  |  +${healingCopy} HP`)
+        .setText(`${modeCopy}\n+${touchCopy} AUTO TOUCH${automatedTouches >= 1.5 ? "ES" : ""}  |  +${healingCopy} HP${afterglowCopy}`)
         .setColor(`#${color.toString(16).padStart(6, "0")}`)
         .setPosition(x, y - 18)
         .setAlpha(1)
@@ -3335,6 +3364,32 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
 
     if (celebrateFirstCare) this.showFirstCareOnline();
+  }
+
+  private showFineMistSplash(x: number, y: number, procCount: number): void {
+    const ringCount = Math.min(3, procCount);
+    for (let ringIndex = 0; ringIndex < ringCount; ringIndex += 1) {
+      const ring = this.impactPool.find((candidate) => !candidate.visible);
+      if (!ring) break;
+      ring
+        .setPosition(x, y)
+        .setRadius(16 + ringIndex * 5)
+        .setFillStyle(0x8de7ff, 0.04)
+        .setStrokeStyle(2, 0xbff4ff, 0.88)
+        .setAlpha(1)
+        .setScale(0.5)
+        .setVisible(true);
+      this.tweens.killTweensOf(ring);
+      this.tweens.add({
+        targets: ring,
+        scale: 2.8 + ringIndex * 0.45,
+        alpha: 0,
+        delay: ringIndex * 55,
+        duration: 520,
+        ease: "Cubic.easeOut",
+        onComplete: () => ring.setVisible(false),
+      });
+    }
   }
 
   private showAutomationHealingEffect(
@@ -3866,6 +3921,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       return;
     }
     this.state = createNextEcosystemRun(this.permanent);
+    this.presentedFineMistProcCount = this.state.sprinklerFineMistProcCount;
     this.displayedHpRatio = 1;
     this.displayedShieldRatio = 0;
     this.lastObservedShield = 0;
@@ -4011,25 +4067,52 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         .join(", ");
       const currentAutomatedTouches = getHelperAutomatedTouchYield(helperId, rank);
       const nextAutomatedTouches = getHelperAutomatedTouchYield(helperId, nextRank);
-      const currentAutomatedHealing = currentAutomatedTouches * getHelperAutomatedHealingPerTouch(rank);
-      const nextAutomatedHealing = nextAutomatedTouches * getHelperAutomatedHealingPerTouch(nextRank);
+      const automatedHealingRank = helperId === "tinySprinkler" ? 0 : rank;
+      const nextAutomatedHealingRank = helperId === "tinySprinkler" ? 0 : nextRank;
+      const currentAutomatedHealing = currentAutomatedTouches * getHelperAutomatedHealingPerTouch(automatedHealingRank);
+      const nextAutomatedHealing = nextAutomatedTouches * getHelperAutomatedHealingPerTouch(nextAutomatedHealingRank);
+      const fineMistSplashTouches = getFineMistAverageSplashTouches(this.state.field);
+      const sprinklerAfterglowEffect = complete
+        ? [
+          `Each sprinkler hit adds ${getSprinklerAfterglowStackRate(rank).toFixed(2)} HP/s for 4 seconds.`,
+          `Up to ${getSprinklerAfterglowMaxStacks(rank)} stacks (${getSprinklerAfterglowMaxRate(rank).toFixed(1)} HP/s).`,
+        ].join("\n")
+        : [
+          `Afterglow per hit: ${getSprinklerAfterglowStackRate(rank).toFixed(2)} -> ${getSprinklerAfterglowStackRate(nextRank).toFixed(2)} HP/s.`,
+          `Stack cap: ${getSprinklerAfterglowMaxStacks(rank)} -> ${getSprinklerAfterglowMaxStacks(nextRank)} (${getSprinklerAfterglowMaxRate(nextRank).toFixed(1)} HP/s max).`,
+        ].join("\n");
+      const fineMistEffect = complete
+        ? [
+          `Each sprinkler hit has a ${Math.round(getFineMistProcChance(rank) * 100)}% splash chance.`,
+          `A splash touches all surrounding tiles (${fineMistSplashTouches.toFixed(1)} expected on this field).`,
+        ].join("\n")
+        : [
+          `Splash chance: ${Math.round(getFineMistProcChance(rank) * 100)}% -> ${Math.round(getFineMistProcChance(nextRank) * 100)}% next rank.`,
+          fineMistSplashTouches > 0
+            ? `Each proc touches every neighboring tile (${fineMistSplashTouches.toFixed(1)} expected).`
+            : "Expand beyond 1x1 to give a sprinkler hit neighboring tiles.",
+        ].join("\n");
       const effects: Record<PermanentRankKind, string> = {
         throughput: complete
           ? `${HELPERS[helperId].label} automated-touch cooldown: ${formatInterval(currentIntervalMs)}.`
           : `${HELPERS[helperId].label} automated-touch cooldown: ${formatInterval(currentIntervalMs)} -> ${formatInterval(nextIntervalMs)} next rank.`,
-        storage: complete
-          ? `${storageLabels} capacity: +${Math.round(rank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% from this Memory.`
-          : `${storageLabels} capacity: +${Math.round(rank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% -> +${Math.round(nextRank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% next rank.`,
-        efficiency: complete
-          ? [
-            `Each activation: ${currentAutomatedTouches.toFixed(1)} touches and ${currentAutomatedHealing.toFixed(1)} HP.`,
-            `Recipe input cost: -${Math.round(rank * HELPER_EFFICIENCY_PER_RANK * 100)}%.`,
-          ].join("\n")
-          : [
-            `Touches per activation: ${currentAutomatedTouches.toFixed(1)} -> ${nextAutomatedTouches.toFixed(1)}.`,
-            `Healing per activation: ${currentAutomatedHealing.toFixed(1)} -> ${nextAutomatedHealing.toFixed(1)} HP.`,
-            `Input savings: ${Math.round(rank * HELPER_EFFICIENCY_PER_RANK * 100)}% -> ${Math.round(nextRank * HELPER_EFFICIENCY_PER_RANK * 100)}%.`,
-          ].join("\n"),
+        storage: helperId === "tinySprinkler"
+          ? sprinklerAfterglowEffect
+          : complete
+            ? `${storageLabels} capacity: +${Math.round(rank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% from this Memory.`
+            : `${storageLabels} capacity: +${Math.round(rank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% -> +${Math.round(nextRank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% next rank.`,
+        efficiency: helperId === "tinySprinkler"
+          ? fineMistEffect
+          : complete
+            ? [
+              `Each activation: ${currentAutomatedTouches.toFixed(1)} touches and ${currentAutomatedHealing.toFixed(1)} HP.`,
+              `Recipe input cost: -${Math.round(rank * HELPER_EFFICIENCY_PER_RANK * 100)}%.`,
+            ].join("\n")
+            : [
+              `Touches per activation: ${currentAutomatedTouches.toFixed(1)} -> ${nextAutomatedTouches.toFixed(1)}.`,
+              `Healing per activation: ${currentAutomatedHealing.toFixed(1)} -> ${nextAutomatedHealing.toFixed(1)} HP.`,
+              `Input savings: ${Math.round(rank * HELPER_EFFICIENCY_PER_RANK * 100)}% -> ${Math.round(nextRank * HELPER_EFFICIENCY_PER_RANK * 100)}%.`,
+            ].join("\n"),
         startingStock: complete
           ? `Each new field starts with +${rank * HELPER_STARTING_STOCK_PER_RANK} stock.`
           : `Starting stock: +${rank * HELPER_STARTING_STOCK_PER_RANK} -> +${nextRank * HELPER_STARTING_STOCK_PER_RANK} next rank.`,
@@ -4800,6 +4883,10 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
 
     const lingeringCareActive = this.state.lingeringCareRemainingMs > 0
       && this.state.lingeringCarePerSecond > 0;
+    const sprinklerAfterglowActive = this.state.sprinklerAfterglowRemainingMs > 0
+      && this.state.sprinklerAfterglowPerSecond > 0;
+    const totalAfterglowRate = (lingeringCareActive ? this.state.lingeringCarePerSecond : 0)
+      + (sprinklerAfterglowActive ? this.state.sprinklerAfterglowPerSecond : 0);
     const shieldAvailable = this.state.maxOverhealShield > 0;
     const shieldActive = this.state.overhealShieldRemainingMs > 0 && this.state.overhealShield > 0;
     const shieldDelta = this.state.overhealShield - this.lastObservedShield;
@@ -4819,7 +4906,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       : predictHealthRatio(
         this.state.hp,
         this.state.maxHp,
-        -this.state.careDeficitPerSecond + (lingeringCareActive ? this.state.lingeringCarePerSecond : 0),
+        -this.state.careDeficitPerSecond + totalAfterglowRate,
         this.state.tickAccumulatorMs,
         PRODUCTION_TICK_MS,
       );
@@ -4832,8 +4919,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
 
     const shieldPendingSeconds = Math.max(0, Math.min(PRODUCTION_TICK_MS, this.state.tickAccumulatorMs)) / 1_000;
-    const shieldHealingRate = lingeringCareActive && this.state.hp >= this.state.maxHp - 0.001
-      ? this.state.lingeringCarePerSecond * getVerdantAegisConversion(this.permanent.verdantAegisRank)
+    const shieldHealingRate = totalAfterglowRate > 0 && this.state.hp >= this.state.maxHp - 0.001
+      ? totalAfterglowRate * getVerdantAegisConversion(this.permanent.verdantAegisRank)
       : 0;
     const predictedShield = shieldActive
       ? Phaser.Math.Clamp(
@@ -4863,7 +4950,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     this.lingeringCareArrivalPulse = Math.max(0, this.lingeringCareArrivalPulse - delta / 420);
     this.verdantAegisGainPulse = Math.max(0, this.verdantAegisGainPulse - delta / 460);
     this.verdantAegisHitPulse = Math.max(0, this.verdantAegisHitPulse - delta / 260);
-    const afterglowShimmer = lingeringCareActive
+    const afterglowShimmer = totalAfterglowRate > 0
       ? 0.62 + (Math.sin(now * 0.0085) + 1) * 0.09
       : 0;
     const restorativePulse = Math.max(afterglowShimmer, this.lingeringCareArrivalPulse);
@@ -4891,7 +4978,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       + restorativePulse * 0.2;
     this.hpBarFill.setScale(this.hpBarFill.scaleX, fillPulse);
     this.hpBarHeartbeatGlow
-      .setFillStyle(lingeringCareActive || this.lingeringCareArrivalPulse > 0 ? 0xb9ff9c : this.hpBarFill.fillColor, 1)
+      .setFillStyle(
+        sprinklerAfterglowActive
+          ? 0x8de7ff
+          : lingeringCareActive || this.lingeringCareArrivalPulse > 0
+            ? 0xb9ff9c
+            : this.hpBarFill.fillColor,
+        1,
+      )
       .setScale(this.hpBarHeartbeatGlow.scaleX, glowPulse)
       .setAlpha(Math.max(
         this.hpHeartbeatPulse * (0.12 + urgency * 0.22),
@@ -5019,6 +5113,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     }
 
     this.state = createNextEcosystemRun(this.permanent);
+    this.presentedFineMistProcCount = this.state.sprinklerFineMistProcCount;
     setPrototypeFieldSize(this.state, this.permanent, 100);
     for (const helperId of HELPER_IDS) {
       this.state.helpers[helperId].count = 12;
@@ -5064,6 +5159,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
     localStorage.removeItem("grass-touching-simulator.ecosystem-memory.v1");
     this.permanent = createPermanentEcosystemState();
     this.state = createEcosystemState(this.permanent);
+    this.presentedFineMistProcCount = this.state.sprinklerFineMistProcCount;
     this.displayedHpRatio = 1;
     this.displayedShieldRatio = 0;
     this.lastObservedShield = 0;
@@ -5201,6 +5297,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       lingeringCareRank: this.permanent.lingeringCareRank,
       lingeringCarePerSecond: Number(this.state.lingeringCarePerSecond.toFixed(4)),
       lingeringCareRemainingMs: Math.round(this.state.lingeringCareRemainingMs),
+      dewCisternRank: this.permanent.storageRanks.tinySprinkler,
+      sprinklerAfterglowPerSecond: Number(this.state.sprinklerAfterglowPerSecond.toFixed(4)),
+      sprinklerAfterglowRemainingMs: Math.round(this.state.sprinklerAfterglowRemainingMs),
+      fineMistRank: this.permanent.efficiencyRanks.tinySprinkler,
+      fineMistProcCount: this.state.sprinklerFineMistProcCount,
       verdantAegisRank: this.permanent.verdantAegisRank,
       overhealShield: Number(this.state.overhealShield.toFixed(4)),
       maxOverhealShield: Number(this.state.maxOverhealShield.toFixed(4)),

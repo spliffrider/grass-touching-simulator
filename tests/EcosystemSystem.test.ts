@@ -5,6 +5,7 @@ import {
   HELPER_RECONFIGURE_MS,
   HELPERS,
   FIELD_SIZE_LADDER,
+  PRODUCTION_RECIPES,
   PRODUCTION_RESOURCE_IDS,
   PRODUCTION_TICK_MS,
 } from "../src/game/ecosystem/EcosystemCatalog";
@@ -14,17 +15,17 @@ import {
   ANCIENT_HEARTWOOD_MAX_RANK,
   BEE_HIVE_STARTER_FLOWERS,
   FIELD_MOUSE_STARTER_SEEDS,
+  FINE_MIST_PROC_CHANCE_PER_RANK,
   FIRST_RUN_MANUAL_CARE_PER_POWER,
   FIRST_RUN_TARGET_DURATION_MS,
   HAND_TENDING_GROWTH_PER_POWER,
   HELPER_EFFICIENCY_PER_RANK,
-  HELPER_HEALING_PER_IMPACT_RANK,
   HELPER_HEALING_PER_TOUCH,
   HELPER_STARTING_STOCK_PER_RANK,
   HELPER_STORAGE_CAPACITY_PER_RANK,
-  HELPER_TOUCH_YIELD_PER_IMPACT_RANK,
   HELPER_THROUGHPUT_PER_RANK,
   LINGERING_CARE_DURATION_MS,
+  SPRINKLER_AFTERGLOW_DURATION_MS,
   VERDANT_AEGIS_MAX_RANK,
   advanceEcosystem,
   buyFieldExpansion,
@@ -42,6 +43,8 @@ import {
   getFieldExpansionRunTouchCost,
   getFieldTierUnlockCost,
   getFieldMouseStatus,
+  getFineMistAverageSplashTouches,
+  getFineMistProcChance,
   getManyHandsPower,
   getHelperCycleIntervalMs,
   getHelperAutomatedHealingPerTouch,
@@ -60,6 +63,9 @@ import {
   getManualTouchPowerMultiplier,
   getPermanentMemoryInvestmentCount,
   getPermanentMaxHp,
+  getSprinklerAfterglowMaxRate,
+  getSprinklerAfterglowMaxStacks,
+  getSprinklerAfterglowStackRate,
   getTouchRankCost,
   getVerdantAegisCapacity,
   getVerdantAegisCapacityRatio,
@@ -308,38 +314,43 @@ describe("EcosystemSystem", () => {
     expect(stateA.rngState).toBe(stateB.rngState);
   });
 
-  it("pauses a helper without consuming input when output storage is full", () => {
+  it("pauses a fueled helper without consuming input when output storage is full", () => {
     const permanent = createPermanentEcosystemState();
     permanent.completedRuns = 1;
-    permanent.unlockedHelpers.tinySprinkler = true;
+    permanent.unlockedHelpers.fieldMouse = true;
     const state = createEcosystemState(permanent, { seed: 4 });
-    state.helpers.tinySprinkler.count = 1;
-    state.resources.dew.amount = state.resources.dew.capacity;
-    state.resources.moisture.amount = state.resources.moisture.capacity;
-    state.resources.care.amount = state.resources.care.capacity;
-    const dewBefore = state.resources.dew.amount;
+    state.helpers.fieldMouse.count = 1;
+    state.resources.seeds.amount = state.resources.seeds.capacity;
+    state.resources.growth.amount = 0;
+    state.resources.growth.capacity = 0;
+    const seedsBefore = state.resources.seeds.amount;
 
     advanceEcosystem(state, permanent, 250);
 
-    expect(state.resources.dew.amount).toBeCloseTo(dewBefore, 10);
-    expect(state.helpers.tinySprinkler.lastPauseReason).toMatch(/full/i);
+    expect(seedsBefore - state.resources.seeds.amount).toBeLessThan(0.01);
+    expect(state.helpers.fieldMouse.lastPauseReason).toMatch(/full/i);
   });
 
-  it("keeps sprinkler Care running when optional starter Growth storage is full", () => {
+  it("keeps sprinklers touching without Dew or output storage", () => {
     const permanent = createPermanentEcosystemState();
     permanent.completedRuns = 1;
     permanent.unlockedHelpers.tinySprinkler = true;
     const state = createEcosystemState(permanent, { seed: 5 });
     state.helpers.tinySprinkler.count = 1;
-    state.resources.dew.amount = state.resources.dew.capacity;
+    state.hp = 50;
+    state.resources.dew.amount = 0;
     state.resources.growth.amount = state.resources.growth.capacity;
-    state.resources.moisture.amount = 0;
-    state.resources.care.amount = 0;
+    state.resources.moisture.amount = state.resources.moisture.capacity;
+    state.resources.care.amount = state.resources.care.capacity;
+    const dewConsumedBefore = state.resources.dew.consumedTotal;
 
     for (let step = 0; step < 12; step += 1) advanceEcosystem(state, permanent, 250);
 
     expect(state.resources.growth.amount).toBe(state.resources.growth.capacity);
-    expect(state.resources.care.producedTotal).toBeGreaterThan(0);
+    expect(state.resources.dew.consumedTotal).toBe(dewConsumedBefore);
+    expect(state.helpers.tinySprinkler.cyclesCompleted).toBeGreaterThan(1);
+    expect(state.automatedTouchCount).toBeGreaterThan(1);
+    expect(state.automatedHealingTotal).toBeGreaterThan(0);
     expect(state.helpers.tinySprinkler.lastPauseReason).toBeNull();
   });
 
@@ -350,8 +361,7 @@ describe("EcosystemSystem", () => {
     permanent.throughputRanks.tinySprinkler = 1;
     const state = createEcosystemState(permanent, { seed: 6 });
     state.helpers.tinySprinkler.count = 6;
-    state.resources.dew.capacity = 10_000;
-    state.resources.dew.amount = 10_000;
+    state.resources.dew.amount = 0;
     state.resources.moisture.amount = state.resources.moisture.capacity;
     state.resources.care.capacity = 10_000;
     state.resources.care.amount = 0;
@@ -423,25 +433,27 @@ describe("EcosystemSystem", () => {
     }
   });
 
-  it("scales automation continuously with copies, Speed, and Impact Memories", () => {
+  it("scales sprinkler automation with copies, Speed, and Fine Mist splashes", () => {
     const simulateSprinklers = (
       count: number,
       throughputRank: number,
       impactRank: number,
+      fieldSizeIndex = 0,
     ) => {
       const permanent = createPermanentEcosystemState();
       permanent.completedRuns = 2;
       permanent.unlockedHelpers.tinySprinkler = true;
+      permanent.maxFieldTier = fieldSizeIndex;
       permanent.throughputRanks.tinySprinkler = throughputRank;
       permanent.efficiencyRanks.tinySprinkler = impactRank;
-      const state = createEcosystemState(permanent, { seed: 45_000 });
+      const state = createEcosystemState(permanent, { seed: 45_000, fieldSizeIndex });
       state.maxHp = 1_000_000;
       state.hp = 500_000;
       state.helpers.tinySprinkler.count = count;
-      state.resources.dew.amount = state.resources.dew.capacity;
+      state.resources.dew.amount = 0;
       state.resources.moisture.amount = 0;
       state.resources.care.amount = 0;
-      for (let step = 0; step < 16; step += 1) {
+      for (let step = 0; step < 400; step += 1) {
         advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
       }
       return state;
@@ -450,26 +462,24 @@ describe("EcosystemSystem", () => {
     const baseline = simulateSprinklers(1, 0, 0);
     const threeCopies = simulateSprinklers(3, 0, 0);
     const faster = simulateSprinklers(1, 1, 0);
-    const harder = simulateSprinklers(1, 0, 1);
+    const fineMist = simulateSprinklers(1, 0, 10, 1);
 
     expect(threeCopies.automatedTouchCount).toBeCloseTo(baseline.automatedTouchCount * 3, 8);
     expect(faster.automatedTouchCount).toBeCloseTo(
       baseline.automatedTouchCount * (1 + HELPER_THROUGHPUT_PER_RANK),
       8,
     );
-    expect(harder.automatedTouchCount).toBeCloseTo(
-      baseline.automatedTouchCount * (1 + HELPER_TOUCH_YIELD_PER_IMPACT_RANK),
-      8,
-    );
-    expect(harder.automatedHealingTotal).toBeCloseTo(
-      baseline.automatedHealingTotal
-        * (1 + HELPER_TOUCH_YIELD_PER_IMPACT_RANK)
-        * (1 + HELPER_HEALING_PER_IMPACT_RANK),
-      8,
-    );
+    expect(fineMist.automatedTouchCount).toBeGreaterThan(baseline.automatedTouchCount);
+    expect(fineMist.sprinklerFineMistProcCount).toBeGreaterThan(0);
     expect(getHelperAutomatedTouchYield("tinySprinkler", 0)).toBe(1);
+    expect(getHelperAutomatedTouchYield("tinySprinkler", 10)).toBe(1);
     expect(getHelperAutomatedHealingPerTouch(0)).toBe(HELPER_HEALING_PER_TOUCH);
-    expect(getHelperAutomationRates(harder, createPermanentEcosystemState(), "tinySprinkler").touchesPerCycle).toBe(1);
+    expect(getFineMistProcChance(10)).toBe(FINE_MIST_PROC_CHANCE_PER_RANK * 10);
+    expect(getFineMistAverageSplashTouches(fineMist.field)).toBe(3);
+    const fineMistPermanent = createPermanentEcosystemState();
+    fineMistPermanent.efficiencyRanks.tinySprinkler = 10;
+    expect(getHelperAutomationRates(fineMist, fineMistPermanent, "tinySprinkler").touchesPerCycle).toBeCloseTo(2.8);
+    expect(getHelperAutomationRates(baseline, createPermanentEcosystemState(), "tinySprinkler").touchesPerCycle).toBe(1);
   });
 
   it("carries the first loss into a purchasable sprinkler Care and Growth chain", () => {
@@ -481,7 +491,7 @@ describe("EcosystemSystem", () => {
     const state = createEcosystemState(permanent, { seed: 47 });
     const purchaseCost = getHelperPurchaseCost(state, "tinySprinkler");
     state.runTouches = purchaseCost;
-    state.resources.dew.amount = 8;
+    state.resources.dew.amount = 0;
 
     expect(buyHelper(state, permanent, "tinySprinkler")).toBe(true);
     expect(state.helpers.tinySprinkler.count).toBe(1);
@@ -489,14 +499,18 @@ describe("EcosystemSystem", () => {
 
     for (let step = 0; step < 12; step += 1) advanceEcosystem(state, permanent, 250);
 
-    expect(state.resources.dew.consumedTotal).toBeGreaterThan(0);
+    expect(
+      PRODUCTION_RECIPES
+        .filter((recipe) => recipe.helperId === "tinySprinkler")
+        .every((recipe) => recipe.inputs.length === 0),
+    ).toBe(true);
     expect(state.resources.moisture.producedTotal).toBeGreaterThan(0);
     expect(state.resources.growth.producedTotal).toBeGreaterThan(0);
     expect(state.resources.care.producedTotal).toBeGreaterThan(0);
     expect(consumeHelperPulses(state).tinySprinkler).toBeGreaterThanOrEqual(1);
   });
 
-  it("reports each first-automation teaching stage from unlock through Dew upkeep", () => {
+  it("reports each first-automation teaching stage without a fuel state", () => {
     const permanent = createPermanentEcosystemState();
     permanent.completedRuns = 1;
     const state = createEcosystemState(permanent, { seed: 71 });
@@ -515,7 +529,7 @@ describe("EcosystemSystem", () => {
     expect(getFirstAutomationStatus(state, permanent).stage).toBe("sustain");
 
     state.resources.dew.amount = 0;
-    expect(getFirstAutomationStatus(state, permanent).stage).toBe("dry");
+    expect(getFirstAutomationStatus(state, permanent).stage).toBe("sustain");
   });
 
   it("turns the first Field Mouse purchase into an immediate seed-to-Growth chapter", () => {
@@ -859,11 +873,12 @@ describe("EcosystemSystem", () => {
     expect(getFieldTierUnlockCost(2)).toBe(8);
   });
 
-  it("gives every helper storage Memory at least one real buffer to expand", () => {
+  it("gives every resource-storage Memory at least one real buffer to expand", () => {
     const baselinePermanent = createPermanentEcosystemState();
     const baseline = createEcosystemState(baselinePermanent);
 
     for (const helperId of HELPER_IDS) {
+      if (helperId === "tinySprinkler") continue;
       const permanent = createPermanentEcosystemState();
       permanent.storageRanks[helperId] = 1;
       const state = createEcosystemState(permanent);
@@ -876,6 +891,43 @@ describe("EcosystemSystem", () => {
         );
       }
     }
+  });
+
+  it("uses Dew Cistern ranks for a capped sprinkler healing afterglow instead of storage", () => {
+    const baselinePermanent = createPermanentEcosystemState();
+    const baseline = createEcosystemState(baselinePermanent);
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    permanent.storageRanks.tinySprinkler = 1;
+    const state = createEcosystemState(permanent, { seed: 8_620 });
+    state.maxHp = 1_000_000;
+    state.hp = 500_000;
+    state.helpers.tinySprinkler.count = 1;
+    state.resources.dew.amount = 0;
+
+    expect(getHelperStorageResourceIds("tinySprinkler")).toEqual([]);
+    expect(state.resources.dew.capacity).toBe(baseline.resources.dew.capacity);
+    expect(state.resources.moisture.capacity).toBe(baseline.resources.moisture.capacity);
+    expect(getSprinklerAfterglowStackRate(1)).toBeCloseTo(0.35);
+    expect(getSprinklerAfterglowMaxStacks(1)).toBe(2);
+
+    for (let step = 0; step < 18; step += 1) {
+      advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+    }
+
+    expect(state.sprinklerAfterglowPerSecond).toBeCloseTo(getSprinklerAfterglowMaxRate(1));
+    expect(state.sprinklerAfterglowRemainingMs).toBeGreaterThan(
+      SPRINKLER_AFTERGLOW_DURATION_MS - 2_500,
+    );
+    expect(state.automatedHealingTotal).toBeGreaterThan(state.automatedTouchCount * HELPER_HEALING_PER_TOUCH);
+
+    state.helpers.tinySprinkler.count = 0;
+    for (let elapsed = 0; elapsed < SPRINKLER_AFTERGLOW_DURATION_MS; elapsed += PRODUCTION_TICK_MS) {
+      advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+    }
+    expect(state.sprinklerAfterglowPerSecond).toBe(0);
+    expect(state.sprinklerAfterglowRemainingMs).toBe(0);
   });
 
   it("purchases Fast Touch ranks and safely defaults old saves to rank zero", () => {
@@ -1379,8 +1431,8 @@ describe("EcosystemSystem", () => {
     expect(result.setupAtMs!).toBeLessThanOrEqual(30_000);
     expect(result.handsOffMs).toBe(60_000);
     expect(result.hpAtSetup).not.toBeNull();
-    expect(result.hpAfterHandsOff).toBeGreaterThan(result.hpAtSetup! - 70);
-    expect(result.hpAfterHandsOff).toBeLessThan(result.hpAtSetup! - 48);
+    expect(result.hpAfterHandsOff).toBeGreaterThan(result.hpAtSetup! - 25);
+    expect(result.hpAfterHandsOff).toBeLessThan(result.hpAtSetup! - 10);
     expect(result.careProduced).toBeGreaterThan(75);
     expect(result.mouseCycles).toBeGreaterThan(1);
   });

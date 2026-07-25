@@ -110,8 +110,8 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     unlockRequires: null,
     modes: modes(
       "tinySprinkler",
-      ["caretaker", "Caretaker", "Makes Moisture and a steady trickle of Care."],
-      ["cultivator", "Cultivator", "Favors Moisture and direct Growth over Care."],
+      ["caretaker", "Caretaker", "Sprinkles forever, making automated touches, Moisture, and steady Care."],
+      ["cultivator", "Cultivator", "Sprinkles forever while favoring Moisture and direct Growth over Care."],
     ),
   },
   fieldMouse: {
@@ -232,8 +232,8 @@ export const PRODUCTION_RECIPES: readonly ProductionRecipe[] = [
   { id: "natural-humus", helperId: null, modeId: null, label: "Soil settling", inputs: [{ resourceId: "compost", amount: 1 }], outputs: [{ resourceId: "humus", amount: 0.52 }], cyclesPerSecond: 0.006, natural: true },
   { id: "natural-roots", helperId: null, modeId: null, label: "Root feeding", inputs: [{ resourceId: "humus", amount: 1 }], outputs: [{ resourceId: "rootEnergy", amount: 0.5 }], cyclesPerSecond: 0.004, natural: true },
   { id: "natural-care", helperId: null, modeId: null, label: "Ancient resilience", inputs: [{ resourceId: "rootEnergy", amount: 1 }], outputs: [{ resourceId: "care", amount: 0.7 }], cyclesPerSecond: 0.008, natural: true },
-  { id: "sprinkler-care", helperId: "tinySprinkler", modeId: "caretaker", label: "Caretaker spray", inputs: [{ resourceId: "dew", amount: 1 }], outputs: [{ resourceId: "moisture", amount: 1, allowOverflow: true }, { resourceId: "care", amount: 1.35 }], cyclesPerSecond: 0.48 },
-  { id: "sprinkler-grow", helperId: "tinySprinkler", modeId: "cultivator", label: "Cultivating spray", inputs: [{ resourceId: "dew", amount: 1 }], outputs: [{ resourceId: "moisture", amount: 1.25, allowOverflow: true }, { resourceId: "growth", amount: 0.28 }], cyclesPerSecond: 0.48 },
+  { id: "sprinkler-care", helperId: "tinySprinkler", modeId: "caretaker", label: "Caretaker spray", inputs: [], outputs: [{ resourceId: "moisture", amount: 1, allowOverflow: true }, { resourceId: "care", amount: 1.35, allowOverflow: true }], cyclesPerSecond: 0.48 },
+  { id: "sprinkler-grow", helperId: "tinySprinkler", modeId: "cultivator", label: "Cultivating spray", inputs: [], outputs: [{ resourceId: "moisture", amount: 1.25, allowOverflow: true }, { resourceId: "growth", amount: 0.28, allowOverflow: true }], cyclesPerSecond: 0.48 },
   { id: "mouse-spread", helperId: "fieldMouse", modeId: "spread", label: "Seed spreading", inputs: [{ resourceId: "seeds", amount: 1 }], outputs: [{ resourceId: "growth", amount: 1.5 }], cyclesPerSecond: 0.34 },
   { id: "mouse-cache", helperId: "fieldMouse", modeId: "cache", label: "Careful cache", inputs: [{ resourceId: "seeds", amount: 0.68 }], outputs: [{ resourceId: "growth", amount: 1.12 }], cyclesPerSecond: 0.27 },
   { id: "bee-pollinate", helperId: "beeHive", modeId: "pollinate", label: "Hive pollination", inputs: [{ resourceId: "flowers", amount: 1 }], outputs: [{ resourceId: "pollinatedBlooms", amount: 1.5 }], cyclesPerSecond: 0.42 },

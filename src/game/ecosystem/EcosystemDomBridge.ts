@@ -92,11 +92,9 @@ function getAutomationReadableLine(status: FirstAutomationStatus): string | null
     case "ready":
       return `First automation ready: buy Tiny Sprinkler for ${status.purchaseCost} ${RUN_TOUCHES_LABEL}`;
     case "firstCycle":
-      return `First sprinkler cycle: Dew is becoming Moisture, Growth, and Care, cycle ${Math.floor(status.cycleProgress * 100)}%`;
+      return `First sprinkler cycle: an automated touch is charging, cycle ${Math.floor(status.cycleProgress * 100)}%`;
     case "sustain":
-      return `Care online: keep Tiny Sprinkler supplied; ${status.dewAmount.toFixed(1)} Dew available, cycle ${Math.floor(status.cycleProgress * 100)}%`;
-    case "dry":
-      return "Tiny Sprinkler dry: touch the field to gather Dew";
+      return `Automatic touches online: Tiny Sprinkler needs no fuel, cycle ${Math.floor(status.cycleProgress * 100)}%`;
     case "paused":
       return `Tiny Sprinkler paused: ${status.pauseReason ?? "check its buffers"}`;
   }
@@ -376,6 +374,9 @@ export class EcosystemDomBridge {
       ...(permanent.lingeringCareRank > 0
         ? [`Lingering Care ${state.lingeringCarePerSecond.toFixed(2)} Care/s | ${(state.lingeringCareRemainingMs / 1_000).toFixed(1)}s remaining`]
         : []),
+      ...(permanent.storageRanks.tinySprinkler > 0
+        ? [`Sprinkler afterglow ${state.sprinklerAfterglowPerSecond.toFixed(2)} HP/s | ${(state.sprinklerAfterglowRemainingMs / 1_000).toFixed(1)}s remaining`]
+        : []),
       ...(permanent.verdantAegisRank > 0
         ? [`Verdant Aegis ${state.overhealShield.toFixed(1)} / ${state.maxOverhealShield.toFixed(1)} shield | ${(state.overhealShieldRemainingMs / 1_000).toFixed(1)}s remaining`]
         : []),
@@ -611,6 +612,8 @@ export class EcosystemDomBridge {
       automationTouchesPerSecond: Number(state.automationTouchRate.toFixed(4)),
       automationHealing: Number(state.automatedHealingTotal.toFixed(3)),
       automationHealingPerSecond: Number(state.automationHealingRate.toFixed(4)),
+      sprinklerAfterglowPerSecond: Number(state.sprinklerAfterglowPerSecond.toFixed(4)),
+      fineMistProcCount: state.sprinklerFineMistProcCount,
       grassTouches: Number(permanent.grassTouches.toFixed(3)),
       manualTouchBonusPercent: getManualTouchPowerBonusPercent(permanent),
       heartwoodRank: permanent.heartwoodRank,

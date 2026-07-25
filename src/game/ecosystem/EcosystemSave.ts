@@ -67,6 +67,9 @@ export interface ActiveFieldSnapshot {
   automationHealingRate: number;
   lingeringCarePerSecond: number;
   lingeringCareRemainingMs: number;
+  sprinklerAfterglowPerSecond: number;
+  sprinklerAfterglowRemainingMs: number;
+  sprinklerFineMistProcCount: number;
   overhealShield: number;
   maxOverhealShield: number;
   overhealShieldRemainingMs: number;
@@ -178,6 +181,9 @@ export function createActiveFieldSnapshot(
     automationHealingRate: state.automationHealingRate,
     lingeringCarePerSecond: state.lingeringCarePerSecond,
     lingeringCareRemainingMs: state.lingeringCareRemainingMs,
+    sprinklerAfterglowPerSecond: state.sprinklerAfterglowPerSecond,
+    sprinklerAfterglowRemainingMs: state.sprinklerAfterglowRemainingMs,
+    sprinklerFineMistProcCount: state.sprinklerFineMistProcCount,
     overhealShield: state.overhealShield,
     maxOverhealShield: state.maxOverhealShield,
     overhealShieldRemainingMs: state.overhealShieldRemainingMs,
@@ -262,6 +268,10 @@ export function restoreActiveFieldSnapshot(
   state.lingeringCarePerSecond = finiteNumber(input.lingeringCarePerSecond, 0, 0);
   state.lingeringCareRemainingMs = finiteNumber(input.lingeringCareRemainingMs, 0, 0);
   if (state.lingeringCareRemainingMs <= 0) state.lingeringCarePerSecond = 0;
+  state.sprinklerAfterglowPerSecond = finiteNumber(input.sprinklerAfterglowPerSecond, 0, 0);
+  state.sprinklerAfterglowRemainingMs = finiteNumber(input.sprinklerAfterglowRemainingMs, 0, 0);
+  state.sprinklerFineMistProcCount = Math.floor(finiteNumber(input.sprinklerFineMistProcCount, 0, 0));
+  if (state.sprinklerAfterglowRemainingMs <= 0) state.sprinklerAfterglowPerSecond = 0;
   const aegisAvailable = state.active && state.runNumber > 1 && permanent.verdantAegisRank > 0;
   const defaultShieldCapacity = aegisAvailable ? getVerdantAegisCapacity(permanent, state.maxHp) : 0;
   state.maxOverhealShield = aegisAvailable

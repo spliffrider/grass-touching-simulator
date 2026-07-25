@@ -97,6 +97,9 @@ describe("EcosystemSave", () => {
     expect(loaded?.state.automationHealingRate).toBe(state.automationHealingRate);
     expect(loaded?.state.lingeringCarePerSecond).toBe(state.lingeringCarePerSecond);
     expect(loaded?.state.lingeringCareRemainingMs).toBe(state.lingeringCareRemainingMs);
+    expect(loaded?.state.sprinklerAfterglowPerSecond).toBe(state.sprinklerAfterglowPerSecond);
+    expect(loaded?.state.sprinklerAfterglowRemainingMs).toBe(state.sprinklerAfterglowRemainingMs);
+    expect(loaded?.state.sprinklerFineMistProcCount).toBe(state.sprinklerFineMistProcCount);
     expect(loaded?.state.overhealShield).toBe(state.overhealShield);
     expect(loaded?.state.maxOverhealShield).toBe(state.maxOverhealShield);
     expect(loaded?.state.overhealShieldRemainingMs).toBe(state.overhealShieldRemainingMs);
@@ -184,6 +187,22 @@ describe("EcosystemSave", () => {
 
     expect(loaded?.state.lingeringCarePerSecond).toBe(0);
     expect(loaded?.state.lingeringCareRemainingMs).toBe(0);
+  });
+
+  it("defaults active saves created before sprinkler Memories to no pending effects", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    const state = createEcosystemState(permanent, { seed: 8_155 });
+    const snapshot = createActiveFieldSnapshot(state);
+    delete (snapshot as { sprinklerAfterglowPerSecond?: number }).sprinklerAfterglowPerSecond;
+    delete (snapshot as { sprinklerAfterglowRemainingMs?: number }).sprinklerAfterglowRemainingMs;
+    delete (snapshot as { sprinklerFineMistProcCount?: number }).sprinklerFineMistProcCount;
+
+    const loaded = restoreActiveFieldSnapshot(snapshot, permanent);
+
+    expect(loaded?.state.sprinklerAfterglowPerSecond).toBe(0);
+    expect(loaded?.state.sprinklerAfterglowRemainingMs).toBe(0);
+    expect(loaded?.state.sprinklerFineMistProcCount).toBe(0);
   });
 
   it("defaults active saves created before Verdant Aegis to no temporary shield", () => {

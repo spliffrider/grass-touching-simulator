@@ -77,6 +77,11 @@ export const HELPER_MEMORY_CATEGORY_STYLES: Record<HelperMemoryCategory, HelperM
   mode: { id: "mode", label: "MODE", detailLabel: "Helper mode", color: 0xd99fc4 },
 };
 
+const TINY_SPRINKLER_MEMORY_CATEGORY_STYLES: Partial<Record<PermanentRankKind, HelperMemoryCategoryStyle>> = {
+  storage: { id: "storage", label: "AFTERGLOW", detailLabel: "Sprinkler healing", color: 0x8de7c5 },
+  efficiency: { id: "efficiency", label: "SPLASH", detailLabel: "Area touches", color: 0x8de7ff },
+};
+
 interface HelperMemoryLayout {
   x: number;
   y: number;
@@ -236,19 +241,19 @@ const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCop
   tinySprinkler: {
     throughput: {
       label: "Clockwork Nozzle",
-      description: "Shortens the pause between Tiny Sprinkler sprays so Dew becomes Moisture and Care more often.",
+      description: "Shortens the pause between Tiny Sprinkler sprays, producing automated touches more often.",
     },
     storage: {
       label: "Dew Cistern",
-      description: "Expands Dew and Moisture storage, keeping the sprinkler supplied through longer bursts.",
+      description: "Each Tiny Sprinkler hit builds a short healing afterglow. Higher ranks strengthen and stack the effect.",
     },
     efficiency: {
       label: "Fine Mist",
-      description: "Makes every spray use less Dew while adding more automated touches and restoring more Ancient HP.",
+      description: "Gives each Tiny Sprinkler hit a chance to touch every tile surrounding its target.",
     },
     startingStock: {
       label: "Dawn Condensation",
-      description: "Begins each new field with extra Dew ready for the first sprinkler.",
+      description: "Begins each new field with extra Dew for the field's natural Moisture and Growth chain.",
     },
   },
   fieldMouse: {
@@ -632,6 +637,10 @@ export function getEcosystemMemoryCategory(
   if (node.kind === "helperUnlock") return HELPER_MEMORY_CATEGORY_STYLES.unlock;
   if (node.kind === "helperMode") return HELPER_MEMORY_CATEGORY_STYLES.mode;
   if (node.kind === "helperRank" && node.rankKind) {
+    if (node.helperId === "tinySprinkler") {
+      const specialized = TINY_SPRINKLER_MEMORY_CATEGORY_STYLES[node.rankKind];
+      if (specialized) return specialized;
+    }
     return HELPER_MEMORY_CATEGORY_STYLES[node.rankKind];
   }
   return null;

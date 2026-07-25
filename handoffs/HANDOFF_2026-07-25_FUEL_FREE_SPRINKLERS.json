@@ -1,0 +1,64 @@
+{
+  "date": "2026-07-25",
+  "topic": "Fuel-free sprinklers, Fine Mist splash touches, and Dew Cistern afterglow",
+  "currentUserGoal": "Make Tiny Sprinklers work without Dew or other fuel, turn Fine Mist into a chance for sprinkler hits to touch surrounding tiles, and turn Dew Cistern into a stacking healing afterglow.",
+  "workCompleted": [
+    "Removed every Tiny Sprinkler recipe input and allowed its outputs to overflow so a full resource buffer cannot pause automated touches.",
+    "Removed the obsolete dry-sprinkler state and rewrote first-automation guidance around permanent fuel-free operation.",
+    "Changed Fine Mist into a 6%-per-rank splash chance, up to 60%, that adds surrounding-tile touches while preserving bounded fixed-tick work on large fields.",
+    "Changed Dew Cistern into a four-second stacking sprinkler afterglow with rank-scaled healing and stack limits.",
+    "Added cyan Fine Mist rings, sprinkler feedback copy, afterglow HP-bar shimmer, Memory detail text, DOM accessibility readouts, and debug metrics.",
+    "Persisted the new afterglow and Fine Mist state with backward-compatible defaults for older active-field saves.",
+    "Updated the ecosystem design document and focused system/save tests for the new semantics.",
+    "Returned the local playtest save to a clean Run 1 after browser stress verification."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/ecosystem/EcosystemSave.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemSave.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-25_FUEL_FREE_SPRINKLERS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, Knip, 156 Vitest tests across 18 files, strict TypeScript, and the Vite production build.",
+    "git diff --check passed.",
+    "Desktop 1280x720 browser stress check used a 100x100 field and twelve of every helper: Fine Mist procs accumulated, Dew Cistern held a 7.5 HP/s afterglow, Tiny Sprinkler reported no pause reason, fullFieldScans stayed at zero, and the sampled field held 144 FPS with zero frame spikes.",
+    "Phone 390x844 repeated the 100x100 stress check at 144 sampled FPS with zero frame spikes, zero full-field scans, bounded visible objects, active Fine Mist procs, active sprinkler afterglow, and no Tiny Sprinkler pause reason.",
+    "Browser console produced no warnings or errors."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "featureCommit": "this handoff's commit",
+    "pushed": false,
+    "deployed": false,
+    "macSynced": false,
+    "devServer": "http://127.0.0.1:5173/?redesign&playtest&debugPanel",
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "Fuel-free Tiny Sprinklers strengthen early automation and may require another hands-on Scourge balance pass.",
+    "Fine Mist uses the exact average surrounding-tile count for the current field dimensions in the aggregate model; representative visual rings are capped and do not animate every logical tile.",
+    "Dew remains useful to the natural Moisture and Growth chain and Dawn Condensation still supplies that chain, but sprinklers never consume it.",
+    "The debug panel overlays content on a 390x844 viewport; this is confined to the debugPanel route.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and was not modified."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test Run 2 through early automation and tune sprinkler cadence, afterglow strength, and Fine Mist chance only from observed pacing.",
+    "Verify the Memory Grove descriptions and purchase celebration for Fine Mist and Dew Cistern at low ranks.",
+    "Push, deploy, and synchronize with the Mac only when requested."
+  ],
+  "doNotRevert": [
+    "Do not restore Dew or any other production-resource input to Tiny Sprinkler recipes.",
+    "Do not let full Moisture, Care, or Growth buffers pause Tiny Sprinkler automated touches.",
+    "Do not restore the obsolete dry-sprinkler UI state.",
+    "Do not turn Fine Mist back into a generic touch/healing multiplier or Dew-efficiency rank.",
+    "Do not turn Dew Cistern back into Dew/Moisture storage.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}
