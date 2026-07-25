@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-25",
-  "latestHandoff": "HANDOFF_2026-07-25_FUEL_FREE_SPRINKLERS.json",
+  "updatedAt": "2026-07-26",
+  "latestHandoff": "HANDOFF_2026-07-26_FUEL_FREE_AUTOCLICKERS.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

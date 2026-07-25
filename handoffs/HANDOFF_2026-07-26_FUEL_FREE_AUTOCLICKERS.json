@@ -1,0 +1,69 @@
+{
+  "date": "2026-07-26",
+  "topic": "Fuel-free helpers and action-based Memory upgrades",
+  "currentUserGoal": "Make every helper a cooldown-driven auto-clicker with no resource inputs, and change every related Memory so it improves speed, touches, healing, or opening charge instead of fuel, storage, or starter stock.",
+  "workCompleted": [
+    "Removed all production-resource inputs from every purchasable helper mode: Tiny Sprinkler, Field Mouse, Bee Hive, Chicken Patrol, Earthworm Crew, Ancient Roots, Sheep Loop, and Meadow Rabbit.",
+    "Made every helper output overflow-safe so full resource buffers cannot pause helper cycles, automated touches, or healing.",
+    "Kept natural field conversions as passive background ecology; helpers never consume their resources.",
+    "Changed Field Mouse Damp Furrows into a free Tiny Sprinkler synergy that adds Growth and Care without consuming Moisture.",
+    "Removed Field Mouse Seed caches, Bee Hive Flower reserves, starvation teaching states, input discounts, helper storage scaling, and starting-resource grants.",
+    "Repurposed existing rank save slots without invalidating saves: throughput is Speed, storage is Reach, efficiency is Care, and startingStock is Momentum.",
+    "Added 15% more automated touches per Reach rank, 12% more healing per Care rank, and 20% opening-cycle charge per Momentum rank.",
+    "Preserved Tiny Sprinkler's bespoke Dew Cistern afterglow and Fine Mist area-touch upgrades.",
+    "Renamed and rewrote relevant Memory nodes so their names and descriptions describe action speed, reach, healing, and opening momentum rather than stored supplies.",
+    "Rewrote Living Ledger, semantic browser guidance, chapter copy, purchase feedback, mode copy, and the durable ecosystem design document for the clicker-to-auto-clicker loop.",
+    "Returned the local playtest save to a clean Run 1 after browser stress verification."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemMemoryTree.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-26_FUEL_FREE_AUTOCLICKERS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, Knip, 158 Vitest tests across 18 files, strict TypeScript, and the Vite production build.",
+    "Focused ecosystem system, Memory Web, and save tests passed: 87 tests across 3 files.",
+    "Deterministic tests verify every helper recipe has no inputs, every helper output allows overflow, and helpers still cycle and award touches with empty resources and full output buffers.",
+    "Desktop 1280x720 browser stress check used a 100x100 field and twelve of every helper: automation sustained about 5,597 touches/s, resource buffers reached FULL without stopping Tiny Sprinkler, fullFieldScans stayed at zero, sampled FPS held at 144 with zero frame spikes, and browser logs had no warnings or errors.",
+    "Phone-layout 390x844 browser stress check retained the 100x100 field and all helper tiers: automation sustained about 5,628 touches/s, resource buffers remained full while cycles advanced, fullFieldScans stayed at zero, sampled FPS held at 144 with zero frame spikes, and browser logs had no warnings or errors.",
+    "The Memory Web semantic controls expose the new names including Scamper Routes, First Scamper, Wider Swarm, Scratch Pattern, Branching Burrows, Root Network, Wider Circuit, and Spring Step.",
+    "git diff --check passed."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "featureCommit": "this handoff's commit",
+    "pushed": false,
+    "deployed": false,
+    "macSynced": false,
+    "devServer": "http://127.0.0.1:5173/?redesign&playtest&debugPanel",
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The natural field conversion graph still consumes intermediate resources as passive background ecology, but no purchasable helper uses those resources as fuel.",
+    "Ecosystem Works and the Living Ledger still display the thematic resource chain; a later simplification pass may be useful if those counters distract from the clicker and auto-clicker loop.",
+    "The stronger fuel-free automation curve needs hands-on balance testing from Run 2 onward.",
+    "The debug panel overlays content on a 390x844 viewport; this remains confined to the debugPanel route.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and was not modified."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test Run 2 through the first Field Mouse and compare how quickly manual clicking gives way to automation.",
+    "Tune helper purchase costs, base cooldowns, Reach, and Care only from observed run pacing.",
+    "Decide whether the passive resource counters and Ecosystem Works graph still add useful flavor or should be simplified further.",
+    "Push, deploy, and synchronize with the Mac only when requested."
+  ],
+  "doNotRevert": [
+    "Do not restore any production-resource input to a purchasable helper recipe.",
+    "Do not let empty or full resource buffers pause helper automated touches.",
+    "Do not restore Seed caches, Flower reserves, helper starvation states, input discounts, helper storage ranks, or starting-resource grants.",
+    "Do not rename the internal permanent rank save keys without a migration; their player-facing meanings have intentionally changed while preserving old saves.",
+    "Do not turn Dew Cistern or Fine Mist back into their obsolete fuel and efficiency mechanics.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

@@ -212,6 +212,23 @@ describe("Ecosystem Memory Tree", () => {
     expect(getHelperRankMemoryLabel("meadowRabbit", "storage")).toBe("Burrow Network");
   });
 
+  it("presents fuel-free helper ranks as Speed, Reach, Care, and Momentum", () => {
+    expect(HELPER_MEMORY_CATEGORY_STYLES.throughput.label).toBe("SPEED");
+    expect(HELPER_MEMORY_CATEGORY_STYLES.storage.label).toBe("REACH");
+    expect(HELPER_MEMORY_CATEGORY_STYLES.efficiency.label).toBe("CARE");
+    expect(HELPER_MEMORY_CATEGORY_STYLES.startingStock.label).toBe("MOMENTUM");
+
+    const helperRanks = ECOSYSTEM_MEMORY_NODES.filter(
+      (node) => node.kind === "helperRank" && node.helperId !== "tinySprinkler",
+    );
+    for (const node of helperRanks) {
+      expect(node.description).not.toMatch(/consume|input cost|fuel cost|starting stock|starter cache/i);
+      if (node.rankKind === "storage") expect(node.description).toContain("automatic touches");
+      if (node.rankKind === "efficiency") expect(node.description).toContain("restore 12% more");
+      if (node.rankKind === "startingStock") expect(node.description).toContain("20% charged");
+    }
+  });
+
   it("uses one consistent color language for helper upgrade purposes", () => {
     const sprinklerUnlock = ECOSYSTEM_MEMORY_NODE_BY_ID.get(getHelperUnlockMemoryId("tinySprinkler"))!;
     const sprinklerSpeed = ECOSYSTEM_MEMORY_NODE_BY_ID.get(getHelperRankMemoryId("tinySprinkler", "throughput"))!;

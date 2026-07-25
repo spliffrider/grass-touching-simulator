@@ -110,8 +110,8 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     unlockRequires: null,
     modes: modes(
       "tinySprinkler",
-      ["caretaker", "Caretaker", "Sprinkles forever, making automated touches, Moisture, and steady Care."],
-      ["cultivator", "Cultivator", "Sprinkles forever while favoring Moisture and direct Growth over Care."],
+      ["caretaker", "Caretaker", "Sprinkles forever, adding automatic touches and steady Care."],
+      ["cultivator", "Cultivator", "Sprinkles forever while favoring automatic Growth over Care."],
     ),
   },
   fieldMouse: {
@@ -125,8 +125,8 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     unlockRequires: "tinySprinkler",
     modes: modes(
       "fieldMouse",
-      ["spread", "Spread", `Turns Seeds into Growth and finds a few ${RUN_TOUCHES_LABEL}. Sprinkler Moisture waters Damp Furrows for bonus Growth and Care.`],
-      ["cache", "Cache", "Works more slowly while spending fewer Seeds. Damp Furrows still boost each watered trip."],
+      ["spread", "Spread", `Scampers across the field, adding Growth and ${RUN_TOUCHES_LABEL}. A Tiny Sprinkler opens Damp Furrows for bonus Growth and Care.`],
+      ["cache", "Cache", "Scampers more slowly but leaves steady Care behind. Damp Furrows still boost every trip."],
     ),
   },
   beeHive: {
@@ -140,8 +140,8 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     unlockRequires: "fieldMouse",
     modes: modes(
       "beeHive",
-      ["pollinate", "Pollinate", "Turns Flowers into Pollinated Blooms."],
-      ["honeyReserve", "Honey Reserve", "Pollinates more slowly and stores Care."],
+      ["pollinate", "Pollinate", "Flies continuously, creating Pollinated Blooms and automatic touches."],
+      ["honeyReserve", "Honey Reserve", "Flies more slowly while producing steady Care."],
     ),
   },
   chickenPatrol: {
@@ -155,8 +155,8 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     unlockRequires: "beeHive",
     modes: modes(
       "chickenPatrol",
-      ["scratch", "Scratch", `Turns Clippings into Compost and uncovers ${RUN_TOUCHES_LABEL}.`],
-      ["forage", "Forage", "Cuts Growth into Clippings before composting."],
+      ["scratch", "Scratch", `Scratches continuously, producing Compost and ${RUN_TOUCHES_LABEL}.`],
+      ["forage", "Forage", "Patrols more carefully, producing Clippings and Compost."],
     ),
   },
   earthwormCrew: {
@@ -170,8 +170,8 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     unlockRequires: "chickenPatrol",
     modes: modes(
       "earthwormCrew",
-      ["aerate", "Aerate", "Turns Compost into rich Humus."],
-      ["triage", "Triage", "Aerates more slowly while restoring Care."],
+      ["aerate", "Aerate", "Burrows continuously, producing rich Humus and automatic touches."],
+      ["triage", "Triage", "Burrows more slowly while restoring steady Care."],
     ),
   },
   ancientRoots: {
@@ -185,8 +185,8 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     unlockRequires: "earthwormCrew",
     modes: modes(
       "ancientRoots",
-      ["anchor", "Anchor", "Turns Humus into Root Energy and Care."],
-      ["wellspring", "Wellspring", "Spends Root Energy to make Dew and Care."],
+      ["anchor", "Anchor", "Pulses continuously, producing Root Energy, Care, and automatic touches."],
+      ["wellspring", "Wellspring", "Draws up Dew and Care without consuming resources."],
     ),
   },
   sheepLoop: {
@@ -200,8 +200,8 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     unlockRequires: "ancientRoots",
     modes: modes(
       "sheepLoop",
-      ["graze", "Graze", "Turns Growth into Clippings and Care."],
-      ["closeCrop", "Close Crop", "Produces more Clippings but less Care."],
+      ["graze", "Graze", "Grazes continuously, producing Clippings, Care, and automatic touches."],
+      ["closeCrop", "Close Crop", "Runs a faster loop that produces more Clippings but less Care."],
     ),
   },
   meadowRabbit: {
@@ -215,8 +215,8 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     unlockRequires: "sheepLoop",
     modes: modes(
       "meadowRabbit",
-      ["seedRun", "Seed Run", "Rapidly turns Seeds into Growth."],
-      ["bloomRun", "Bloom Run", "Carries Seeds directly into Flowers."],
+      ["seedRun", "Seed Run", "Runs continuously, rapidly producing Growth and automatic touches."],
+      ["bloomRun", "Bloom Run", "Takes a wider route that produces Flowers and automatic touches."],
     ),
   },
 };
@@ -234,20 +234,20 @@ export const PRODUCTION_RECIPES: readonly ProductionRecipe[] = [
   { id: "natural-care", helperId: null, modeId: null, label: "Ancient resilience", inputs: [{ resourceId: "rootEnergy", amount: 1 }], outputs: [{ resourceId: "care", amount: 0.7 }], cyclesPerSecond: 0.008, natural: true },
   { id: "sprinkler-care", helperId: "tinySprinkler", modeId: "caretaker", label: "Caretaker spray", inputs: [], outputs: [{ resourceId: "moisture", amount: 1, allowOverflow: true }, { resourceId: "care", amount: 1.35, allowOverflow: true }], cyclesPerSecond: 0.48 },
   { id: "sprinkler-grow", helperId: "tinySprinkler", modeId: "cultivator", label: "Cultivating spray", inputs: [], outputs: [{ resourceId: "moisture", amount: 1.25, allowOverflow: true }, { resourceId: "growth", amount: 0.28, allowOverflow: true }], cyclesPerSecond: 0.48 },
-  { id: "mouse-spread", helperId: "fieldMouse", modeId: "spread", label: "Seed spreading", inputs: [{ resourceId: "seeds", amount: 1 }], outputs: [{ resourceId: "growth", amount: 1.5 }], cyclesPerSecond: 0.34 },
-  { id: "mouse-cache", helperId: "fieldMouse", modeId: "cache", label: "Careful cache", inputs: [{ resourceId: "seeds", amount: 0.68 }], outputs: [{ resourceId: "growth", amount: 1.12 }], cyclesPerSecond: 0.27 },
-  { id: "bee-pollinate", helperId: "beeHive", modeId: "pollinate", label: "Hive pollination", inputs: [{ resourceId: "flowers", amount: 1 }], outputs: [{ resourceId: "pollinatedBlooms", amount: 1.5 }], cyclesPerSecond: 0.42 },
-  { id: "bee-honey", helperId: "beeHive", modeId: "honeyReserve", label: "Honey reserve", inputs: [{ resourceId: "flowers", amount: 1 }], outputs: [{ resourceId: "pollinatedBlooms", amount: 1.12 }, { resourceId: "care", amount: 0.9 }], cyclesPerSecond: 0.34 },
-  { id: "chicken-scratch", helperId: "chickenPatrol", modeId: "scratch", label: "Compost scratching", inputs: [{ resourceId: "clippings", amount: 1 }], outputs: [{ resourceId: "compost", amount: 1.45 }], cyclesPerSecond: 0.34 },
-  { id: "chicken-forage", helperId: "chickenPatrol", modeId: "forage", label: "Field forage", inputs: [{ resourceId: "growth", amount: 1 }], outputs: [{ resourceId: "clippings", amount: 1.22 }, { resourceId: "compost", amount: 0.22 }], cyclesPerSecond: 0.3 },
-  { id: "worm-aerate", helperId: "earthwormCrew", modeId: "aerate", label: "Deep aeration", inputs: [{ resourceId: "compost", amount: 1 }], outputs: [{ resourceId: "humus", amount: 1.5 }], cyclesPerSecond: 0.38 },
-  { id: "worm-triage", helperId: "earthwormCrew", modeId: "triage", label: "Root triage", inputs: [{ resourceId: "compost", amount: 1 }], outputs: [{ resourceId: "humus", amount: 1.08 }, { resourceId: "care", amount: 0.5 }], cyclesPerSecond: 0.3 },
-  { id: "roots-anchor", helperId: "ancientRoots", modeId: "anchor", label: "Ancient anchoring", inputs: [{ resourceId: "humus", amount: 1 }], outputs: [{ resourceId: "rootEnergy", amount: 1.4 }, { resourceId: "care", amount: 0.42 }], cyclesPerSecond: 0.34 },
-  { id: "roots-wellspring", helperId: "ancientRoots", modeId: "wellspring", label: "Root wellspring", inputs: [{ resourceId: "rootEnergy", amount: 1 }], outputs: [{ resourceId: "dew", amount: 1.8 }, { resourceId: "care", amount: 0.72 }], cyclesPerSecond: 0.32 },
-  { id: "sheep-graze", helperId: "sheepLoop", modeId: "graze", label: "Gentle grazing", inputs: [{ resourceId: "growth", amount: 1 }], outputs: [{ resourceId: "clippings", amount: 1.18 }, { resourceId: "care", amount: 0.42 }], cyclesPerSecond: 0.48 },
-  { id: "sheep-crop", helperId: "sheepLoop", modeId: "closeCrop", label: "Close crop", inputs: [{ resourceId: "growth", amount: 1 }], outputs: [{ resourceId: "clippings", amount: 1.65 }, { resourceId: "care", amount: 0.15 }], cyclesPerSecond: 0.56 },
-  { id: "rabbit-growth", helperId: "meadowRabbit", modeId: "seedRun", label: "Seed run", inputs: [{ resourceId: "seeds", amount: 1 }], outputs: [{ resourceId: "growth", amount: 1.65 }], cyclesPerSecond: 0.72 },
-  { id: "rabbit-bloom", helperId: "meadowRabbit", modeId: "bloomRun", label: "Bloom run", inputs: [{ resourceId: "seeds", amount: 1 }], outputs: [{ resourceId: "flowers", amount: 1.28 }], cyclesPerSecond: 0.62 },
+  { id: "mouse-spread", helperId: "fieldMouse", modeId: "spread", label: "Field scamper", inputs: [], outputs: [{ resourceId: "growth", amount: 1.5, allowOverflow: true }], cyclesPerSecond: 0.34 },
+  { id: "mouse-cache", helperId: "fieldMouse", modeId: "cache", label: "Careful cache", inputs: [], outputs: [{ resourceId: "growth", amount: 1.12, allowOverflow: true }, { resourceId: "care", amount: 0.72, allowOverflow: true }], cyclesPerSecond: 0.27 },
+  { id: "bee-pollinate", helperId: "beeHive", modeId: "pollinate", label: "Hive pollination", inputs: [], outputs: [{ resourceId: "pollinatedBlooms", amount: 1.5, allowOverflow: true }], cyclesPerSecond: 0.42 },
+  { id: "bee-honey", helperId: "beeHive", modeId: "honeyReserve", label: "Honey reserve", inputs: [], outputs: [{ resourceId: "pollinatedBlooms", amount: 1.12, allowOverflow: true }, { resourceId: "care", amount: 0.9, allowOverflow: true }], cyclesPerSecond: 0.34 },
+  { id: "chicken-scratch", helperId: "chickenPatrol", modeId: "scratch", label: "Compost scratching", inputs: [], outputs: [{ resourceId: "compost", amount: 1.45, allowOverflow: true }], cyclesPerSecond: 0.34 },
+  { id: "chicken-forage", helperId: "chickenPatrol", modeId: "forage", label: "Field forage", inputs: [], outputs: [{ resourceId: "clippings", amount: 1.22, allowOverflow: true }, { resourceId: "compost", amount: 0.22, allowOverflow: true }], cyclesPerSecond: 0.3 },
+  { id: "worm-aerate", helperId: "earthwormCrew", modeId: "aerate", label: "Deep aeration", inputs: [], outputs: [{ resourceId: "humus", amount: 1.5, allowOverflow: true }], cyclesPerSecond: 0.38 },
+  { id: "worm-triage", helperId: "earthwormCrew", modeId: "triage", label: "Root triage", inputs: [], outputs: [{ resourceId: "humus", amount: 1.08, allowOverflow: true }, { resourceId: "care", amount: 0.5, allowOverflow: true }], cyclesPerSecond: 0.3 },
+  { id: "roots-anchor", helperId: "ancientRoots", modeId: "anchor", label: "Ancient anchoring", inputs: [], outputs: [{ resourceId: "rootEnergy", amount: 1.4, allowOverflow: true }, { resourceId: "care", amount: 0.42, allowOverflow: true }], cyclesPerSecond: 0.34 },
+  { id: "roots-wellspring", helperId: "ancientRoots", modeId: "wellspring", label: "Root wellspring", inputs: [], outputs: [{ resourceId: "dew", amount: 1.8, allowOverflow: true }, { resourceId: "care", amount: 0.72, allowOverflow: true }], cyclesPerSecond: 0.32 },
+  { id: "sheep-graze", helperId: "sheepLoop", modeId: "graze", label: "Gentle grazing", inputs: [], outputs: [{ resourceId: "clippings", amount: 1.18, allowOverflow: true }, { resourceId: "care", amount: 0.42, allowOverflow: true }], cyclesPerSecond: 0.48 },
+  { id: "sheep-crop", helperId: "sheepLoop", modeId: "closeCrop", label: "Close crop", inputs: [], outputs: [{ resourceId: "clippings", amount: 1.65, allowOverflow: true }, { resourceId: "care", amount: 0.15, allowOverflow: true }], cyclesPerSecond: 0.56 },
+  { id: "rabbit-growth", helperId: "meadowRabbit", modeId: "seedRun", label: "Seed run", inputs: [], outputs: [{ resourceId: "growth", amount: 1.65, allowOverflow: true }], cyclesPerSecond: 0.72 },
+  { id: "rabbit-bloom", helperId: "meadowRabbit", modeId: "bloomRun", label: "Bloom run", inputs: [], outputs: [{ resourceId: "flowers", amount: 1.28, allowOverflow: true }], cyclesPerSecond: 0.62 },
 ];
 
 export const FIELD_SIZE_LADDER = [1, 2, 3, 5, 8, 12, 20, 32, 50, 75, 100] as const;

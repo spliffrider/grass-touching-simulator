@@ -101,12 +101,10 @@ import {
 import {
   ANCIENT_HEARTWOOD_HP_PER_RANK,
   ANCIENT_HEARTWOOD_MAX_RANK,
-  BEE_HIVE_STARTER_FLOWERS,
-  FIELD_MOUSE_STARTER_SEEDS,
   FIRST_RUN_MANUAL_CARE_PER_POWER,
-  HELPER_EFFICIENCY_PER_RANK,
-  HELPER_STARTING_STOCK_PER_RANK,
-  HELPER_STORAGE_CAPACITY_PER_RANK,
+  HELPER_HEALING_PER_CARE_RANK,
+  HELPER_STARTING_CHARGE_PER_RANK,
+  HELPER_TOUCH_YIELD_PER_REACH_RANK,
   LINGERING_CARE_DURATION_MS,
   MANUAL_TOUCH_CARE_PER_POWER,
   MANUAL_TOUCH_POWER_PER_MEMORY,
@@ -136,7 +134,6 @@ import {
   getHelperCycleIntervalMs,
   getHelperStackCycleIntervalMs,
   getHelperPurchaseCost,
-  getHelperStorageResourceIds,
   getHelperUnlockCost,
   getLingeringCareMaxStacks,
   getLingeringCareStackRate,
@@ -2235,20 +2232,16 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           case "firstFlight":
             automationProgress = beeHive.cycleProgress;
             automationColor = HELPER_EFFECT_COLOR.beeHive;
-            automationCopy = `FIRST POLLINATION  |  ${BEE_HIVE_STARTER_FLOWERS} Flowers opened - follow the bee`;
+            automationCopy = "FIRST POLLINATION  |  Follow the first hands-free flight";
             break;
           case "working":
             automationProgress = beeHive.cycleProgress;
             automationColor = HELPER_EFFECT_COLOR.beeHive;
-            automationCopy = `BLOOMS ACTIVE  |  ${beeHive.flowerAmount.toFixed(1)} Flowers  |  ${beeHive.pollinatedBloomAmount.toFixed(1)} Pollinated`;
-            break;
-          case "starved":
-            automationColor = 0xe8616a;
-            automationCopy = "HIVE SEARCHING  |  Flower stores empty - cultivate more Growth";
+            automationCopy = `POLLINATION ACTIVE  |  ${beeHive.pollinatedBloomAmount.toFixed(1)} Blooms`;
             break;
           case "blocked":
             automationColor = 0xe8616a;
-            automationCopy = `HIVE WAITING  |  ${beeHive.pauseReason ?? "Check its buffers"}`;
+            automationCopy = `HIVE WAITING  |  ${beeHive.pauseReason ?? "Reconfiguring"}`;
             break;
           default:
             automationProgress = beeHive.purchaseProgress;
@@ -2266,25 +2259,19 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
             automationProgress = fieldMouse.cycleProgress;
             automationColor = HELPER_EFFECT_COLOR.fieldMouse;
             automationCopy = fieldMouse.dampFurrowsLinked
-              ? "DAMP FURROWS  |  First watered planting"
-              : `STARTER CACHE  |  ${FIELD_MOUSE_STARTER_SEEDS} Seeds found - watch the first planting`;
+              ? "DAMP FURROWS  |  First linked scamper"
+              : "FIRST SCAMPER  |  Follow the first hands-free trip";
             break;
           case "working":
             automationProgress = fieldMouse.cycleProgress;
             automationColor = fieldMouse.dampFurrowsFlowing ? 0x8de7c5 : HELPER_EFFECT_COLOR.fieldMouse;
             automationCopy = fieldMouse.dampFurrowsFlowing
-              ? `DAMP FURROWS FLOWING  |  ${fieldMouse.moistureAmount.toFixed(1)} Moisture  |  bonus Growth + Care`
-              : fieldMouse.dampFurrowsLinked
-                ? "DAMP FURROWS WAITING  |  Supply Moisture and clear Growth + Care storage"
-                : `SEED RUN ACTIVE  |  ${fieldMouse.seedAmount.toFixed(1)} Seeds  |  ${fieldMouse.growthAmount.toFixed(1)} Growth`;
-            break;
-          case "starved":
-            automationColor = 0xe8616a;
-            automationCopy = "MOUSE SEARCHING  |  Seed cache empty - keep the ecosystem growing";
+              ? `DAMP FURROWS FLOWING  |  bonus Growth + Care`
+              : `SCAMPER ACTIVE  |  ${fieldMouse.growthAmount.toFixed(1)} Growth`;
             break;
           case "blocked":
             automationColor = 0xe8616a;
-            automationCopy = `MOUSE WAITING  |  ${fieldMouse.pauseReason ?? "Check its buffers"}`;
+            automationCopy = `MOUSE WAITING  |  ${fieldMouse.pauseReason ?? "Reconfiguring"}`;
             break;
           default:
             automationProgress = fieldMouse.purchaseProgress;
@@ -2306,11 +2293,11 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           case "sustain":
             automationProgress = firstAutomation.cycleProgress;
             automationColor = 0x83d765;
-            automationCopy = "AUTO TOUCHES ONLINE  |  Tiny Sprinklers never need fuel";
+            automationCopy = "AUTO TOUCHES ONLINE  |  Tiny Sprinkler is working";
             break;
           case "paused":
             automationColor = 0xe8616a;
-            automationCopy = `SPRINKLER PAUSED  |  ${firstAutomation.pauseReason ?? "Check its buffers"}`;
+            automationCopy = `SPRINKLER PAUSED  |  ${firstAutomation.pauseReason ?? "Reconfiguring"}`;
             break;
           default:
             automationProgress = firstAutomation.purchaseProgress;
@@ -2367,8 +2354,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
           const cycleCopy = stackCycleIntervalMs < 1_000
             ? `${(stackCycleIntervalMs / 1_000).toFixed(2)}s`
             : `${(stackCycleIntervalMs / 1_000).toFixed(1)}s`;
-          const pauseCopy = helper.lastPauseReason?.startsWith("Needs ")
-            ? `NO ${helper.lastPauseReason.slice("Needs ".length).toUpperCase()}`
+          const pauseCopy = helper.lastPauseReason === "Reconfiguring"
+            ? "RECONFIGURING"
             : "PAUSED";
           this.setTextIfChanged(
             actor.countText,
@@ -2475,7 +2462,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
               : "TINY SPRINKLER REMEMBERED",
             firstMemoryPending
               ? "Select the glowing Memory in the web."
-              : `Run 2: gather 14 ${RUN_TOUCHES_LABEL}, install it, and let it sprinkle without fuel.`,
+              : `Run 2: gather ${getHelperPurchaseCost(this.state, "tinySprinkler")} ${RUN_TOUCHES_LABEL}, install it, and let it sprinkle automatically.`,
             "",
             `Collapse: ${(summary.durationMs / 1_000).toFixed(2)}s`,
             `Manual touches: ${summary.touches}`,
@@ -3285,7 +3272,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   ): void {
     const dampFurrowsPulse = helperId === "fieldMouse" && isDampFurrowsFlowing(this.state);
     const color = dampFurrowsPulse ? 0x8de7c5 : HELPER_EFFECT_COLOR[helperId];
-    const impactRank = this.permanent.efficiencyRanks[helperId];
+    const reachRank = this.permanent.storageRanks[helperId];
+    const careRank = this.permanent.efficiencyRanks[helperId];
     const fineMistProcCount = helperId === "tinySprinkler"
       ? Math.max(0, this.state.sprinklerFineMistProcCount - this.presentedFineMistProcCount)
       : 0;
@@ -3293,9 +3281,9 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.presentedFineMistProcCount = this.state.sprinklerFineMistProcCount;
     }
     const fineMistTouches = fineMistProcCount * getFineMistAverageSplashTouches(this.state.field);
-    const automatedTouches = getHelperAutomatedTouchYield(helperId, impactRank) * pulseCount
+    const automatedTouches = getHelperAutomatedTouchYield(helperId, reachRank) * pulseCount
       + fineMistTouches;
-    const healingRank = helperId === "tinySprinkler" ? 0 : impactRank;
+    const healingRank = helperId === "tinySprinkler" ? 0 : careRank;
     const automatedHealing = automatedTouches * getHelperAutomatedHealingPerTouch(healingRank);
     const touchCopy = automatedTouches >= 10
       ? automatedTouches.toFixed(0)
@@ -3498,14 +3486,14 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       });
     }
 
+    const openingCharge = Math.round(
+      this.permanent.startingStockRanks[helperId] * HELPER_STARTING_CHARGE_PER_RANK * 100,
+    );
     this.helperAnnouncementText
-      .setText(helperId === "tinySprinkler"
-        ? "FIRST SPRINKLER ONLINE"
-        : helperId === "fieldMouse"
-          ? `FIELD MOUSE ONLINE  |  +${FIELD_MOUSE_STARTER_SEEDS} SEEDS`
-        : helperId === "beeHive"
-          ? `BEE HIVE ONLINE  |  +${BEE_HIVE_STARTER_FLOWERS} FLOWERS`
-          : `${HELPERS[helperId].label.toUpperCase()} ONLINE`)
+      .setText(
+        `${helperId === "tinySprinkler" ? "FIRST SPRINKLER" : HELPERS[helperId].label.toUpperCase()} ONLINE`
+        + (openingCharge > 0 ? `  |  ${openingCharge}% PRIMED` : ""),
+      )
       .setColor(`#${color.toString(16).padStart(6, "0")}`)
       .setPosition(actor.baseX, actor.baseY - actor.actorSize * 0.95)
       .setAlpha(1)
@@ -4062,15 +4050,20 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const currentIntervalMs = getHelperCycleIntervalMs(helperId, rank);
       const nextIntervalMs = getHelperCycleIntervalMs(helperId, nextRank);
       const formatInterval = (intervalMs: number): string => `${(intervalMs / 1_000).toFixed(2)}s`;
-      const storageLabels = getHelperStorageResourceIds(helperId)
-        .map((resourceId) => PRODUCTION_RESOURCES[resourceId].label)
-        .join(", ");
-      const currentAutomatedTouches = getHelperAutomatedTouchYield(helperId, rank);
-      const nextAutomatedTouches = getHelperAutomatedTouchYield(helperId, nextRank);
-      const automatedHealingRank = helperId === "tinySprinkler" ? 0 : rank;
-      const nextAutomatedHealingRank = helperId === "tinySprinkler" ? 0 : nextRank;
-      const currentAutomatedHealing = currentAutomatedTouches * getHelperAutomatedHealingPerTouch(automatedHealingRank);
-      const nextAutomatedHealing = nextAutomatedTouches * getHelperAutomatedHealingPerTouch(nextAutomatedHealingRank);
+      const currentReachRank = kind === "storage" ? rank : this.permanent.storageRanks[helperId];
+      const nextReachRank = kind === "storage" ? nextRank : currentReachRank;
+      const currentCareRank = kind === "efficiency" ? rank : this.permanent.efficiencyRanks[helperId];
+      const nextCareRank = kind === "efficiency" ? nextRank : currentCareRank;
+      const currentAutomatedTouches = getHelperAutomatedTouchYield(helperId, currentReachRank);
+      const nextAutomatedTouches = getHelperAutomatedTouchYield(helperId, nextReachRank);
+      const currentHealingPerTouch = getHelperAutomatedHealingPerTouch(
+        helperId === "tinySprinkler" ? 0 : currentCareRank,
+      );
+      const nextHealingPerTouch = getHelperAutomatedHealingPerTouch(
+        helperId === "tinySprinkler" ? 0 : nextCareRank,
+      );
+      const currentAutomatedHealing = currentAutomatedTouches * currentHealingPerTouch;
+      const nextAutomatedHealing = nextAutomatedTouches * nextHealingPerTouch;
       const fineMistSplashTouches = getFineMistAverageSplashTouches(this.state.field);
       const sprinklerAfterglowEffect = complete
         ? [
@@ -4099,23 +4092,22 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         storage: helperId === "tinySprinkler"
           ? sprinklerAfterglowEffect
           : complete
-            ? `${storageLabels} capacity: +${Math.round(rank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% from this Memory.`
-            : `${storageLabels} capacity: +${Math.round(rank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% -> +${Math.round(nextRank * HELPER_STORAGE_CAPACITY_PER_RANK * 100)}% next rank.`,
+            ? `Each activation creates ${currentAutomatedTouches.toFixed(1)} automatic touches (+${Math.round(rank * HELPER_TOUCH_YIELD_PER_REACH_RANK * 100)}%).`
+            : `Touches per activation: ${currentAutomatedTouches.toFixed(1)} -> ${nextAutomatedTouches.toFixed(1)} next rank.`,
         efficiency: helperId === "tinySprinkler"
           ? fineMistEffect
           : complete
             ? [
-              `Each activation: ${currentAutomatedTouches.toFixed(1)} touches and ${currentAutomatedHealing.toFixed(1)} HP.`,
-              `Recipe input cost: -${Math.round(rank * HELPER_EFFICIENCY_PER_RANK * 100)}%.`,
+              `Each automatic touch restores ${currentHealingPerTouch.toFixed(2)} HP.`,
+              `A full activation restores ${currentAutomatedHealing.toFixed(1)} HP (+${Math.round(rank * HELPER_HEALING_PER_CARE_RANK * 100)}%).`,
             ].join("\n")
             : [
-              `Touches per activation: ${currentAutomatedTouches.toFixed(1)} -> ${nextAutomatedTouches.toFixed(1)}.`,
+              `Healing per touch: ${currentHealingPerTouch.toFixed(2)} -> ${nextHealingPerTouch.toFixed(2)} HP.`,
               `Healing per activation: ${currentAutomatedHealing.toFixed(1)} -> ${nextAutomatedHealing.toFixed(1)} HP.`,
-              `Input savings: ${Math.round(rank * HELPER_EFFICIENCY_PER_RANK * 100)}% -> ${Math.round(nextRank * HELPER_EFFICIENCY_PER_RANK * 100)}%.`,
             ].join("\n"),
         startingStock: complete
-          ? `Each new field starts with +${rank * HELPER_STARTING_STOCK_PER_RANK} stock.`
-          : `Starting stock: +${rank * HELPER_STARTING_STOCK_PER_RANK} -> +${nextRank * HELPER_STARTING_STOCK_PER_RANK} next rank.`,
+          ? `The first ${HELPERS[helperId].label} bought each run begins ${Math.round(rank * HELPER_STARTING_CHARGE_PER_RANK * 100)}% charged.`
+          : `Opening charge: ${Math.round(rank * HELPER_STARTING_CHARGE_PER_RANK * 100)}% -> ${Math.round(nextRank * HELPER_STARTING_CHARGE_PER_RANK * 100)}% next rank.`,
       };
       return {
         rank,

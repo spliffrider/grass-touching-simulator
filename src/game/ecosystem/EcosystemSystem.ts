@@ -20,8 +20,6 @@ import {
 
 export const ECOSYSTEM_PERMANENT_VERSION = 1;
 export const ECOSYSTEM_ACTIVE_VERSION = 1;
-export const FIELD_MOUSE_STARTER_SEEDS = 8;
-export const BEE_HIVE_STARTER_FLOWERS = 4;
 const ECOSYSTEM_BASE_MAX_HP = 100;
 export const ANCIENT_HEARTWOOD_MAX_RANK = 10;
 export const ANCIENT_HEARTWOOD_HP_PER_RANK = 25;
@@ -33,18 +31,15 @@ export const FIRST_RUN_MANUAL_CARE_PER_POWER = 0.6;
 export const MANUAL_TOUCH_CARE_PER_POWER = 6;
 export const MANUAL_TOUCH_POWER_PER_MEMORY = 0.03;
 export const HELPER_THROUGHPUT_PER_RANK = 0.3;
-export const HELPER_STORAGE_CAPACITY_PER_RANK = 0.25;
-export const HELPER_EFFICIENCY_PER_RANK = 0.06;
-export const HELPER_STARTING_STOCK_PER_RANK = 6;
-const HELPER_TOUCH_YIELD_PER_IMPACT_RANK = 0.15;
+export const HELPER_TOUCH_YIELD_PER_REACH_RANK = 0.15;
 export const HELPER_HEALING_PER_TOUCH = 0.45;
-const HELPER_HEALING_PER_IMPACT_RANK = 0.12;
+export const HELPER_HEALING_PER_CARE_RANK = 0.12;
+export const HELPER_STARTING_CHARGE_PER_RANK = 0.2;
 export const FINE_MIST_PROC_CHANCE_PER_RANK = 0.06;
 export const SPRINKLER_AFTERGLOW_DURATION_MS = 4_000;
 const FINE_MIST_MAX_RANDOM_ROLLS_PER_TICK = 24;
 const FIELD_EXPANSION_BASE_RUN_TOUCH_COST = 500;
 const FIELD_EXPANSION_RUN_TOUCH_MULTIPLIER = 2;
-const DAMP_FURROWS_MOISTURE_PER_CYCLE = 0.3;
 const DAMP_FURROWS_GROWTH_PER_CYCLE = 0.75;
 const DAMP_FURROWS_CARE_PER_CYCLE = 1.05;
 export const HAND_TENDING_GROWTH_PER_POWER = 0.35;
@@ -213,7 +208,7 @@ export interface FirstAutomationStatus {
   pauseReason: string | null;
 }
 
-type FieldMouseStage = "locked" | "gather" | "ready" | "firstTrip" | "working" | "starved" | "blocked";
+type FieldMouseStage = "locked" | "gather" | "ready" | "firstTrip" | "working" | "blocked";
 
 export interface FieldMouseStatus {
   stage: FieldMouseStage;
@@ -221,15 +216,13 @@ export interface FieldMouseStatus {
   purchaseProgress: number;
   cycleProgress: number;
   cyclesCompleted: number;
-  seedAmount: number;
-  moistureAmount: number;
   growthAmount: number;
   dampFurrowsLinked: boolean;
   dampFurrowsFlowing: boolean;
   pauseReason: string | null;
 }
 
-type BeeHiveStage = "locked" | "gather" | "ready" | "firstFlight" | "working" | "starved" | "blocked";
+type BeeHiveStage = "locked" | "gather" | "ready" | "firstFlight" | "working" | "blocked";
 
 export interface BeeHiveStatus {
   stage: BeeHiveStage;
@@ -237,7 +230,6 @@ export interface BeeHiveStatus {
   purchaseProgress: number;
   cycleProgress: number;
   cyclesCompleted: number;
-  flowerAmount: number;
   pollinatedBloomAmount: number;
   pauseReason: string | null;
 }
@@ -256,28 +248,6 @@ const BASE_RESOURCE_CAPACITY: Record<ProductionResourceId, number> = {
   humus: 42,
   rootEnergy: 38,
   care: 36,
-};
-
-const HELPER_STORAGE_RESOURCES: Record<HelperId, readonly ProductionResourceId[]> = {
-  tinySprinkler: [],
-  fieldMouse: ["seeds", "growth"],
-  beeHive: ["flowers", "pollinatedBlooms"],
-  chickenPatrol: ["growth", "clippings", "compost"],
-  earthwormCrew: ["compost", "humus"],
-  ancientRoots: ["humus", "rootEnergy", "dew", "care"],
-  sheepLoop: ["growth", "clippings", "care"],
-  meadowRabbit: ["seeds", "growth", "flowers"],
-};
-
-const STARTING_STOCK_RESOURCE: Record<HelperId, ProductionResourceId> = {
-  tinySprinkler: "dew",
-  fieldMouse: "seeds",
-  beeHive: "flowers",
-  chickenPatrol: "clippings",
-  earthwormCrew: "compost",
-  ancientRoots: "humus",
-  sheepLoop: "growth",
-  meadowRabbit: "seeds",
 };
 
 // The first threshold spends the two Grass Touches left after the guaranteed
@@ -478,20 +448,9 @@ export function getVerdantAegisCapacity(permanent: PermanentEcosystemState, maxH
   return Math.max(0, maxHp) * getVerdantAegisCapacityRatio(permanent.verdantAegisRank);
 }
 
-export function getHelperStorageResourceIds(helperId: HelperId): readonly ProductionResourceId[] {
-  return HELPER_STORAGE_RESOURCES[helperId];
-}
-
-function getCapacity(resourceId: ProductionResourceId, permanent: PermanentEcosystemState, field: EcosystemFieldState): number {
-  let relevantStorageRanks = 0;
-  for (const helperId of HELPER_IDS) {
-    if (HELPER_STORAGE_RESOURCES[helperId].includes(resourceId)) {
-      relevantStorageRanks += permanent.storageRanks[helperId];
-    }
-  }
-  const memoryMultiplier = 1 + relevantStorageRanks * HELPER_STORAGE_CAPACITY_PER_RANK;
+function getCapacity(resourceId: ProductionResourceId, field: EcosystemFieldState): number {
   const fieldMultiplier = 1 + Math.sqrt(field.width * field.height) * 0.12;
-  return BASE_RESOURCE_CAPACITY[resourceId] * memoryMultiplier * fieldMultiplier;
+  return BASE_RESOURCE_CAPACITY[resourceId] * fieldMultiplier;
 }
 
 function createField(sizeIndex: number, seed: number): EcosystemFieldState {
@@ -525,28 +484,15 @@ function createField(sizeIndex: number, seed: number): EcosystemFieldState {
   return field;
 }
 
-function createResourceBuffers(
-  permanent: PermanentEcosystemState,
-  field: EcosystemFieldState,
-  helpersEnabled: boolean,
-): ProductionBufferRecord {
+function createResourceBuffers(field: EcosystemFieldState): ProductionBufferRecord {
   const buffers = {} as ProductionBufferRecord;
   for (const resourceId of PRODUCTION_RESOURCE_IDS) {
     buffers[resourceId] = {
       amount: resourceId === "dew" ? 5 : 0,
-      capacity: getCapacity(resourceId, permanent, field),
+      capacity: getCapacity(resourceId, field),
       producedTotal: 0,
       consumedTotal: 0,
     };
-  }
-
-  for (const helperId of HELPER_IDS) {
-    if (!helpersEnabled || !permanent.unlockedHelpers[helperId]) {
-      continue;
-    }
-    const resourceId = STARTING_STOCK_RESOURCE[helperId];
-    const bonus = permanent.startingStockRanks[helperId] * HELPER_STARTING_STOCK_PER_RANK;
-    buffers[resourceId].amount = Math.min(buffers[resourceId].capacity, buffers[resourceId].amount + bonus);
   }
   return buffers;
 }
@@ -605,7 +551,7 @@ export function createEcosystemState(
     maxOverhealShield: runNumber > 1 ? getVerdantAegisCapacity(permanent, maxHp) : 0,
     overhealShieldRemainingMs: 0,
     helperPurchaseCount: 0,
-    resources: createResourceBuffers(permanent, field, runNumber > 1),
+    resources: createResourceBuffers(field),
     rates: createRateRecord(),
     helpers: createHelperRuntime(),
     helperPulses: createHelperNumberRecord(),
@@ -688,15 +634,15 @@ function getHelperThroughputMultiplier(rank: number): number {
   return 1 + safeRank * HELPER_THROUGHPUT_PER_RANK;
 }
 
-export function getHelperAutomatedTouchYield(helperId: HelperId, impactRank: number): number {
-  const effectiveRank = helperId === "tinySprinkler" ? 0 : clampRank(impactRank, 10);
+export function getHelperAutomatedTouchYield(helperId: HelperId, reachRank: number): number {
+  const effectiveRank = helperId === "tinySprinkler" ? 0 : clampRank(reachRank, 10);
   return HELPERS[helperId].touchesPerCycle
-    * (1 + effectiveRank * HELPER_TOUCH_YIELD_PER_IMPACT_RANK);
+    * (1 + effectiveRank * HELPER_TOUCH_YIELD_PER_REACH_RANK);
 }
 
-export function getHelperAutomatedHealingPerTouch(impactRank: number): number {
+export function getHelperAutomatedHealingPerTouch(careRank: number): number {
   return HELPER_HEALING_PER_TOUCH
-    * (1 + clampRank(impactRank, 10) * HELPER_HEALING_PER_IMPACT_RANK);
+    * (1 + clampRank(careRank, 10) * HELPER_HEALING_PER_CARE_RANK);
 }
 
 export interface HelperAutomationRates {
@@ -712,12 +658,13 @@ export function getHelperAutomationRates(
   helperId: HelperId,
 ): HelperAutomationRates {
   const helper = state.helpers[helperId];
-  const impactRank = permanent.efficiencyRanks[helperId];
-  const immediateHealingRank = helperId === "tinySprinkler" ? 0 : impactRank;
+  const reachRank = permanent.storageRanks[helperId];
+  const careRank = permanent.efficiencyRanks[helperId];
+  const immediateHealingRank = helperId === "tinySprinkler" ? 0 : careRank;
   const splashTouches = helperId === "tinySprinkler"
-    ? getFineMistProcChance(impactRank) * getFineMistAverageSplashTouches(state.field)
+    ? getFineMistProcChance(careRank) * getFineMistAverageSplashTouches(state.field)
     : 0;
-  const touchesPerCycle = getHelperAutomatedTouchYield(helperId, impactRank) + splashTouches;
+  const touchesPerCycle = getHelperAutomatedTouchYield(helperId, reachRank) + splashTouches;
   const immediateHealingPerCycle = touchesPerCycle * getHelperAutomatedHealingPerTouch(immediateHealingRank);
   const afterglowHealingPerCycle = helperId === "tinySprinkler"
     ? getSprinklerAfterglowStackRate(permanent.storageRanks.tinySprinkler)
@@ -772,12 +719,9 @@ function hasDampFurrowsLink(state: Pick<EcosystemState, "helpers">): boolean {
 }
 
 export function isDampFurrowsFlowing(
-  state: Pick<EcosystemState, "helpers" | "resources">,
+  state: Pick<EcosystemState, "helpers">,
 ): boolean {
-  if (!hasDampFurrowsLink(state)) return false;
-  return state.resources.moisture.amount > EPSILON
-    && state.resources.growth.amount < state.resources.growth.capacity - EPSILON
-    && state.resources.care.amount < state.resources.care.capacity - EPSILON;
+  return hasDampFurrowsLink(state);
 }
 
 export function getFieldMouseStatus(
@@ -791,8 +735,6 @@ export function getFieldMouseStatus(
     purchaseProgress: Math.min(1, Math.max(0, state.runTouches / purchaseCost)),
     cycleProgress: Math.min(1, Math.max(0, mouse.pulseProgress)),
     cyclesCompleted: mouse.cyclesCompleted,
-    seedAmount: state.resources.seeds.amount,
-    moistureAmount: state.resources.moisture.amount,
     growthAmount: state.resources.growth.amount,
     dampFurrowsLinked: hasDampFurrowsLink(state),
     dampFurrowsFlowing: isDampFurrowsFlowing(state),
@@ -804,9 +746,6 @@ export function getFieldMouseStatus(
   }
   if (mouse.count <= 0) {
     return { stage: state.runTouches >= purchaseCost ? "ready" : "gather", ...common };
-  }
-  if (mouse.lastPauseReason?.startsWith("Needs seeds") || state.resources.seeds.amount < EPSILON) {
-    return { stage: "starved", ...common };
   }
   if (mouse.lastPauseReason) {
     return { stage: "blocked", ...common };
@@ -828,7 +767,6 @@ export function getBeeHiveStatus(
     purchaseProgress: Math.min(1, Math.max(0, state.runTouches / purchaseCost)),
     cycleProgress: Math.min(1, Math.max(0, hive.pulseProgress)),
     cyclesCompleted: hive.cyclesCompleted,
-    flowerAmount: state.resources.flowers.amount,
     pollinatedBloomAmount: state.resources.pollinatedBlooms.amount,
     pauseReason: hive.lastPauseReason,
   };
@@ -838,9 +776,6 @@ export function getBeeHiveStatus(
   }
   if (hive.count <= 0) {
     return { stage: state.runTouches >= purchaseCost ? "ready" : "gather", ...common };
-  }
-  if (hive.lastPauseReason?.startsWith("Needs flowers") || state.resources.flowers.amount < EPSILON) {
-    return { stage: "starved", ...common };
   }
   if (hive.lastPauseReason) {
     return { stage: "blocked", ...common };
@@ -860,14 +795,14 @@ export function buyHelper(state: EcosystemState, permanent: PermanentEcosystemSt
     return false;
   }
   state.runTouches -= cost;
-  const firstFieldMouse = helperId === "fieldMouse" && state.helpers.fieldMouse.count === 0;
-  const firstBeeHive = helperId === "beeHive" && state.helpers.beeHive.count === 0;
-  state.helpers[helperId].count += 1;
-  if (firstFieldMouse) {
-    addResource(state, "seeds", FIELD_MOUSE_STARTER_SEEDS);
-  }
-  if (firstBeeHive) {
-    addResource(state, "flowers", BEE_HIVE_STARTER_FLOWERS);
+  const helper = state.helpers[helperId];
+  const firstCopy = helper.count === 0;
+  helper.count += 1;
+  if (firstCopy) {
+    helper.pulseProgress = Math.max(
+      helper.pulseProgress,
+      permanent.startingStockRanks[helperId] * HELPER_STARTING_CHARGE_PER_RANK,
+    );
   }
   state.helperPurchaseCount += 1;
   return true;
@@ -1176,10 +1111,10 @@ function advanceTileStage(field: EcosystemFieldState, tileIndex: number): void {
   setTileStage(field, tileIndex, next);
 }
 
-function refreshResourceCapacities(state: EcosystemState, permanent: PermanentEcosystemState): void {
+function refreshResourceCapacities(state: EcosystemState): void {
   for (const resourceId of PRODUCTION_RESOURCE_IDS) {
     const buffer = state.resources[resourceId];
-    buffer.capacity = getCapacity(resourceId, permanent, state.field);
+    buffer.capacity = getCapacity(resourceId, state.field);
     buffer.amount = Math.min(buffer.amount, buffer.capacity);
   }
 }
@@ -1204,7 +1139,7 @@ function expandField(state: EcosystemState, permanent: PermanentEcosystemState):
   rebuildChunkStageCounts(nextField);
   nextField.dirtyChunks.fill(1);
   state.field = nextField;
-  refreshResourceCapacities(state, permanent);
+  refreshResourceCapacities(state);
 }
 
 function addResource(state: EcosystemState, resourceId: ProductionResourceId, amount: number): number {
@@ -1254,23 +1189,20 @@ function performDampFurrows(
 ): number {
   if (!hasDampFurrowsLink(state) || requestedCycles <= EPSILON) return 0;
 
-  const growthRoom = state.resources.growth.capacity - state.resources.growth.amount;
-  const careRoom = state.resources.care.capacity - state.resources.care.amount;
-  const cycles = Math.max(0, Math.min(
-    requestedCycles,
-    state.resources.moisture.amount / DAMP_FURROWS_MOISTURE_PER_CYCLE,
-    growthRoom / DAMP_FURROWS_GROWTH_PER_CYCLE,
-    careRoom / DAMP_FURROWS_CARE_PER_CYCLE,
-  ));
-  if (cycles <= EPSILON) return 0;
-
-  consumeResource(state, "moisture", DAMP_FURROWS_MOISTURE_PER_CYCLE * cycles);
-  const growthAdded = addResource(state, "growth", DAMP_FURROWS_GROWTH_PER_CYCLE * cycles);
-  const careAdded = addResource(state, "care", DAMP_FURROWS_CARE_PER_CYCLE * cycles);
+  const growthAdded = addResource(
+    state,
+    "growth",
+    DAMP_FURROWS_GROWTH_PER_CYCLE * requestedCycles,
+  );
+  const careAdded = addResource(
+    state,
+    "care",
+    DAMP_FURROWS_CARE_PER_CYCLE * requestedCycles,
+  );
   producedThisTick.growth += growthAdded;
   producedThisTick.care += careAdded;
-  state.field.stageProgress += cycles * 0.24;
-  return cycles;
+  state.field.stageProgress += requestedCycles * 0.24;
+  return requestedCycles;
 }
 
 function performStarterSprouting(
@@ -1289,19 +1221,8 @@ function performStarterSprouting(
   return growthAdded;
 }
 
-function getRecipeInputMultiplier(permanent: PermanentEcosystemState, recipe: ProductionRecipe): number {
-  if (!recipe.helperId) {
-    return 1;
-  }
-  return Math.max(
-    0.25,
-    1 - permanent.efficiencyRanks[recipe.helperId] * HELPER_EFFICIENCY_PER_RANK,
-  );
-}
-
 function performRecipe(
   state: EcosystemState,
-  permanent: PermanentEcosystemState,
   recipe: ProductionRecipe,
   requestedCycles: number,
   producedThisTick: ProductionRateRecord,
@@ -1309,12 +1230,11 @@ function performRecipe(
   if (requestedCycles <= EPSILON) {
     return 0;
   }
-  const inputMultiplier = getRecipeInputMultiplier(permanent, recipe);
   let cycles = requestedCycles;
   let pauseReason: string | null = null;
 
   for (const input of recipe.inputs) {
-    const needPerCycle = input.amount * inputMultiplier;
+    const needPerCycle = input.amount;
     if (needPerCycle <= 0) continue;
     const availableCycles = state.resources[input.resourceId].amount / needPerCycle;
     if (availableCycles < cycles) {
@@ -1341,7 +1261,7 @@ function performRecipe(
   }
 
   for (const input of recipe.inputs) {
-    consumeResource(state, input.resourceId, input.amount * inputMultiplier * cycles);
+    consumeResource(state, input.resourceId, input.amount * cycles);
   }
   for (const output of recipe.outputs) {
     const added = addResource(state, output.resourceId, output.amount * cycles);
@@ -1409,15 +1329,16 @@ function performAutomatedTouches(
 ): AutomatedTouchCycleResult {
   if (completedCycles <= EPSILON) return { touches: 0, healedHp: 0 };
 
-  const impactRank = permanent.efficiencyRanks[helperId];
-  let touches = completedCycles * getHelperAutomatedTouchYield(helperId, impactRank);
-  let healingRank = impactRank;
+  const reachRank = permanent.storageRanks[helperId];
+  const careRank = permanent.efficiencyRanks[helperId];
+  let touches = completedCycles * getHelperAutomatedTouchYield(helperId, reachRank);
+  let healingRank = careRank;
   if (helperId === "tinySprinkler") {
     healingRank = 0;
     const fineMistProcs = resolveFineMistProcCount(
       state,
       pulseCount,
-      getFineMistProcChance(impactRank),
+      getFineMistProcChance(careRank),
     );
     if (fineMistProcs > 0) {
       touches += fineMistProcs * getFineMistAverageSplashTouches(state.field);
@@ -1492,18 +1413,9 @@ function updateBottleneck(state: EcosystemState): void {
   } else if (paused) {
     state.bottleneck = `${HELPERS[paused].label}: ${state.helpers[paused].lastPauseReason}`;
   } else {
-    let lowest: ProductionResourceId = "dew";
-    let lowestRatio = Number.POSITIVE_INFINITY;
-    for (const resourceId of PRODUCTION_RESOURCE_IDS) {
-      if (resourceId === "care") continue;
-      const buffer = state.resources[resourceId];
-      const ratio = buffer.amount / Math.max(1, buffer.capacity);
-      if (ratio < lowestRatio) {
-        lowestRatio = ratio;
-        lowest = resourceId;
-      }
-    }
-    state.bottleneck = `${lowest} stock low`;
+    state.bottleneck = state.automationTouchRate > 0
+      ? `Automation stable at ${state.automationTouchRate.toFixed(1)} touches/s`
+      : "Manual Care";
   }
 }
 
@@ -1711,7 +1623,7 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
       const throughput = getHelperThroughputMultiplier(permanent.throughputRanks[recipe.helperId]);
       const requested = recipe.cyclesPerSecond * helper.count * throughput * tickSeconds;
       const pulseCountBefore = state.helperPulses[recipe.helperId];
-      const completedCycles = performRecipe(state, permanent, recipe, requested, producedThisTick);
+      const completedCycles = performRecipe(state, recipe, requested, producedThisTick);
       const completedPulses = state.helperPulses[recipe.helperId] - pulseCountBefore;
       const automated = performAutomatedTouches(
         state,
@@ -1733,7 +1645,7 @@ function runFixedTick(state: EcosystemState, permanent: PermanentEcosystemState)
     const naturalScale = recipe.id === "natural-dew"
       ? fieldScale
       : Math.max(1, fieldScale * 0.18);
-    performRecipe(state, permanent, recipe, recipe.cyclesPerSecond * naturalScale * tickSeconds, producedThisTick);
+    performRecipe(state, recipe, recipe.cyclesPerSecond * naturalScale * tickSeconds, producedThisTick);
   }
 
   state.scourgeDemandPerSecond = getScourgeDemand(state, permanent);
@@ -2016,7 +1928,7 @@ export function setPrototypeFieldSize(
   });
   permanent.maxFieldTier = Math.max(permanent.maxFieldTier, closestIndex);
   state.field = createField(closestIndex, state.rngState);
-  refreshResourceCapacities(state, permanent);
+  refreshResourceCapacities(state);
 }
 
 export function unlockAllPrototypeMemories(permanent: PermanentEcosystemState): void {

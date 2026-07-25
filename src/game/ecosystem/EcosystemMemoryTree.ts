@@ -71,9 +71,9 @@ export const HELPER_MEMORY_CATEGORY_ORDER: readonly HelperMemoryCategory[] = [
 export const HELPER_MEMORY_CATEGORY_STYLES: Record<HelperMemoryCategory, HelperMemoryCategoryStyle> = {
   unlock: { id: "unlock", label: "UNLOCK", detailLabel: "New helper", color: 0x72e69a },
   throughput: { id: "throughput", label: "SPEED", detailLabel: "Automation speed", color: 0x78d9ef },
-  efficiency: { id: "efficiency", label: "IMPACT", detailLabel: "Touch yield and healing", color: 0xb7e66f },
-  storage: { id: "storage", label: "STORAGE", detailLabel: "Resource storage", color: 0x78aef2 },
-  startingStock: { id: "startingStock", label: "START STOCK", detailLabel: "Starting resources", color: 0xf0cc62 },
+  efficiency: { id: "efficiency", label: "CARE", detailLabel: "Healing per touch", color: 0x83d765 },
+  storage: { id: "storage", label: "REACH", detailLabel: "Touches per activation", color: 0x78c9f2 },
+  startingStock: { id: "startingStock", label: "MOMENTUM", detailLabel: "Opening charge", color: 0xf0cc62 },
   mode: { id: "mode", label: "MODE", detailLabel: "Helper mode", color: 0xd99fc4 },
 };
 
@@ -220,7 +220,7 @@ const RANK_VISUAL_META: Record<PermanentRankKind, { iconKey: string; iconPath: s
   },
   storage: {
     iconKey: "memory-icon-storage",
-    iconPath: "/assets/ui/items/rain-barrel.png",
+    iconPath: "/assets/ui/skills/helper-routes.png",
   },
   efficiency: {
     iconKey: "memory-icon-efficiency",
@@ -228,7 +228,7 @@ const RANK_VISUAL_META: Record<PermanentRankKind, { iconKey: string; iconPath: s
   },
   startingStock: {
     iconKey: "memory-icon-starting-stock",
-    iconPath: "/assets/ui/items/seed-satchel.png",
+    iconPath: "/assets/ui/skills/warm-sunlight.png",
   },
 };
 
@@ -252,26 +252,26 @@ const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCop
       description: "Gives each Tiny Sprinkler hit a chance to touch every tile surrounding its target.",
     },
     startingStock: {
-      label: "Dawn Condensation",
-      description: "Begins each new field with extra Dew for the field's natural Moisture and Growth chain.",
+      label: "Primed Spring",
+      description: "The first Tiny Sprinkler bought each run begins its opening spray 20% charged per rank.",
     },
   },
   fieldMouse: {
     throughput: {
       label: "Quick Paws",
-      description: "Shortens the pause between Field Mouse seed-carrying trips.",
+      description: "Shortens the pause between Field Mouse scampering trips.",
     },
     storage: {
-      label: "Seed Burrow",
-      description: "Expands Seed and Growth storage around the mouse route.",
+      label: "Scamper Routes",
+      description: "Adds more exits to the route, increasing automatic touches per trip by 15% per rank.",
     },
     efficiency: {
       label: "Careful Nibbles",
-      description: "Makes every trip use fewer Seeds while adding more automated touches and restoring more Ancient HP.",
+      description: "Makes every Field Mouse touch restore 12% more Ancient HP per rank.",
     },
     startingStock: {
-      label: "Hidden Cache",
-      description: "Begins each new field with extra Seeds tucked safely underground.",
+      label: "First Scamper",
+      description: "The first Field Mouse bought each run begins its opening trip 20% charged per rank.",
     },
   },
   beeHive: {
@@ -280,16 +280,16 @@ const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCop
       description: "Shortens the pause between Bee Hive pollination flights.",
     },
     storage: {
-      label: "Honeycomb Larder",
-      description: "Expands Flower and Pollinated Bloom storage around the hive.",
+      label: "Wider Swarm",
+      description: "Supports a broader swarm, increasing automatic touches per flight by 15% per rank.",
     },
     efficiency: {
       label: "Pollen Savvy",
-      description: "Makes every flight use fewer Flowers while adding more automated touches and restoring more Ancient HP.",
+      description: "Makes every Bee Hive touch restore 12% more Ancient HP per rank.",
     },
     startingStock: {
-      label: "First Blossoms",
-      description: "Begins each new field with extra Flowers ready for the hive.",
+      label: "Ready Wings",
+      description: "The first Bee Hive bought each run begins its opening flight 20% charged per rank.",
     },
   },
   chickenPatrol: {
@@ -298,16 +298,16 @@ const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCop
       description: "Shortens the pause between Chicken Patrol scratches and forage runs.",
     },
     storage: {
-      label: "Clipping Yard",
-      description: "Expands the Growth, Clippings, and Compost handled by the patrol.",
+      label: "Scratch Pattern",
+      description: "Gives the patrol more ground to scratch, increasing automatic touches per cycle by 15% per rank.",
     },
     efficiency: {
       label: "Clean Scratch",
-      description: "Makes every patrol use less material while adding more automated touches and restoring more Ancient HP.",
+      description: "Makes every Chicken Patrol touch restore 12% more Ancient HP per rank.",
     },
     startingStock: {
-      label: "Dawn Forage",
-      description: "Begins each new field with extra Clippings for the patrol.",
+      label: "Dawn Patrol",
+      description: "The first Chicken Patrol bought each run begins its opening patrol 20% charged per rank.",
     },
   },
   earthwormCrew: {
@@ -316,34 +316,34 @@ const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCop
       description: "Shortens the pause between Earthworm Crew aeration cycles.",
     },
     storage: {
-      label: "Compost Midden",
-      description: "Expands Compost and Humus storage around the worm beds.",
+      label: "Branching Burrows",
+      description: "Branches through more soil, increasing automatic touches per aeration by 15% per rank.",
     },
     efficiency: {
       label: "Rich Castings",
-      description: "Makes every aeration use less Compost while adding more automated touches and restoring more Ancient HP.",
+      description: "Makes every Earthworm Crew touch restore 12% more Ancient HP per rank.",
     },
     startingStock: {
-      label: "Warm Heap",
-      description: "Begins each new field with extra Compost ready for aeration.",
+      label: "Warm Soil",
+      description: "The first Earthworm Crew bought each run begins its opening burrow 20% charged per rank.",
     },
   },
   ancientRoots: {
     throughput: {
       label: "Rootbeat",
-      description: "Shortens the pause between Ancient Root conversions.",
+      description: "Shortens the pause between Ancient Root pulses.",
     },
     storage: {
-      label: "Deep Reservoir",
-      description: "Expands Humus, Root Energy, Dew, and Care storage in the old network.",
+      label: "Root Network",
+      description: "Extends the old network, increasing automatic touches per root pulse by 15% per rank.",
     },
     efficiency: {
       label: "Patient Absorption",
-      description: "Makes every conversion use fewer resources while adding more automated touches and restoring more Ancient HP.",
+      description: "Makes every Ancient Roots touch restore 12% more Ancient HP per rank.",
     },
     startingStock: {
-      label: "Old Soil",
-      description: "Begins each new field with extra Humus remembered by the roots.",
+      label: "First Pulse",
+      description: "The first Ancient Roots bought each run begins its opening pulse 20% charged per rank.",
     },
   },
   sheepLoop: {
@@ -352,34 +352,34 @@ const HELPER_RANK_COPY: Record<HelperId, Record<PermanentRankKind, HelperRankCop
       description: "Shortens the pause between Sheep Loop grazing cycles.",
     },
     storage: {
-      label: "Meadow Reserve",
-      description: "Expands Growth, Clippings, and Care storage along the grazing loop.",
+      label: "Wider Circuit",
+      description: "Widens the grazing loop, increasing automatic touches per circuit by 15% per rank.",
     },
     efficiency: {
       label: "Gentle Bite",
-      description: "Makes every graze use less Growth while adding more automated touches and restoring more Ancient HP.",
+      description: "Makes every Sheep Loop touch restore 12% more Ancient HP per rank.",
     },
     startingStock: {
-      label: "Fresh Pasture",
-      description: "Begins each new field with extra Growth ready for grazing.",
+      label: "Early Graze",
+      description: "The first Sheep Loop bought each run begins its opening circuit 20% charged per rank.",
     },
   },
   meadowRabbit: {
     throughput: {
       label: "Fleetfoot Circuit",
-      description: "Shortens the pause between Meadow Rabbit seed runs.",
+      description: "Shortens the pause between Meadow Rabbit sprints.",
     },
     storage: {
       label: "Burrow Network",
-      description: "Expands Seed, Growth, and Flower storage along the rabbit circuit.",
+      description: "Adds shortcuts to the circuit, increasing automatic touches per run by 15% per rank.",
     },
     efficiency: {
       label: "Light Landing",
-      description: "Makes every run use fewer Seeds while adding more automated touches and restoring more Ancient HP.",
+      description: "Makes every Meadow Rabbit touch restore 12% more Ancient HP per rank.",
     },
     startingStock: {
-      label: "Buried Snack",
-      description: "Begins each new field with extra Seeds hidden for the rabbit.",
+      label: "Spring Step",
+      description: "The first Meadow Rabbit bought each run begins its opening sprint 20% charged per rank.",
     },
   },
 };
@@ -541,10 +541,10 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       id: helperUnlockId(helperId),
       kind: "helperUnlock",
       label: helper.label,
-      branch: "Production chain",
+      branch: "Automation chain",
       description: helperId === "fieldMouse"
-        ? "Awakens Field Mouse and its Seed routes. When a Tiny Sprinkler is installed, Moisture waters Damp Furrows for bonus Growth and Care."
-        : `Awakens ${helper.label}, reveals it in the Living Ledger, and adds its recipes to Ecosystem Works.`,
+        ? "Awakens Field Mouse and its automatic scampering. A Tiny Sprinkler links every trip to Damp Furrows for bonus Growth and Care."
+        : `Awakens ${helper.label}, reveals it in the Living Ledger, and adds its automatic touches to the field.`,
       color: HELPER_MEMORY_CATEGORY_STYLES.unlock.color,
       iconKey: `eco-helper-${helperId}`,
       x,

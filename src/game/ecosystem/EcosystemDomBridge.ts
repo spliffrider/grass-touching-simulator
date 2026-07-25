@@ -94,9 +94,9 @@ function getAutomationReadableLine(status: FirstAutomationStatus): string | null
     case "firstCycle":
       return `First sprinkler cycle: an automated touch is charging, cycle ${Math.floor(status.cycleProgress * 100)}%`;
     case "sustain":
-      return `Automatic touches online: Tiny Sprinkler needs no fuel, cycle ${Math.floor(status.cycleProgress * 100)}%`;
+      return `Automatic touches online: Tiny Sprinkler cycle ${Math.floor(status.cycleProgress * 100)}%`;
     case "paused":
-      return `Tiny Sprinkler paused: ${status.pauseReason ?? "check its buffers"}`;
+      return `Tiny Sprinkler paused: ${status.pauseReason ?? "reconfiguring"}`;
   }
 }
 
@@ -107,23 +107,18 @@ function getFieldMouseReadableLine(status: FieldMouseStatus): string | null {
     case "gather":
       return `Field Mouse invitation: ${Math.floor(status.purchaseProgress * status.purchaseCost)} / ${status.purchaseCost} ${RUN_TOUCHES_LABEL}`;
     case "ready":
-      return `Field Mouse ready: invite it for ${status.purchaseCost} ${RUN_TOUCHES_LABEL}; its first cache contains three Seeds`;
+      return `Field Mouse ready: invite it for ${status.purchaseCost} ${RUN_TOUCHES_LABEL}`;
     case "firstTrip":
       return status.dampFurrowsLinked
-        ? `Field Mouse first trip: carrying a cached Seed through Damp Furrows, cycle ${Math.floor(status.cycleProgress * 100)}%`
-        : `Field Mouse first trip: carrying a cached Seed to the field, cycle ${Math.floor(status.cycleProgress * 100)}%`;
+        ? `Field Mouse first trip: opening free Damp Furrows, cycle ${Math.floor(status.cycleProgress * 100)}%`
+        : `Field Mouse first trip: an automatic touch is charging, cycle ${Math.floor(status.cycleProgress * 100)}%`;
     case "working":
       if (status.dampFurrowsFlowing) {
-        return `Damp Furrows flowing: ${status.moistureAmount.toFixed(1)} Moisture boosts mouse trips into Growth and Care`;
+        return "Damp Furrows flowing: sprinkler and mouse cycles add bonus Growth and Care";
       }
-      if (status.dampFurrowsLinked) {
-        return "Damp Furrows linked: waiting for Moisture and open Growth and Care storage";
-      }
-      return `Field Mouse working: ${status.seedAmount.toFixed(1)} Seeds available, ${status.growthAmount.toFixed(1)} Growth stored`;
-    case "starved":
-      return "Field Mouse searching: Seed cache empty; keep Dew, Moisture, and Growth moving";
+      return `Field Mouse working: ${status.growthAmount.toFixed(1)} Growth stored`;
     case "blocked":
-      return `Field Mouse waiting: ${status.pauseReason ?? "check its buffers"}`;
+      return `Field Mouse waiting: ${status.pauseReason ?? "reconfiguring"}`;
   }
 }
 
@@ -134,15 +129,13 @@ function getBeeHiveReadableLine(status: BeeHiveStatus): string | null {
     case "gather":
       return `Bee Hive foundation: ${Math.floor(status.purchaseProgress * status.purchaseCost)} / ${status.purchaseCost} ${RUN_TOUCHES_LABEL}`;
     case "ready":
-      return `Bee Hive ready: establish it for ${status.purchaseCost} ${RUN_TOUCHES_LABEL}; nearby wildflowers provide four Flowers`;
+      return `Bee Hive ready: establish it for ${status.purchaseCost} ${RUN_TOUCHES_LABEL}`;
     case "firstFlight":
       return `First pollination flight: a bee is carrying pollen across the field, cycle ${Math.floor(status.cycleProgress * 100)}%`;
     case "working":
-      return `Bee Hive working: ${status.flowerAmount.toFixed(1)} Flowers available, ${status.pollinatedBloomAmount.toFixed(1)} Pollinated Blooms stored`;
-    case "starved":
-      return "Bee Hive searching: Flower stores empty; keep Growth moving into Flowers";
+      return `Bee Hive working: ${status.pollinatedBloomAmount.toFixed(1)} Pollinated Blooms stored`;
     case "blocked":
-      return `Bee Hive waiting: ${status.pauseReason ?? "check its buffers"}`;
+      return `Bee Hive waiting: ${status.pauseReason ?? "reconfiguring"}`;
   }
 }
 
@@ -633,12 +626,12 @@ export class EcosystemDomBridge {
       fieldMouseCycleProgress: Number(fieldMouse.cycleProgress.toFixed(3)),
       dampFurrowsLinked: fieldMouse.dampFurrowsLinked,
       dampFurrowsFlowing: fieldMouse.dampFurrowsFlowing,
-      seedCache: Number(fieldMouse.seedAmount.toFixed(3)),
+      seeds: Number(state.resources.seeds.amount.toFixed(3)),
       beeHiveStage: beeHive.stage,
       beeHives: equipmentAvailable ? state.helpers.beeHive.count : 0,
       beeHiveCycles: Number(beeHive.cyclesCompleted.toFixed(3)),
       beeHiveCycleProgress: Number(beeHive.cycleProgress.toFixed(3)),
-      flowerReserve: Number(beeHive.flowerAmount.toFixed(3)),
+      flowers: Number(state.resources.flowers.amount.toFixed(3)),
       pollinatedBlooms: Number(beeHive.pollinatedBloomAmount.toFixed(3)),
       firstMemoryFocus: firstMemoryPending || memoryRevealActive,
       memoryRevealActive,

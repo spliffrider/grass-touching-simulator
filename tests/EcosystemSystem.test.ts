@@ -13,16 +13,14 @@ import { getManualTouchCooldownMs } from "../src/game/ecosystem/EcosystemTouchCo
 import {
   ANCIENT_HEARTWOOD_HP_PER_RANK,
   ANCIENT_HEARTWOOD_MAX_RANK,
-  BEE_HIVE_STARTER_FLOWERS,
-  FIELD_MOUSE_STARTER_SEEDS,
   FINE_MIST_PROC_CHANCE_PER_RANK,
   FIRST_RUN_MANUAL_CARE_PER_POWER,
   FIRST_RUN_TARGET_DURATION_MS,
   HAND_TENDING_GROWTH_PER_POWER,
-  HELPER_EFFICIENCY_PER_RANK,
+  HELPER_HEALING_PER_CARE_RANK,
   HELPER_HEALING_PER_TOUCH,
-  HELPER_STARTING_STOCK_PER_RANK,
-  HELPER_STORAGE_CAPACITY_PER_RANK,
+  HELPER_STARTING_CHARGE_PER_RANK,
+  HELPER_TOUCH_YIELD_PER_REACH_RANK,
   HELPER_THROUGHPUT_PER_RANK,
   LINGERING_CARE_DURATION_MS,
   SPRINKLER_AFTERGLOW_DURATION_MS,
@@ -54,7 +52,6 @@ import {
   getPermanentRankCost,
   getHelperPurchaseCost,
   getHelperStackCycleIntervalMs,
-  getHelperStorageResourceIds,
   getHelperUnlockCost,
   getLingeringCareMaxRate,
   getLingeringCareMaxStacks,
@@ -314,21 +311,44 @@ describe("EcosystemSystem", () => {
     expect(stateA.rngState).toBe(stateB.rngState);
   });
 
-  it("pauses a fueled helper without consuming input when output storage is full", () => {
-    const permanent = createPermanentEcosystemState();
-    permanent.completedRuns = 1;
-    permanent.unlockedHelpers.fieldMouse = true;
-    const state = createEcosystemState(permanent, { seed: 4 });
-    state.helpers.fieldMouse.count = 1;
-    state.resources.seeds.amount = state.resources.seeds.capacity;
-    state.resources.growth.amount = 0;
-    state.resources.growth.capacity = 0;
-    const seedsBefore = state.resources.seeds.amount;
+  it("keeps every helper mode touching without inputs or output-buffer gates", () => {
+    for (const helperId of HELPER_IDS) {
+      for (const mode of HELPERS[helperId].modes) {
+        const recipe = PRODUCTION_RECIPES.find(
+          (candidate) => candidate.helperId === helperId && candidate.modeId === mode.id,
+        )!;
+        expect(recipe.inputs, `${helperId}:${mode.id} inputs`).toEqual([]);
+        expect(
+          recipe.outputs.every((output) => output.allowOverflow),
+          `${helperId}:${mode.id} overflow`,
+        ).toBe(true);
 
-    advanceEcosystem(state, permanent, 250);
+        const permanent = createPermanentEcosystemState();
+        permanent.completedRuns = 8;
+        permanent.unlockedHelpers[helperId] = true;
+        const state = createEcosystemState(permanent, {
+          seed: 40_000 + HELPER_IDS.indexOf(helperId),
+        });
+        state.maxHp = 1_000_000;
+        state.hp = 500_000;
+        state.helpers[helperId].count = 1;
+        state.helpers[helperId].modeId = mode.id;
+        for (const resourceId of PRODUCTION_RESOURCE_IDS) {
+          state.resources[resourceId].amount = 0;
+        }
+        for (const output of recipe.outputs) {
+          state.resources[output.resourceId].amount = state.resources[output.resourceId].capacity;
+        }
 
-    expect(seedsBefore - state.resources.seeds.amount).toBeLessThan(0.01);
-    expect(state.helpers.fieldMouse.lastPauseReason).toMatch(/full/i);
+        for (let step = 0; step < 32; step += 1) {
+          advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+        }
+
+        expect(state.helpers[helperId].cyclesCompleted, `${helperId}:${mode.id}`).toBeGreaterThan(0);
+        expect(state.automatedTouchCount, `${helperId}:${mode.id}`).toBeGreaterThan(0);
+        expect(state.helpers[helperId].lastPauseReason, `${helperId}:${mode.id}`).toBeNull();
+      }
+    }
   });
 
   it("keeps sprinklers touching without Dew or output storage", () => {
@@ -532,7 +552,7 @@ describe("EcosystemSystem", () => {
     expect(getFirstAutomationStatus(state, permanent).stage).toBe("sustain");
   });
 
-  it("turns the first Field Mouse purchase into an immediate seed-to-Growth chapter", () => {
+  it("turns the first Field Mouse purchase into a fuel-free automatic-touch chapter", () => {
     const permanent = createPermanentEcosystemState();
     permanent.completedRuns = 2;
     permanent.unlockedHelpers.tinySprinkler = true;
@@ -542,20 +562,21 @@ describe("EcosystemSystem", () => {
 
     expect(getFieldMouseStatus(state, permanent).stage).toBe("ready");
     expect(buyHelper(state, permanent, "fieldMouse")).toBe(true);
-    expect(state.resources.seeds.amount).toBe(FIELD_MOUSE_STARTER_SEEDS);
+    expect(state.resources.seeds.amount).toBe(0);
     expect(getFieldMouseStatus(state, permanent).stage).toBe("firstTrip");
 
     for (let step = 0; step < 20; step += 1) advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
 
     expect(state.helpers.fieldMouse.cyclesCompleted).toBeGreaterThanOrEqual(1);
-    expect(state.resources.seeds.consumedTotal).toBeGreaterThanOrEqual(1);
+    expect(state.resources.seeds.consumedTotal).toBe(0);
     expect(state.resources.growth.producedTotal).toBeGreaterThan(1);
+    expect(state.automatedTouchCount).toBeGreaterThan(0);
     expect(state.runTouches).toBeGreaterThan(0);
     expect(getFieldMouseStatus(state, permanent).stage).toBe("working");
     expect(consumeHelperPulses(state).fieldMouse).toBeGreaterThanOrEqual(1);
   });
 
-  it("links Tiny Sprinkler Moisture into bonus Growth and Care on Field Mouse trips", () => {
+  it("links Tiny Sprinkler and Field Mouse into free bonus Growth and Care", () => {
     const createMouseRun = (withSprinkler: boolean) => {
       const permanent = createPermanentEcosystemState();
       permanent.completedRuns = 2;
@@ -567,8 +588,8 @@ describe("EcosystemSystem", () => {
       state.helpers.fieldMouse.count = 1;
       state.helpers.tinySprinkler.count = withSprinkler ? 1 : 0;
       state.helpers.tinySprinkler.reconfigureRemainingMs = 60_000;
-      state.resources.seeds.amount = 10;
-      state.resources.moisture.amount = 10;
+      state.resources.seeds.amount = 0;
+      state.resources.moisture.amount = 0;
       state.resources.dew.amount = 0;
       return { permanent, state };
     };
@@ -586,12 +607,12 @@ describe("EcosystemSystem", () => {
       advanceEcosystem(linked.state, linked.permanent, PRODUCTION_TICK_MS);
     }
 
-    expect(linked.state.resources.moisture.consumedTotal).toBeGreaterThan(solo.state.resources.moisture.consumedTotal + 0.1);
+    expect(linked.state.resources.moisture.consumedTotal).toBe(solo.state.resources.moisture.consumedTotal);
     expect(linked.state.resources.growth.producedTotal).toBeGreaterThan(solo.state.resources.growth.producedTotal + 0.2);
     expect(linked.state.resources.care.producedTotal).toBeGreaterThan(solo.state.resources.care.producedTotal + 0.1);
   });
 
-  it("keeps ordinary Field Mouse trips running when Damp Furrows have no Moisture", () => {
+  it("keeps Damp Furrows flowing with zero Moisture and full output buffers", () => {
     const permanent = createPermanentEcosystemState();
     permanent.completedRuns = 2;
     permanent.unlockedHelpers.tinySprinkler = true;
@@ -604,36 +625,43 @@ describe("EcosystemSystem", () => {
     state.helpers.fieldMouse.count = 1;
     state.resources.dew.amount = 0;
     state.resources.moisture.amount = 0;
-    state.resources.seeds.amount = 3;
+    state.resources.seeds.amount = 0;
+    state.resources.growth.amount = state.resources.growth.capacity;
+    state.resources.care.amount = state.resources.care.capacity;
 
     expect(getFieldMouseStatus(state, permanent)).toMatchObject({
       dampFurrowsLinked: true,
-      dampFurrowsFlowing: false,
+      dampFurrowsFlowing: true,
     });
     for (let step = 0; step < 16; step += 1) {
       advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
     }
 
     expect(state.helpers.fieldMouse.cyclesCompleted).toBeGreaterThanOrEqual(1);
-    expect(state.resources.seeds.consumedTotal).toBeGreaterThanOrEqual(1);
-    expect(state.resources.growth.producedTotal).toBeGreaterThan(1);
+    expect(state.resources.seeds.consumedTotal).toBe(0);
+    expect(state.helpers.fieldMouse.lastPauseReason).toBeNull();
+    expect(state.automatedTouchCount).toBeGreaterThan(0);
   });
 
-  it("grants one starter cache per run and reports a seed-starved mouse", () => {
+  it("uses Momentum ranks to pre-charge the first helper bought each run", () => {
     const permanent = createPermanentEcosystemState();
     permanent.completedRuns = 2;
     permanent.unlockedHelpers.tinySprinkler = true;
     permanent.unlockedHelpers.fieldMouse = true;
+    permanent.startingStockRanks.fieldMouse = 5;
     const state = createEcosystemState(permanent, { seed: 8_152 });
     state.runTouches = getHelperPurchaseCost(state, "fieldMouse");
 
     expect(buyHelper(state, permanent, "fieldMouse")).toBe(true);
-    state.resources.seeds.amount = 0;
-    expect(getFieldMouseStatus(state, permanent).stage).toBe("starved");
+    expect(state.helpers.fieldMouse.pulseProgress).toBe(1);
+    advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+    expect(state.helpers.fieldMouse.cyclesCompleted).toBeGreaterThan(0);
+    expect(state.automatedTouchCount).toBeGreaterThan(0);
 
+    const chargeAfterFirstPurchase = state.helpers.fieldMouse.pulseProgress;
     state.runTouches = getHelperPurchaseCost(state, "fieldMouse");
     expect(buyHelper(state, permanent, "fieldMouse")).toBe(true);
-    expect(state.resources.seeds.amount).toBe(0);
+    expect(state.helpers.fieldMouse.pulseProgress).toBe(chargeAfterFirstPurchase);
   });
 
   it("turns the first Bee Hive purchase into an immediate pollination chapter", () => {
@@ -647,19 +675,18 @@ describe("EcosystemSystem", () => {
 
     expect(getBeeHiveStatus(state, permanent).stage).toBe("ready");
     expect(buyHelper(state, permanent, "beeHive")).toBe(true);
-    expect(state.resources.flowers.amount).toBe(BEE_HIVE_STARTER_FLOWERS);
+    expect(state.resources.flowers.amount).toBe(0);
     expect(getBeeHiveStatus(state, permanent).stage).toBe("firstFlight");
 
     for (let step = 0; step < 24; step += 1) advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
 
     expect(state.helpers.beeHive.cyclesCompleted).toBeGreaterThanOrEqual(1);
-    expect(state.resources.flowers.consumedTotal).toBeGreaterThanOrEqual(1);
     expect(state.resources.pollinatedBlooms.producedTotal).toBeGreaterThan(1);
     expect(getBeeHiveStatus(state, permanent).stage).toBe("working");
     expect(consumeHelperPulses(state).beeHive).toBeGreaterThanOrEqual(1);
   });
 
-  it("opens one Flower reserve per run and reports a flower-starved hive", () => {
+  it("keeps Bee Hives flying when Flowers are empty", () => {
     const permanent = createPermanentEcosystemState();
     permanent.completedRuns = 3;
     permanent.unlockedHelpers.tinySprinkler = true;
@@ -670,11 +697,12 @@ describe("EcosystemSystem", () => {
 
     expect(buyHelper(state, permanent, "beeHive")).toBe(true);
     state.resources.flowers.amount = 0;
-    expect(getBeeHiveStatus(state, permanent).stage).toBe("starved");
-
-    state.runTouches = getHelperPurchaseCost(state, "beeHive");
-    expect(buyHelper(state, permanent, "beeHive")).toBe(true);
-    expect(state.resources.flowers.amount).toBe(0);
+    for (let step = 0; step < 24; step += 1) {
+      advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
+    }
+    expect(getBeeHiveStatus(state, permanent).stage).toBe("working");
+    expect(state.helpers.beeHive.lastPauseReason).toBeNull();
+    expect(state.automatedTouchCount).toBeGreaterThan(0);
   });
 
   it("keeps Run 1 bare-hands-only even when helper Memories and RT are injected", () => {
@@ -802,9 +830,9 @@ describe("EcosystemSystem", () => {
     expect(getHelperUnlockCost("fieldMouse")).toBe(20);
     expect(earlyCosts.slice(0, 3).reduce((sum, cost) => sum + cost, 0)).toBeLessThanOrEqual(50);
     expect(earlyCosts.slice(0, 4).reduce((sum, cost) => sum + cost, 0)).toBeGreaterThan(50);
-    expect(HELPER_STORAGE_CAPACITY_PER_RANK).toBe(0.25);
-    expect(HELPER_EFFICIENCY_PER_RANK).toBe(0.06);
-    expect(HELPER_STARTING_STOCK_PER_RANK).toBe(6);
+    expect(HELPER_TOUCH_YIELD_PER_REACH_RANK).toBe(0.15);
+    expect(HELPER_HEALING_PER_CARE_RANK).toBe(0.12);
+    expect(HELPER_STARTING_CHARGE_PER_RANK).toBe(0.2);
   });
 
   it("makes every purchased Memory strengthen standard manual touches", () => {
@@ -873,24 +901,28 @@ describe("EcosystemSystem", () => {
     expect(getFieldTierUnlockCost(2)).toBe(8);
   });
 
-  it("gives every resource-storage Memory at least one real buffer to expand", () => {
-    const baselinePermanent = createPermanentEcosystemState();
-    const baseline = createEcosystemState(baselinePermanent);
-
+  it("turns former storage ranks into Reach that adds automatic touches", () => {
     for (const helperId of HELPER_IDS) {
       if (helperId === "tinySprinkler") continue;
-      const permanent = createPermanentEcosystemState();
-      permanent.storageRanks[helperId] = 1;
-      const state = createEcosystemState(permanent);
-      const resources = getHelperStorageResourceIds(helperId);
-
-      expect(resources.length, helperId).toBeGreaterThan(0);
-      for (const resourceId of resources) {
-        expect(state.resources[resourceId].capacity, `${helperId}:${resourceId}`).toBeGreaterThan(
-          baseline.resources[resourceId].capacity,
-        );
-      }
+      expect(getHelperAutomatedTouchYield(helperId, 1), helperId).toBeCloseTo(
+        HELPERS[helperId].touchesPerCycle * (1 + HELPER_TOUCH_YIELD_PER_REACH_RANK),
+      );
+      expect(getHelperAutomatedTouchYield(helperId, 10), helperId).toBeGreaterThan(
+        getHelperAutomatedTouchYield(helperId, 1),
+      );
     }
+  });
+
+  it("turns former efficiency ranks into Care that strengthens automatic healing", () => {
+    const baseHealing = getHelperAutomatedHealingPerTouch(0);
+    const firstRankHealing = getHelperAutomatedHealingPerTouch(1);
+    const maxRankHealing = getHelperAutomatedHealingPerTouch(10);
+
+    expect(baseHealing).toBe(HELPER_HEALING_PER_TOUCH);
+    expect(firstRankHealing).toBeCloseTo(
+      HELPER_HEALING_PER_TOUCH * (1 + HELPER_HEALING_PER_CARE_RANK),
+    );
+    expect(maxRankHealing).toBeGreaterThan(firstRankHealing);
   });
 
   it("uses Dew Cistern ranks for a capped sprinkler healing afterglow instead of storage", () => {
@@ -906,7 +938,6 @@ describe("EcosystemSystem", () => {
     state.helpers.tinySprinkler.count = 1;
     state.resources.dew.amount = 0;
 
-    expect(getHelperStorageResourceIds("tinySprinkler")).toEqual([]);
     expect(state.resources.dew.capacity).toBe(baseline.resources.dew.capacity);
     expect(state.resources.moisture.capacity).toBe(baseline.resources.moisture.capacity);
     expect(getSprinklerAfterglowStackRate(1)).toBeCloseTo(0.35);
@@ -1431,8 +1462,8 @@ describe("EcosystemSystem", () => {
     expect(result.setupAtMs!).toBeLessThanOrEqual(30_000);
     expect(result.handsOffMs).toBe(60_000);
     expect(result.hpAtSetup).not.toBeNull();
-    expect(result.hpAfterHandsOff).toBeGreaterThan(result.hpAtSetup! - 25);
-    expect(result.hpAfterHandsOff).toBeLessThan(result.hpAtSetup! - 10);
+    expect(result.hpAfterHandsOff).toBeGreaterThan(result.hpAtSetup! - 5);
+    expect(result.hpAfterHandsOff).toBeLessThanOrEqual(result.hpAtSetup!);
     expect(result.careProduced).toBeGreaterThan(75);
     expect(result.mouseCycles).toBeGreaterThan(1);
   });
@@ -1461,9 +1492,9 @@ describe("EcosystemSystem", () => {
     expect(state.active).toBe(true);
     expect(state.hp).toBeGreaterThan(100);
     expect(state.hp).toBeLessThanOrEqual(state.maxHp);
-    expect(careSurplusTicks).toBeGreaterThan(150);
+    expect(careSurplusTicks).toBeGreaterThan(40);
     expect(state.resources.care.producedTotal).toBeGreaterThan(1_200);
-    expect(state.resources.care.amount).toBeGreaterThan(1_000);
+    expect(state.resources.care.amount).toBeGreaterThan(state.resources.care.capacity * 0.95);
   });
 
   it("runs at quarter speed in Ecosystem Works and stops completely in Options", () => {

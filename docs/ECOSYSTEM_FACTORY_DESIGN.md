@@ -25,10 +25,11 @@ existing save.
 ## Player Promise
 
 The player begins with one living patch and their own hands. A run gradually
-becomes a visible production ecosystem: dew is gathered, growth is cultivated,
-animals and tools move materials, and Ancient Roots turn the whole chain into
-Care. The Scourge is an increasing demand curve, not a scripted timer. A run
-ends only after available Care and manual intervention can no longer cover that
+turns from a clicking game into a visible auto-clicker ecosystem: every helper
+runs on its own cooldown, touches the field, restores Care, and produces a
+thematic resource signal. Helpers never require fuel or consume those resources
+to act. The Scourge is an increasing demand curve, not a scripted timer. A run
+ends only after automated Care and manual intervention can no longer cover that
 demand and the Ancient Grass reaches zero HP.
 
 The first run is a deliberately doomed but readable roughly 15-17 second lesson
@@ -52,29 +53,26 @@ Clippings -> Compost -> Humus -> Root Energy -> Care
 Seeds ------> Growth
 ```
 
-Natural conversions provide a deliberately slow route through every stage so
-that a full or missing helper can stall efficiency without permanently locking
-a run. Helper recipes provide the useful throughput:
+Natural conversions provide a deliberately slow background route through every
+stage. They give the field ecological motion, but they never gate a purchased
+helper. Helpers produce thematic resources as rewards and progression signals:
 
 | Helper | Primary role | Alternate mode |
 | --- | --- | --- |
 | Tiny Sprinkler | Fuel-free automated touches, Moisture, starter Growth, and Care | Cultivator favors Moisture and Growth |
-| Field Mouse | Seeds to Growth | Cache favors input efficiency |
-| Bee Hive | Flowers to Pollinated Blooms | Honey Reserve adds Care at lower throughput |
-| Chicken Patrol | Clippings to Compost | Forage also produces Clippings from Growth |
-| Earthworm Crew | Compost to Humus | Triage adds Care at lower throughput |
-| Ancient Roots | Humus to Root Energy and Care | Wellspring spends Root Energy on Dew and Care |
-| Sheep Loop | Growth to Clippings and Care | Close Crop favors Clippings |
-| Meadow Rabbit | Seeds to Growth | Bloom Run turns Seeds into Flowers |
+| Field Mouse | Fuel-free Growth and automated touches | Cache adds Care at lower speed |
+| Bee Hive | Fuel-free Pollinated Blooms and automated touches | Honey Reserve adds Care at lower speed |
+| Chicken Patrol | Fuel-free Compost and automated touches | Forage also produces Clippings |
+| Earthworm Crew | Fuel-free Humus and automated touches | Triage adds Care at lower speed |
+| Ancient Roots | Fuel-free Root Energy, Care, and automated touches | Wellspring favors Dew and Care |
+| Sheep Loop | Fuel-free Clippings, Care, and automated touches | Close Crop favors Clippings |
+| Meadow Rabbit | Fuel-free Growth and automated touches | Bloom Run favors Flowers |
 
-Every resource is capacity constrained. A recipe pauses, without consuming its
-input, when any required output has no room. The Living Ledger identifies those
-pauses and reports the resource currently limiting Care throughput.
-
-Some recipes mark a secondary byproduct as overflow-safe. A full byproduct tank
-does not cancel the recipe's primary output, automated touch, or healing. Tiny
-Sprinkler Moisture is overflow-safe so a saturated Moisture tank cannot silently
-shut down Care; an empty Dew tank still pauses the sprinkler normally.
+Every resource remains capacity constrained, but helper outputs are
+overflow-safe. A full buffer may discard excess thematic output; it never pauses
+a helper cooldown, automated touch, or healing event. Empty buffers also never
+stop helpers because helper recipes have no inputs. The Living Ledger reports
+resource rates and automation throughput without presenting resources as fuel.
 
 ### Automated Touch Contract
 
@@ -93,10 +91,12 @@ universal rule rather than a special payout on selected recipes:
 | Meadow Rabbit | 34 |
 
 Automated touches add current-run Run Touches, advance aggregate field stages,
-and restore Ancient HP. Extra copies scale cycle output linearly. The Speed
-Memory increases cycle frequency by 30% per rank. The helper's Impact Memory
-raises touches per activation by 15% per rank, raises healing per automated
-touch by 12% per rank, and retains the existing 6% input-cost reduction.
+and restore Ancient HP. Extra copies scale cycle output linearly. Each helper
+has four numeric Memory branches: Speed increases cycle frequency by 30% per
+rank, Reach adds 15% more automated touches per activation, Care adds 12% more
+healing per automated touch, and Momentum pre-charges the first purchased copy
+by 20% per rank. Tiny Sprinkler deliberately replaces Reach and Care with the
+bespoke Dew Cistern afterglow and Fine Mist area-touch branches.
 
 Simulation applies these values as aggregate fixed-tick counters. It never loops
 once per automated touch and never scans the field. Presentation summarizes
@@ -112,32 +112,29 @@ and audio presentations wait and combine.
 ### First Automation
 
 Remembering Tiny Sprinkler reveals the Living Ledger on the following run. A
-fixed First Automation strip fills from current RT toward the first 10 RT
-sprinkler purchase. Once bought, the same strip becomes its production-cycle
-meter and explicitly reports its first automated touch. Sprinklers never consume
-Dew and cannot stall on full output buffers: every completed cycle always
-sprinkles and awards its automated touch. The first purchase uses the pooled
+fixed First Automation strip fills from current Run Touches toward the first
+10-Run-Touch sprinkler purchase. Once bought, the same strip becomes its
+production-cycle meter and explicitly reports its first automated touch.
+Sprinklers never consume Dew and cannot stall on full output buffers: every
+completed cycle always sprinkles and awards its automated touch. The first
+purchase uses the pooled
 arrival, water-spray, impact, sound, and HP-bar feedback so automation reads as
 a run milestone rather than a silent number change.
 
 The teaching state advances through gathering, purchase readiness, the first
-spray, sustained Care, and a dry-sprinkler recovery prompt. The first completed
-Care cycle celebrates at the water impact; subsequent cycles retain the meter
-and Dew-reserve instruction without repeatedly interrupting play. Both Phaser
-and the semantic browser layer derive their copy from the same objective state.
+spray, and sustained Care. The first completed Care cycle celebrates at the
+water impact; subsequent cycles retain the meter without repeatedly interrupting
+play. Both Phaser and the semantic browser layer derive their copy from the same
+objective state.
 
 ### First Seed Runner
 
 After the first Care cycle is online, an unlocked Field Mouse becomes the next
-guided production chapter. The Ledger tracks RT toward its first purchase, then
-switches to the mouse's planting cycle, Seed reserve, Growth output, and any
-blocked or starved state.
-
-The first Field Mouse bought in each run discovers an eight-Seed starter cache.
-This guarantees an immediate planting demonstration without bypassing the
-long-term Seed economy. Later mice do not create more starter stock. Spread mode
-plants quickly for stronger Growth and RT throughput; Cache mode works more
-slowly while spending fewer Seeds.
+guided production chapter. The Ledger tracks Run Touches toward its first
+purchase, then switches to the mouse's scamper cycle, Growth output, and
+automated touches. Spread mode runs quickly for stronger Growth throughput;
+Cache mode runs more slowly while adding steady Care. Neither mode consumes
+Seeds or any other resource.
 
 On the field, the pooled mouse actor visibly picks up a Seed, scurries to a
 representative patch, plants it, and returns to its parked status badge. One
@@ -147,15 +144,10 @@ additional simultaneous cycles are summarized by the same bounded animation.
 ### First Pollination Flight
 
 Once the Field Mouse has completed a planting cycle, an unlocked Bee Hive
-becomes the next guided chapter. The Ledger tracks RT toward its first hive,
-then follows Flower reserves, pollination-cycle progress, Pollinated Blooms,
-and blocked or flower-starved states.
-
-The first Bee Hive bought in each run opens four nearby Flowers. The reserve is
-large enough to demonstrate the new conversion immediately without replacing
-the natural Growth-to-Flowers chain. Later hives do not create more Flowers.
-Pollinate mode favors Bloom throughput; Honey Reserve trades some throughput
-for Care.
+becomes the next guided chapter. The Ledger tracks Run Touches toward its first
+hive, then follows pollination-cycle progress, Pollinated Blooms, and automated
+touches. Pollinate mode favors Bloom throughput; Honey Reserve trades some
+throughput for Care. Neither mode consumes Flowers or any other resource.
 
 One pooled bee sprite flies from the hive to a representative flowering patch,
 releases a bounded three-fleck pollen burst, and returns. Extra cycles queue on
@@ -198,7 +190,7 @@ Permanent Memories retain:
 - banked GT and completed-run count
 - helper and alternate-mode unlocks
 - field-size ceilings
-- named helper ranks for action speed, storage, Impact, and starting stock
+- named helper ranks for Speed, Reach, Care, and Momentum
 - Fast Touch, Broad Palm, Many Hands, and Field Embrace
 
 Helper unlocks reveal their equipment row and recipes; hidden helpers cannot be
@@ -214,13 +206,14 @@ Memory Web instead of exposing internal system labels. Tiny Sprinkler's
 Field Mouse, Bee Hive, and later-helper skills shorten their own trips, flights,
 or production cycles.
 
-Storage, Impact, and starting-stock ranks also have helper-specific names and
-copy. Most storage ranks expand actual input or output buffers. Tiny Sprinkler is
-the deliberate exception: `Dew Cistern` turns each sprinkler hit into a
-four-second, stacking healing afterglow. `Fine Mist` uses the existing internal
-`efficiency` save field but now gives each sprinkler hit a 6%-per-rank chance to
-touch every neighboring tile. It does not reduce fuel costs because sprinklers
-have no fuel.
+Reach, Care, and Momentum ranks also have helper-specific names and copy. Reach
+adds 15% automated touches per activation, Care adds 12% healing per automated
+touch, and Momentum pre-charges the first purchased copy of that helper by 20%
+per rank. Tiny Sprinkler is the deliberate exception: `Dew Cistern` turns each
+sprinkler hit into a four-second, stacking healing afterglow, while `Fine Mist`
+gives each sprinkler hit a 6%-per-rank chance to touch every neighboring tile.
+Internal save keys retain their old names so existing player investments migrate
+without being reset; those names are not exposed as current mechanics.
 
 Every permanent Memory purchase also contributes one point of Remembered
 Touch. Each point adds 3% to the power of ordinary manual touch batches,
