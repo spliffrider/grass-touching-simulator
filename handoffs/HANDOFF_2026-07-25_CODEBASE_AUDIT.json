@@ -1,0 +1,72 @@
+{
+  "date": "2026-07-25",
+  "topic": "Single-runtime codebase audit and legacy retirement",
+  "currentUserGoal": "Remove the old game rather than preserve it, eliminate unused code and assets, and leave the Ancient Grass ecosystem codebase smaller, verifiable, live, and synchronized.",
+  "workCompleted": [
+    "Removed the original GameScene and TitleScene runtime together with their isolated data catalogs, systems, types, UI helpers, tests, harnesses, and media.",
+    "Removed the abandoned intermediate RedesignPrototypeScene generation, its isolated redesign modules, and its tests.",
+    "Made Ancient Grass: Ecosystem the only runtime; current playtest parameters open the field and retired aliases fall through to the ecosystem title.",
+    "Removed unused current exports, a redundant route flag, unreachable audio events, a second unused mobile touch synthesizer, obsolete documentation, duplicate research, mockups, duplicate icons, and runtime-unreferenced public assets.",
+    "Added Knip as npm run audit:code and made npm run check include lint, dead-code analysis, tests, TypeScript, and the production build.",
+    "Rewrote the project and performance manuals around the single ecosystem runtime and recorded durable audit metrics in docs/CODEBASE_AUDIT_2026-07-25.md.",
+    "Reduced source from 75 files and 45,807 lines to 27 files and 12,915 lines.",
+    "Reduced the application chunk from 998.33 kB (259.54 kB gzip) to 280.15 kB (76.46 kB gzip).",
+    "Reduced public assets from 162 files and 24.89 MiB to 68 files and 11.87 MiB."
+  ],
+  "filesChanged": [
+    "AGENTS.md",
+    "docs/CODEBASE_AUDIT_2026-07-25.md",
+    "docs/CORE_MECHANICS_REDESIGN.md",
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "docs/PERFORMANCE_NOTES.md",
+    "docs/PROJECT_MANUAL.md",
+    "package.json",
+    "package-lock.json",
+    "scripts/generate-pwa-icons.py",
+    "src/main.ts",
+    "src/game/routing/GameRoute.ts",
+    "src/game/systems/AudioSystem.ts",
+    "src/game/ecosystem/*",
+    "tests/GameRoute.test.ts",
+    "retired source, tests, docs, mockups, and public assets listed by commit 6c06e9d"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, Knip, 154 Vitest tests across 18 files, strict TypeScript, and the Vite production build.",
+    "npm audit --audit-level=high reported zero vulnerabilities.",
+    "Madge found no circular dependencies from src/main.ts.",
+    "git diff --check passed and the public asset reference scan found no unreferenced runtime media.",
+    "Desktop 1280x720 verified the title, retired ?legacy fallback, active 100x100 field, Memory Grove, and accepted touch input with no browser errors, horizontal overflow, frame spikes, or full-field scans.",
+    "Phone 390x844 verified the title, fresh 1x1 field, and accepted touch input with no browser errors, horizontal overflow, frame spikes, or full-field scans.",
+    "Vercel deployment dpl_DZacP7gG7GPTnaLGjkSuCgbzRKbv reached READY and was aliased to grasstouchingsimulator.com.",
+    "Production title, retired ?legacy fallback, and fresh ecosystem playtest routes were smoke-tested successfully.",
+    "The Mac mini fast-forwarded to 6c06e9d and completed its own strict TypeScript and Vite production build."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "featureCommit": "6c06e9d",
+    "pushed": true,
+    "deploymentUrl": "https://grasstouchingsimulator.com",
+    "deploymentId": "dpl_DZacP7gG7GPTnaLGjkSuCgbzRKbv",
+    "macSyncedThroughFeatureCommit": true,
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The current lucid-field-theme.wav is intentionally retained but dominates the public payload at 7.91 MiB; a later audited high-quality browser encoding could reduce transfer.",
+    "EcosystemPrototypeScene.ts remains a large orchestration class; future extraction should respect measured ownership and hot-path behavior.",
+    "Phaser remains a separate 1,198.79 kB vendor chunk (319.33 kB gzip).",
+    "Responsive browser checks do not replace testing on a physically slow phone CPU.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and was not committed or deployed as a public asset."
+  ],
+  "nextRecommendedSteps": [
+    "Continue gameplay work only on the ecosystem runtime and its current browser snapshots.",
+    "Evaluate a high-quality compressed delivery format for lucid-field-theme.wav with listening approval before replacing it.",
+    "Extract cohesive scene responsibilities only when a concrete maintenance or measured performance benefit justifies it."
+  ],
+  "doNotRevert": [
+    "Do not restore GameScene, TitleScene, RedesignPrototypeScene, their old harnesses, or retired query routing.",
+    "Do not cite the removed 1,200-tile legacy harness as ecosystem performance evidence.",
+    "Do not remove Knip from npm run check; the dead-code gate protects this cleanup.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction.",
+    "Do not transcode the current soundtrack without preserving the source and listening for regressions."
+  ]
+}
