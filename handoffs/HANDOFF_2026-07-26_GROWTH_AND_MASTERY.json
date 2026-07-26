@@ -1,0 +1,68 @@
+{
+  "date": "2026-07-26",
+  "topic": "Growth currency, first field expansion, and Memory mastery",
+  "currentUserGoal": "Call the permanent Memory currency Growth, make the first 1x1-to-2x2 field expansion cost 250 Run Touches, and make completing a ranked skill feel special with a fanfare and persistent gold mastery treatment.",
+  "workCompleted": [
+    "Renamed the player-facing permanent currency from Grass Touches to Growth throughout the field HUD, Memory Grove, title screen, semantic controls, debug tools, status copy, and design documentation.",
+    "Preserved the internal grassTouches save field so existing browser saves remain compatible.",
+    "Renamed the run-local production resource in player-facing copy to Field Growth so it cannot be confused with permanent Growth.",
+    "Reduced only the first 1x1-to-2x2 run-local field expansion from 500 to 250 Run Touches; later expansion prices still double from 1000 onward.",
+    "Added a final-rank mastery fanfare for every multi-rank Memory: milestone audio, a bounded gold ring and spark burst, icon/frame/glow pulses, and a temporary MASTERED banner.",
+    "Added persistent mastered styling after the fanfare: gold frame tint, gold glow, gold rank pips, gold title/status copy, and MASTERED detail and semantic states.",
+    "Kept one-time unlock Memories in their normal remembered style; the gold mastery state is reserved for skills with multiple ranks.",
+    "Fixed maxed helper-rank semantic labels so they announce mastered instead of exposing a nonexistent next purchase cost.",
+    "Returned the local playtest save to a clean Run 1 after browser verification."
+  ],
+  "filesChanged": [
+    "docs/ECOSYSTEM_FACTORY_DESIGN.md",
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemDomBridge.ts",
+    "src/game/ecosystem/EcosystemMemoryTree.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "src/game/scenes/EcosystemTitleScene.ts",
+    "tests/EcosystemSystem.test.ts",
+    "handoffs/HANDOFF_2026-07-26_GROWTH_AND_MASTERY.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed: ESLint, Knip, 159 Vitest tests across 18 files, strict TypeScript, and the Vite production build.",
+    "Focused ecosystem system and Memory tests passed: 75 tests across 2 files.",
+    "Deterministic tests verify the expansion-cost ladder starts at 250, then continues at 1000, 2000, 4000, and higher, and verify the distinct Growth and Field Growth labels.",
+    "Desktop 1280x720 browser verification purchased the tenth Clockwork Nozzle rank and visibly confirmed the gold burst, MASTERED banner, persistent gold node treatment, gold detail treatment, and semantic mastered state.",
+    "The desktop mastery burst remained bounded at 19 active tweens at its peak and returned to zero after completion.",
+    "Browser verification unlocked the 2x2 field Memory, confirmed the live expansion control was disabled below 250 Run Touches, enabled at 250, spent all 250, and produced a real 2x2 field.",
+    "Phone-layout 390x844 browser verification showed the Memory Grove and detail panel stacking without overlap; the sampled snapshot held 144 FPS, zero frame spikes, zero full-field scans, and zero active tweens while idle.",
+    "Browser logs contained no warnings or errors.",
+    "git diff --check passed."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "featureCommit": "this handoff's commit",
+    "pushed": false,
+    "deployed": false,
+    "macSynced": false,
+    "devServer": "http://127.0.0.1:5173/?redesign&playtest&debugPanel",
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "The debug panel overlays content on a 390x844 viewport when expanded; this remains confined to the debugPanel route.",
+    "Growth is the permanent Memory currency while Field Growth remains a run-local production stock; the UI now distinguishes them, but hands-on testing should confirm the distinction is intuitive.",
+    "The first expansion is now significantly cheaper than the second by design: 250 Run Touches versus 1000.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and was not modified."
+  ],
+  "nextRecommendedSteps": [
+    "Hands-on test several natural ranked-skill completions to judge whether the mastery fanfare duration and audio weight feel satisfying.",
+    "Test the first 2x2 expansion in normal play and tune the 250 Run Touches target only from observed pacing.",
+    "Review whether Growth and Field Growth remain sufficiently distinct once more production systems are visible.",
+    "Push, deploy, and synchronize with the Mac only when requested."
+  ],
+  "doNotRevert": [
+    "Do not rename the internal grassTouches save field without a migration; only its player-facing name changed to Growth.",
+    "Do not call the run-local production stock Growth in player-facing copy; use Field Growth.",
+    "Do not restore the first 1x1-to-2x2 expansion to 500 Run Touches unless balance testing supports it.",
+    "Do not apply gold mastery styling to one-time unlock Memories; reserve it for completed ranked skills.",
+    "Do not replace the bounded mastery effects with persistent particles or hot-path animation work.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

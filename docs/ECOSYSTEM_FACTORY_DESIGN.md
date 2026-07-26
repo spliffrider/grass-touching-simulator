@@ -44,13 +44,13 @@ advances Scourge.
 ## Production Graph
 
 ```text
-Field -> Dew -> Moisture -> Growth -> Flowers -> Pollinated Blooms
+Field -> Dew -> Moisture -> Field Growth -> Flowers -> Pollinated Blooms
                                       |                 |
                                       |                 +-> Seeds
                                       +--------------------> Clippings
 
 Clippings -> Compost -> Humus -> Root Energy -> Care
-Seeds ------> Growth
+Seeds ------> Field Growth
 ```
 
 Natural conversions provide a deliberately slow background route through every
@@ -59,14 +59,14 @@ helper. Helpers produce thematic resources as rewards and progression signals:
 
 | Helper | Primary role | Alternate mode |
 | --- | --- | --- |
-| Tiny Sprinkler | Fuel-free automated touches, Moisture, starter Growth, and Care | Cultivator favors Moisture and Growth |
-| Field Mouse | Fuel-free Growth and automated touches | Cache adds Care at lower speed |
+| Tiny Sprinkler | Fuel-free automated touches, Moisture, starter Field Growth, and Care | Cultivator favors Moisture and Field Growth |
+| Field Mouse | Fuel-free Field Growth and automated touches | Cache adds Care at lower speed |
 | Bee Hive | Fuel-free Pollinated Blooms and automated touches | Honey Reserve adds Care at lower speed |
 | Chicken Patrol | Fuel-free Compost and automated touches | Forage also produces Clippings |
 | Earthworm Crew | Fuel-free Humus and automated touches | Triage adds Care at lower speed |
 | Ancient Roots | Fuel-free Root Energy, Care, and automated touches | Wellspring favors Dew and Care |
 | Sheep Loop | Fuel-free Clippings, Care, and automated touches | Close Crop favors Clippings |
-| Meadow Rabbit | Fuel-free Growth and automated touches | Bloom Run favors Flowers |
+| Meadow Rabbit | Fuel-free Field Growth and automated touches | Bloom Run favors Flowers |
 
 Every resource remains capacity constrained, but helper outputs are
 overflow-safe. A full buffer may discard excess thematic output; it never pauses
@@ -131,8 +131,8 @@ objective state.
 
 After the first Care cycle is online, an unlocked Field Mouse becomes the next
 guided production chapter. The Ledger tracks Run Touches toward its first
-purchase, then switches to the mouse's scamper cycle, Growth output, and
-automated touches. Spread mode runs quickly for stronger Growth throughput;
+purchase, then switches to the mouse's scamper cycle, Field Growth output, and
+automated touches. Spread mode runs quickly for stronger Field Growth throughput;
 Cache mode runs more slowly while adding steady Care. Neither mode consumes
 Seeds or any other resource.
 
@@ -187,11 +187,16 @@ Run-local state resets at Game Over:
 
 Permanent Memories retain:
 
-- banked GT and completed-run count
+- banked Growth and completed-run count
 - helper and alternate-mode unlocks
 - field-size ceilings
 - named helper ranks for Speed, Reach, Care, and Momentum
 - Fast Touch, Broad Palm, Many Hands, and Field Embrace
+
+The Memory Grove names its permanent currency **Growth**. The save model retains
+the legacy `grassTouches` field name so existing saves load without migration or
+lost purchases. Run-local ecological Growth is labeled **Field Growth** wherever
+it appears to keep the two concepts distinct.
 
 Helper unlocks reveal their equipment row and recipes; hidden helpers cannot be
 bought. Tiny Sprinkler is the first unlock and also reveals the Living Ledger.
@@ -215,9 +220,15 @@ gives each sprinkler hit a 6%-per-rank chance to touch every neighboring tile.
 Internal save keys retain their old names so existing player investments migrate
 without being reset; those names are not exposed as current mechanics.
 
+When a multi-rank Memory reaches its final rank, the node plays a bounded
+mastery fanfare with milestone audio, gold rings, sparks, and a `MASTERED`
+banner. Afterwards its frame, glow, title, status, and completed rank pips remain
+gold. One-time unlock nodes retain their ordinary owned styling so full-rank
+mastery stays visually meaningful.
+
 Every permanent Memory purchase also contributes one point of Remembered
 Touch. Each point adds 3% to the power of ordinary manual touch batches,
-including HP restored, Dew gathered, Growth tended, and RT earned. Unlocks, alternate modes,
+including HP restored, Dew gathered, Field Growth tended, and RT earned. Unlocks, alternate modes,
 field tiers, capstones, and each numeric rank all contribute one point. This
 keeps the player's hands relevant as automation grows and makes every branch a
 small step toward surviving later Scourge pressure. A fresh Run 1 has no
@@ -225,10 +236,10 @@ Memories and manual healing is disabled there, so its authored collapse rhythm
 is unchanged.
 
 After the authored first collapse, **Hand Tending** gives every accepted manual
-touch `0.35 Growth` per point of touch power. This makes the inherited 1x1 plot
-an active Growth source before the Field Mouse arrives. The default Tiny
-Sprinkler Caretaker spray also produces a small Growth trickle while preserving
-its primary Moisture and Care role. Run 1 grants no Hand Tending Growth because
+touch `0.35 Field Growth` per point of touch power. This makes the inherited 1x1 plot
+an active Field Growth source before the Field Mouse arrives. The default Tiny
+Sprinkler Caretaker spray also produces a small Field Growth trickle while preserving
+its primary Moisture and Care role. Run 1 grants no Hand Tending Field Growth because
 its first touch is still the deliberate onboarding collapse.
 
 ## Field Ladder And Expansion
@@ -238,14 +249,14 @@ its first touch is still the deliberate onboarding collapse.
     -> 20x20 -> 32x32 -> 50x50 -> 75x75 -> 100x100
 ```
 
-Field growth is a major run milestone, not a ten-step Growth sink. The next
+Field expansion is a major run milestone, not a ten-step Field Growth sink. The next
 Expanding Field Memory first permits a larger size. During a later active run,
 the player buys that expansion once with Run Touches, the same currency used
 for helpers such as Tiny Sprinkler.
 
 | Expansion | Run Touches |
 | --- | ---: |
-| `1x1 -> 2x2` | 500 |
+| `1x1 -> 2x2` | 250 |
 | `2x2 -> 3x3` | 1,000 |
 | `3x3 -> 5x5` | 2,000 |
 | `5x5 -> 8x8` | 4,000 |
@@ -256,8 +267,9 @@ for helpers such as Tiny Sprinkler.
 | `50x50 -> 75x75` | 128,000 |
 | `75x75 -> 100x100` | 256,000 |
 
-The cost doubles at every rung. Growth remains an ecosystem production
-resource and is never spent to resize the field. Expansion preserves old tiles
+After the discounted first expansion, the cost doubles at every rung. Field
+Growth remains an ecosystem production resource and is never spent to resize
+the field. Expansion preserves old tiles
 in the center, creates new dormant tiles around them, recenters the view, and
 plays a dedicated milestone presentation. The larger field remains run-local
 and resets at Game Over.

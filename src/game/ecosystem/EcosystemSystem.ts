@@ -38,6 +38,7 @@ export const HELPER_STARTING_CHARGE_PER_RANK = 0.2;
 export const FINE_MIST_PROC_CHANCE_PER_RANK = 0.06;
 export const SPRINKLER_AFTERGLOW_DURATION_MS = 4_000;
 const FINE_MIST_MAX_RANDOM_ROLLS_PER_TICK = 24;
+const FIRST_FIELD_EXPANSION_RUN_TOUCH_COST = 250;
 const FIELD_EXPANSION_BASE_RUN_TOUCH_COST = 500;
 const FIELD_EXPANSION_RUN_TOUCH_MULTIPLIER = 2;
 const DAMP_FURROWS_GROWTH_PER_CYCLE = 0.75;
@@ -250,7 +251,7 @@ const BASE_RESOURCE_CAPACITY: Record<ProductionResourceId, number> = {
   care: 36,
 };
 
-// The first threshold spends the two Grass Touches left after the guaranteed
+// The first threshold spends the two points of Growth left after the guaranteed
 // Tiny Sprinkler unlock. Later thresholds retain an increasingly long tail.
 const FIELD_TIER_COSTS = [0, 2, 8, 14, 22, 34, 52, 78, 116, 170, 250] as const;
 const TOUCH_RANK_BASE_COST: Record<PermanentTouchRankKind, number> = {
@@ -835,6 +836,7 @@ export function getFieldExpansionRunTouchCost(targetTier: number): number {
   if (safeTier <= 0 || safeTier >= FIELD_SIZE_LADDER.length) {
     return 0;
   }
+  if (safeTier === 1) return FIRST_FIELD_EXPANSION_RUN_TOUCH_COST;
   return Math.round(
     FIELD_EXPANSION_BASE_RUN_TOUCH_COST
       * Math.pow(FIELD_EXPANSION_RUN_TOUCH_MULTIPLIER, safeTier - 1),

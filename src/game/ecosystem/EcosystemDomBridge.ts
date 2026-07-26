@@ -1,6 +1,6 @@
 import {
   FIELD_SIZE_LADDER,
-  GRASS_TOUCHES_LABEL,
+  MEMORY_GROWTH_LABEL,
   HELPER_IDS,
   HELPERS,
   PRODUCTION_RESOURCE_IDS,
@@ -114,9 +114,9 @@ function getFieldMouseReadableLine(status: FieldMouseStatus): string | null {
         : `Field Mouse first trip: an automatic touch is charging, cycle ${Math.floor(status.cycleProgress * 100)}%`;
     case "working":
       if (status.dampFurrowsFlowing) {
-        return "Damp Furrows flowing: sprinkler and mouse cycles add bonus Growth and Care";
+        return "Damp Furrows flowing: sprinkler and mouse cycles add bonus Field Growth and Care";
       }
-      return `Field Mouse working: ${status.growthAmount.toFixed(1)} Growth stored`;
+      return `Field Mouse working: ${status.growthAmount.toFixed(1)} Field Growth stored`;
     case "blocked":
       return `Field Mouse waiting: ${status.pauseReason ?? "reconfiguring"}`;
   }
@@ -301,7 +301,7 @@ export class EcosystemDomBridge {
       const buttonClass = showPlaytestPanel ? "ecosystem-playtest-button" : "";
       panel.append(
         this.playtestStatus,
-        this.createButton(`+250 ${GRASS_TOUCHES_LABEL} and ${RUN_TOUCHES_LABEL}`, () => this.actions.addPrototypeCurrency(), "ecosystem-debug-currency", buttonClass),
+        this.createButton(`+250 ${MEMORY_GROWTH_LABEL} and ${RUN_TOUCHES_LABEL}`, () => this.actions.addPrototypeCurrency(), "ecosystem-debug-currency", buttonClass),
         this.createButton("Unlock all", () => this.actions.unlockPrototype(), "ecosystem-debug-unlock", buttonClass),
         this.createButton("Toggle Works", () => this.actions.toggleWorks(), "ecosystem-debug-works", buttonClass),
         this.createButton("Begin next run", () => this.actions.beginNextRun(), "ecosystem-debug-next-run", buttonClass),
@@ -361,7 +361,7 @@ export class EcosystemDomBridge {
         : []),
       `Ancient HP ${state.hp.toFixed(1)} / ${state.maxHp.toFixed(0)}`,
       `Scourge demand ${state.scourgeDemandPerSecond.toFixed(2)} Care/s | Care production ${state.rates.care.toFixed(2)}/s`,
-      `Field ${state.field.width}x${state.field.height} | ${RUN_TOUCHES_LABEL} ${state.runTouches.toFixed(1)} | ${GRASS_TOUCHES_LABEL} ${permanent.grassTouches.toFixed(0)}`,
+      `Field ${state.field.width}x${state.field.height} | ${RUN_TOUCHES_LABEL} ${state.runTouches.toFixed(1)} | ${MEMORY_GROWTH_LABEL} ${permanent.grassTouches.toFixed(0)}`,
       `Automation ${state.automationTouchRate.toFixed(2)} touches/s | ${state.automationHealingRate.toFixed(2)} HP/s | ${state.automatedTouchCount.toFixed(1)} touches completed`,
       `Remembered Touch +${getManualTouchPowerBonusPercent(permanent)}% manual power`,
       ...(permanent.lingeringCareRank > 0
@@ -376,8 +376,8 @@ export class EcosystemDomBridge {
       state.runNumber === 1
         ? state.manualTouchCount === 0
           ? "First lesson: touch the living field to wake the Ancient Grass"
-          : `First lesson: touch when the recovery line clears; collapse banks ${GRASS_TOUCHES_LABEL}`
-        : "Hand Tending: each recovered manual touch produces Growth",
+          : `First lesson: touch when the recovery line clears; collapse banks ${MEMORY_GROWTH_LABEL}`
+        : "Hand Tending: each recovered manual touch produces Field Growth",
       ...(automationLine ? [automationLine] : []),
       ...(fieldMouseLine ? [fieldMouseLine] : []),
       ...(showBeeHiveChapter && beeHiveLine ? [beeHiveLine] : []),
@@ -501,8 +501,8 @@ export class EcosystemDomBridge {
         this.setHidden(button.element, state.active || !revealedMemoryNodeIds.has(nodeId));
         this.setDisabled(button.element, !unlocked || rank >= maxRank || permanent.grassTouches < cost);
         this.setText(button.element, rank >= maxRank
-          ? `${label} ${rank}/${maxRank}; complete`
-          : `${label} ${rank}/${maxRank}; next ${cost} ${GRASS_TOUCHES_LABEL}`);
+          ? `${label} ${rank}/${maxRank}; mastered`
+          : `${label} ${rank}/${maxRank}; next ${cost} ${MEMORY_GROWTH_LABEL}`);
         continue;
       }
       const helperId = button.helperId!;
@@ -525,7 +525,12 @@ export class EcosystemDomBridge {
         );
         this.setDisabled(button.element, rank >= maxRank || permanent.grassTouches < cost);
         const memoryLabel = getHelperRankMemoryLabel(helperId, button.rankKind);
-        this.setText(button.element, `${memoryLabel} (${HELPERS[helperId].label}) ${rank}/${maxRank}; next ${cost} ${GRASS_TOUCHES_LABEL}`);
+        this.setText(
+          button.element,
+          rank >= maxRank
+            ? `${memoryLabel} (${HELPERS[helperId].label}) ${rank}/${maxRank}; mastered`
+            : `${memoryLabel} (${HELPERS[helperId].label}) ${rank}/${maxRank}; next ${cost} ${MEMORY_GROWTH_LABEL}`,
+        );
       } else if (button.modeId) {
         const nodeId = getHelperModeMemoryId(helperId);
         const owned = permanent.unlockedModes[helperId].includes(button.modeId);
@@ -559,8 +564,8 @@ export class EcosystemDomBridge {
     this.setText(
       this.heartwoodButton,
       heartwoodComplete
-        ? `Ancient Heartwood ${heartwoodRank}/${ANCIENT_HEARTWOOD_MAX_RANK}; complete`
-        : `Ancient Heartwood ${heartwoodRank}/${ANCIENT_HEARTWOOD_MAX_RANK}; next ${heartwoodCost} ${GRASS_TOUCHES_LABEL}`,
+        ? `Ancient Heartwood ${heartwoodRank}/${ANCIENT_HEARTWOOD_MAX_RANK}; mastered`
+        : `Ancient Heartwood ${heartwoodRank}/${ANCIENT_HEARTWOOD_MAX_RANK}; next ${heartwoodCost} ${MEMORY_GROWTH_LABEL}`,
     );
     const fieldTierComplete = permanent.maxFieldTier >= FIELD_SIZE_LADDER.length - 1;
     const nextFieldTier = Math.min(FIELD_SIZE_LADDER.length - 1, permanent.maxFieldTier + 1);
@@ -571,15 +576,15 @@ export class EcosystemDomBridge {
     this.setText(
       this.fieldTierButton,
       fieldTierComplete
-        ? "Expanding Field complete; 100 by 100 remembered"
-        : `Remember ${nextRememberedFieldSize} by ${nextRememberedFieldSize} field for ${nextFieldCost} ${GRASS_TOUCHES_LABEL}`,
+        ? "Expanding Field mastered; 100 by 100 remembered"
+        : `Remember ${nextRememberedFieldSize} by ${nextRememberedFieldSize} field for ${nextFieldCost} ${MEMORY_GROWTH_LABEL}`,
     );
     this.setHidden(
       this.fieldEmbraceButton,
       state.active || !revealedMemoryNodeIds.has("touch:fieldEmbrace"),
     );
     if (this.playtestStatus) {
-      this.setOutput(this.playtestStatus, `HP ${state.hp.toFixed(1)} | ${RUN_TOUCHES_LABEL} ${state.runTouches.toFixed(0)} | ${GRASS_TOUCHES_LABEL} ${permanent.grassTouches.toFixed(0)} | ${state.field.width}x${state.field.height}`);
+      this.setOutput(this.playtestStatus, `HP ${state.hp.toFixed(1)} | ${RUN_TOUCHES_LABEL} ${state.runTouches.toFixed(0)} | ${MEMORY_GROWTH_LABEL} ${permanent.grassTouches.toFixed(0)} | ${state.field.width}x${state.field.height}`);
     }
 
     this.setDataset(this.root, "state", state.active ? "active" : "memory");

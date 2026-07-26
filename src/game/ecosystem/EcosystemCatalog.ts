@@ -13,7 +13,7 @@ export const PRODUCTION_RESOURCE_IDS = [
 ] as const;
 
 export const RUN_TOUCHES_LABEL = "Run Touches";
-export const GRASS_TOUCHES_LABEL = "Grass Touches";
+export const MEMORY_GROWTH_LABEL = "Growth";
 
 export type ProductionResourceId = (typeof PRODUCTION_RESOURCE_IDS)[number];
 
@@ -34,7 +34,7 @@ export interface ProductionBuffer {
 export const PRODUCTION_RESOURCES: Record<ProductionResourceId, ProductionResource> = {
   dew: { id: "dew", label: "Dew", shortLabel: "Dew", color: 0x8de7ff },
   moisture: { id: "moisture", label: "Moisture", shortLabel: "Wet", color: 0x4fa8d8 },
-  growth: { id: "growth", label: "Growth", shortLabel: "Grow", color: 0x8bd25a },
+  growth: { id: "growth", label: "Field Growth", shortLabel: "Field", color: 0x8bd25a },
   flowers: { id: "flowers", label: "Flowers", shortLabel: "Flwr", color: 0xf1a6ce },
   pollinatedBlooms: { id: "pollinatedBlooms", label: "Pollinated Blooms", shortLabel: "Bloom", color: 0xf5cf5b },
   seeds: { id: "seeds", label: "Seeds", shortLabel: "Seed", color: 0xd8b66a },
@@ -111,7 +111,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     modes: modes(
       "tinySprinkler",
       ["caretaker", "Caretaker", "Sprinkles forever, adding automatic touches and steady Care."],
-      ["cultivator", "Cultivator", "Sprinkles forever while favoring automatic Growth over Care."],
+      ["cultivator", "Cultivator", "Sprinkles forever while favoring automatic Field Growth over Care."],
     ),
   },
   fieldMouse: {
@@ -125,7 +125,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     unlockRequires: "tinySprinkler",
     modes: modes(
       "fieldMouse",
-      ["spread", "Spread", `Scampers across the field, adding Growth and ${RUN_TOUCHES_LABEL}. A Tiny Sprinkler opens Damp Furrows for bonus Growth and Care.`],
+      ["spread", "Spread", `Scampers across the field, adding Field Growth and ${RUN_TOUCHES_LABEL}. A Tiny Sprinkler opens Damp Furrows for bonus Field Growth and Care.`],
       ["cache", "Cache", "Scampers more slowly but leaves steady Care behind. Damp Furrows still boost every trip."],
     ),
   },
@@ -215,7 +215,7 @@ export const HELPERS: Record<HelperId, HelperDefinition> = {
     unlockRequires: "sheepLoop",
     modes: modes(
       "meadowRabbit",
-      ["seedRun", "Seed Run", "Runs continuously, rapidly producing Growth and automatic touches."],
+      ["seedRun", "Seed Run", "Runs continuously, rapidly producing Field Growth and automatic touches."],
       ["bloomRun", "Bloom Run", "Takes a wider route that produces Flowers and automatic touches."],
     ),
   },

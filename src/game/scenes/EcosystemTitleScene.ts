@@ -12,7 +12,7 @@ import {
   GRASS_TOUCHER_CREDITS,
   PLAYTESTER_CREDITS,
 } from "../data/credits";
-import { GRASS_TOUCHES_LABEL } from "../ecosystem/EcosystemCatalog";
+import { MEMORY_GROWTH_LABEL } from "../ecosystem/EcosystemCatalog";
 import {
   getTitleAtmosphereBudget,
   getTitleScourgeStrength,
@@ -768,13 +768,13 @@ export class EcosystemTitleScene extends Phaser.Scene {
     if (this.saveSummary.hasSave) {
       continueButton.setLabel(
         this.saveSummary.active ? "CONTINUE FIELD" : "RETURN TO MEMORY GROVE",
-        this.saveSummary.active ? `Run ${this.saveSummary.runNumber} is still alive` : `Spend ${GRASS_TOUCHES_LABEL} before the next run`,
+        this.saveSummary.active ? `Run ${this.saveSummary.runNumber} is still alive` : `Spend ${MEMORY_GROWTH_LABEL} before the next run`,
       );
       const elapsedSeconds = Math.floor(this.saveSummary.elapsedMs / 1_000);
       const elapsed = `${Math.floor(elapsedSeconds / 60)}:${`${elapsedSeconds % 60}`.padStart(2, "0")}`;
       this.saveStateText.setText(this.saveSummary.active
         ? `RUN ${this.saveSummary.runNumber}  |  ${this.saveSummary.fieldSize}x${this.saveSummary.fieldSize} LIVING FIELD`
-        : `MEMORY GROVE  |  ${this.saveSummary.permanentGrassTouches.toFixed(0)} ${GRASS_TOUCHES_LABEL.toUpperCase()} REMEMBERED`);
+        : `MEMORY GROVE  |  ${this.saveSummary.permanentGrassTouches.toFixed(0)} ${MEMORY_GROWTH_LABEL.toUpperCase()} REMEMBERED`);
       this.saveDetailText.setText(this.saveSummary.active
         ? `${elapsed} elapsed  |  ${this.saveSummary.manualTouchCount} touches  |  ${Math.max(0, this.saveSummary.hp).toFixed(0)} HP`
         : `${this.saveSummary.completedRuns} field${this.saveSummary.completedRuns === 1 ? "" : "s"} completed  |  Run ${this.saveSummary.runNumber} awaits`);

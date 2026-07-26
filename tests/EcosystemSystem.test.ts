@@ -5,8 +5,10 @@ import {
   HELPER_RECONFIGURE_MS,
   HELPERS,
   FIELD_SIZE_LADDER,
+  MEMORY_GROWTH_LABEL,
   PRODUCTION_RECIPES,
   PRODUCTION_RESOURCE_IDS,
+  PRODUCTION_RESOURCES,
   PRODUCTION_TICK_MS,
 } from "../src/game/ecosystem/EcosystemCatalog";
 import { getManualTouchCooldownMs } from "../src/game/ecosystem/EcosystemTouchCooldown";
@@ -875,13 +877,13 @@ describe("EcosystemSystem", () => {
     expect(state.resources.growth.amount).toBeCloseTo(7);
   });
 
-  it("doubles the Run Touches price at every field expansion", () => {
+  it("discounts the first expansion, then doubles every later Run Touches price", () => {
     const costs = FIELD_SIZE_LADDER
       .slice(1)
       .map((_, index) => getFieldExpansionRunTouchCost(index + 1));
 
     expect(costs).toEqual([
-      500,
+      250,
       1_000,
       2_000,
       4_000,
@@ -894,6 +896,11 @@ describe("EcosystemSystem", () => {
     ]);
     expect(getFieldExpansionRunTouchCost(0)).toBe(0);
     expect(getFieldExpansionRunTouchCost(FIELD_SIZE_LADDER.length)).toBe(0);
+  });
+
+  it("names the permanent Memory currency Growth", () => {
+    expect(MEMORY_GROWTH_LABEL).toBe("Growth");
+    expect(PRODUCTION_RESOURCES.growth.label).toBe("Field Growth");
   });
 
   it("lets the guaranteed opening reward reveal the first field threshold", () => {
@@ -1229,11 +1236,11 @@ describe("EcosystemSystem", () => {
     expect(result.changedChunks).toBe(0);
   });
 
-  it("spends 500 Run Touches on the first owned field expansion", () => {
+  it("spends 250 Run Touches on the first owned field expansion", () => {
     const permanent = createPermanentEcosystemState();
     permanent.maxFieldTier = 1;
     const state = createEcosystemState(permanent);
-    state.runTouches = 500;
+    state.runTouches = 250;
     state.resources.growth.amount = 17;
 
     expect(buyFieldExpansion(state, permanent)).toBe(true);
@@ -1250,22 +1257,22 @@ describe("EcosystemSystem", () => {
   it("keeps field expansion unavailable until its Memory is owned and its Run Touches price is met", () => {
     const permanent = createPermanentEcosystemState();
     const state = createEcosystemState(permanent);
-    state.runTouches = 500;
+    state.runTouches = 250;
 
     expect(hasUnlockedFieldExpansion(state, permanent)).toBe(false);
     expect(buyFieldExpansion(state, permanent)).toBe(false);
     expect(state.field.width).toBe(1);
-    expect(state.runTouches).toBe(500);
+    expect(state.runTouches).toBe(250);
 
     permanent.grassTouches = getFieldTierUnlockCost(1);
     expect(unlockNextFieldTier(permanent)).toBe(true);
     expect(hasUnlockedFieldExpansion(state, permanent)).toBe(true);
-    state.runTouches = 499;
+    state.runTouches = 249;
     expect(buyFieldExpansion(state, permanent)).toBe(false);
     expect(state.field.width).toBe(1);
-    expect(state.runTouches).toBe(499);
+    expect(state.runTouches).toBe(249);
 
-    state.runTouches = 500;
+    state.runTouches = 250;
     expect(buyFieldExpansion(state, permanent)).toBe(true);
     expect(state.field.width).toBe(2);
     expect(state.runTouches).toBe(0);
@@ -1275,7 +1282,7 @@ describe("EcosystemSystem", () => {
     const permanent = createPermanentEcosystemState();
     permanent.maxFieldTier = 2;
     const state = createEcosystemState(permanent);
-    state.runTouches = 1_500;
+    state.runTouches = 1_250;
 
     expect(buyFieldExpansion(state, permanent)).toBe(true);
     expect(state.field.width).toBe(2);

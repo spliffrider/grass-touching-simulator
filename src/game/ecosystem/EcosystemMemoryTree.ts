@@ -543,7 +543,7 @@ function buildNodes(): EcosystemMemoryNodeDefinition[] {
       label: helper.label,
       branch: "Automation chain",
       description: helperId === "fieldMouse"
-        ? "Awakens Field Mouse and its automatic scampering. A Tiny Sprinkler links every trip to Damp Furrows for bonus Growth and Care."
+        ? "Awakens Field Mouse and its automatic scampering. A Tiny Sprinkler links every trip to Damp Furrows for bonus Field Growth and Care."
         : `Awakens ${helper.label}, reveals it in the Living Ledger, and adds its automatic touches to the field.`,
       color: HELPER_MEMORY_CATEGORY_STYLES.unlock.color,
       iconKey: `eco-helper-${helperId}`,
