@@ -34,13 +34,18 @@
     "Browser verification unlocked the 2x2 field Memory, confirmed the live expansion control was disabled below 250 Run Touches, enabled at 250, spent all 250, and produced a real 2x2 field.",
     "Phone-layout 390x844 browser verification showed the Memory Grove and detail panel stacking without overlap; the sampled snapshot held 144 FPS, zero frame spikes, zero full-field scans, and zero active tweens while idle.",
     "Browser logs contained no warnings or errors.",
+    "Feature commit 68bc28e and its two prerequisite helper commits were pushed to origin/master.",
+    "Vercel production deployment dpl_BZzqn87KZWEhUFHNEFmsC56Nxg7c reached Ready and was aliased to grasstouchingsimulator.com.",
+    "https://grasstouchingsimulator.com returned HTTP 200 after deployment.",
     "git diff --check passed."
   ],
   "gitStatus": {
     "branch": "master",
-    "featureCommit": "this handoff's commit",
-    "pushed": false,
-    "deployed": false,
+    "featureCommit": "68bc28e",
+    "pushed": true,
+    "deployed": true,
+    "deploymentId": "dpl_BZzqn87KZWEhUFHNEFmsC56Nxg7c",
+    "productionUrl": "https://grasstouchingsimulator.com",
     "macSynced": false,
     "devServer": "http://127.0.0.1:5173/?redesign&playtest&debugPanel",
     "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
@@ -55,7 +60,7 @@
     "Hands-on test several natural ranked-skill completions to judge whether the mastery fanfare duration and audio weight feel satisfying.",
     "Test the first 2x2 expansion in normal play and tune the 250 Run Touches target only from observed pacing.",
     "Review whether Growth and Field Growth remain sufficiently distinct once more production systems are visible.",
-    "Push, deploy, and synchronize with the Mac only when requested."
+    "Synchronize with the Mac only when requested."
   ],
   "doNotRevert": [
     "Do not rename the internal grassTouches save field without a migration; only its player-facing name changed to Growth.",
