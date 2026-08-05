@@ -12,6 +12,8 @@
     "audit:code": "knip --reporter compact",
     "check": "npm run lint && npm run audit:code && npm run test && npm run build",
     "preview": "vite preview --host 127.0.0.1",
+    "android:assets": "npm run build && node scripts/prepare-android-assets.mjs",
+    "android:apk": "node scripts/build-android.mjs",
     "sync:mac:status": "node scripts/sync-mac-mini.mjs status",
     "sync:mac:handoff": "node scripts/sync-mac-mini.mjs handoff",
     "sync:mac:resume": "node scripts/sync-mac-mini.mjs resume"

@@ -1,0 +1,72 @@
+{
+  "date": "2026-08-05",
+  "topic": "Lean offline Android APK",
+  "currentUserGoal": "Give a Galaxy S22 Ultra player a compact, efficient APK that runs the complete game offline during travel.",
+  "workCompleted": [
+    "Added a minimal native Android WebView shell for the production title-screen route, with hardware acceleration, immersive display, local save persistence, background timer pausing, and blocked external requests and navigation.",
+    "Kept the package offline-only: the final manifest requests zero Android permissions and the APK contains no embedded browser engine or architecture-specific native libraries.",
+    "Added a repeatable Android asset pipeline that bundles only the built index and dist/assets contents while excluding social previews, web manifests, favicons, source maps, generated debug output, and private signing material.",
+    "Converted the 188-second mono soundtrack from an 8.29 MB PCM WAV to a 1.12 MB Ogg Vorbis file and updated both game scenes to use it.",
+    "Added an offline-app-only 60 FPS Phaser cap and an Android 15+ native 60 Hz request to avoid wasting GPU and battery on high-refresh phones without changing the website's pacing.",
+    "Added R8 code shrinking, Android resource shrinking, Gradle configuration caching, adaptive/fallback launcher icons, and a stable private alpha signing workflow.",
+    "Added npm run android:assets and npm run android:apk plus durable build/install documentation.",
+    "Built the signed release artifact at artifacts/android/GrassTouchingSimulator-0.1.0-offline.apk."
+  ],
+  "filesChanged": [
+    ".gitignore",
+    "eslint.config.js",
+    "package.json",
+    "public/assets/music/lucid-field-theme.wav (removed)",
+    "public/assets/music/lucid-field-theme.ogg (added)",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "src/game/scenes/EcosystemTitleScene.ts",
+    "src/main.ts",
+    "scripts/prepare-android-assets.mjs",
+    "scripts/build-android.mjs",
+    "android/",
+    "docs/ANDROID_OFFLINE_BUILD.md",
+    "handoffs/HANDOFF_2026-08-05_OFFLINE_ANDROID_APK.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed after the final changes: ESLint, Knip, 159 Vitest tests across 18 files, strict TypeScript, and the Vite production build.",
+    "npm run android:apk passed with Android Gradle Plugin 8.13.2, Gradle 8.13, JDK 17, compile SDK 36, Build Tools 35.0.0, R8, resource shrinking, lintVital, and release signing.",
+    "Final APK size is 3,121,617 bytes (2.98 MiB); SHA-256 is 7df01e2b848bb07390b9e74ccea62b61c6ef27f2cfe93507d4455d771c54f483.",
+    "apksigner verifies the APK with an RSA-3072 alpha certificate using APK Signature Scheme v2.",
+    "aapt reports minSdk 24, targetSdk 35, and zero requested permissions.",
+    "APK inventory contains 95 entries and 64 game assets with zero native libraries, WAV files, source maps, or social/web-discovery extras.",
+    "At 384x824, the clean Run 1 mobile layout rendered correctly, accepted the semantic field touch on the first attempt, reported zero frame spikes and full-field scans, and produced no browser warnings or errors.",
+    "At 1280x720, Game Over and the first Tiny Sprinkler Memory purchase worked; the Memory controls updated correctly and browser logs remained clean.",
+    "git diff --check passed."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "pushed": false,
+    "deployed": false,
+    "macSynced": false,
+    "apkPath": "artifacts/android/GrassTouchingSimulator-0.1.0-offline.apk",
+    "apkSha256": "7df01e2b848bb07390b9e74ccea62b61c6ef27f2cfe93507d4455d771c54f483",
+    "privateSigningKey": ".android-signing/ (ignored; must be backed up securely)",
+    "unrelatedUntracked": "docs/CODEX_GITHUB_SETUP_GUIDE.md"
+  },
+  "knownIssues": [
+    "No Android device or emulator was connected, so installation, audio output, rotation, suspend/resume, and sustained thermal performance have not yet been exercised on the physical Galaxy S22 Ultra.",
+    "The APK intentionally relies on Android System WebView; the friend should install pending Android System WebView updates before travel if the device is behind.",
+    "Uninstalling the app removes its local save. Updating with future APKs preserves the save only when they use the same private alpha signing key.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and was not modified."
+  ],
+  "nextRecommendedSteps": [
+    "Back up .android-signing securely before distributing or rebuilding the APK.",
+    "Install the APK on the Galaxy S22 Ultra and perform a short airplane-mode smoke test covering title screen, music and SFX, rapid touching, Game Over, Memory purchase, next run, rotation, background/resume, and save persistence.",
+    "For meaningful mobile performance evidence, connect the S22 Ultra over USB and profile a progressed field rather than treating the 1x1 browser check as proof of late-game thermals.",
+    "Push or sync the committed Android source only when requested; the APK and private key must remain outside Git."
+  ],
+  "doNotRevert": [
+    "Do not add Android INTERNET or ACCESS_NETWORK_STATE permissions unless online functionality becomes an explicit requirement.",
+    "Do not replace the system WebView shell with a bundled browser engine; that would substantially bloat the APK.",
+    "Do not restore the WAV soundtrack; the Ogg file preserves the duration at a fraction of the size.",
+    "Do not commit android/app/src/main/assets, Android build outputs, the APK, android/local.properties, or .android-signing.",
+    "Do not regenerate or lose the private signing key after distribution, because Android would treat future builds as a different signer.",
+    "Do not include docs/CODEX_GITHUB_SETUP_GUIDE.md without explicit user direction."
+  ]
+}

@@ -9,6 +9,15 @@ alternative assets/
 
 .vercel
 
+# Generated Android build state and private signing material
+.android-signing/
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/assets/
+android/local.properties
+artifacts/android/*.apk
+
 # Local secrets and machine credentials
 .env
 .env.*

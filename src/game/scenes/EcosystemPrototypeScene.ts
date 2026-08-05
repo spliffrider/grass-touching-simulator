@@ -5189,7 +5189,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       this.createFieldMusic();
       return;
     }
-    this.load.audio("eco-music", "/assets/music/lucid-field-theme.wav");
+    this.load.audio("eco-music", "/assets/music/lucid-field-theme.ogg");
     this.load.once(Phaser.Loader.Events.COMPLETE, () => {
       if (this.sys.isActive()) this.createFieldMusic();
     });

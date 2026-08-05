@@ -4,7 +4,19 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist/**", "node_modules/**", ".vite/**", ".vercel/**", "docs/**", "public/**", "alternative assets/**"],
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      ".vite/**",
+      ".vercel/**",
+      "android/.gradle/**",
+      "android/**/build/**",
+      "android/app/src/main/assets/**",
+      "artifacts/**",
+      "docs/**",
+      "public/**",
+      "alternative assets/**",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

@@ -982,7 +982,7 @@ export class EcosystemTitleScene extends Phaser.Scene {
       this.createMenuMusic();
       return;
     }
-    this.load.audio("eco-music", "/assets/music/lucid-field-theme.wav");
+    this.load.audio("eco-music", "/assets/music/lucid-field-theme.ogg");
     this.load.once(Phaser.Loader.Events.COMPLETE, () => {
       if (this.sys.isActive()) this.createMenuMusic();
     });

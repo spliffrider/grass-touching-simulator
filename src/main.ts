@@ -17,6 +17,7 @@ declare global {
 
 const RESIZE_THROTTLE_MS = 120;
 const RESIZE_JITTER_PX = 2;
+const OFFLINE_ANDROID_USER_AGENT = "GrassTouchingSimulatorOffline";
 
 function readPositiveSize(...values: Array<number | undefined>): number {
   const value = values.find((candidate) => Number.isFinite(candidate) && candidate !== undefined && candidate > 0);
@@ -69,6 +70,7 @@ window.__grassAppReady = () => {
 };
 
 function bootGame(): void {
+  const offlineAndroidApp = navigator.userAgent.includes(OFFLINE_ANDROID_USER_AGENT);
   const scenes = useEcosystemPrototype
     ? [EcosystemPrototypeScene]
     : [EcosystemTitleScene, EcosystemPrototypeScene];
@@ -87,6 +89,9 @@ function bootGame(): void {
       roundPixels: false,
       powerPreference: "high-performance",
     },
+    fps: offlineAndroidApp
+      ? { target: 60, limit: 60, smoothStep: true }
+      : undefined,
     scene: scenes,
   };
 

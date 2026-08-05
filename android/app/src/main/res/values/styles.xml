@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.GrassTouching" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">@color/grass_background</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">@color/grass_background</item>
+        <item name="android:statusBarColor">@color/grass_background</item>
+        <item name="android:colorAccent">#B7EBA5</item>
+    </style>
+</resources>
