@@ -1,0 +1,64 @@
+{
+  "date": "2026-08-07",
+  "topic": "Stronger Sprinklers and fixed early fields",
+  "currentUserGoal": "Make Tiny Sprinklers easier to obtain and meaningfully stronger so the 2x2 field is reachable, then fix the loose 2x2 layout and accidental click-drag panning.",
+  "workCompleted": [
+    "Reduced the Tiny Sprinkler Memory cost from 5 to 4 Growth and the first run purchase from 10 to 6 Run Touches.",
+    "Flattened the Sprinkler copy-cost curve from 1.42x to 1.34x so an early fleet can form much sooner.",
+    "Raised each Sprinkler cycle from 1 to 1.5 automated touches, increased its base cadence from 0.48 to 0.65 cycles per second, and increased its direct healing, Care output, Moisture output, Cultivator Growth, and starter Field Growth.",
+    "Kept the first field expansion at its meaningful 250 Run Touches price while adding a deterministic Run 2 progression test that reaches 2x2 in about 46.7 seconds with five Sprinklers and remains alive.",
+    "Made 1x1 through 5x5 fields compact, centered, and mathematically fixed. A 2x2 desktop board now uses 240-pixel cells with a 216-pixel visual tile and a 24-pixel inter-tile gap instead of fitting tiny art into enormous cells.",
+    "Disabled pan and zoom gestures and controls on fixed early fields, committed mouse and touchscreen touches immediately, and prevented stale saved pan and zoom values from shifting an early board.",
+    "Preserved pan, zoom, culling, and large-field behavior beginning at 8x8."
+  ],
+  "filesChanged": [
+    "src/game/ecosystem/EcosystemCatalog.ts",
+    "src/game/ecosystem/EcosystemFieldInput.ts",
+    "src/game/ecosystem/EcosystemSystem.ts",
+    "src/game/ecosystem/EcosystemViewport.ts",
+    "src/game/scenes/EcosystemPrototypeScene.ts",
+    "tests/EcosystemFieldInput.test.ts",
+    "tests/EcosystemSave.test.ts",
+    "tests/EcosystemSystem.test.ts",
+    "tests/EcosystemViewport.test.ts",
+    "handoffs/HANDOFF_2026-08-07_SPRINKLER_AND_FIXED_EARLY_FIELDS.json",
+    "handoffs/LATEST.json"
+  ],
+  "verificationRun": [
+    "npm run check passed after the final changes: ESLint, Knip, 161 Vitest tests across 18 files, strict TypeScript, and the Vite production build.",
+    "Focused input, viewport, and ecosystem tests passed with 74 checks.",
+    "The deterministic Run 2 expansion simulation reached 2x2 at 46.74 seconds with five Tiny Sprinklers, 98.2 HP, and 192.1 automated touches.",
+    "The fixed-field projection test proves 2x2 through 5x5 ignore stale pan and zoom state; 8x8 remains a navigable large field.",
+    "git diff --check passed."
+  ],
+  "gitStatus": {
+    "branch": "master",
+    "committed": true,
+    "pushed": false,
+    "deployed": false,
+    "macSynced": false,
+    "unrelatedUntracked": [
+      "docs/CODEX_GITHUB_SETUP_GUIDE.md",
+      "outputs/",
+      "work/"
+    ]
+  },
+  "knownIssues": [
+    "The in-app browser's URL policy blocked reloading the local 127.0.0.1 playtest tab, so this slice does not claim a fresh browser screenshot or hands-on desktop and phone visual sign-off.",
+    "The new Sprinkler numbers deliberately make early automation much stronger; hands-on balance feedback should decide whether the 46-second 2x2 target is now too quick, too slow, or right.",
+    "The unrelated docs/CODEX_GITHUB_SETUP_GUIDE.md remains untracked and was not modified.",
+    "Unrelated GIF output and work directories appeared during the session. They were not created, modified, removed, or staged by this task."
+  ],
+  "nextRecommendedSteps": [
+    "Open http://127.0.0.1:5173/?redesign&playtest&debugPanel and test Run 2 through the 2x2 expansion using the existing save or a clean debug save.",
+    "Confirm that 2x2 tiles read as one compact board, clicks never pan it, touch input registers immediately, and zoom controls first appear at 8x8.",
+    "Compare the stronger Sprinkler cadence and Care against the intended survive-then-thrive curve before changing Scourge again.",
+    "Push, deploy, and sync to the Mac only when requested."
+  ],
+  "doNotRevert": [
+    "Do not restore pan or zoom on 1x1 through 5x5 fields; these sizes are intentional fixed early-game boards.",
+    "Do not lower the 250 Run Touch first-expansion price to compensate for weak automation; this slice improves the automation engine instead.",
+    "Do not add docs/CODEX_GITHUB_SETUP_GUIDE.md, outputs/, or work/ without explicit user direction.",
+    "Do not disturb the lean offline Android shell, Ogg soundtrack, APK build workflow, or ignored signing materials from the prior handoff."
+  ]
+}

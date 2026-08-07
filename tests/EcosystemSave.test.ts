@@ -244,7 +244,7 @@ describe("EcosystemSave", () => {
     expect(loaded?.state.active).toBe(false);
     expect(loaded?.state.runNumber).toBe(1);
     expect(loaded?.state.endedSummary).toEqual(state.endedSummary);
-    expect(loaded?.state.endedSummary?.grassTouchesAwarded).toBe(7);
+    expect(loaded?.state.endedSummary?.grassTouchesAwarded).toBe(6);
   });
 
   it("summarizes active fields and ended Memory Grove saves for the title screen", () => {

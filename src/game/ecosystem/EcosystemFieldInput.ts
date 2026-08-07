@@ -1,3 +1,5 @@
+import { isFieldViewportFixed } from "./EcosystemViewport";
+
 export const MOUSE_FIELD_DRAG_THRESHOLD_PX = 8;
 export const TOUCH_FIELD_DRAG_THRESHOLD_PX = 14;
 
@@ -68,8 +70,12 @@ export function resizeFieldInputHitArea(
   return true;
 }
 
-export function shouldAttemptFieldTouchOnPointerDown(pointerWasTouch: boolean, logicalTiles: number): boolean {
-  return !pointerWasTouch || logicalTiles <= 1;
+export function shouldAttemptFieldTouchOnPointerDown(
+  pointerWasTouch: boolean,
+  fieldWidth: number,
+  fieldHeight: number,
+): boolean {
+  return !pointerWasTouch || isFieldViewportFixed(fieldWidth, fieldHeight);
 }
 
 export function beginFieldPointerGesture(

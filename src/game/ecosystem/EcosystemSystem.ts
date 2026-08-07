@@ -33,6 +33,7 @@ export const MANUAL_TOUCH_POWER_PER_MEMORY = 0.03;
 export const HELPER_THROUGHPUT_PER_RANK = 0.3;
 export const HELPER_TOUCH_YIELD_PER_REACH_RANK = 0.15;
 export const HELPER_HEALING_PER_TOUCH = 0.45;
+export const SPRINKLER_HEALING_PER_TOUCH = 0.7;
 export const HELPER_HEALING_PER_CARE_RANK = 0.12;
 export const HELPER_STARTING_CHARGE_PER_RANK = 0.2;
 export const FINE_MIST_PROC_CHANCE_PER_RANK = 0.06;
@@ -44,7 +45,7 @@ const FIELD_EXPANSION_RUN_TOUCH_MULTIPLIER = 2;
 const DAMP_FURROWS_GROWTH_PER_CYCLE = 0.75;
 const DAMP_FURROWS_CARE_PER_CYCLE = 1.05;
 export const HAND_TENDING_GROWTH_PER_POWER = 0.35;
-const STARTER_SPRINKLER_GROWTH_PER_CYCLE = 0.08;
+const STARTER_SPRINKLER_GROWTH_PER_CYCLE = 0.16;
 // Run 1 touch Care is intentionally faint, so this curve still creates an inevitable first collapse.
 const FIRST_RUN_SCOURGE_BASE = 3.7;
 const FIRST_RUN_SCOURGE_RAMP_SECONDS = 30;
@@ -666,7 +667,10 @@ export function getHelperAutomationRates(
     ? getFineMistProcChance(careRank) * getFineMistAverageSplashTouches(state.field)
     : 0;
   const touchesPerCycle = getHelperAutomatedTouchYield(helperId, reachRank) + splashTouches;
-  const immediateHealingPerCycle = touchesPerCycle * getHelperAutomatedHealingPerTouch(immediateHealingRank);
+  const immediateHealingPerTouch = helperId === "tinySprinkler"
+    ? SPRINKLER_HEALING_PER_TOUCH
+    : getHelperAutomatedHealingPerTouch(immediateHealingRank);
+  const immediateHealingPerCycle = touchesPerCycle * immediateHealingPerTouch;
   const afterglowHealingPerCycle = helperId === "tinySprinkler"
     ? getSprinklerAfterglowStackRate(permanent.storageRanks.tinySprinkler)
       * SPRINKLER_AFTERGLOW_DURATION_MS / 1_000
@@ -1348,7 +1352,10 @@ function performAutomatedTouches(
     }
     addSprinklerAfterglow(state, permanent, pulseCount);
   }
-  const healing = touches * getHelperAutomatedHealingPerTouch(healingRank);
+  const healingPerTouch = helperId === "tinySprinkler"
+    ? SPRINKLER_HEALING_PER_TOUCH
+    : getHelperAutomatedHealingPerTouch(healingRank);
+  const healing = touches * healingPerTouch;
   const healedHp = healAncientGrass(state, permanent, healing, false);
   state.runTouches += touches;
   state.runTouchesEarned += touches;

@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-08-05",
-  "latestHandoff": "HANDOFF_2026-08-05_OFFLINE_ANDROID_APK.json",
+  "updatedAt": "2026-08-07",
+  "latestHandoff": "HANDOFF_2026-08-07_SPRINKLER_AND_FIXED_EARLY_FIELDS.json",
   "workflow": {
     "startSession": [
       "Read AGENTS.md.",

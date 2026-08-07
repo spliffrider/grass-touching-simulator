@@ -90,6 +90,7 @@ import {
   MAX_NEAR_TILE_VIEWS_DESKTOP,
   MAX_NEAR_TILE_VIEWS_PHONE,
   hasFieldProjectionGeometryChanged,
+  isFieldViewportFixed,
   panFieldViewport,
   projectField,
   screenPointToTile,
@@ -1392,7 +1393,8 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       const startedAtMs = performance.now();
       const touchOnDown = shouldAttemptFieldTouchOnPointerDown(
         pointer.wasTouch,
-        this.state.field.stages.length,
+        this.state.field.width,
+        this.state.field.height,
       );
       this.audio.unlock();
       this.fieldPointerDowns += 1;
@@ -1425,6 +1427,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       }
       const gesture = this.fieldPointerGestures.get(pointer.id);
       if (!gesture || !pointer.isDown) return;
+      if (isFieldViewportFixed(this.state.field.width, this.state.field.height)) return;
       if (updateFieldPointerGesture(gesture, pointer.x, pointer.y)) {
         this.fieldPointerDrags += 1;
       }
@@ -1457,7 +1460,13 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
         this.adjustMemoryTreeZoom(deltaY > 0 ? 1 / 1.22 : 1.22, pointer.x, pointer.y);
         return;
       }
-      if (!this.state.active || this.worksOpen || this.optionsOpen || this.state.field.stages.length === 1 || !this.pointInField(pointer.x, pointer.y)) return;
+      if (
+        !this.state.active
+        || this.worksOpen
+        || this.optionsOpen
+        || isFieldViewportFixed(this.state.field.width, this.state.field.height)
+        || !this.pointInField(pointer.x, pointer.y)
+      ) return;
       const factor = deltaY > 0 ? 0.82 : 1.22;
       this.fieldView = zoomFieldAtPoint(this.fieldView, this.projection, pointer.x, pointer.y, factor);
       this.renderField(true);
@@ -1617,7 +1626,7 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
       .setSize(fieldSurfaceWidth, fieldSurfaceHeight);
     resizeFieldInputHitArea(this.fieldSurface.input?.hitArea, fieldSurfaceWidth, fieldSurfaceHeight);
     this.fieldLabelText.setFontSize(mobile ? 12 : 16).setPosition(this.fieldBounds.x + 16, this.fieldBounds.y + (mobile ? 13 : 10));
-    const fieldCanZoom = this.state.field.width > 1 || this.state.field.height > 1;
+    const fieldCanZoom = !isFieldViewportFixed(this.state.field.width, this.state.field.height);
     this.fieldHintText.setVisible(!mobile && fieldCanZoom).setOrigin(1, 0).setPosition(this.fieldBounds.x + this.fieldBounds.width - 150, this.fieldBounds.y + 15);
     this.zoomOutButton.setVisible(fieldCanZoom).setPosition(this.fieldBounds.x + this.fieldBounds.width - 138, this.fieldBounds.y + 8).setSize(36, 28);
     this.zoomResetButton.setVisible(fieldCanZoom).setPosition(this.fieldBounds.x + this.fieldBounds.width - 98, this.fieldBounds.y + 8).setSize(52, 28);
@@ -5171,7 +5180,12 @@ export class EcosystemPrototypeScene extends Phaser.Scene {
   }
 
   private adjustFieldZoom(factor: number): void {
-    if (!this.state.active || this.worksOpen || this.optionsOpen || this.state.field.stages.length === 1) return;
+    if (
+      !this.state.active
+      || this.worksOpen
+      || this.optionsOpen
+      || isFieldViewportFixed(this.state.field.width, this.state.field.height)
+    ) return;
     const x = this.fieldBounds.x + this.fieldBounds.width / 2;
     const y = this.fieldBounds.y + this.fieldBounds.height / 2;
     this.fieldView = zoomFieldAtPoint(this.fieldView, this.projection, x, y, factor);

@@ -39,8 +39,14 @@ export interface FieldProjection {
 
 export const FIELD_MIN_ZOOM = 0.85;
 export const FIELD_MAX_ZOOM = 18;
+const MAX_FIXED_FIELD_DIMENSION = 5;
+export const MAX_FIXED_FIELD_CELL_SIZE = 240;
 export const MAX_NEAR_TILE_VIEWS_DESKTOP = 360;
 export const MAX_NEAR_TILE_VIEWS_PHONE = 180;
+
+export function isFieldViewportFixed(fieldWidth: number, fieldHeight: number): boolean {
+  return fieldWidth <= MAX_FIXED_FIELD_DIMENSION && fieldHeight <= MAX_FIXED_FIELD_DIMENSION;
+}
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
@@ -88,10 +94,15 @@ export function projectField(
   viewport: FieldViewportBounds,
   requestedState: FieldViewportState,
 ): FieldProjection {
-  const state = clampFieldViewport(requestedState);
   const safeWidth = Math.max(1, fieldWidth);
   const safeHeight = Math.max(1, fieldHeight);
-  const fitCellSize = Math.min(viewport.width / safeWidth, viewport.height / safeHeight) * 0.9;
+  const state = isFieldViewportFixed(safeWidth, safeHeight)
+    ? { centerX: 0.5, centerY: 0.5, zoom: 1 }
+    : clampFieldViewport(requestedState);
+  const uncappedFitCellSize = Math.min(viewport.width / safeWidth, viewport.height / safeHeight) * 0.9;
+  const fitCellSize = safeWidth > 1 || safeHeight > 1
+    ? Math.min(uncappedFitCellSize, MAX_FIXED_FIELD_CELL_SIZE)
+    : uncappedFitCellSize;
   const cellSize = Math.max(1.25, fitCellSize * state.zoom);
   const worldWidth = cellSize * safeWidth;
   const worldHeight = cellSize * safeHeight;

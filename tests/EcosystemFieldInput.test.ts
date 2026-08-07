@@ -12,12 +12,14 @@ import {
 
 describe("EcosystemFieldInput", () => {
   it("commits mouse input on press so clicking has no release latency", () => {
-    expect(shouldAttemptFieldTouchOnPointerDown(false, 10_000)).toBe(true);
+    expect(shouldAttemptFieldTouchOnPointerDown(false, 100, 100)).toBe(true);
   });
 
-  it("commits a touchscreen press immediately when the one-tile field cannot pan", () => {
-    expect(shouldAttemptFieldTouchOnPointerDown(true, 1)).toBe(true);
-    expect(shouldAttemptFieldTouchOnPointerDown(true, 4)).toBe(false);
+  it("commits touchscreen presses immediately on fixed early fields", () => {
+    expect(shouldAttemptFieldTouchOnPointerDown(true, 1, 1)).toBe(true);
+    expect(shouldAttemptFieldTouchOnPointerDown(true, 2, 2)).toBe(true);
+    expect(shouldAttemptFieldTouchOnPointerDown(true, 5, 5)).toBe(true);
+    expect(shouldAttemptFieldTouchOnPointerDown(true, 8, 8)).toBe(false);
   });
 
   it("does not mistake ordinary mouse jitter for a drag", () => {

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  MAX_FIXED_FIELD_CELL_SIZE,
   hasFieldProjectionGeometryChanged,
+  isFieldViewportFixed,
   panFieldViewport,
   projectField,
   screenPointToTile,
@@ -11,6 +13,20 @@ import {
 const bounds = { x: 100, y: 80, width: 800, height: 600 };
 
 describe("EcosystemViewport", () => {
+  it("keeps early fields compact and fixed", () => {
+    const projection = projectField(2, 2, bounds, { centerX: 0.5, centerY: 0.5, zoom: 1 });
+    const staleSavedProjection = projectField(2, 2, bounds, { centerX: 0, centerY: 1, zoom: 18 });
+
+    expect(isFieldViewportFixed(2, 2)).toBe(true);
+    expect(isFieldViewportFixed(5, 5)).toBe(true);
+    expect(isFieldViewportFixed(8, 8)).toBe(false);
+    expect(projection.cellSize).toBe(MAX_FIXED_FIELD_CELL_SIZE);
+    expect(projection.worldWidth).toBe(MAX_FIXED_FIELD_CELL_SIZE * 2);
+    expect(projection.originX).toBe(bounds.x + (bounds.width - projection.worldWidth) / 2);
+    expect(projection.originY).toBe(bounds.y + (bounds.height - projection.worldHeight) / 2);
+    expect(staleSavedProjection).toEqual(projection);
+  });
+
   it("summarizes a 100x100 far field as at most 100 chunks", () => {
     const projection = projectField(100, 100, bounds, { centerX: 0.5, centerY: 0.5, zoom: 1 });
     expect(projection.lod).toBe("far");

@@ -26,6 +26,7 @@ import {
   HELPER_THROUGHPUT_PER_RANK,
   LINGERING_CARE_DURATION_MS,
   SPRINKLER_AFTERGLOW_DURATION_MS,
+  SPRINKLER_HEALING_PER_TOUCH,
   VERDANT_AEGIS_MAX_RANK,
   advanceEcosystem,
   buyFieldExpansion,
@@ -383,6 +384,7 @@ describe("EcosystemSystem", () => {
     permanent.throughputRanks.tinySprinkler = 1;
     const state = createEcosystemState(permanent, { seed: 6 });
     state.helpers.tinySprinkler.count = 6;
+    state.hp = 50;
     state.resources.dew.amount = 0;
     state.resources.moisture.amount = state.resources.moisture.capacity;
     state.resources.care.capacity = 10_000;
@@ -397,10 +399,10 @@ describe("EcosystemSystem", () => {
       advanceEcosystem(state, permanent, PRODUCTION_TICK_MS);
     }
 
-    expect(stackCycleIntervalMs).toBeCloseTo(267.094, 2);
+    expect(stackCycleIntervalMs).toBeCloseTo(197.239, 2);
     expect(state.resources.moisture.amount).toBe(state.resources.moisture.capacity);
-    expect(state.helpers.tinySprinkler.cyclesCompleted).toBeCloseTo(37.44, 8);
-    expect(state.automatedTouchCount).toBeCloseTo(37.44, 8);
+    expect(state.helpers.tinySprinkler.cyclesCompleted).toBeCloseTo(50.7, 8);
+    expect(state.automatedTouchCount).toBeCloseTo(76.05, 8);
     expect(state.automatedHealingTotal).toBeGreaterThan(0);
     expect(state.helpers.tinySprinkler.lastPauseReason).toBeNull();
   });
@@ -426,7 +428,7 @@ describe("EcosystemSystem", () => {
 
   it("turns every helper activation into tiered automated touches and healing", () => {
     const tierYields = HELPER_IDS.map((helperId) => HELPERS[helperId].touchesPerCycle);
-    expect(tierYields).toEqual([1, 2, 3, 5, 8, 13, 21, 34]);
+    expect(tierYields).toEqual([1.5, 2, 3, 5, 8, 13, 21, 34]);
 
     for (const helperId of HELPER_IDS) {
       for (const mode of HELPERS[helperId].modes) {
@@ -493,15 +495,18 @@ describe("EcosystemSystem", () => {
     );
     expect(fineMist.automatedTouchCount).toBeGreaterThan(baseline.automatedTouchCount);
     expect(fineMist.sprinklerFineMistProcCount).toBeGreaterThan(0);
-    expect(getHelperAutomatedTouchYield("tinySprinkler", 0)).toBe(1);
-    expect(getHelperAutomatedTouchYield("tinySprinkler", 10)).toBe(1);
+    expect(getHelperAutomatedTouchYield("tinySprinkler", 0)).toBe(1.5);
+    expect(getHelperAutomatedTouchYield("tinySprinkler", 10)).toBe(1.5);
     expect(getHelperAutomatedHealingPerTouch(0)).toBe(HELPER_HEALING_PER_TOUCH);
     expect(getFineMistProcChance(10)).toBe(FINE_MIST_PROC_CHANCE_PER_RANK * 10);
     expect(getFineMistAverageSplashTouches(fineMist.field)).toBe(3);
     const fineMistPermanent = createPermanentEcosystemState();
     fineMistPermanent.efficiencyRanks.tinySprinkler = 10;
-    expect(getHelperAutomationRates(fineMist, fineMistPermanent, "tinySprinkler").touchesPerCycle).toBeCloseTo(2.8);
-    expect(getHelperAutomationRates(baseline, createPermanentEcosystemState(), "tinySprinkler").touchesPerCycle).toBe(1);
+    expect(getHelperAutomationRates(fineMist, fineMistPermanent, "tinySprinkler").touchesPerCycle).toBeCloseTo(3.3);
+    expect(getHelperAutomationRates(baseline, createPermanentEcosystemState(), "tinySprinkler").touchesPerCycle).toBe(1.5);
+    expect(getHelperAutomationRates(baseline, createPermanentEcosystemState(), "tinySprinkler").healingPerCycle).toBeCloseTo(
+      1.5 * SPRINKLER_HEALING_PER_TOUCH,
+    );
   });
 
   it("carries the first loss into a purchasable sprinkler Care and Growth chain", () => {
@@ -805,11 +810,11 @@ describe("EcosystemSystem", () => {
     const firstRankInterval = getHelperCycleIntervalMs("tinySprinkler", 1);
     const maxRankInterval = getHelperCycleIntervalMs("tinySprinkler", 10);
 
-    expect(baseInterval).toBeCloseTo(2_083.333, 2);
+    expect(baseInterval).toBeCloseTo(1_538.462, 2);
     expect(firstRankInterval).toBeLessThan(baseInterval);
     expect(maxRankInterval).toBeLessThan(firstRankInterval);
-    expect(firstRankInterval).toBeCloseTo(1_602.564, 2);
-    expect(maxRankInterval).toBeCloseTo(520.833, 2);
+    expect(firstRankInterval).toBeCloseTo(1_183.432, 2);
+    expect(maxRankInterval).toBeCloseTo(384.615, 2);
     expect(HELPER_THROUGHPUT_PER_RANK).toBe(0.3);
   });
 
@@ -828,7 +833,7 @@ describe("EcosystemSystem", () => {
       getAncientHeartwoodRankCost(0),
     ].sort((left, right) => left - right);
 
-    expect(getHelperUnlockCost("tinySprinkler")).toBe(5);
+    expect(getHelperUnlockCost("tinySprinkler")).toBe(4);
     expect(getHelperUnlockCost("fieldMouse")).toBe(20);
     expect(earlyCosts.slice(0, 3).reduce((sum, cost) => sum + cost, 0)).toBeLessThanOrEqual(50);
     expect(earlyCosts.slice(0, 4).reduce((sum, cost) => sum + cost, 0)).toBeGreaterThan(50);
@@ -904,7 +909,7 @@ describe("EcosystemSystem", () => {
   });
 
   it("lets the guaranteed opening reward reveal the first field threshold", () => {
-    expect(getHelperUnlockCost("tinySprinkler") + getFieldTierUnlockCost(1)).toBe(7);
+    expect(getHelperUnlockCost("tinySprinkler") + getFieldTierUnlockCost(1)).toBe(6);
     expect(getFieldTierUnlockCost(2)).toBe(8);
   });
 
@@ -1421,14 +1426,56 @@ describe("EcosystemSystem", () => {
 
     expect(result.initialScourgeDemandPerSecond).toBeGreaterThan(4.8);
     expect(result.initialScourgeDemandPerSecond).toBeLessThan(5.1);
-    expect(result.sprinklerPurchasedAtMs).toBeGreaterThanOrEqual(3_500);
-    expect(result.sprinklerPurchasedAtMs).toBeLessThanOrEqual(4_200);
+    expect(result.sprinklerPurchasedAtMs).toBeGreaterThanOrEqual(2_000);
+    expect(result.sprinklerPurchasedAtMs).toBeLessThanOrEqual(2_600);
     expect(result.hpAtPurchase).not.toBeNull();
     expect(result.hpAtPurchase!).toBeGreaterThanOrEqual(99);
     expect(result.durationMs).toBeGreaterThanOrEqual(100_000);
     expect(result.durationMs).toBeLessThanOrEqual(115_000);
     expect(result.durationMs - result.sprinklerPurchasedAtMs!).toBeGreaterThanOrEqual(95_000);
     expect(result.grassTouchesAwarded).toBeGreaterThanOrEqual(getHelperUnlockCost("fieldMouse"));
+  });
+
+  it("lets a starter Sprinkler fleet earn the first 2x2 field during Run 2", () => {
+    const permanent = createPermanentEcosystemState();
+    permanent.completedRuns = 1;
+    permanent.unlockedHelpers.tinySprinkler = true;
+    permanent.maxFieldTier = 1;
+    const state = createEcosystemState(permanent, { seed: 123_456 });
+    const touchCooldownMs = getManualTouchCooldownMs(0);
+    let wallElapsedMs = 0;
+    let nextTouchAtMs = 0;
+    let expandedAtMs: number | null = null;
+
+    while (state.active && wallElapsedMs < 60_000 && expandedAtMs === null) {
+      if (wallElapsedMs >= nextTouchAtMs) {
+        touchFieldTile(state, permanent, 0);
+        nextTouchAtMs += touchCooldownMs;
+      }
+      if (
+        state.helpers.tinySprinkler.count < 5
+        && state.runTouches >= getHelperPurchaseCost(state, "tinySprinkler")
+      ) {
+        buyHelper(state, permanent, "tinySprinkler");
+      }
+      if (
+        state.helpers.tinySprinkler.count >= 5
+        && state.runTouches >= getFieldExpansionRunTouchCost(1)
+        && buyFieldExpansion(state, permanent)
+      ) {
+        expandedAtMs = wallElapsedMs;
+      }
+      advanceEcosystem(state, permanent, 10);
+      wallElapsedMs += 10;
+    }
+
+    expect(expandedAtMs).not.toBeNull();
+    expect(expandedAtMs!).toBeLessThan(50_000);
+    expect(state.active).toBe(true);
+    expect(state.hp).toBeGreaterThan(0);
+    expect(state.field.width).toBe(2);
+    expect(state.helpers.tinySprinkler.count).toBe(5);
+    expect(state.automatedTouchCount).toBeGreaterThan(175);
   });
 
   it("lets Scourge pressure build decisively after its dangerous opening", () => {
@@ -1453,11 +1500,11 @@ describe("EcosystemSystem", () => {
 
     expect(result.sprinklerPurchasedAtMs).not.toBeNull();
     expect(result.mousePurchasedAtMs).not.toBeNull();
-    expect(result.mousePurchasedAtMs!).toBeGreaterThanOrEqual(14_000);
-    expect(result.mousePurchasedAtMs!).toBeLessThanOrEqual(20_000);
+    expect(result.mousePurchasedAtMs!).toBeGreaterThanOrEqual(10_000);
+    expect(result.mousePurchasedAtMs!).toBeLessThanOrEqual(14_000);
     expect(result.firstMouseCycleAtMs).not.toBeNull();
-    expect(result.firstMouseCycleAtMs!).toBeGreaterThanOrEqual(17_000);
-    expect(result.firstMouseCycleAtMs!).toBeLessThanOrEqual(23_000);
+    expect(result.firstMouseCycleAtMs!).toBeGreaterThanOrEqual(12_000);
+    expect(result.firstMouseCycleAtMs!).toBeLessThanOrEqual(17_000);
     expect(result.hpAtFirstMouseCycle).not.toBeNull();
     expect(result.hpAtFirstMouseCycle!).toBeGreaterThan(0);
   });
